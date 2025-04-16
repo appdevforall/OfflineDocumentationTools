@@ -1,9 +1,6 @@
 import argparse
 import pickle
 
-MENU_CACHE_FILE = "full_scraper_output/dev_scraper/android_dev_scraper/scraper_project/outtest8/menu_cache.pkl"
-MENU_TO_CHECK = 7 # id of layout menu
-
 def main():
     parser = argparse.ArgumentParser(
         prog='single_menu_extract.py',

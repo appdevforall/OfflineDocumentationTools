@@ -1,8 +1,9 @@
+# Rewritten to use command line args by o4-mini
+
 #!/usr/bin/env python3
 
-import sys
+import argparse
 from bs4 import BeautifulSoup
-
 
 def extract_links(html_file, output_file):
     # Read the input HTML file
@@ -12,14 +13,11 @@ def extract_links(html_file, output_file):
     # Parse the HTML using BeautifulSoup
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    # Find all <a> tags
-    links = soup.find_all('a')
-
-    # Extract the href attribute from each <a> tag
+    # Find all <a> tags and extract their href attributes
     hrefs = []
-    for link in links:
+    for link in soup.find_all('a'):
         href = link.get('href')
-        if href:  # Check if href exists
+        if href:
             hrefs.append(href)
 
     # Write the list of URLs to the output file, one per line
@@ -29,13 +27,23 @@ def extract_links(html_file, output_file):
 
     print(f"Extracted {len(hrefs)} link(s) and wrote them to '{output_file}'.")
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="Extract all hyperlinks from an HTML file and save them to a text file."
+    )
+    parser.add_argument(
+        '--input-file',
+        required=True,
+        help="Input HTML file to extract links from."
+    )
+    parser.add_argument(
+        '--output-file',
+        required=True,
+        help="Output text file containing a list of extracted links."
+    )
+    args = parser.parse_args()
+
+    extract_links(args.input_file, args.output_file)
 
 if __name__ == "__main__":
-    # Ensure the user provided input and output file names
-    if len(sys.argv) != 3:
-        print("Usage: python link_extract.py input.html output.txt")
-        sys.exit(1)
-
-    input_html = sys.argv[1]
-    output_text = sys.argv[2]
-    extract_links(input_html, output_text)
+    main()
