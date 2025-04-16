@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""
+!AI-GENERATED DOCUMENTATION!
+
+debloat_docs.py
+
+This script processes a list of local HTML files (each containing a developer.android.com documentation article)
+by “de-bloating” their content:
+   • Removes tags having attribute values (or tag names) related to banners or devsite metadata.
+   • Removes all CSS and JavaScript.
+   • Inserts at the top of each page a centered “Menu” link (pointing to a provided menu file).
+   • Includes a new basic responsive stylesheet (“style.css”).
+   • Processes all media “src” attributes by applying urljoin, looking up a URL–to–file map (loaded from Pickle)
+     and then copying the corresponding local file into a subdirectory of the output directory.
+     If a media file is not found locally, a red “X” will be inserted instead.
+   • Adjusts all “href” attributes in the article to convert relative links to filenames (using a transformation
+     that removes the first slash, converts subsequent / to _ and appends “.html”). An extra attribute is added to indicate
+     whether the target file exists.
+   • The output HTML filenames (and media file names) are determined by using a Pickle “RID-to-basename” map; for example,
+     if the input file is ".../6086362283425575", the output file’s name becomes rid_map["6086362283425575"]+".html".
+
+Program parameters (e.g. input list, menu file, URL maps, media subdir, etc.) are taken from command-line options.
+All parameters are also dumped to “metadata.txt” (located in the same directory as this script).
+A log is written to a specified log file.
+"""
+
+import argparse
+import logging
+import os
+import pickle
+import shutil
+import sys
+from urllib.parse import urljoin, urlsplit, urlunsplit
+
+from bs4 import BeautifulSoup, NavigableString, Tag
+
+def dump_metadata(params):
+    try:
+        meta_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "metadata.txt")
+        with open(meta_path, "w") as f:
+            for k, v in vars(params).items():
+                f.write(f"{k}: {v}\n")
+    except Exception as e:
+        logging.error("Error dumping metadata: %s", e)
+
+def setup_logging(log_file):
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, filemode="w",
+                        format="%(asctime)s %(levelname)s: %(message)s")
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="De-bloat developer.android.com documentation HTML pages.")
+    parser.add_argument("--input_list", required=True, help="Path to text file with list of local HTML files to process")
+    parser.add_argument("--output_dir", required=True, help="Output directory for debloated HTML and media files")
+    parser.add_argument("--menu_file", required=True, help="Filename for the menu HTML (used for link on each page)")
+    parser.add_argument("--url_map", required=True, help="Path to Pickle file storing URL-to-file map (dict)")
+    parser.add_argument("--media_subdir", required=True, help="Subdirectory name (inside output_dir) for media files")
+    parser.add_argument("--x_size", required=True, help='Dimensions for red "X" in format WIDTHxHEIGHT (e.g. "100x100")')
+    parser.add_argument("--rid_map", required=True, help="Path to Pickle file storing RID-to-basename map (dict)")
+    parser.add_argument("--log_file", required=True, help="Path to output log file")
+    return parser.parse_args()
+
+def create_style_css(output_dir):
+    style_path = os.path.join(output_dir, "style.css")
+    css_content = """
+/* Basic responsive stylesheet */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.container {
+    padding: 1em;
+}
+img, video, iframe {
+    max-width: 100%;
+    height: auto;
+}
+a.existing {
+    color: blue;
+}
+a.non-existing {
+    color: red;
+}
+a.external {
+    color: darkred;
+}
+.menu-link {
+    display: block;
+    text-align: center;
+    font-size: 1.5em;
+    margin: 1em 0;
+}
+"""
+    with open(style_path, "w") as f:
+        f.write(css_content)
+    logging.info("Created stylesheet: %s", style_path)
+
+def red_x_html(x_width, x_height):
+    # Returns an HTML snippet for a red X placeholder.
+    # Here we use an inline SVG.
+    svg = f'''<svg width="{x_width}" height="{x_height}" viewBox="0 0 {x_width} {x_height}" xmlns="http://www.w3.org/2000/svg">
+    <line x1="0" y1="0" x2="{x_width}" y2="{x_height}" stroke="red" stroke-width="5"/>
+    <line x1="{x_width}" y1="0" x2="0" y2="{x_height}" stroke="red" stroke-width="5"/>
+    </svg>'''
+    return svg
+
+def process_src_attributes(soup, url_to_file_map, rid_map, output_dir, media_subdir, x_size):
+    # x_size is provided as string "WIDTHxHEIGHT"
+    try:
+        x_width, x_height = x_size.lower().split("x")
+    except Exception as e:
+        logging.error("Invalid x_size format, should be like '100x100'.")
+        raise
+
+    # For every tag with a "src" attribute
+    for tag in soup.find_all(src=True):
+        original_src = tag["src"]
+        abs_url = urljoin("https://developer.android.com/", original_src)
+        local_media_path = url_to_file_map.get(abs_url)
+
+        if local_media_path and os.path.exists(local_media_path):
+            # Use the basename from the media file to get the new name from the rid_map.
+            media_basename = os.path.basename(local_media_path)
+            new_media_name = rid_map.get(media_basename, media_basename)
+            dest_media_dir = os.path.join(output_dir, media_subdir)
+            os.makedirs(dest_media_dir, exist_ok=True)
+            dest_media_path = os.path.join(dest_media_dir, new_media_name)
+            try:
+                shutil.copy2(local_media_path, dest_media_path)
+                logging.info("Media found: %s copied to %s", abs_url, dest_media_path)
+                # Update src to relative URL path (media_subdir/new_media_name)
+                tag["src"] = os.path.join(media_subdir, new_media_name)
+            except Exception as err:
+                logging.error("Error copying %s: %s", local_media_path, err)
+                tag.clear()  # remove contents if error
+                tag.append(BeautifulSoup(red_x_html(x_width, x_height), "html.parser"))
+        else:
+            logging.warning("Media not found locally for URL: %s", abs_url)
+            # Replace tag content with red X placeholder.
+            # Optionally, you could replace tag with a span containing the red X.
+            replacement = BeautifulSoup(red_x_html(x_width, x_height), "html.parser")
+            tag.replace_with(replacement)
+    return soup
+
+def adjust_href_attributes(soup, input_fname_set, menu_file):
+    # For all <a> tags with an href attribute process as follows:
+    for a in soup.find_all("a", href=True):
+        orig_href = a["href"]
+        # Check if href is absolute (starts with http or https)
+        if orig_href.startswith("http://") or orig_href.startswith("https://"):
+            # If external absolute URL, add class "external" for dark red styling.
+            a["class"] = a.get("class", []) + ["external"]
+            continue
+
+        # Otherwise we assume a relative URL.
+        # Remove query parameters; preserve fragment.
+        url_parts = urlsplit(orig_href)
+        path = url_parts.path
+        fragment = url_parts.fragment
+        # Skip first forward slash (if present) and convert remaining "/" to "_"
+        if path.startswith("/"):
+            path = path[1:]
+        new_path = path.replace("/", "_")
+        # Append .html (unless this link is to the menu file)
+        if new_path != menu_file:
+            new_path += ".html"
+        # Reattach any fragment.
+        if fragment:
+            new_path += "#" + fragment
+        # Set an extra attribute: linkstatus
+        # Determine if the target file exists by comparing with input_fname_set.
+        if new_path in input_fname_set:
+            a["linkstatus"] = "existing"
+            a["class"] = a.get("class", []) + ["existing"]
+        else:
+            a["linkstatus"] = "non-existing"
+            a["class"] = a.get("class", []) + ["non-existing"]
+        a["href"] = new_path
+    return soup
+
+def remove_unwanted_tags(soup):
+    # Remove all tags with an attribute value that contains "android-page-banner-" or "devsite-article-meta"
+    for tag in soup.find_all():
+        remove = False
+        if tag.attrs is None:
+            continue
+        for attr_val in tag.attrs.values():
+            # attr_val could be a list also
+            if isinstance(attr_val, list):
+                for v in attr_val:
+                    if "android-page-banner-" in v or "devsite-article-meta" in v:
+                        remove = True
+                        break
+            elif isinstance(attr_val, str):
+                if "android-page-banner-" in attr_val or "devsite-article-meta" in attr_val:
+                    remove = True
+            if remove:
+                break
+        if remove:
+            tag.decompose()
+
+    # Remove any tag whose name contains "devsite"
+    for tag in soup.find_all():
+        if tag.name is None:
+            continue
+        if "devsite" in tag.name:
+            tag.decompose()
+
+    # Remove all CSS (<style> elements) and JavaScript (<script> elements)
+    for tag in soup.find_all(["style", "script"]):
+        tag.decompose()
+
+    return soup
+
+def add_menu_and_container(soup, menu_file):
+    # Wrap article body in full HTML document structure.
+    # Create <html>, <head> (with link to style.css) and <body> elements.
+    new_soup = BeautifulSoup("", "html.parser")
+    html_tag = new_soup.new_tag("html")
+    head = new_soup.new_tag("head")
+    meta = new_soup.new_tag("meta", charset="utf-8")
+    head.append(meta)
+    # Link to stylesheet
+    link_tag = new_soup.new_tag("link", rel="stylesheet", href="style.css")
+    head.append(link_tag)
+    html_tag.append(head)
+    body = new_soup.new_tag("body", **{"class": "container"})
+    # At the top add a large centered "Menu" link.
+    menu_div = new_soup.new_tag("div", **{"class": "menu-link"})
+    menu_a = new_soup.new_tag("a", href=menu_file)
+    menu_a.string = "Menu"
+    menu_div.append(menu_a)
+    body.append(menu_div)
+    # Append the existing soup (e.g. the article) into body.
+    body.append(soup)
+    html_tag.append(body)
+    new_soup.append(html_tag)
+    return new_soup
+
+def transform_output_filename(input_filepath, rid_map):
+    basename = os.path.basename(input_filepath)
+    # Lookup the new basename from the RID-to-basename map.
+    new_name = rid_map.get(basename, basename)
+    return new_name + ".html"
+
+def main():
+    try:
+        args = parse_args()
+        setup_logging(args.log_file)
+        dump_metadata(args)
+
+        # Create output directory and media subdirectory.
+        os.makedirs(args.output_dir, exist_ok=True)
+        media_dir = os.path.join(args.output_dir, args.media_subdir)
+        os.makedirs(media_dir, exist_ok=True)
+        create_style_css(args.output_dir)
+
+        # Load the URL-to-file map and RID-to-basename map from Pickle files.
+        with open(args.url_map, "rb") as f:
+            url_to_file_map = pickle.load(f)
+        with open(args.rid_map, "rb") as f:
+            rid_map = pickle.load(f)
+
+        # Read input HTML file list.
+        with open(args.input_list, "r") as f:
+            input_files = [line.strip() for line in f if line.strip()]
+        # Collect the output file names (so they can be used to mark "existing" links)
+        output_file_set = set()
+        for in_file in input_files:
+            out_name = transform_output_filename(in_file, rid_map)
+            output_file_set.add(out_name)
+
+        for in_file in input_files:
+            logging.info("Processing file: %s", in_file)
+            try:
+                with open(in_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                soup = BeautifulSoup(content, "html.parser")
+                # Extract the <article> element.
+                article = soup.find("article")
+                if not article:
+                    logging.error("No <article> element found in %s", in_file)
+                    continue
+
+                # Process removals.
+                article = remove_unwanted_tags(article)
+
+                # Process src attributes (media files)
+                article = process_src_attributes(article, url_to_file_map, rid_map, args.output_dir,
+                                                   args.media_subdir, args.x_size)
+
+                # Adjust href attributes.
+                article = adjust_href_attributes(article, output_file_set, args.menu_file)
+
+                # Wrap article in a full HTML doc with head and menu at top.
+                final_soup = add_menu_and_container(article, args.menu_file)
+
+                # Write the output file.
+                output_filename = transform_output_filename(in_file, rid_map)
+                output_path = os.path.join(args.output_dir, output_filename)
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(final_soup.prettify())
+                logging.info("Wrote de-bloated file: %s", output_path)
+
+            except Exception as e:
+                logging.exception("Error processing file %s", in_file)
+                raise
+    except Exception as e:
+        logging.exception("Fatal error encountered.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
