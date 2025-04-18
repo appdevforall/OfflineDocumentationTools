@@ -1,0 +1,608 @@
+You are an experienced Python developer with considerable experience in web design.
+
+Write a Python script to convert JSON data, in a format that matches an example at the end of this prompt, into a web page containing a multi-level table of contents that a user will use to navigate through a set of individual web pages.
+
+The script will take the file name of a JSON file as an input.
+
+The final table of contents is a web page that makes use of HTML, JavaScript, CSS, and SVG graphics.
+
+The user will only see the final table of contents and will not be able to access this JSON data.
+
+You can use anything in the BeautifulSoup library when it's appropriate.
+
+The table of contents follows a basic tree structure and the provided JSON data describes the structure of the table of contents and all necessary information for each entry.
+
+An entry without children will be called a "page" entry, and an entry with children will be called a "heading" entry.
+
+The way in which this JSON specifies the table of contents is in between two "===" delimiter strings.
+
+===
+The "entities" field contains JSON data for every entry in the final table of contents.
+
+Each key-value pair in the "entities" field pertains to a single table of contents entry. The key is the unique identifier of the entry's data object and the value is the object which specifies the properties of the entry, such as its title and its depth in the tree structure of the table of contents.
+Entries are always made visible with their siblings. When a set of sibling entries are visible, they are displayed in sorted order according to a unique integer index associated with each entry in the set.
+
+The fields used to specify these table of contents entries can include:
+- "id": This is the unique identifier of this entry in the context of the table contents output that the user is actually able to see.
+- "title": This is the title text for this table of content entry that is visible to the user as they use the table of contents.
+- "url": This is the URL a user is directed to when the entry is clicked. This will be ignored if the entry has children.
+- "level": This is the depth of this entry in the table of contents tree structure. The top-level items in the table of contents have a "level" of 0, their immediate children have a "level" of 1, and so on.
+- "parentId": This is the unique identifier of this entry's parent as specified in its "id" field. If this field is absent, then this is a top-level entry. The values of this field completely define the table of contents tree structure.
+- "pages": This is a list of the unique identifiers of this entry's children that happen to be have no children of their own. The values of this field do not completely describe the tree structure.
+- "tabIndex": This is the entry's position with respect to its siblings when it's visible to the user.
+
+The "topLevelIds" field contains a list of the unique identifiers given in the "id" field of the top-level entries in the order they are displayed in.
+===
+
+The script will also generate a single SVG of a simple, filled-in equilateral triangle of a developer-specified color and specified width that we will call the "expanded icon graphic". The height of the expanded icon graphic will be equal to its width so it can be bound by a square.
+
+The final table of contents will follow the structure of a basic multi-tiered HTML list that uses <ul> and <li> elements, its behavior will be controlled by JavaScript, and it'll be styled by a CSS stylesheet contained in a file called "toc_style.css".
+
+Terminology: If an entry's children are visible below it, it will be called "expanded", and "collapsed" otherwise.
+
+The behavior of the table of contents is given between two "+++" delimiter strings:
+
++++
+- The table of contents HTML will be contained in a <div> element of a specified fixed width.
+- Visible entries will be displayed in a list
+- All entries with the same "level" field value are indented equally
+- Every visible entry, including entries on different levels, will be displayed in a contiguous list
+- The text of each entry in the list will be given by its "title" field
+- When a page entry is clicked on, a user will be sent to the web page of the entry's "url" field
+- When the table of contents is first loaded, only the entries specified in "topLevelIds" are visible
+- All heading entries are collapsed when they are first made visible
+- The expanded icon will be placed immediately to the left of every visible heading entry.
+- The expanded icon will be scaled down, preserving its 1:1 aspect ratio, so that it fits in the vertical span of each entry
+- Heading entry text will be padded enough on the left to provide space for this scaled icon, and page entry text will be padded by the same amount so that all entry text lines up visually. The exact amount of padding will be a function of the width of the scaled-down expanded icon graphic.
+- When a heading entry is clicked on, the visibility of its children is toggled (i.e. it toggles from "expanded" to "collapsed" or vice versa depending on its current state.)
+- When a heading entry is collapsed, the expanded icon graphic will be rotated so that it appears to be pointing directly to the right, and when it's expanded it will be rotated so it's pointing directly down.
+- When an entry is expanded, its children are visible immediately below it in sorted order
++++
+
+Information about HTML attributes and styling is given between two "|||" delimiter strings:
+|||
+Every entry will have a "class" attribute with a value set as follows:
+- "page" if this is a page entry that has a "url" field with a relative URL value.
+- "external" if this is a page entry that has a "url" field with an absolute URL value.
+- "heading" if this is a heading entry.
+
+The example JSON contains only relative URLs in the 'url' fields, but you do need to check whether these values are absolute URLs or not to make this distinction.
+
+The table of contents will be styled as follows:
+- All entries with attribute value class="page" will have blue text
+- All entries with attribute value class="external" will have red text
+- All entries with attribute value "heading" will have purple text
+|||
+
+The example JSON follows the "~~~" delimiter string below:
+~~~
+{
+    "entities": {
+        "pages": {
+            "home": {
+                "id": "home",
+                "title": "Home",
+                "url": "home.html",
+                "level": 0,
+                "tabIndex": 0
+            },
+            "getting-started": {
+                "id": "getting-started",
+                "title": "Get started",
+                "url": "getting-started.html",
+                "level": 0,
+                "tabIndex": 1
+            },
+            "kotlin-tour-welcome": {
+                "id": "kotlin-tour-welcome",
+                "title": "Take Kotlin tour",
+                "url": "kotlin-tour-welcome.html",
+                "level": 0,
+                "tabIndex": 2
+            },
+            "n5bcf5_5": {
+                "id": "n5bcf5_5",
+                "title": "Kotlin overview",
+                "level": 0,
+                "pages": [
+                    "multiplatform",
+                    "server-overview",
+                    "android-overview",
+                    "wasm-overview",
+                    "native-overview",
+                    "js-overview",
+                    "data-analysis-overview",
+                    "competitive-programming"
+                ],
+                "tabIndex": 3
+            },
+            "multiplatform": {
+                "id": "multiplatform",
+                "title": "Kotlin Multiplatform",
+                "url": "multiplatform.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 0
+            },
+            "server-overview": {
+                "id": "server-overview",
+                "title": "Kotlin for server side",
+                "url": "server-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 1
+            },
+            "android-overview": {
+                "id": "android-overview",
+                "title": "Kotlin for Android",
+                "url": "android-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 2
+            },
+            "wasm-overview": {
+                "id": "wasm-overview",
+                "title": "Kotlin/Wasm",
+                "url": "wasm-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 3
+            },
+            "native-overview": {
+                "id": "native-overview",
+                "title": "Kotlin Native",
+                "url": "native-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 4
+            },
+            "js-overview": {
+                "id": "js-overview",
+                "title": "Kotlin for JavaScript",
+                "url": "js-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 5
+            },
+            "data-analysis-overview": {
+                "id": "data-analysis-overview",
+                "title": "Kotlin for data analysis",
+                "url": "data-analysis-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 6
+            },
+            "competitive-programming": {
+                "id": "competitive-programming",
+                "title": "Kotlin for competitive programming",
+                "url": "competitive-programming.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 7
+            }
+        }
+    },
+    "topLevelIds": [
+        "home",
+        "getting-started",
+        "kotlin-tour-welcome",
+        "n5bcf5_5"
+    ]
+}
+--
+Below is one complete example of a Python script that reads a JSON file (in the format shown below) and produces an HTML “table‐of‐contents” page. (In this example the script uses BeautifulSoup to build the HTML tree and “hard‐coded” constants for the icon’s color, width, and the overall TOC width; you could easily change these by parameterizing the script.) The produced HTML uses an external stylesheet (“toc_style.css”) and embeds JavaScript that toggles the display of each heading’s children as well as rotates its SVG icon between “collapsed” (pointing right) and “expanded” (pointing down).
+
+Below is the full script. You can run it as
+
+  python toc_generator.py your_toc.json
+
+Here is the complete script:
+
+------------------------------------------------------------
+#!/usr/bin/env python3
+"""
+toc_generator.py
+
+Usage:
+    python toc_generator.py input.json
+
+This script reads a JSON file describing a table‐of‐contents structure and outputs an HTML page
+(with embedded JavaScript and SVG graphics) that displays a multi-level TOC. The output page links to an external
+CSS file ("toc_style.css") whose rules specify the following:
+  • page entries (relative URLs) will appear in blue,
+  • external entries (absolute URLs) will appear in red,
+  • heading entries will appear in purple.
+  
+Each heading entry is preceded by an SVG icon—a filled equilateral triangle—that rotates when its children
+are toggled. (When collapsed the icon is rotated so it appears to point right; when expanded it points down.)
+  
+The JSON file has a “entities” field (whose keys match a TOC entry’s unique id) and a “topLevelIds” list. For example:
+
+~~~
+{
+    "entities": {
+        "pages": {
+            "home": {
+                "id": "home",
+                "title": "Home",
+                "url": "home.html",
+                "level": 0,
+                "tabIndex": 0
+            },
+            "getting-started": {
+                "id": "getting-started",
+                "title": "Get started",
+                "url": "getting-started.html",
+                "level": 0,
+                "tabIndex": 1
+            },
+            "kotlin-tour-welcome": {
+                "id": "kotlin-tour-welcome",
+                "title": "Take Kotlin tour",
+                "url": "kotlin-tour-welcome.html",
+                "level": 0,
+                "tabIndex": 2
+            },
+            "n5bcf5_5": {
+                "id": "n5bcf5_5",
+                "title": "Kotlin overview",
+                "level": 0,
+                "pages": [
+                    "multiplatform",
+                    "server-overview",
+                    "android-overview",
+                    "wasm-overview",
+                    "native-overview",
+                    "js-overview",
+                    "data-analysis-overview",
+                    "competitive-programming"
+                ],
+                "tabIndex": 3
+            },
+            "multiplatform": {
+                "id": "multiplatform",
+                "title": "Kotlin Multiplatform",
+                "url": "multiplatform.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 0
+            },
+            "server-overview": {
+                "id": "server-overview",
+                "title": "Kotlin for server side",
+                "url": "server-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 1
+            },
+            "android-overview": {
+                "id": "android-overview",
+                "title": "Kotlin for Android",
+                "url": "android-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 2
+            },
+            "wasm-overview": {
+                "id": "wasm-overview",
+                "title": "Kotlin/Wasm",
+                "url": "wasm-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 3
+            },
+            "native-overview": {
+                "id": "native-overview",
+                "title": "Kotlin Native",
+                "url": "native-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 4
+            },
+            "js-overview": {
+                "id": "js-overview",
+                "title": "Kotlin for JavaScript",
+                "url": "js-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 5
+            },
+            "data-analysis-overview": {
+                "id": "data-analysis-overview",
+                "title": "Kotlin for data analysis",
+                "url": "data-analysis-overview.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 6
+            },
+            "competitive-programming": {
+                "id": "competitive-programming",
+                "title": "Kotlin for competitive programming",
+                "url": "competitive-programming.html",
+                "level": 1,
+                "parentId": "n5bcf5_5",
+                "tabIndex": 7
+            }
+        }
+    },
+    "topLevelIds": [
+        "home",
+        "getting-started",
+        "kotlin-tour-welcome",
+        "n5bcf5_5"
+    ]
+}
+~~~
+
+This script builds the HTML tree, generates the necessary inline SVG code for the icon, includes the
+JavaScript to toggle child entries, and writes the TOC as a single HTML document.
+"""
+
+import sys
+import json
+import os
+from bs4 import BeautifulSoup, Tag
+
+# -----------------------------
+# Developer-specified constants
+# -----------------------------
+# Width (in pixels) of the expanded icon graphic (it will be square)
+ICON_WIDTH = 20
+ICON_COLOR = "#008000"   # Use any valid CSS color (e.g. green)
+# Amount (in pixels) to indent each successive level (beyond the icon placeholder)
+INDENT_PER_LEVEL = 20
+# Width (in pixels) of the table-of-contents container
+TOC_WIDTH = 300
+
+# -----------------------------
+# Utility: Generate SVG triangle.
+# -----------------------------
+def generate_triangle_svg(width, color, rotation_deg):
+    """
+    Returns an SVG string containing a filled equilateral triangle.
+    The triangle is drawn with vertices at (width/2, 0), (width, width), (0, width)
+    so that its default orientation is pointing down. Its polygon is rotated by rotation_deg.
+    """
+    # Note: We set the transform-origin to the center of the square.
+    svg_template = (
+        f'<svg width="{width}" height="{width}" viewBox="0 0 {width} {width}" '
+        'xmlns="http://www.w3.org/2000/svg">'
+        f'<polygon points="{width/2},0 {width},{width} 0,{width}" fill="{color}" '
+        f'style="transform: rotate({rotation_deg}deg); transform-origin: {width/2}px {width/2}px;" />'
+        '</svg>'
+    )
+    return svg_template
+
+# -----------------------------
+# Helper: Is a URL absolute?
+# -----------------------------
+def is_absolute_url(url):
+    return url.startswith("http://") or url.startswith("https://")
+
+# -----------------------------
+# Build a children mapping from the JSON data.
+# -----------------------------
+def build_children_map(entities):
+    """
+    Given the dict of TOC entries (entities), build a mapping from parent id to list of children
+    sorted by their "tabIndex". Top-level entries (with no "parentId") are not included in this mapping.
+    """
+    children_map = {}
+    for entry in entities.values():
+        parent_id = entry.get("parentId")
+        if parent_id:
+            children_map.setdefault(parent_id, []).append(entry)
+    # sort each children list by tabIndex
+    for child_list in children_map.values():
+        child_list.sort(key=lambda e: e.get("tabIndex", 0))
+    return children_map
+
+# -----------------------------
+# Recursive function to build the TOC list items.
+# -----------------------------
+def build_li(entry, children_map, soup):
+    """
+    Given a single TOC entry, create an <li> element containing the entry display.
+    If the entry is a heading (i.e. has children), add a nested <ul> of its children (initially hidden).
+    """
+    li_tag = soup.new_tag("li")
+    # Compute padding for the text: the icon placeholder is of fixed width.
+    # Also indent more based on level. (We leave room for the scaled icon.)
+    indent_px = f"{entry.get('level', 0)*INDENT_PER_LEVEL}px"
+    
+    # Determine whether this entry is a heading (has children) or a page.
+    entry_id = entry["id"]
+    has_children = (entry_id in children_map)
+
+    if has_children:
+        # This is a heading entry.
+        # Create a <div> element that will serve as the clickable heading.
+        div_tag = soup.new_tag("div", **{"class": "entry heading"})
+        div_tag["data-entry-id"] = entry_id
+        div_tag["data-collapsed"] = "true"  # initial state collapsed
+
+        # Create the icon span: embed the inline SVG.
+        icon_span = soup.new_tag("span", **{"class": "icon"})
+        # For collapsed headings, we want the icon rotated so that it appears pointing to the right.
+        svg_html = generate_triangle_svg(ICON_WIDTH, ICON_COLOR, -90)
+        # Insert the SVG string as a NavigableString that will be parsed into HTML.
+        icon_span.append(BeautifulSoup(svg_html, "html.parser"))
+        div_tag.append(icon_span)
+
+        # Create the title span and add some left padding so that the text lines up.
+        title_span = soup.new_tag("span", **{"class": "title"})
+        # (Optionally, you could add inline style for consistent left-padding)
+        title_span["style"] = f"padding-left: 5px; margin-left: {indent_px};"
+        title_span.string = entry.get("title", "")
+        div_tag.append(title_span)
+
+        # Append the div to the li.
+        li_tag.append(div_tag)
+
+        # If there are children entries, create a nested <ul>.
+        ul_tag = soup.new_tag("ul")
+        ul_tag["style"] = "display: none;"  # initially hidden
+
+        # Look up children from children_map and add them in sorted order.
+        for child in children_map.get(entry_id, []):
+            li_child = build_li(child, children_map, soup)
+            ul_tag.append(li_child)
+        li_tag.append(ul_tag)
+    else:
+        # This is a page entry.
+        # Decide if the URL is relative (class "page") or absolute ("external").
+        url = entry.get("url", "#")
+        css_class = "external" if is_absolute_url(url) else "page"
+        a_tag = soup.new_tag("a", href=url, **{"class": f"entry {css_class}"})
+        a_tag["data-entry-id"] = entry_id
+
+        # Insert an empty icon-placeholder so that the text lines up with headings.
+        icon_span = soup.new_tag("span", **{"class": "icon-placeholder"})
+        # To maintain layout, add a placeholder of the same width as the icon.
+        icon_span["style"] = f"display:inline-block; width:{ICON_WIDTH}px;"
+        a_tag.append(icon_span)
+
+        # Create the title span with the same left padding.
+        title_span = soup.new_tag("span", **{"class": "title"})
+        title_span["style"] = f"padding-left: 5px; margin-left: {indent_px};"
+        title_span.string = entry.get("title", "")
+        a_tag.append(title_span)
+
+        li_tag.append(a_tag)
+
+    return li_tag
+
+# -----------------------------
+# Build the overall TOC <ul> list.
+# -----------------------------
+def build_toc_list(data, soup):
+    """
+    Given the JSON data (dict with keys "entities" and "topLevelIds"),
+    build and return a <ul> tag containing the table of contents.
+    """
+    # Get the entities dictionary (the entries, keyed by their id).
+    entities = data["entities"]["pages"]
+    # Build a mapping from a parent's id to its children (entries that have a parentId).
+    children_map = build_children_map(entities)
+    
+    toc_ul = soup.new_tag("ul", id="tocList")
+    # Only the entries listed in topLevelIds will be visible on page load.
+    for top_id in data["topLevelIds"]:
+        entry = entities.get(top_id)
+        if entry is None:
+            continue
+        li_tag = build_li(entry, children_map, soup)
+        toc_ul.append(li_tag)
+    return toc_ul
+
+# -----------------------------
+# JavaScript code for toggling heading entries.
+# -----------------------------
+JS_CODE = """
+document.addEventListener('DOMContentLoaded', function(){
+    // For every heading entry, add a click handler.
+    const headings = document.querySelectorAll('.heading');
+    headings.forEach(function(heading){
+        heading.addEventListener('click', function(e){
+            e.stopPropagation();
+            // Find the nested UL for this heading.
+            const li = heading.parentElement;
+            const childUl = li.querySelector('ul');
+            if(childUl){
+                if(childUl.style.display === 'none'){
+                    childUl.style.display = 'block';
+                    // Change the icon: rotate to 0deg to point down.
+                    const iconSvg = heading.querySelector('.icon svg polygon');
+                    if(iconSvg){
+                        iconSvg.style.transform = 'rotate(0deg)';
+                    }
+                } else {
+                    childUl.style.display = 'none';
+                    // Rotate icon back to -90deg to point right.
+                    const iconSvg = heading.querySelector('.icon svg polygon');
+                    if(iconSvg){
+                        iconSvg.style.transform = 'rotate(-90deg)';
+                    }
+                }
+            }
+        });
+    });
+});
+"""
+
+# -----------------------------
+# Main
+# -----------------------------
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python toc_generator.py input.json")
+        sys.exit(1)
+
+    json_filename = sys.argv[1]
+    if not os.path.exists(json_filename):
+        print(f"Error: {json_filename} does not exist.")
+        sys.exit(1)
+
+    with open(json_filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Create a BeautifulSoup document with basic HTML structure.
+    soup = BeautifulSoup("", "html.parser")
+
+    # Build the head section.
+    html_tag = soup.new_tag("html")
+    head_tag = soup.new_tag("head")
+    meta_tag = soup.new_tag("meta", charset="UTF-8")
+    head_tag.append(meta_tag)
+    title_tag = soup.new_tag("title")
+    title_tag.string = "Table of Contents"
+    head_tag.append(title_tag)
+    # Link to external stylesheet.
+    link_tag = soup.new_tag("link", rel="stylesheet", href="toc_style.css")
+    head_tag.append(link_tag)
+    # Insert the JavaScript code.
+    script_tag = soup.new_tag("script")
+    script_tag.string = JS_CODE
+    head_tag.append(script_tag)
+    html_tag.append(head_tag)
+
+    # Build the body.
+    body_tag = soup.new_tag("body")
+    # A container <div> with fixed width.
+    container_div = soup.new_tag("div", id="table-of-contents")
+    container_div["style"] = f"width: {TOC_WIDTH}px;"
+    
+    # Build the TOC list and insert it.
+    toc_ul = build_toc_list(data, soup)
+    container_div.append(toc_ul)
+    body_tag.append(container_div)
+    html_tag.append(body_tag)
+    soup.append(html_tag)
+
+    # Write the output to an HTML file.
+    output_filename = "toc.html"
+    with open(output_filename, "w", encoding="utf-8") as out_file:
+        out_file.write(str(soup.prettify()))
+
+    print(f"Generated {output_filename}")
+
+if __name__ == '__main__':
+    main()
+
+------------------------------------------------------------
+
+Explanation of key parts:
+
+1. The script begins by reading the JSON file passed as an argument. It extracts the TOC “entities” and the “topLevelIds.”
+2. A helper function (build_children_map) constructs a mapping from parent to child entries (sorted by their “tabIndex”).
+3. The recursive function build_li() uses BeautifulSoup to create either:
+  • a “heading” entry (an HTML <div> containing an inline SVG icon and a title span, plus a nested <ul> for its children set to display: none), or
+  • a “page” entry (an <a> tag with href and an empty icon placeholder for visual alignment).
+4. The inline JavaScript (JS_CODE) attaches click event handlers to every “heading” entry so that when clicked:
+  – its nested <ul> toggles between display none/block, and
+  – the SVG icon’s polygon is rotated between –90° (collapsed) and 0° (expanded).
+5. The final HTML document includes a link to “toc_style.css” where you can define the text colors for “page,” “external,” and “heading” entries.
+
+You can now style the TOC further by editing “toc_style.css” and adjust parameters like ICON_WIDTH, ICON_COLOR, and TOC_WIDTH directly in the script if desired.
+
+This script is self-contained and demonstrates one way to bridge JSON data into a multi‐level web page navigation TOC using Python, BeautifulSoup, SVG and JavaScript.

@@ -1,0 +1,3614 @@
+Write a Python script to convert JSON data, an example of which follows this prompt, into a web page containing a multi-level table of contents that a user will use to navigate through a set of individual web pages.
+
+The final table of contents is a web page that makes use of HTML, JavaScript, CSS, and SVG graphics.
+
+The user will only see the final table of contents and will not be able to access this JSON data.
+
+You can use anything in the BeautifulSoup library when it's appropriate.
+
+The table of contents follows a basic tree structure and the provided JSON data describes the structure of the table of contents and all necessary information for each entry.
+
+An entry without children will be called a "page" entry, and an entry with children will be called a "heading" entry.
+
+The way in which this JSON specifies the table of contents is in between two "===" delimiter strings.
+
+===
+The "entities" field contains JSON data for every entry in the final table of contents.
+
+Each key-value pair in the "entities" field pertains to a single table of contents entry. The key is the unique identifier of the entry's data object and the value is the object which specifies the properties of the entry, such as its title and its depth in the tree structure of the table of contents.
+Entries are always made visible with their siblings. When a set of sibling entries are visible, they are displayed in sorted order according to a unique integer index associated with each entry in the set.
+
+The fields used to specify these table of contents entries can include:
+- "id": This is the unique identifier of this entry in the context of the table contents output that the user is actually able to see.
+- "title": This is the title text for this table of content entry that is visible to the user as they use the table of contents.
+- "url": This is the URL a user is directed to when the entry is clicked. This will be ignored if the entry has children.
+- "level": This is the depth of this entry in the table of contents tree structure. The top-level items in the table of contents have a "level" of 0, their immediate children have a "level" of 1, and so on.
+- "parentId": This is the unique identifier of this entry's parent as specified in its "id" field. If this field is absent, then this is a top-level entry. The values of this field completely define the table of contents tree structure.
+- "pages": This is a list of the unique identifiers of this entry's children that happen to be have no children of their own. The values of this field do not completely describe the tree structure.
+- "tabIndex": This is the entry's position with respect to its siblings when it's visible to the user.
+
+The "topLevelIds" field contains a list of the unique identifiers given in the "id" field of the top-level entries in the order they are displayed in.
+===
+
+The script will also generate a single SVG of a simple, filled-in equilateral triangle of a developer-specified color and specified width that we will call the "expanded icon graphic". The height of the expanded icon graphic will be equal to its width so it can be bound by a square.
+
+The final table of contents will follow the structure of a basic multi-tiered HTML list that uses <ul> and <li> elements, its behavior will be controlled by JavaScript, and it'll be styled by a CSS stylesheet contained in a file called "toc_style.css".
+
+Terminology: If an entry's children are visible below it, it will be called "expanded", and "collapsed" otherwise.
+
+The behavior of the table of contents is given between two "+++" delimiter strings:
+
++++
+The table of contents HTML will be contained in a <div> element of a specified fixed width.
+The text of each entry in the list will be given by its "title" field.
+An entry's height is adjusted if its text overflows the width of the table of contents so there's no overlap in this case.
+When a page entry is clicked on, a user will be sent to the web page of the entry's "url" field.
+When the table of contents is first loaded, only the entries specified in "topLevelIds" are visible.
+Siblings are displayed in sorted order by the "tabIndex" field.
+Every visible entry is display in the same single list. Entries with different "level" fields are indented differently, but are in the same single continuous list.
+An entry's amount of indentation is a function of its depth in the tree. Elements with the same depth (same "level" field) are indented an equal amount.
+The expanded icon will be placed immediately to the left of every visible heading entry.
+The expanded icon will be scaled down, preserving its 1:1 aspect ratio, so that it fits in the vertical span of each entry.
+Heading entry text will be padded enough on the left to provide space for this scaled icon, and page entry text will be padded by the same amount. The amount of padding will be a function of the width of the scaled-down expanded icon graphic.
+When a heading entry is clicked on, it toggles its expanded/collapsed state.
+The expanded icon is rotated to point right when a heading is collapsed and rotated to point down when expanded.
++++
+
+Information about HTML attributes and styling is given between two "|||" delimiter strings:
+|||
+Every entry will have a "class" attribute with a value set as follows:
+- "page" if this is a page entry that has a "url" field with a relative URL value.
+- "external" if this is a page entry that has a "url" field with an absolute URL value.
+- "heading" if this is a heading entry.
+
+The table of contents will be styled as follows:
+- All entries with attribute value class="page" will have blue text
+- All entries with attribute value class="external" will have red text
+- All entries with attribute value "heading" will have purple text
+|||
+
+The script will take the file name of a JSON file as an input.
+
+The example JSON follows the "~~~" delimiter string below:
+~~~
+{
+  "entities": {
+    "pages": {
+      "home": {
+        "id": "home",
+        "title": "Home",
+        "url": "home.html",
+        "level": 0,
+        "tabIndex": 0
+      },
+      "getting-started": {
+        "id": "getting-started",
+        "title": "Get started",
+        "url": "getting-started.html",
+        "level": 0,
+        "tabIndex": 1
+      },
+      "kotlin-tour-welcome": {
+        "id": "kotlin-tour-welcome",
+        "title": "Take Kotlin tour",
+        "url": "kotlin-tour-welcome.html",
+        "level": 0,
+        "tabIndex": 2
+      },
+      "n5bcf5_5": {
+        "id": "n5bcf5_5",
+        "title": "Kotlin overview",
+        "level": 0,
+        "pages": [
+          "multiplatform",
+          "server-overview",
+          "android-overview",
+          "wasm-overview",
+          "native-overview",
+          "js-overview",
+          "data-analysis-overview",
+          "competitive-programming"
+        ],
+        "tabIndex": 3
+      },
+      "multiplatform": {
+        "id": "multiplatform",
+        "title": "Kotlin Multiplatform",
+        "url": "multiplatform.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 0
+      },
+      "server-overview": {
+        "id": "server-overview",
+        "title": "Kotlin for server side",
+        "url": "server-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 1
+      },
+      "android-overview": {
+        "id": "android-overview",
+        "title": "Kotlin for Android",
+        "url": "android-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 2
+      },
+      "wasm-overview": {
+        "id": "wasm-overview",
+        "title": "Kotlin/Wasm",
+        "url": "wasm-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 3
+      },
+      "native-overview": {
+        "id": "native-overview",
+        "title": "Kotlin Native",
+        "url": "native-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 4
+      },
+      "js-overview": {
+        "id": "js-overview",
+        "title": "Kotlin for JavaScript",
+        "url": "js-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 5
+      },
+      "data-analysis-overview": {
+        "id": "data-analysis-overview",
+        "title": "Kotlin for data analysis",
+        "url": "data-analysis-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 6
+      },
+      "competitive-programming": {
+        "id": "competitive-programming",
+        "title": "Kotlin for competitive programming",
+        "url": "competitive-programming.html",
+        "level": 1,
+        "parentId": "n5bcf5_5",
+        "tabIndex": 7
+      },
+      "n5bcf5_6": {
+        "id": "n5bcf5_6",
+        "title": "What's new in Kotlin",
+        "level": 0,
+        "pages": [
+          "whatsnew21",
+          "n5bcf5_39"
+        ],
+        "tabIndex": 4
+      },
+      "whatsnew21": {
+        "id": "whatsnew21",
+        "title": "Kotlin 2.1.0",
+        "url": "whatsnew21.html",
+        "level": 1,
+        "parentId": "n5bcf5_6",
+        "tabIndex": 0
+      },
+      "n5bcf5_39": {
+        "id": "n5bcf5_39",
+        "title": "Earlier versions",
+        "level": 1,
+        "parentId": "n5bcf5_6",
+        "pages": [
+          "whatsnew2020",
+          "whatsnew20",
+          "whatsnew1920",
+          "whatsnew19",
+          "whatsnew1820",
+          "whatsnew18",
+          "whatsnew1720",
+          "whatsnew17",
+          "whatsnew1620",
+          "whatsnew16",
+          "whatsnew1530",
+          "whatsnew1520",
+          "whatsnew15",
+          "whatsnew1430",
+          "whatsnew1420",
+          "whatsnew14",
+          "whatsnew13",
+          "whatsnew12",
+          "whatsnew11"
+        ],
+        "tabIndex": 2
+      },
+      "whatsnew2020": {
+        "id": "whatsnew2020",
+        "title": "Kotlin 2.0.20",
+        "url": "whatsnew2020.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 0
+      },
+      "whatsnew20": {
+        "id": "whatsnew20",
+        "title": "Kotlin 2.0.0",
+        "url": "whatsnew20.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 1
+      },
+      "whatsnew1920": {
+        "id": "whatsnew1920",
+        "title": "Kotlin 1.9.20",
+        "url": "whatsnew1920.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 2
+      },
+      "whatsnew19": {
+        "id": "whatsnew19",
+        "title": "Kotlin 1.9.0",
+        "url": "whatsnew19.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 3
+      },
+      "whatsnew1820": {
+        "id": "whatsnew1820",
+        "title": "Kotlin 1.8.20",
+        "url": "whatsnew1820.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 4
+      },
+      "whatsnew18": {
+        "id": "whatsnew18",
+        "title": "Kotlin 1.8.0",
+        "url": "whatsnew18.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 5
+      },
+      "whatsnew1720": {
+        "id": "whatsnew1720",
+        "title": "Kotlin 1.7.20",
+        "url": "whatsnew1720.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 6
+      },
+      "whatsnew17": {
+        "id": "whatsnew17",
+        "title": "Kotlin 1.7.0",
+        "url": "whatsnew17.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 7
+      },
+      "whatsnew1620": {
+        "id": "whatsnew1620",
+        "title": "Kotlin 1.6.20",
+        "url": "whatsnew1620.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 8
+      },
+      "whatsnew16": {
+        "id": "whatsnew16",
+        "title": "Kotlin 1.6.0",
+        "url": "whatsnew16.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 9
+      },
+      "whatsnew1530": {
+        "id": "whatsnew1530",
+        "title": "Kotlin 1.5.30",
+        "url": "whatsnew1530.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 10
+      },
+      "whatsnew1520": {
+        "id": "whatsnew1520",
+        "title": "Kotlin 1.5.20",
+        "url": "whatsnew1520.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 11
+      },
+      "whatsnew15": {
+        "id": "whatsnew15",
+        "title": "Kotlin 1.5.0",
+        "url": "whatsnew15.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 12
+      },
+      "whatsnew1430": {
+        "id": "whatsnew1430",
+        "title": "Kotlin 1.4.30",
+        "url": "whatsnew1430.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 13
+      },
+      "whatsnew1420": {
+        "id": "whatsnew1420",
+        "title": "Kotlin 1.4.20",
+        "url": "whatsnew1420.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 14
+      },
+      "whatsnew14": {
+        "id": "whatsnew14",
+        "title": "Kotlin 1.4.0",
+        "url": "whatsnew14.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 15
+      },
+      "whatsnew13": {
+        "id": "whatsnew13",
+        "title": "Kotlin 1.3",
+        "url": "whatsnew13.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 16
+      },
+      "whatsnew12": {
+        "id": "whatsnew12",
+        "title": "Kotlin 1.2",
+        "url": "whatsnew12.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 17
+      },
+      "whatsnew11": {
+        "id": "whatsnew11",
+        "title": "Kotlin 1.1",
+        "url": "whatsnew11.html",
+        "level": 2,
+        "parentId": "n5bcf5_39",
+        "tabIndex": 18
+      },
+      "n5bcf5_7": {
+        "id": "n5bcf5_7",
+        "title": "Kotlin evolution and roadmap",
+        "level": 0,
+        "pages": [
+          "roadmap",
+          "kotlin-language-features-and-proposals",
+          "kotlin-evolution-principles",
+          "components-stability",
+          "releases"
+        ],
+        "tabIndex": 5
+      },
+      "roadmap": {
+        "id": "roadmap",
+        "title": "Kotlin roadmap",
+        "url": "roadmap.html",
+        "level": 1,
+        "parentId": "n5bcf5_7",
+        "tabIndex": 0
+      },
+      "kotlin-language-features-and-proposals": {
+        "id": "kotlin-language-features-and-proposals",
+        "title": "Language features and proposals",
+        "url": "kotlin-language-features-and-proposals.html",
+        "level": 1,
+        "parentId": "n5bcf5_7",
+        "tabIndex": 1
+      },
+      "kotlin-evolution-principles": {
+        "id": "kotlin-evolution-principles",
+        "title": "Language evolution principles",
+        "url": "kotlin-evolution-principles.html",
+        "level": 1,
+        "parentId": "n5bcf5_7",
+        "tabIndex": 2
+      },
+      "components-stability": {
+        "id": "components-stability",
+        "title": "Stability of Kotlin components",
+        "url": "components-stability.html",
+        "level": 1,
+        "parentId": "n5bcf5_7",
+        "tabIndex": 3
+      },
+      "releases": {
+        "id": "releases",
+        "title": "Kotlin releases",
+        "url": "releases.html",
+        "level": 1,
+        "parentId": "n5bcf5_7",
+        "tabIndex": 5
+      },
+      "n5bcf5_8": {
+        "id": "n5bcf5_8",
+        "title": "Basics",
+        "level": 0,
+        "pages": [
+          "basic-syntax",
+          "idioms",
+          "n5bcf5_67",
+          "coding-conventions"
+        ],
+        "tabIndex": 6
+      },
+      "basic-syntax": {
+        "id": "basic-syntax",
+        "title": "Basic syntax",
+        "url": "basic-syntax.html",
+        "level": 1,
+        "parentId": "n5bcf5_8",
+        "tabIndex": 0
+      },
+      "idioms": {
+        "id": "idioms",
+        "title": "Idioms",
+        "url": "idioms.html",
+        "level": 1,
+        "parentId": "n5bcf5_8",
+        "tabIndex": 1
+      },
+      "n5bcf5_67": {
+        "id": "n5bcf5_67",
+        "title": "Kotlin by example",
+        "url": "https://play.kotlinlang.org/byExample/overview",
+        "level": 1,
+        "parentId": "n5bcf5_8",
+        "tabIndex": 2
+      },
+      "coding-conventions": {
+        "id": "coding-conventions",
+        "title": "Coding conventions",
+        "url": "coding-conventions.html",
+        "level": 1,
+        "parentId": "n5bcf5_8",
+        "tabIndex": 3
+      },
+      "n5bcf5_9": {
+        "id": "n5bcf5_9",
+        "title": "Concepts",
+        "level": 0,
+        "pages": [
+          "n5bcf5_69",
+          "n5bcf5_70",
+          "packages",
+          "n5bcf5_72",
+          "n5bcf5_73",
+          "null-safety",
+          "equality",
+          "this-expressions",
+          "async-programming",
+          "coroutines-overview",
+          "annotations",
+          "destructuring-declarations",
+          "reflection"
+        ],
+        "tabIndex": 7
+      },
+      "n5bcf5_69": {
+        "id": "n5bcf5_69",
+        "title": "Types",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "pages": [
+          "n5bcf5_82",
+          "typecasts"
+        ],
+        "tabIndex": 0
+      },
+      "n5bcf5_82": {
+        "id": "n5bcf5_82",
+        "title": "Basic types",
+        "level": 2,
+        "parentId": "n5bcf5_69",
+        "pages": [
+          "basic-types",
+          "numbers",
+          "unsigned-integer-types",
+          "booleans",
+          "characters",
+          "strings",
+          "arrays"
+        ],
+        "tabIndex": 0
+      },
+      "basic-types": {
+        "id": "basic-types",
+        "title": "Overview",
+        "url": "basic-types.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 0
+      },
+      "numbers": {
+        "id": "numbers",
+        "title": "Numbers",
+        "url": "numbers.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 1
+      },
+      "unsigned-integer-types": {
+        "id": "unsigned-integer-types",
+        "title": "Unsigned integer types",
+        "url": "unsigned-integer-types.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 2
+      },
+      "booleans": {
+        "id": "booleans",
+        "title": "Booleans",
+        "url": "booleans.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 3
+      },
+      "characters": {
+        "id": "characters",
+        "title": "Characters",
+        "url": "characters.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 4
+      },
+      "strings": {
+        "id": "strings",
+        "title": "Strings",
+        "url": "strings.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 5
+      },
+      "arrays": {
+        "id": "arrays",
+        "title": "Arrays",
+        "url": "arrays.html",
+        "level": 3,
+        "parentId": "n5bcf5_82",
+        "tabIndex": 6
+      },
+      "typecasts": {
+        "id": "typecasts",
+        "title": "Type checks and casts",
+        "url": "typecasts.html",
+        "level": 2,
+        "parentId": "n5bcf5_69",
+        "tabIndex": 1
+      },
+      "n5bcf5_70": {
+        "id": "n5bcf5_70",
+        "title": "Control flow",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "pages": [
+          "control-flow",
+          "returns",
+          "exceptions"
+        ],
+        "tabIndex": 1
+      },
+      "control-flow": {
+        "id": "control-flow",
+        "title": "Conditions and loops",
+        "url": "control-flow.html",
+        "level": 2,
+        "parentId": "n5bcf5_70",
+        "tabIndex": 0
+      },
+      "returns": {
+        "id": "returns",
+        "title": "Returns and jumps",
+        "url": "returns.html",
+        "level": 2,
+        "parentId": "n5bcf5_70",
+        "tabIndex": 1
+      },
+      "exceptions": {
+        "id": "exceptions",
+        "title": "Exceptions",
+        "url": "exceptions.html",
+        "level": 2,
+        "parentId": "n5bcf5_70",
+        "tabIndex": 2
+      },
+      "packages": {
+        "id": "packages",
+        "title": "Packages and imports",
+        "url": "packages.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 2
+      },
+      "n5bcf5_72": {
+        "id": "n5bcf5_72",
+        "title": "Classes and objects",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "pages": [
+          "classes",
+          "inheritance",
+          "properties",
+          "interfaces",
+          "fun-interfaces",
+          "visibility-modifiers",
+          "extensions",
+          "data-classes",
+          "sealed-classes",
+          "generics",
+          "nested-classes",
+          "enum-classes",
+          "inline-classes",
+          "object-declarations",
+          "delegation",
+          "delegated-properties",
+          "type-aliases"
+        ],
+        "tabIndex": 3
+      },
+      "classes": {
+        "id": "classes",
+        "title": "Classes",
+        "url": "classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 0
+      },
+      "inheritance": {
+        "id": "inheritance",
+        "title": "Inheritance",
+        "url": "inheritance.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 1
+      },
+      "properties": {
+        "id": "properties",
+        "title": "Properties",
+        "url": "properties.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 2
+      },
+      "interfaces": {
+        "id": "interfaces",
+        "title": "Interfaces",
+        "url": "interfaces.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 3
+      },
+      "fun-interfaces": {
+        "id": "fun-interfaces",
+        "title": "Functional (SAM) interfaces",
+        "url": "fun-interfaces.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 4
+      },
+      "visibility-modifiers": {
+        "id": "visibility-modifiers",
+        "title": "Visibility modifiers",
+        "url": "visibility-modifiers.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 5
+      },
+      "extensions": {
+        "id": "extensions",
+        "title": "Extensions",
+        "url": "extensions.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 6
+      },
+      "data-classes": {
+        "id": "data-classes",
+        "title": "Data classes",
+        "url": "data-classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 7
+      },
+      "sealed-classes": {
+        "id": "sealed-classes",
+        "title": "Sealed classes and interfaces",
+        "url": "sealed-classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 8
+      },
+      "generics": {
+        "id": "generics",
+        "title": "Generics: in, out, where",
+        "url": "generics.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 9
+      },
+      "nested-classes": {
+        "id": "nested-classes",
+        "title": "Nested and inner classes",
+        "url": "nested-classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 10
+      },
+      "enum-classes": {
+        "id": "enum-classes",
+        "title": "Enum classes",
+        "url": "enum-classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 11
+      },
+      "inline-classes": {
+        "id": "inline-classes",
+        "title": "Inline value classes",
+        "url": "inline-classes.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 12
+      },
+      "object-declarations": {
+        "id": "object-declarations",
+        "title": "Object declarations and expressions",
+        "url": "object-declarations.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 13
+      },
+      "delegation": {
+        "id": "delegation",
+        "title": "Delegation",
+        "url": "delegation.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 14
+      },
+      "delegated-properties": {
+        "id": "delegated-properties",
+        "title": "Delegated properties",
+        "url": "delegated-properties.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 15
+      },
+      "type-aliases": {
+        "id": "type-aliases",
+        "title": "Type aliases",
+        "url": "type-aliases.html",
+        "level": 2,
+        "parentId": "n5bcf5_72",
+        "tabIndex": 16
+      },
+      "n5bcf5_73": {
+        "id": "n5bcf5_73",
+        "title": "Functions",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "pages": [
+          "functions",
+          "lambdas",
+          "inline-functions",
+          "operator-overloading",
+          "n5bcf5_115"
+        ],
+        "tabIndex": 4
+      },
+      "functions": {
+        "id": "functions",
+        "title": "Functions",
+        "url": "functions.html",
+        "level": 2,
+        "parentId": "n5bcf5_73",
+        "tabIndex": 0
+      },
+      "lambdas": {
+        "id": "lambdas",
+        "title": "Lambdas",
+        "url": "lambdas.html",
+        "level": 2,
+        "parentId": "n5bcf5_73",
+        "tabIndex": 1
+      },
+      "inline-functions": {
+        "id": "inline-functions",
+        "title": "Inline functions",
+        "url": "inline-functions.html",
+        "level": 2,
+        "parentId": "n5bcf5_73",
+        "tabIndex": 2
+      },
+      "operator-overloading": {
+        "id": "operator-overloading",
+        "title": "Operator overloading",
+        "url": "operator-overloading.html",
+        "level": 2,
+        "parentId": "n5bcf5_73",
+        "tabIndex": 3
+      },
+      "n5bcf5_115": {
+        "id": "n5bcf5_115",
+        "title": "Builders",
+        "level": 2,
+        "parentId": "n5bcf5_73",
+        "pages": [
+          "type-safe-builders",
+          "using-builders-with-builder-inference"
+        ],
+        "tabIndex": 4
+      },
+      "type-safe-builders": {
+        "id": "type-safe-builders",
+        "title": "Type-safe builders",
+        "url": "type-safe-builders.html",
+        "level": 3,
+        "parentId": "n5bcf5_115",
+        "tabIndex": 0
+      },
+      "using-builders-with-builder-inference": {
+        "id": "using-builders-with-builder-inference",
+        "title": "Using builders with builder type inference",
+        "url": "using-builders-with-builder-inference.html",
+        "level": 3,
+        "parentId": "n5bcf5_115",
+        "tabIndex": 1
+      },
+      "null-safety": {
+        "id": "null-safety",
+        "title": "Null safety",
+        "url": "null-safety.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 5
+      },
+      "equality": {
+        "id": "equality",
+        "title": "Equality",
+        "url": "equality.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 6
+      },
+      "this-expressions": {
+        "id": "this-expressions",
+        "title": "This expressions",
+        "url": "this-expressions.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 7
+      },
+      "async-programming": {
+        "id": "async-programming",
+        "title": "Asynchronous programming techniques",
+        "url": "async-programming.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 8
+      },
+      "coroutines-overview": {
+        "id": "coroutines-overview",
+        "title": "Coroutines",
+        "url": "coroutines-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 9
+      },
+      "annotations": {
+        "id": "annotations",
+        "title": "Annotations",
+        "url": "annotations.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 10
+      },
+      "destructuring-declarations": {
+        "id": "destructuring-declarations",
+        "title": "Destructuring declarations",
+        "url": "destructuring-declarations.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 11
+      },
+      "reflection": {
+        "id": "reflection",
+        "title": "Reflection",
+        "url": "reflection.html",
+        "level": 1,
+        "parentId": "n5bcf5_9",
+        "tabIndex": 12
+      },
+      "n5bcf5_10": {
+        "id": "n5bcf5_10",
+        "title": "Multiplatform development",
+        "level": 0,
+        "pages": [
+          "multiplatform-intro",
+          "multiplatform-discover-project",
+          "multiplatform-advanced-project-structure",
+          "n5bcf5_121",
+          "n5bcf5_122",
+          "n5bcf5_123",
+          "n5bcf5_124",
+          "multiplatform-publish-lib",
+          "n5bcf5_126"
+        ],
+        "tabIndex": 8
+      },
+      "multiplatform-intro": {
+        "id": "multiplatform-intro",
+        "title": "Introduction",
+        "url": "multiplatform-intro.html",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "tabIndex": 0
+      },
+      "multiplatform-discover-project": {
+        "id": "multiplatform-discover-project",
+        "title": "Understand basic project structure",
+        "url": "multiplatform-discover-project.html",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "tabIndex": 1
+      },
+      "multiplatform-advanced-project-structure": {
+        "id": "multiplatform-advanced-project-structure",
+        "title": "Explore advanced project structure",
+        "url": "multiplatform-advanced-project-structure.html",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "tabIndex": 2
+      },
+      "n5bcf5_121": {
+        "id": "n5bcf5_121",
+        "title": "Share code",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "pages": [
+          "multiplatform-share-on-platforms",
+          "multiplatform-expect-actual",
+          "multiplatform-hierarchy"
+        ],
+        "tabIndex": 3
+      },
+      "multiplatform-share-on-platforms": {
+        "id": "multiplatform-share-on-platforms",
+        "title": "Share code on platforms",
+        "url": "multiplatform-share-on-platforms.html",
+        "level": 2,
+        "parentId": "n5bcf5_121",
+        "tabIndex": 0
+      },
+      "multiplatform-expect-actual": {
+        "id": "multiplatform-expect-actual",
+        "title": "Expected and actual declarations",
+        "url": "multiplatform-expect-actual.html",
+        "level": 2,
+        "parentId": "n5bcf5_121",
+        "tabIndex": 1
+      },
+      "multiplatform-hierarchy": {
+        "id": "multiplatform-hierarchy",
+        "title": "Hierarchical project structure",
+        "url": "multiplatform-hierarchy.html",
+        "level": 2,
+        "parentId": "n5bcf5_121",
+        "tabIndex": 2
+      },
+      "n5bcf5_122": {
+        "id": "n5bcf5_122",
+        "title": "Add dependencies",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "pages": [
+          "multiplatform-add-dependencies",
+          "multiplatform-android-dependencies",
+          "multiplatform-ios-dependencies"
+        ],
+        "tabIndex": 4
+      },
+      "multiplatform-add-dependencies": {
+        "id": "multiplatform-add-dependencies",
+        "title": "On multiplatform libraries",
+        "url": "multiplatform-add-dependencies.html",
+        "level": 2,
+        "parentId": "n5bcf5_122",
+        "tabIndex": 0
+      },
+      "multiplatform-android-dependencies": {
+        "id": "multiplatform-android-dependencies",
+        "title": "For Android target platforms",
+        "url": "multiplatform-android-dependencies.html",
+        "level": 2,
+        "parentId": "n5bcf5_122",
+        "tabIndex": 1
+      },
+      "multiplatform-ios-dependencies": {
+        "id": "multiplatform-ios-dependencies",
+        "title": "For iOS target platforms",
+        "url": "multiplatform-ios-dependencies.html",
+        "level": 2,
+        "parentId": "n5bcf5_122",
+        "tabIndex": 2
+      },
+      "n5bcf5_123": {
+        "id": "n5bcf5_123",
+        "title": "Set up iOS integration",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "pages": [
+          "multiplatform-ios-integration-overview",
+          "multiplatform-direct-integration",
+          "native-spm",
+          "n5bcf5_136",
+          "multiplatform-spm-local-integration"
+        ],
+        "tabIndex": 5
+      },
+      "multiplatform-ios-integration-overview": {
+        "id": "multiplatform-ios-integration-overview",
+        "title": "Choose integration method",
+        "url": "multiplatform-ios-integration-overview.html",
+        "level": 2,
+        "parentId": "n5bcf5_123",
+        "tabIndex": 0
+      },
+      "multiplatform-direct-integration": {
+        "id": "multiplatform-direct-integration",
+        "title": "Direct integration",
+        "url": "multiplatform-direct-integration.html",
+        "level": 2,
+        "parentId": "n5bcf5_123",
+        "tabIndex": 1
+      },
+      "native-spm": {
+        "id": "native-spm",
+        "title": "Remote SPM export",
+        "url": "native-spm.html",
+        "level": 2,
+        "parentId": "n5bcf5_123",
+        "tabIndex": 2
+      },
+      "n5bcf5_136": {
+        "id": "n5bcf5_136",
+        "title": "CocoaPods integration",
+        "level": 2,
+        "parentId": "n5bcf5_123",
+        "pages": [
+          "native-cocoapods",
+          "native-cocoapods-libraries",
+          "native-cocoapods-xcode",
+          "native-cocoapods-dsl-reference"
+        ],
+        "tabIndex": 3
+      },
+      "native-cocoapods": {
+        "id": "native-cocoapods",
+        "title": "CocoaPods overview and setup",
+        "url": "native-cocoapods.html",
+        "level": 3,
+        "parentId": "n5bcf5_136",
+        "tabIndex": 0
+      },
+      "native-cocoapods-libraries": {
+        "id": "native-cocoapods-libraries",
+        "title": "Add dependencies on a Pod library",
+        "url": "native-cocoapods-libraries.html",
+        "level": 3,
+        "parentId": "n5bcf5_136",
+        "tabIndex": 1
+      },
+      "native-cocoapods-xcode": {
+        "id": "native-cocoapods-xcode",
+        "title": "Use a Kotlin Gradle project as a CocoaPods dependency",
+        "url": "native-cocoapods-xcode.html",
+        "level": 3,
+        "parentId": "n5bcf5_136",
+        "tabIndex": 2
+      },
+      "native-cocoapods-dsl-reference": {
+        "id": "native-cocoapods-dsl-reference",
+        "title": "CocoaPods Gradle plugin DSL reference",
+        "url": "native-cocoapods-dsl-reference.html",
+        "level": 3,
+        "parentId": "n5bcf5_136",
+        "tabIndex": 3
+      },
+      "multiplatform-spm-local-integration": {
+        "id": "multiplatform-spm-local-integration",
+        "title": "Local integration with SPM",
+        "url": "multiplatform-spm-local-integration.html",
+        "level": 2,
+        "parentId": "n5bcf5_123",
+        "tabIndex": 4
+      },
+      "n5bcf5_124": {
+        "id": "n5bcf5_124",
+        "title": "Compile artifacts",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "pages": [
+          "multiplatform-configure-compilations",
+          "multiplatform-build-native-binaries"
+        ],
+        "tabIndex": 6
+      },
+      "multiplatform-configure-compilations": {
+        "id": "multiplatform-configure-compilations",
+        "title": "Configure compilations",
+        "url": "multiplatform-configure-compilations.html",
+        "level": 2,
+        "parentId": "n5bcf5_124",
+        "tabIndex": 0
+      },
+      "multiplatform-build-native-binaries": {
+        "id": "multiplatform-build-native-binaries",
+        "title": "Build final native binaries",
+        "url": "multiplatform-build-native-binaries.html",
+        "level": 2,
+        "parentId": "n5bcf5_124",
+        "tabIndex": 2
+      },
+      "multiplatform-publish-lib": {
+        "id": "multiplatform-publish-lib",
+        "title": "Publish libraries",
+        "url": "multiplatform-publish-lib.html",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "tabIndex": 7
+      },
+      "n5bcf5_126": {
+        "id": "n5bcf5_126",
+        "title": "Reference",
+        "level": 1,
+        "parentId": "n5bcf5_10",
+        "pages": [
+          "multiplatform-dsl-reference",
+          "multiplatform-android-layout",
+          "multiplatform-compatibility-guide",
+          "multiplatform-plugin-releases"
+        ],
+        "tabIndex": 8
+      },
+      "multiplatform-dsl-reference": {
+        "id": "multiplatform-dsl-reference",
+        "title": "Multiplatform Gradle DSL reference",
+        "url": "multiplatform-dsl-reference.html",
+        "level": 2,
+        "parentId": "n5bcf5_126",
+        "tabIndex": 0
+      },
+      "multiplatform-android-layout": {
+        "id": "multiplatform-android-layout",
+        "title": "Android source set layout",
+        "url": "multiplatform-android-layout.html",
+        "level": 2,
+        "parentId": "n5bcf5_126",
+        "tabIndex": 1
+      },
+      "multiplatform-compatibility-guide": {
+        "id": "multiplatform-compatibility-guide",
+        "title": "Compatibility guide",
+        "url": "multiplatform-compatibility-guide.html",
+        "level": 2,
+        "parentId": "n5bcf5_126",
+        "tabIndex": 2
+      },
+      "multiplatform-plugin-releases": {
+        "id": "multiplatform-plugin-releases",
+        "title": "Kotlin Multiplatform plugin releases",
+        "url": "multiplatform-plugin-releases.html",
+        "level": 2,
+        "parentId": "n5bcf5_126",
+        "tabIndex": 3
+      },
+      "n5bcf5_11": {
+        "id": "n5bcf5_11",
+        "title": "Data analysis",
+        "level": 0,
+        "pages": [
+          "n5bcf5_149",
+          "kotlin-notebook-share",
+          "data-analysis-notebooks-output-formats",
+          "n5bcf5_152",
+          "data-analysis-visualization",
+          "data-analysis-libraries"
+        ],
+        "tabIndex": 9
+      },
+      "n5bcf5_149": {
+        "id": "n5bcf5_149",
+        "title": "Get started with Kotlin Notebook",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "pages": [
+          "get-started-with-kotlin-notebooks",
+          "kotlin-notebook-set-up-env",
+          "kotlin-notebook-create",
+          "kotlin-notebook-add-dependencies"
+        ],
+        "tabIndex": 0
+      },
+      "get-started-with-kotlin-notebooks": {
+        "id": "get-started-with-kotlin-notebooks",
+        "title": "Introduction to Kotlin Notebook",
+        "url": "get-started-with-kotlin-notebooks.html",
+        "level": 2,
+        "parentId": "n5bcf5_149",
+        "tabIndex": 0
+      },
+      "kotlin-notebook-set-up-env": {
+        "id": "kotlin-notebook-set-up-env",
+        "title": "1. Set up an environment",
+        "url": "kotlin-notebook-set-up-env.html",
+        "level": 2,
+        "parentId": "n5bcf5_149",
+        "tabIndex": 1
+      },
+      "kotlin-notebook-create": {
+        "id": "kotlin-notebook-create",
+        "title": "2. Create your first Kotlin Notebook",
+        "url": "kotlin-notebook-create.html",
+        "level": 2,
+        "parentId": "n5bcf5_149",
+        "tabIndex": 2
+      },
+      "kotlin-notebook-add-dependencies": {
+        "id": "kotlin-notebook-add-dependencies",
+        "title": "3. Add dependencies to your Kotlin Notebook",
+        "url": "kotlin-notebook-add-dependencies.html",
+        "level": 2,
+        "parentId": "n5bcf5_149",
+        "tabIndex": 3
+      },
+      "kotlin-notebook-share": {
+        "id": "kotlin-notebook-share",
+        "title": "Share your Kotlin Notebook",
+        "url": "kotlin-notebook-share.html",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "tabIndex": 1
+      },
+      "data-analysis-notebooks-output-formats": {
+        "id": "data-analysis-notebooks-output-formats",
+        "title": "Output formats in Kotlin notebooks",
+        "url": "data-analysis-notebooks-output-formats.html",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "tabIndex": 2
+      },
+      "n5bcf5_152": {
+        "id": "n5bcf5_152",
+        "title": "Working with data sources",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "pages": [
+          "data-analysis-work-with-data-sources",
+          "data-analysis-work-with-api",
+          "data-analysis-connect-to-db"
+        ],
+        "tabIndex": 3
+      },
+      "data-analysis-work-with-data-sources": {
+        "id": "data-analysis-work-with-data-sources",
+        "title": "Retrieve data from files",
+        "url": "data-analysis-work-with-data-sources.html",
+        "level": 2,
+        "parentId": "n5bcf5_152",
+        "tabIndex": 0
+      },
+      "data-analysis-work-with-api": {
+        "id": "data-analysis-work-with-api",
+        "title": "Retrieve data from web sources and APIs",
+        "url": "data-analysis-work-with-api.html",
+        "level": 2,
+        "parentId": "n5bcf5_152",
+        "tabIndex": 1
+      },
+      "data-analysis-connect-to-db": {
+        "id": "data-analysis-connect-to-db",
+        "title": "Connect and retrieve data from databases",
+        "url": "data-analysis-connect-to-db.html",
+        "level": 2,
+        "parentId": "n5bcf5_152",
+        "tabIndex": 2
+      },
+      "data-analysis-visualization": {
+        "id": "data-analysis-visualization",
+        "title": "Data visualization in Kotlin Notebook",
+        "url": "data-analysis-visualization.html",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "tabIndex": 4
+      },
+      "data-analysis-libraries": {
+        "id": "data-analysis-libraries",
+        "title": "Libraries for data analysis",
+        "url": "data-analysis-libraries.html",
+        "level": 1,
+        "parentId": "n5bcf5_11",
+        "tabIndex": 5
+      },
+      "n5bcf5_12": {
+        "id": "n5bcf5_12",
+        "title": "Platforms",
+        "level": 0,
+        "pages": [
+          "n5bcf5_162",
+          "n5bcf5_163",
+          "n5bcf5_164",
+          "n5bcf5_165",
+          "n5bcf5_166"
+        ],
+        "tabIndex": 10
+      },
+      "n5bcf5_162": {
+        "id": "n5bcf5_162",
+        "title": "JVM",
+        "level": 1,
+        "parentId": "n5bcf5_12",
+        "pages": [
+          "jvm-get-started",
+          "comparison-to-java",
+          "java-interop",
+          "java-to-kotlin-interop",
+          "n5bcf5_171",
+          "jvm-test-using-junit",
+          "mixing-java-kotlin-intellij",
+          "jvm-records",
+          "n5bcf5_175"
+        ],
+        "tabIndex": 0
+      },
+      "jvm-get-started": {
+        "id": "jvm-get-started",
+        "title": "Get started with Kotlin/JVM",
+        "url": "jvm-get-started.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 0
+      },
+      "comparison-to-java": {
+        "id": "comparison-to-java",
+        "title": "Comparison to Java",
+        "url": "comparison-to-java.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 1
+      },
+      "java-interop": {
+        "id": "java-interop",
+        "title": "Calling Java from Kotlin",
+        "url": "java-interop.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 2
+      },
+      "java-to-kotlin-interop": {
+        "id": "java-to-kotlin-interop",
+        "title": "Calling Kotlin from Java",
+        "url": "java-to-kotlin-interop.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 3
+      },
+      "n5bcf5_171": {
+        "id": "n5bcf5_171",
+        "title": "Spring",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "pages": [
+          "n5bcf5_176",
+          "n5bcf5_177",
+          "n5bcf5_178",
+          "n5bcf5_179"
+        ],
+        "tabIndex": 4
+      },
+      "n5bcf5_176": {
+        "id": "n5bcf5_176",
+        "title": "Create a RESTful web service with a database using Spring Boot",
+        "level": 3,
+        "parentId": "n5bcf5_171",
+        "pages": [
+          "jvm-get-started-spring-boot",
+          "jvm-create-project-with-spring-boot",
+          "jvm-spring-boot-add-data-class",
+          "jvm-spring-boot-add-db-support",
+          "jvm-spring-boot-using-crudrepository"
+        ],
+        "tabIndex": 0
+      },
+      "jvm-get-started-spring-boot": {
+        "id": "jvm-get-started-spring-boot",
+        "title": "Get started with Spring Boot and Kotlin",
+        "url": "jvm-get-started-spring-boot.html",
+        "level": 4,
+        "parentId": "n5bcf5_176",
+        "tabIndex": 0
+      },
+      "jvm-create-project-with-spring-boot": {
+        "id": "jvm-create-project-with-spring-boot",
+        "title": "Create a Spring Boot project",
+        "url": "jvm-create-project-with-spring-boot.html",
+        "level": 4,
+        "parentId": "n5bcf5_176",
+        "tabIndex": 1
+      },
+      "jvm-spring-boot-add-data-class": {
+        "id": "jvm-spring-boot-add-data-class",
+        "title": "Upgrade your project with data classes",
+        "url": "jvm-spring-boot-add-data-class.html",
+        "level": 4,
+        "parentId": "n5bcf5_176",
+        "tabIndex": 2
+      },
+      "jvm-spring-boot-add-db-support": {
+        "id": "jvm-spring-boot-add-db-support",
+        "title": "Add database support for Spring Boot project",
+        "url": "jvm-spring-boot-add-db-support.html",
+        "level": 4,
+        "parentId": "n5bcf5_176",
+        "tabIndex": 3
+      },
+      "jvm-spring-boot-using-crudrepository": {
+        "id": "jvm-spring-boot-using-crudrepository",
+        "title": "Use Spring Data CrudRepository",
+        "url": "jvm-spring-boot-using-crudrepository.html",
+        "level": 4,
+        "parentId": "n5bcf5_176",
+        "tabIndex": 4
+      },
+      "n5bcf5_177": {
+        "id": "n5bcf5_177",
+        "title": "Spring Framework Documentation for Kotlin",
+        "url": "https://docs.spring.io/spring-framework/docs/current/reference/html/languages.html#languages",
+        "level": 3,
+        "parentId": "n5bcf5_171",
+        "tabIndex": 1
+      },
+      "n5bcf5_178": {
+        "id": "n5bcf5_178",
+        "title": "Build a web application with Spring Boot and Kotlin – tutorial",
+        "url": "https://spring.io/guides/tutorials/spring-boot-kotlin/",
+        "level": 3,
+        "parentId": "n5bcf5_171",
+        "tabIndex": 2
+      },
+      "n5bcf5_179": {
+        "id": "n5bcf5_179",
+        "title": "Create a chat application with Kotlin Coroutines and RSocket – tutorial",
+        "url": "https://spring.io/guides/tutorials/spring-webflux-kotlin-rsocket/",
+        "level": 3,
+        "parentId": "n5bcf5_171",
+        "tabIndex": 3
+      },
+      "jvm-test-using-junit": {
+        "id": "jvm-test-using-junit",
+        "title": "Test code using JUnit in JVM – tutorial",
+        "url": "jvm-test-using-junit.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 5
+      },
+      "mixing-java-kotlin-intellij": {
+        "id": "mixing-java-kotlin-intellij",
+        "title": "Mixing Java and Kotlin in one project – tutorial",
+        "url": "mixing-java-kotlin-intellij.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 6
+      },
+      "jvm-records": {
+        "id": "jvm-records",
+        "title": "Using Java records in Kotlin",
+        "url": "jvm-records.html",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "tabIndex": 7
+      },
+      "n5bcf5_175": {
+        "id": "n5bcf5_175",
+        "title": "Java to Kotlin migration guides",
+        "level": 2,
+        "parentId": "n5bcf5_162",
+        "pages": [
+          "java-to-kotlin-idioms-strings",
+          "java-to-kotlin-collections-guide",
+          "java-to-kotlin-nullability-guide",
+          "standard-input"
+        ],
+        "tabIndex": 8
+      },
+      "java-to-kotlin-idioms-strings": {
+        "id": "java-to-kotlin-idioms-strings",
+        "title": "Strings",
+        "url": "java-to-kotlin-idioms-strings.html",
+        "level": 3,
+        "parentId": "n5bcf5_175",
+        "tabIndex": 0
+      },
+      "java-to-kotlin-collections-guide": {
+        "id": "java-to-kotlin-collections-guide",
+        "title": "Collections",
+        "url": "java-to-kotlin-collections-guide.html",
+        "level": 3,
+        "parentId": "n5bcf5_175",
+        "tabIndex": 1
+      },
+      "java-to-kotlin-nullability-guide": {
+        "id": "java-to-kotlin-nullability-guide",
+        "title": "Nullability",
+        "url": "java-to-kotlin-nullability-guide.html",
+        "level": 3,
+        "parentId": "n5bcf5_175",
+        "tabIndex": 2
+      },
+      "standard-input": {
+        "id": "standard-input",
+        "title": "Standard input",
+        "url": "standard-input.html",
+        "level": 3,
+        "parentId": "n5bcf5_175",
+        "tabIndex": 3
+      },
+      "n5bcf5_163": {
+        "id": "n5bcf5_163",
+        "title": "Native",
+        "level": 1,
+        "parentId": "n5bcf5_12",
+        "pages": [
+          "native-get-started",
+          "native-definition-file",
+          "n5bcf5_191",
+          "n5bcf5_192",
+          "native-libraries",
+          "native-platform-libs",
+          "n5bcf5_195",
+          "native-debugging",
+          "native-ios-symbolication",
+          "n5bcf5_198"
+        ],
+        "tabIndex": 1
+      },
+      "native-get-started": {
+        "id": "native-get-started",
+        "title": "Get started with Kotlin/Native",
+        "url": "native-get-started.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 0
+      },
+      "native-definition-file": {
+        "id": "native-definition-file",
+        "title": "Definition file",
+        "url": "native-definition-file.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 1
+      },
+      "n5bcf5_191": {
+        "id": "n5bcf5_191",
+        "title": "C interop",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "pages": [
+          "native-c-interop",
+          "mapping-primitive-data-types-from-c",
+          "mapping-struct-union-types-from-c",
+          "mapping-function-pointers-from-c",
+          "mapping-strings-from-c",
+          "native-dynamic-libraries",
+          "native-app-with-c-and-libcurl"
+        ],
+        "tabIndex": 2
+      },
+      "native-c-interop": {
+        "id": "native-c-interop",
+        "title": "Interoperability with C",
+        "url": "native-c-interop.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 0
+      },
+      "mapping-primitive-data-types-from-c": {
+        "id": "mapping-primitive-data-types-from-c",
+        "title": "Mapping primitive data types from C – tutorial",
+        "url": "mapping-primitive-data-types-from-c.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 1
+      },
+      "mapping-struct-union-types-from-c": {
+        "id": "mapping-struct-union-types-from-c",
+        "title": "Mapping struct and union types from C – tutorial",
+        "url": "mapping-struct-union-types-from-c.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 2
+      },
+      "mapping-function-pointers-from-c": {
+        "id": "mapping-function-pointers-from-c",
+        "title": "Mapping function pointers from C – tutorial",
+        "url": "mapping-function-pointers-from-c.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 3
+      },
+      "mapping-strings-from-c": {
+        "id": "mapping-strings-from-c",
+        "title": "Mapping Strings from C – tutorial",
+        "url": "mapping-strings-from-c.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 4
+      },
+      "native-dynamic-libraries": {
+        "id": "native-dynamic-libraries",
+        "title": "Kotlin/Native as a dynamic library – tutorial",
+        "url": "native-dynamic-libraries.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 5
+      },
+      "native-app-with-c-and-libcurl": {
+        "id": "native-app-with-c-and-libcurl",
+        "title": "Create an app using C Interop and libcurl – tutorial",
+        "url": "native-app-with-c-and-libcurl.html",
+        "level": 3,
+        "parentId": "n5bcf5_191",
+        "tabIndex": 6
+      },
+      "n5bcf5_192": {
+        "id": "n5bcf5_192",
+        "title": "Objective-C interop",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "pages": [
+          "native-objc-interop",
+          "apple-framework"
+        ],
+        "tabIndex": 3
+      },
+      "native-objc-interop": {
+        "id": "native-objc-interop",
+        "title": "Interoperability with Swift/Objective-C",
+        "url": "native-objc-interop.html",
+        "level": 3,
+        "parentId": "n5bcf5_192",
+        "tabIndex": 0
+      },
+      "apple-framework": {
+        "id": "apple-framework",
+        "title": "Kotlin/Native as an Apple framework – tutorial",
+        "url": "apple-framework.html",
+        "level": 3,
+        "parentId": "n5bcf5_192",
+        "tabIndex": 1
+      },
+      "native-libraries": {
+        "id": "native-libraries",
+        "title": "Kotlin/Native libraries",
+        "url": "native-libraries.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 4
+      },
+      "native-platform-libs": {
+        "id": "native-platform-libs",
+        "title": "Platform libraries",
+        "url": "native-platform-libs.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 5
+      },
+      "n5bcf5_195": {
+        "id": "n5bcf5_195",
+        "title": "Memory manager",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "pages": [
+          "native-memory-manager",
+          "native-arc-integration",
+          "native-migration-guide"
+        ],
+        "tabIndex": 6
+      },
+      "native-memory-manager": {
+        "id": "native-memory-manager",
+        "title": "Kotlin/Native memory management",
+        "url": "native-memory-manager.html",
+        "level": 3,
+        "parentId": "n5bcf5_195",
+        "tabIndex": 0
+      },
+      "native-arc-integration": {
+        "id": "native-arc-integration",
+        "title": "Integration with ARC",
+        "url": "native-arc-integration.html",
+        "level": 3,
+        "parentId": "n5bcf5_195",
+        "tabIndex": 1
+      },
+      "native-migration-guide": {
+        "id": "native-migration-guide",
+        "title": "Migration guide",
+        "url": "native-migration-guide.html",
+        "level": 3,
+        "parentId": "n5bcf5_195",
+        "tabIndex": 2
+      },
+      "native-debugging": {
+        "id": "native-debugging",
+        "title": "Debugging Kotlin/Native",
+        "url": "native-debugging.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 7
+      },
+      "native-ios-symbolication": {
+        "id": "native-ios-symbolication",
+        "title": "Symbolicating iOS crash reports",
+        "url": "native-ios-symbolication.html",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "tabIndex": 8
+      },
+      "n5bcf5_198": {
+        "id": "n5bcf5_198",
+        "title": "Reference and tips",
+        "level": 2,
+        "parentId": "n5bcf5_163",
+        "pages": [
+          "native-target-support",
+          "apple-privacy-manifest",
+          "native-improving-compilation-time",
+          "native-binary-licenses",
+          "native-faq"
+        ],
+        "tabIndex": 9
+      },
+      "native-target-support": {
+        "id": "native-target-support",
+        "title": "Target support",
+        "url": "native-target-support.html",
+        "level": 3,
+        "parentId": "n5bcf5_198",
+        "tabIndex": 0
+      },
+      "apple-privacy-manifest": {
+        "id": "apple-privacy-manifest",
+        "title": "App Store privacy manifests",
+        "url": "apple-privacy-manifest.html",
+        "level": 3,
+        "parentId": "n5bcf5_198",
+        "tabIndex": 1
+      },
+      "native-improving-compilation-time": {
+        "id": "native-improving-compilation-time",
+        "title": "Improving compilation time",
+        "url": "native-improving-compilation-time.html",
+        "level": 3,
+        "parentId": "n5bcf5_198",
+        "tabIndex": 2
+      },
+      "native-binary-licenses": {
+        "id": "native-binary-licenses",
+        "title": "License files",
+        "url": "native-binary-licenses.html",
+        "level": 3,
+        "parentId": "n5bcf5_198",
+        "tabIndex": 3
+      },
+      "native-faq": {
+        "id": "native-faq",
+        "title": "Kotlin/Native FAQ",
+        "url": "native-faq.html",
+        "level": 3,
+        "parentId": "n5bcf5_198",
+        "tabIndex": 4
+      },
+      "n5bcf5_164": {
+        "id": "n5bcf5_164",
+        "title": "WebAssembly (Wasm)",
+        "level": 1,
+        "parentId": "n5bcf5_12",
+        "pages": [
+          "wasm-get-started",
+          "wasm-wasi",
+          "wasm-debugging",
+          "wasm-js-interop",
+          "wasm-troubleshooting"
+        ],
+        "tabIndex": 2
+      },
+      "wasm-get-started": {
+        "id": "wasm-get-started",
+        "title": "Get started with Kotlin/Wasm and Compose Multiplatform",
+        "url": "wasm-get-started.html",
+        "level": 2,
+        "parentId": "n5bcf5_164",
+        "tabIndex": 0
+      },
+      "wasm-wasi": {
+        "id": "wasm-wasi",
+        "title": "Get started with Kotlin/Wasm and WASI",
+        "url": "wasm-wasi.html",
+        "level": 2,
+        "parentId": "n5bcf5_164",
+        "tabIndex": 1
+      },
+      "wasm-debugging": {
+        "id": "wasm-debugging",
+        "title": "Debug Kotlin/Wasm code",
+        "url": "wasm-debugging.html",
+        "level": 2,
+        "parentId": "n5bcf5_164",
+        "tabIndex": 2
+      },
+      "wasm-js-interop": {
+        "id": "wasm-js-interop",
+        "title": "Interoperability with JavaScript",
+        "url": "wasm-js-interop.html",
+        "level": 2,
+        "parentId": "n5bcf5_164",
+        "tabIndex": 3
+      },
+      "wasm-troubleshooting": {
+        "id": "wasm-troubleshooting",
+        "title": "Troubleshooting",
+        "url": "wasm-troubleshooting.html",
+        "level": 2,
+        "parentId": "n5bcf5_164",
+        "tabIndex": 4
+      },
+      "n5bcf5_165": {
+        "id": "n5bcf5_165",
+        "title": "JavaScript",
+        "level": 1,
+        "parentId": "n5bcf5_12",
+        "pages": [
+          "js-project-setup",
+          "running-kotlin-js",
+          "dev-server-continuous-compilation",
+          "js-debugging",
+          "js-running-tests",
+          "javascript-dce",
+          "js-ir-compiler",
+          "js-ir-migration",
+          "n5bcf5_229"
+        ],
+        "tabIndex": 3
+      },
+      "js-project-setup": {
+        "id": "js-project-setup",
+        "title": "Set up a Kotlin/JS project",
+        "url": "js-project-setup.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 0
+      },
+      "running-kotlin-js": {
+        "id": "running-kotlin-js",
+        "title": "Run Kotlin/JS",
+        "url": "running-kotlin-js.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 1
+      },
+      "dev-server-continuous-compilation": {
+        "id": "dev-server-continuous-compilation",
+        "title": "Development server and continuous compilation",
+        "url": "dev-server-continuous-compilation.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 2
+      },
+      "js-debugging": {
+        "id": "js-debugging",
+        "title": "Debug Kotlin/JS code",
+        "url": "js-debugging.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 3
+      },
+      "js-running-tests": {
+        "id": "js-running-tests",
+        "title": "Run tests in Kotlin/JS",
+        "url": "js-running-tests.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 4
+      },
+      "javascript-dce": {
+        "id": "javascript-dce",
+        "title": "Kotlin/JS dead code elimination",
+        "url": "javascript-dce.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 5
+      },
+      "js-ir-compiler": {
+        "id": "js-ir-compiler",
+        "title": "IR compiler",
+        "url": "js-ir-compiler.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 6
+      },
+      "js-ir-migration": {
+        "id": "js-ir-migration",
+        "title": "Migrating Kotlin/JS projects to the IR compiler",
+        "url": "js-ir-migration.html",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "tabIndex": 7
+      },
+      "n5bcf5_229": {
+        "id": "n5bcf5_229",
+        "title": "Kotlin for the JS platform",
+        "level": 2,
+        "parentId": "n5bcf5_165",
+        "pages": [
+          "browser-api-dom",
+          "js-interop",
+          "dynamic-type",
+          "using-packages-from-npm",
+          "js-to-kotlin-interop",
+          "js-modules",
+          "js-reflection",
+          "typesafe-html-dsl"
+        ],
+        "tabIndex": 8
+      },
+      "browser-api-dom": {
+        "id": "browser-api-dom",
+        "title": "Browser and DOM API",
+        "url": "browser-api-dom.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 0
+      },
+      "js-interop": {
+        "id": "js-interop",
+        "title": "Use JavaScript code from Kotlin",
+        "url": "js-interop.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 1
+      },
+      "dynamic-type": {
+        "id": "dynamic-type",
+        "title": "Dynamic type",
+        "url": "dynamic-type.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 2
+      },
+      "using-packages-from-npm": {
+        "id": "using-packages-from-npm",
+        "title": "Use dependencies from npm",
+        "url": "using-packages-from-npm.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 3
+      },
+      "js-to-kotlin-interop": {
+        "id": "js-to-kotlin-interop",
+        "title": "Use Kotlin code from JavaScript",
+        "url": "js-to-kotlin-interop.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 4
+      },
+      "js-modules": {
+        "id": "js-modules",
+        "title": "JavaScript modules",
+        "url": "js-modules.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 5
+      },
+      "js-reflection": {
+        "id": "js-reflection",
+        "title": "Kotlin/JS reflection",
+        "url": "js-reflection.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 6
+      },
+      "typesafe-html-dsl": {
+        "id": "typesafe-html-dsl",
+        "title": "Typesafe HTML DSL",
+        "url": "typesafe-html-dsl.html",
+        "level": 3,
+        "parentId": "n5bcf5_229",
+        "tabIndex": 7
+      },
+      "n5bcf5_166": {
+        "id": "n5bcf5_166",
+        "title": "Scripting",
+        "level": 1,
+        "parentId": "n5bcf5_12",
+        "pages": [
+          "custom-script-deps-tutorial"
+        ],
+        "tabIndex": 4
+      },
+      "custom-script-deps-tutorial": {
+        "id": "custom-script-deps-tutorial",
+        "title": "Get started with Kotlin custom scripting – tutorial",
+        "url": "custom-script-deps-tutorial.html",
+        "level": 2,
+        "parentId": "n5bcf5_166",
+        "tabIndex": 0
+      },
+      "n5bcf5_13": {
+        "id": "n5bcf5_13",
+        "title": "Standard library",
+        "level": 0,
+        "pages": [
+          "n5bcf5_240",
+          "read-standard-input",
+          "opt-in-requirements",
+          "scope-functions",
+          "time-measurement"
+        ],
+        "tabIndex": 11
+      },
+      "n5bcf5_240": {
+        "id": "n5bcf5_240",
+        "title": "Collections",
+        "level": 1,
+        "parentId": "n5bcf5_13",
+        "pages": [
+          "collections-overview",
+          "constructing-collections",
+          "iterators",
+          "ranges",
+          "sequences",
+          "collection-operations",
+          "collection-transformations",
+          "collection-filtering",
+          "collection-plus-minus",
+          "collection-grouping",
+          "collection-parts",
+          "collection-elements",
+          "collection-ordering",
+          "collection-aggregate",
+          "collection-write",
+          "list-operations",
+          "set-operations",
+          "map-operations"
+        ],
+        "tabIndex": 0
+      },
+      "collections-overview": {
+        "id": "collections-overview",
+        "title": "Overview",
+        "url": "collections-overview.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 0
+      },
+      "constructing-collections": {
+        "id": "constructing-collections",
+        "title": "Constructing collections",
+        "url": "constructing-collections.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 1
+      },
+      "iterators": {
+        "id": "iterators",
+        "title": "Iterators",
+        "url": "iterators.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 2
+      },
+      "ranges": {
+        "id": "ranges",
+        "title": "Ranges and progressions",
+        "url": "ranges.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 3
+      },
+      "sequences": {
+        "id": "sequences",
+        "title": "Sequences",
+        "url": "sequences.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 4
+      },
+      "collection-operations": {
+        "id": "collection-operations",
+        "title": "Operations overview",
+        "url": "collection-operations.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 5
+      },
+      "collection-transformations": {
+        "id": "collection-transformations",
+        "title": "Transformations",
+        "url": "collection-transformations.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 6
+      },
+      "collection-filtering": {
+        "id": "collection-filtering",
+        "title": "Filter",
+        "url": "collection-filtering.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 7
+      },
+      "collection-plus-minus": {
+        "id": "collection-plus-minus",
+        "title": "Plus and minus operators",
+        "url": "collection-plus-minus.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 8
+      },
+      "collection-grouping": {
+        "id": "collection-grouping",
+        "title": "Group elements",
+        "url": "collection-grouping.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 9
+      },
+      "collection-parts": {
+        "id": "collection-parts",
+        "title": "Retrieve collection parts",
+        "url": "collection-parts.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 10
+      },
+      "collection-elements": {
+        "id": "collection-elements",
+        "title": "Retrieve single elements",
+        "url": "collection-elements.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 11
+      },
+      "collection-ordering": {
+        "id": "collection-ordering",
+        "title": "Ordering",
+        "url": "collection-ordering.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 12
+      },
+      "collection-aggregate": {
+        "id": "collection-aggregate",
+        "title": "Aggregate operations",
+        "url": "collection-aggregate.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 13
+      },
+      "collection-write": {
+        "id": "collection-write",
+        "title": "Write operations",
+        "url": "collection-write.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 14
+      },
+      "list-operations": {
+        "id": "list-operations",
+        "title": "List-specific operations",
+        "url": "list-operations.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 15
+      },
+      "set-operations": {
+        "id": "set-operations",
+        "title": "Set-specific operations",
+        "url": "set-operations.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 16
+      },
+      "map-operations": {
+        "id": "map-operations",
+        "title": "Map-specific operations",
+        "url": "map-operations.html",
+        "level": 2,
+        "parentId": "n5bcf5_240",
+        "tabIndex": 17
+      },
+      "read-standard-input": {
+        "id": "read-standard-input",
+        "title": "Read standard input",
+        "url": "read-standard-input.html",
+        "level": 1,
+        "parentId": "n5bcf5_13",
+        "tabIndex": 1
+      },
+      "opt-in-requirements": {
+        "id": "opt-in-requirements",
+        "title": "Opt-in requirements",
+        "url": "opt-in-requirements.html",
+        "level": 1,
+        "parentId": "n5bcf5_13",
+        "tabIndex": 2
+      },
+      "scope-functions": {
+        "id": "scope-functions",
+        "title": "Scope functions",
+        "url": "scope-functions.html",
+        "level": 1,
+        "parentId": "n5bcf5_13",
+        "tabIndex": 3
+      },
+      "time-measurement": {
+        "id": "time-measurement",
+        "title": "Time measurement",
+        "url": "time-measurement.html",
+        "level": 1,
+        "parentId": "n5bcf5_13",
+        "tabIndex": 4
+      },
+      "n5bcf5_14": {
+        "id": "n5bcf5_14",
+        "title": "Official libraries",
+        "level": 0,
+        "pages": [
+          "n5bcf5_263",
+          "serialization",
+          "n5bcf5_265",
+          "n5bcf5_266"
+        ],
+        "tabIndex": 12
+      },
+      "n5bcf5_263": {
+        "id": "n5bcf5_263",
+        "title": "Coroutines (kotlinx.coroutines)",
+        "level": 1,
+        "parentId": "n5bcf5_14",
+        "tabIndex": 0
+      },
+      "serialization": {
+        "id": "serialization",
+        "title": "Serialization (kotlinx.serialization)",
+        "url": "serialization.html",
+        "level": 1,
+        "parentId": "n5bcf5_14",
+        "tabIndex": 1
+      },
+      "n5bcf5_265": {
+        "id": "n5bcf5_265",
+        "title": "Lincheck (kotlinx.lincheck)",
+        "level": 1,
+        "parentId": "n5bcf5_14",
+        "tabIndex": 2
+      },
+      "n5bcf5_266": {
+        "id": "n5bcf5_266",
+        "title": "Ktor",
+        "url": "https://ktor.io/",
+        "level": 1,
+        "parentId": "n5bcf5_14",
+        "tabIndex": 3
+      },
+      "n5bcf5_15": {
+        "id": "n5bcf5_15",
+        "title": "API reference",
+        "level": 0,
+        "pages": [
+          "n5bcf5_269",
+          "n5bcf5_270",
+          "n5bcf5_271",
+          "n5bcf5_272",
+          "n5bcf5_273",
+          "n5bcf5_274",
+          "n5bcf5_275",
+          "n5bcf5_276",
+          "n5bcf5_277"
+        ],
+        "tabIndex": 13
+      },
+      "n5bcf5_269": {
+        "id": "n5bcf5_269",
+        "title": "Standard library (stdlib)",
+        "url": "https://kotlinlang.org/api/latest/jvm/stdlib/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 0
+      },
+      "n5bcf5_270": {
+        "id": "n5bcf5_270",
+        "title": "Test library (kotlin.test)",
+        "url": "https://kotlinlang.org/api/latest/kotlin.test/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 1
+      },
+      "n5bcf5_271": {
+        "id": "n5bcf5_271",
+        "title": "Coroutines (kotlinx.coroutines)",
+        "url": "https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 2
+      },
+      "n5bcf5_272": {
+        "id": "n5bcf5_272",
+        "title": "Serialization (kotlinx.serialization)",
+        "url": "https://kotlinlang.org/api/kotlinx.serialization/kotlinx-serialization-core/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 3
+      },
+      "n5bcf5_273": {
+        "id": "n5bcf5_273",
+        "title": "Kotlin I/O library (kotlinx-io)",
+        "url": "https://kotlinlang.org/api/kotlinx-io/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 4
+      },
+      "n5bcf5_274": {
+        "id": "n5bcf5_274",
+        "title": "Date and time (kotlinx-datetime)",
+        "url": "https://kotlinlang.org/api/kotlinx-datetime/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 5
+      },
+      "n5bcf5_275": {
+        "id": "n5bcf5_275",
+        "title": "JVM Metadata (kotlin-metadata-jvm)",
+        "url": "https://kotlinlang.org/api/kotlinx-metadata-jvm/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 6
+      },
+      "n5bcf5_276": {
+        "id": "n5bcf5_276",
+        "title": "Ktor",
+        "url": "https://api.ktor.io/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 7
+      },
+      "n5bcf5_277": {
+        "id": "n5bcf5_277",
+        "title": "Kotlin Gradle plugins (kotlin-gradle-plugin)",
+        "url": "https://kotlinlang.org/api/kotlin-gradle-plugin/",
+        "level": 1,
+        "parentId": "n5bcf5_15",
+        "tabIndex": 8
+      },
+      "n5bcf5_16": {
+        "id": "n5bcf5_16",
+        "title": "Language reference",
+        "level": 0,
+        "pages": [
+          "keyword-reference",
+          "n5bcf5_279",
+          "n5bcf5_280"
+        ],
+        "tabIndex": 14
+      },
+      "keyword-reference": {
+        "id": "keyword-reference",
+        "title": "Keywords and operators",
+        "url": "keyword-reference.html",
+        "level": 1,
+        "parentId": "n5bcf5_16",
+        "tabIndex": 0
+      },
+      "n5bcf5_279": {
+        "id": "n5bcf5_279",
+        "title": "Grammar",
+        "url": "https://kotlinlang.org/docs/reference/grammar.html",
+        "level": 1,
+        "parentId": "n5bcf5_16",
+        "tabIndex": 1
+      },
+      "n5bcf5_280": {
+        "id": "n5bcf5_280",
+        "title": "Language specification",
+        "url": "https://kotlinlang.org/spec/",
+        "level": 1,
+        "parentId": "n5bcf5_16",
+        "tabIndex": 2
+      },
+      "n5bcf5_17": {
+        "id": "n5bcf5_17",
+        "title": "Tools",
+        "level": 0,
+        "pages": [
+          "n5bcf5_281",
+          "n5bcf5_282",
+          "kotlin-ide",
+          "code-style-migration-guide",
+          "kotlin-notebook-overview",
+          "lets-plot",
+          "run-code-snippets",
+          "kotlin-and-ci",
+          "kotlin-doc",
+          "kotlin-osgi"
+        ],
+        "tabIndex": 15
+      },
+      "n5bcf5_281": {
+        "id": "n5bcf5_281",
+        "title": "Build tools",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "pages": [
+          "n5bcf5_291",
+          "maven",
+          "ant"
+        ],
+        "tabIndex": 0
+      },
+      "n5bcf5_291": {
+        "id": "n5bcf5_291",
+        "title": "Gradle",
+        "level": 2,
+        "parentId": "n5bcf5_281",
+        "pages": [
+          "gradle",
+          "get-started-with-jvm-gradle-project",
+          "gradle-configure-project",
+          "gradle-compiler-options",
+          "gradle-compilation-and-caches",
+          "gradle-plugin-variants"
+        ],
+        "tabIndex": 0
+      },
+      "gradle": {
+        "id": "gradle",
+        "title": "Overview",
+        "url": "gradle.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 0
+      },
+      "get-started-with-jvm-gradle-project": {
+        "id": "get-started-with-jvm-gradle-project",
+        "title": "Get started with Gradle – tutorial",
+        "url": "get-started-with-jvm-gradle-project.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 1
+      },
+      "gradle-configure-project": {
+        "id": "gradle-configure-project",
+        "title": "Configure a Gradle project",
+        "url": "gradle-configure-project.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 2
+      },
+      "gradle-compiler-options": {
+        "id": "gradle-compiler-options",
+        "title": "Compiler options in KGP",
+        "url": "gradle-compiler-options.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 3
+      },
+      "gradle-compilation-and-caches": {
+        "id": "gradle-compilation-and-caches",
+        "title": "Compilation and caches in KGP",
+        "url": "gradle-compilation-and-caches.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 4
+      },
+      "gradle-plugin-variants": {
+        "id": "gradle-plugin-variants",
+        "title": "Support for Gradle plugin variants",
+        "url": "gradle-plugin-variants.html",
+        "level": 3,
+        "parentId": "n5bcf5_291",
+        "tabIndex": 5
+      },
+      "maven": {
+        "id": "maven",
+        "title": "Maven",
+        "url": "maven.html",
+        "level": 2,
+        "parentId": "n5bcf5_281",
+        "tabIndex": 1
+      },
+      "ant": {
+        "id": "ant",
+        "title": "Ant",
+        "url": "ant.html",
+        "level": 2,
+        "parentId": "n5bcf5_281",
+        "tabIndex": 2
+      },
+      "n5bcf5_282": {
+        "id": "n5bcf5_282",
+        "title": "Dokka",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 1
+      },
+      "kotlin-ide": {
+        "id": "kotlin-ide",
+        "title": "IDE for Kotlin development",
+        "url": "kotlin-ide.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 2
+      },
+      "code-style-migration-guide": {
+        "id": "code-style-migration-guide",
+        "title": "Migrate to Kotlin code style with IntelliJ IDEA",
+        "url": "code-style-migration-guide.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 3
+      },
+      "kotlin-notebook-overview": {
+        "id": "kotlin-notebook-overview",
+        "title": "Kotlin Notebook",
+        "url": "kotlin-notebook-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 4
+      },
+      "lets-plot": {
+        "id": "lets-plot",
+        "title": "Lets-Plot for Kotlin",
+        "url": "lets-plot.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 5
+      },
+      "run-code-snippets": {
+        "id": "run-code-snippets",
+        "title": "Run code snippets",
+        "url": "run-code-snippets.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 6
+      },
+      "kotlin-and-ci": {
+        "id": "kotlin-and-ci",
+        "title": "TeamCity",
+        "url": "kotlin-and-ci.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 7
+      },
+      "kotlin-doc": {
+        "id": "kotlin-doc",
+        "title": "KDoc",
+        "url": "kotlin-doc.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 8
+      },
+      "kotlin-osgi": {
+        "id": "kotlin-osgi",
+        "title": "OSGi",
+        "url": "kotlin-osgi.html",
+        "level": 1,
+        "parentId": "n5bcf5_17",
+        "tabIndex": 9
+      },
+      "n5bcf5_18": {
+        "id": "n5bcf5_18",
+        "title": "Compiler and plugins",
+        "level": 0,
+        "pages": [
+          "n5bcf5_301",
+          "n5bcf5_302",
+          "n5bcf5_303",
+          "n5bcf5_304"
+        ],
+        "tabIndex": 16
+      },
+      "n5bcf5_301": {
+        "id": "n5bcf5_301",
+        "title": "Kotlin compiler",
+        "level": 1,
+        "parentId": "n5bcf5_18",
+        "pages": [
+          "k2-compiler-migration-guide",
+          "command-line",
+          "compiler-reference"
+        ],
+        "tabIndex": 0
+      },
+      "k2-compiler-migration-guide": {
+        "id": "k2-compiler-migration-guide",
+        "title": "K2 compiler migration guide",
+        "url": "k2-compiler-migration-guide.html",
+        "level": 2,
+        "parentId": "n5bcf5_301",
+        "tabIndex": 0
+      },
+      "command-line": {
+        "id": "command-line",
+        "title": "Command-line compiler",
+        "url": "command-line.html",
+        "level": 2,
+        "parentId": "n5bcf5_301",
+        "tabIndex": 1
+      },
+      "compiler-reference": {
+        "id": "compiler-reference",
+        "title": "Compiler options",
+        "url": "compiler-reference.html",
+        "level": 2,
+        "parentId": "n5bcf5_301",
+        "tabIndex": 2
+      },
+      "n5bcf5_302": {
+        "id": "n5bcf5_302",
+        "title": "Kotlin compiler plugins",
+        "level": 1,
+        "parentId": "n5bcf5_18",
+        "pages": [
+          "all-open-plugin",
+          "no-arg-plugin",
+          "sam-with-receiver-plugin",
+          "kapt",
+          "lombok",
+          "power-assert"
+        ],
+        "tabIndex": 1
+      },
+      "all-open-plugin": {
+        "id": "all-open-plugin",
+        "title": "All-open",
+        "url": "all-open-plugin.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 0
+      },
+      "no-arg-plugin": {
+        "id": "no-arg-plugin",
+        "title": "No-arg",
+        "url": "no-arg-plugin.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 1
+      },
+      "sam-with-receiver-plugin": {
+        "id": "sam-with-receiver-plugin",
+        "title": "SAM with receiver",
+        "url": "sam-with-receiver-plugin.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 2
+      },
+      "kapt": {
+        "id": "kapt",
+        "title": "kapt",
+        "url": "kapt.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 3
+      },
+      "lombok": {
+        "id": "lombok",
+        "title": "Lombok",
+        "url": "lombok.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 4
+      },
+      "power-assert": {
+        "id": "power-assert",
+        "title": "Power-assert",
+        "url": "power-assert.html",
+        "level": 2,
+        "parentId": "n5bcf5_302",
+        "tabIndex": 5
+      },
+      "n5bcf5_303": {
+        "id": "n5bcf5_303",
+        "title": "Compose compiler",
+        "level": 1,
+        "parentId": "n5bcf5_18",
+        "pages": [
+          "compose-compiler-migration-guide",
+          "compose-compiler-options"
+        ],
+        "tabIndex": 2
+      },
+      "compose-compiler-migration-guide": {
+        "id": "compose-compiler-migration-guide",
+        "title": "Compiler migration guide",
+        "url": "compose-compiler-migration-guide.html",
+        "level": 2,
+        "parentId": "n5bcf5_303",
+        "tabIndex": 0
+      },
+      "compose-compiler-options": {
+        "id": "compose-compiler-options",
+        "title": "Compiler options",
+        "url": "compose-compiler-options.html",
+        "level": 2,
+        "parentId": "n5bcf5_303",
+        "tabIndex": 1
+      },
+      "n5bcf5_304": {
+        "id": "n5bcf5_304",
+        "title": "Kotlin Symbol Processing API",
+        "level": 1,
+        "parentId": "n5bcf5_18",
+        "pages": [
+          "ksp-overview",
+          "ksp-quickstart",
+          "ksp-why-ksp",
+          "ksp-examples",
+          "ksp-additional-details",
+          "ksp-reference",
+          "ksp-incremental",
+          "ksp-multi-round",
+          "ksp-multiplatform",
+          "ksp-command-line",
+          "ksp-faq"
+        ],
+        "tabIndex": 3
+      },
+      "ksp-overview": {
+        "id": "ksp-overview",
+        "title": "KSP overview",
+        "url": "ksp-overview.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 0
+      },
+      "ksp-quickstart": {
+        "id": "ksp-quickstart",
+        "title": "Quickstart",
+        "url": "ksp-quickstart.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 1
+      },
+      "ksp-why-ksp": {
+        "id": "ksp-why-ksp",
+        "title": "Why KSP",
+        "url": "ksp-why-ksp.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 2
+      },
+      "ksp-examples": {
+        "id": "ksp-examples",
+        "title": "Examples",
+        "url": "ksp-examples.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 3
+      },
+      "ksp-additional-details": {
+        "id": "ksp-additional-details",
+        "title": "How KSP models Kotlin code",
+        "url": "ksp-additional-details.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 4
+      },
+      "ksp-reference": {
+        "id": "ksp-reference",
+        "title": "Reference for Java annotation processor authors",
+        "url": "ksp-reference.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 5
+      },
+      "ksp-incremental": {
+        "id": "ksp-incremental",
+        "title": "Incremental processing",
+        "url": "ksp-incremental.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 6
+      },
+      "ksp-multi-round": {
+        "id": "ksp-multi-round",
+        "title": "Multiple round processing",
+        "url": "ksp-multi-round.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 7
+      },
+      "ksp-multiplatform": {
+        "id": "ksp-multiplatform",
+        "title": "KSP with Kotlin Multiplatform",
+        "url": "ksp-multiplatform.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 8
+      },
+      "ksp-command-line": {
+        "id": "ksp-command-line",
+        "title": "Running KSP from command line",
+        "url": "ksp-command-line.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 9
+      },
+      "ksp-faq": {
+        "id": "ksp-faq",
+        "title": "FAQ",
+        "url": "ksp-faq.html",
+        "level": 2,
+        "parentId": "n5bcf5_304",
+        "tabIndex": 10
+      },
+      "n5bcf5_19": {
+        "id": "n5bcf5_19",
+        "title": "Learning materials",
+        "level": 0,
+        "pages": [
+          "learning-materials-overview",
+          "n5bcf5_328",
+          "koans",
+          "n5bcf5_330",
+          "kotlin-hands-on",
+          "kotlin-tips",
+          "books",
+          "advent-of-code",
+          "n5bcf5_335",
+          "n5bcf5_336"
+        ],
+        "tabIndex": 17
+      },
+      "learning-materials-overview": {
+        "id": "learning-materials-overview",
+        "title": "Overview",
+        "url": "learning-materials-overview.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 0
+      },
+      "n5bcf5_328": {
+        "id": "n5bcf5_328",
+        "title": "Kotlin by example",
+        "url": "https://play.kotlinlang.org/byExample/overview",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 1
+      },
+      "koans": {
+        "id": "koans",
+        "title": "Kotlin Koans",
+        "url": "koans.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 2
+      },
+      "n5bcf5_330": {
+        "id": "n5bcf5_330",
+        "title": "Kotlin Core track",
+        "url": "https://hyperskill.org/tracks?category=4&utm_source=jbkotlin_hs&utm_medium=referral&utm_campaign=kotlinlang-docs&utm_content=button_1&utm_term=22.03.23",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 3
+      },
+      "kotlin-hands-on": {
+        "id": "kotlin-hands-on",
+        "title": "Kotlin hands-on",
+        "url": "kotlin-hands-on.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 4
+      },
+      "kotlin-tips": {
+        "id": "kotlin-tips",
+        "title": "Kotlin tips",
+        "url": "kotlin-tips.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 5
+      },
+      "books": {
+        "id": "books",
+        "title": "Kotlin books",
+        "url": "books.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 6
+      },
+      "advent-of-code": {
+        "id": "advent-of-code",
+        "title": "Advent of Code puzzles",
+        "url": "advent-of-code.html",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 7
+      },
+      "n5bcf5_335": {
+        "id": "n5bcf5_335",
+        "title": "Learn in IDE (JetBrains Academy)",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "pages": [
+          "edu-tools-learner",
+          "edu-tools-educator"
+        ],
+        "tabIndex": 8
+      },
+      "edu-tools-learner": {
+        "id": "edu-tools-learner",
+        "title": "Learn Kotlin",
+        "url": "edu-tools-learner.html",
+        "level": 2,
+        "parentId": "n5bcf5_335",
+        "tabIndex": 0
+      },
+      "edu-tools-educator": {
+        "id": "edu-tools-educator",
+        "title": "Teach Kotlin",
+        "url": "edu-tools-educator.html",
+        "level": 2,
+        "parentId": "n5bcf5_335",
+        "tabIndex": 1
+      },
+      "n5bcf5_336": {
+        "id": "n5bcf5_336",
+        "title": "Library authors' guidelines",
+        "level": 1,
+        "parentId": "n5bcf5_19",
+        "tabIndex": 9
+      },
+      "n5bcf5_20": {
+        "id": "n5bcf5_20",
+        "title": "Early access preview (EAP)",
+        "level": 0,
+        "pages": [
+          "eap",
+          "install-eap-plugin",
+          "configure-build-for-eap"
+        ],
+        "tabIndex": 18
+      },
+      "eap": {
+        "id": "eap",
+        "title": "Participate",
+        "url": "eap.html",
+        "level": 1,
+        "parentId": "n5bcf5_20",
+        "tabIndex": 0
+      },
+      "install-eap-plugin": {
+        "id": "install-eap-plugin",
+        "title": "Install the Kotlin EAP Plugin",
+        "url": "install-eap-plugin.html",
+        "level": 1,
+        "parentId": "n5bcf5_20",
+        "tabIndex": 1
+      },
+      "configure-build-for-eap": {
+        "id": "configure-build-for-eap",
+        "title": "Configure your build for EAP",
+        "url": "configure-build-for-eap.html",
+        "level": 1,
+        "parentId": "n5bcf5_20",
+        "tabIndex": 2
+      },
+      "n5bcf5_21": {
+        "id": "n5bcf5_21",
+        "title": "Other resources",
+        "level": 0,
+        "pages": [
+          "faq",
+          "n5bcf5_344",
+          "n5bcf5_345",
+          "n5bcf5_346",
+          "security",
+          "kotlin-pdf",
+          "n5bcf5_349",
+          "kotlin-brand-assets",
+          "n5bcf5_351"
+        ],
+        "tabIndex": 19
+      },
+      "faq": {
+        "id": "faq",
+        "title": "FAQ",
+        "url": "faq.html",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "tabIndex": 0
+      },
+      "n5bcf5_344": {
+        "id": "n5bcf5_344",
+        "title": "Kotlin compatibility guides",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "pages": [
+          "compatibility-guide-21",
+          "compatibility-guide-20",
+          "compatibility-guide-19",
+          "compatibility-guide-18",
+          "compatibility-guide-1720",
+          "compatibility-guide-17",
+          "compatibility-guide-16",
+          "compatibility-guide-15",
+          "compatibility-guide-14",
+          "compatibility-guide-13",
+          "compatibility-modes"
+        ],
+        "tabIndex": 1
+      },
+      "compatibility-guide-21": {
+        "id": "compatibility-guide-21",
+        "title": "Compatibility guide for Kotlin 2.1",
+        "url": "compatibility-guide-21.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 0
+      },
+      "compatibility-guide-20": {
+        "id": "compatibility-guide-20",
+        "title": "Compatibility guide for Kotlin 2.0",
+        "url": "compatibility-guide-20.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 1
+      },
+      "compatibility-guide-19": {
+        "id": "compatibility-guide-19",
+        "title": "Compatibility guide for Kotlin 1.9",
+        "url": "compatibility-guide-19.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 2
+      },
+      "compatibility-guide-18": {
+        "id": "compatibility-guide-18",
+        "title": "Compatibility guide for Kotlin 1.8",
+        "url": "compatibility-guide-18.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 3
+      },
+      "compatibility-guide-1720": {
+        "id": "compatibility-guide-1720",
+        "title": "Compatibility guide for Kotlin 1.7.20",
+        "url": "compatibility-guide-1720.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 4
+      },
+      "compatibility-guide-17": {
+        "id": "compatibility-guide-17",
+        "title": "Compatibility guide for Kotlin 1.7",
+        "url": "compatibility-guide-17.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 5
+      },
+      "compatibility-guide-16": {
+        "id": "compatibility-guide-16",
+        "title": "Compatibility guide for Kotlin 1.6",
+        "url": "compatibility-guide-16.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 6
+      },
+      "compatibility-guide-15": {
+        "id": "compatibility-guide-15",
+        "title": "Compatibility guide for Kotlin 1.5",
+        "url": "compatibility-guide-15.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 7
+      },
+      "compatibility-guide-14": {
+        "id": "compatibility-guide-14",
+        "title": "Compatibility guide for Kotlin 1.4",
+        "url": "compatibility-guide-14.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 8
+      },
+      "compatibility-guide-13": {
+        "id": "compatibility-guide-13",
+        "title": "Compatibility guide for Kotlin 1.3",
+        "url": "compatibility-guide-13.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 9
+      },
+      "compatibility-modes": {
+        "id": "compatibility-modes",
+        "title": "Compatibility modes",
+        "url": "compatibility-modes.html",
+        "level": 2,
+        "parentId": "n5bcf5_344",
+        "tabIndex": 10
+      },
+      "n5bcf5_345": {
+        "id": "n5bcf5_345",
+        "title": "Kotlin Foundation",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "pages": [
+          "n5bcf5_364",
+          "n5bcf5_365",
+          "n5bcf5_366",
+          "n5bcf5_367",
+          "n5bcf5_368"
+        ],
+        "tabIndex": 2
+      },
+      "n5bcf5_364": {
+        "id": "n5bcf5_364",
+        "title": "Kotlin Foundation",
+        "url": "https://kotlinfoundation.org/",
+        "level": 2,
+        "parentId": "n5bcf5_345",
+        "tabIndex": 0
+      },
+      "n5bcf5_365": {
+        "id": "n5bcf5_365",
+        "title": "Language Committee guidelines",
+        "url": "https://kotlinfoundation.org/language-committee-guidelines/",
+        "level": 2,
+        "parentId": "n5bcf5_345",
+        "tabIndex": 1
+      },
+      "n5bcf5_366": {
+        "id": "n5bcf5_366",
+        "title": "Submitting incompatible changes",
+        "url": "https://kotlinfoundation.org/submitting-incompatible-changes/",
+        "level": 2,
+        "parentId": "n5bcf5_345",
+        "tabIndex": 2
+      },
+      "n5bcf5_367": {
+        "id": "n5bcf5_367",
+        "title": "Brand usage",
+        "url": "https://kotlinfoundation.org/guidelines/",
+        "level": 2,
+        "parentId": "n5bcf5_345",
+        "tabIndex": 3
+      },
+      "n5bcf5_368": {
+        "id": "n5bcf5_368",
+        "title": "Kotlin Foundation FAQ",
+        "url": "https://kotlinfoundation.org/faq/",
+        "level": 2,
+        "parentId": "n5bcf5_345",
+        "tabIndex": 4
+      },
+      "n5bcf5_346": {
+        "id": "n5bcf5_346",
+        "title": "Google Summer of Code",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "pages": [
+          "gsoc-2024",
+          "gsoc-2023"
+        ],
+        "tabIndex": 3
+      },
+      "gsoc-2024": {
+        "id": "gsoc-2024",
+        "title": "Google Summer of Code with Kotlin 2024",
+        "url": "gsoc-2024.html",
+        "level": 2,
+        "parentId": "n5bcf5_346",
+        "tabIndex": 0
+      },
+      "gsoc-2023": {
+        "id": "gsoc-2023",
+        "title": "Google Summer of Code with Kotlin 2023",
+        "url": "gsoc-2023.html",
+        "level": 2,
+        "parentId": "n5bcf5_346",
+        "tabIndex": 1
+      },
+      "security": {
+        "id": "security",
+        "title": "Security",
+        "url": "security.html",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "tabIndex": 4
+      },
+      "kotlin-pdf": {
+        "id": "kotlin-pdf",
+        "title": "Kotlin documentation as PDF",
+        "url": "kotlin-pdf.html",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "tabIndex": 5
+      },
+      "n5bcf5_349": {
+        "id": "n5bcf5_349",
+        "title": "Community",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "pages": [
+          "contribute",
+          "kug-guidelines",
+          "kotlin-night-guidelines",
+          "slack-code-of-conduct"
+        ],
+        "tabIndex": 6
+      },
+      "contribute": {
+        "id": "contribute",
+        "title": "Contribution",
+        "url": "contribute.html",
+        "level": 2,
+        "parentId": "n5bcf5_349",
+        "tabIndex": 0
+      },
+      "kug-guidelines": {
+        "id": "kug-guidelines",
+        "title": "KUG guidelines",
+        "url": "kug-guidelines.html",
+        "level": 2,
+        "parentId": "n5bcf5_349",
+        "tabIndex": 1
+      },
+      "kotlin-night-guidelines": {
+        "id": "kotlin-night-guidelines",
+        "title": "Kotlin Night guidelines",
+        "url": "kotlin-night-guidelines.html",
+        "level": 2,
+        "parentId": "n5bcf5_349",
+        "tabIndex": 2
+      },
+      "slack-code-of-conduct": {
+        "id": "slack-code-of-conduct",
+        "title": "Code of conduct and guidelines for Kotlin Slack",
+        "url": "slack-code-of-conduct.html",
+        "level": 2,
+        "parentId": "n5bcf5_349",
+        "tabIndex": 3
+      },
+      "kotlin-brand-assets": {
+        "id": "kotlin-brand-assets",
+        "title": "Kotlin brand assets",
+        "url": "kotlin-brand-assets.html",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "tabIndex": 7
+      },
+      "n5bcf5_351": {
+        "id": "n5bcf5_351",
+        "title": "Press kit",
+        "url": "https://kotlinlang.org/assets/kotlin-media-kit.pdf",
+        "level": 1,
+        "parentId": "n5bcf5_21",
+        "tabIndex": 8
+      }
+    }
+  },
+  "topLevelIds": [
+    "home",
+    "getting-started",
+    "kotlin-tour-welcome",
+    "n5bcf5_5",
+    "n5bcf5_6",
+    "n5bcf5_7",
+    "n5bcf5_8",
+    "n5bcf5_9",
+    "n5bcf5_10",
+    "n5bcf5_11",
+    "n5bcf5_12",
+    "n5bcf5_13",
+    "n5bcf5_14",
+    "n5bcf5_15",
+    "n5bcf5_16",
+    "n5bcf5_17",
+    "n5bcf5_18",
+    "n5bcf5_19",
+    "n5bcf5_20",
+    "n5bcf5_21"
+  ]
+}
+--
+Below is one complete example “generate_toc.py” script. (You can change the icon’s color and width by adjusting the EXPANDED_ICON_COLOR and EXPANDED_ICON_WIDTH constants.) This script expects one command‐line argument (the JSON file name), loads the table–of–contents JSON, builds a “flat” list of TOC entries (using each node’s parentId and tabIndex to determine order), and then uses BeautifulSoup to build an HTML document. (The script assumes that your CSS stylesheet “toc_style.css” exists.) The inline JavaScript sets up the click–toggle behavior on heading entries (hiding all “child” items that follow until an entry with equal or lower level is reached) and rotates the inline SVG icon appropriately.
+
+Below is the full code:
+
+-------------------------------------------------
+#!/usr/bin/env python3
+"""
+generate_toc.py
+
+Usage:
+    python generate_toc.py toc_data.json
+
+This script reads TOC JSON (as described in the prompt) and produces an HTML page
+that contains a single <div> (with a <ul>) holding a multi--level table of contents.
+It uses an inline SVG “expanded icon” (an equilateral triangle whose fill color and side‐length
+can be configured) and attaches inline JavaScript to toggle headings.
+The output HTML links to the stylesheet "toc_style.css".
+"""
+
+import sys
+import json
+import os
+from bs4 import BeautifulSoup, Tag
+
+# Developer–specified icon parameters:
+EXPANDED_ICON_COLOR = "#8A2BE2"  # for example, a purple color
+EXPANDED_ICON_WIDTH = 16         # width in pixels (height will be equal)
+
+def load_json(filepath):
+    with open(filepath, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def build_children_map(entities):
+    # entities is a dict mapping id -> node (each node is a dict)
+    children = {}
+    for node in entities.values():
+        # If a node has a "parentId", add it as child of that parent.
+        parent = node.get("parentId")
+        if parent:
+            children.setdefault(parent, []).append(node)
+    # Also sort each list by the node's tabIndex
+    for kidlist in children.values():
+        kidlist.sort(key=lambda n: n.get("tabIndex", 0))
+    return children
+
+def flatten_tree(entities, topLevelIds, children_map):
+    """
+    Return a flat list of TOC nodes in the order they should appear.
+    The order is determined by topLevelIds. Then for each node recursively
+    append its children (if any) sorted by tabIndex. (The tree hierarchy is used only for
+    display indentation and toggling.)
+    Each node from JSON is used as-is.
+    """
+    flat = []
+    def recur(node):
+        flat.append(node)
+        # Use the children_map (which was built using parentId)
+        for child in children_map.get(node["id"], []):
+            recur(child)
+    # Top-level order: use the explicit order from topLevelIds.
+    for tid in topLevelIds:
+        if tid in entities:
+            node = entities[tid]
+            recur(node)
+    return flat
+
+def compute_node_class(node, children_map):
+    """
+    Return the CSS class for this node.
+      - If the node has children (or appears as a parent in children_map) then it is a "heading".
+      - Otherwise if it has a "url" field and that URL starts with "http:" or "https:" then mark it "external".
+      - Otherwise, if it has a URL, mark it "page".
+    """
+    node_id = node.get("id")
+    if node_id in children_map:
+        return "heading"  # ignore url if children exist
+    url = node.get("url")
+    if url:
+        if url.startswith("http://") or url.startswith("https://"):
+            return "external"
+        else:
+            return "page"
+    return ""
+
+def create_svg_icon(soup):
+    """
+    Create an SVG icon element for a heading toggle.
+    Here we choose to draw an equilateral triangle that (when unrotated) points to the right.
+    When expanded the JS code will apply a CSS transform to rotate it (e.g. 90deg).
+    """
+    # Note: we use viewBox="0 0 EXPANDED_ICON_WIDTH EXPANDED_ICON_WIDTH"
+    svg = soup.new_tag("svg", width=str(EXPANDED_ICON_WIDTH),
+                       height=str(EXPANDED_ICON_WIDTH),
+                       viewBox="0 0 {0} {0}".format(EXPANDED_ICON_WIDTH),
+                       xmlns="http://www.w3.org/2000/svg",
+                       class="toggle-svg")
+    # Create a polygon element. For a triangle pointing right we can use points:
+    # (0,0)  (EXPANDED_ICON_WIDTH, EXPANDED_ICON_WIDTH/2)  (0,EXPANDED_ICON_WIDTH)
+    points = "0,0 {w},{half} 0,{w}".format(w=EXPANDED_ICON_WIDTH, half=EXPANDED_ICON_WIDTH/2)
+    poly = soup.new_tag("polygon", points=points, fill=EXPANDED_ICON_COLOR)
+    svg.append(poly)
+    return svg
+
+def build_html_document(flat_nodes, children_map):
+    soup = BeautifulSoup(features="html.parser")
+
+    # Create the root html, head, body
+    html = soup.new_tag("html")
+    soup.append(html)
+    head = soup.new_tag("head")
+    html.append(head)
+    meta = soup.new_tag("meta", charset="UTF-8")
+    head.append(meta)
+    title = soup.new_tag("title")
+    title.string = "Table of Contents"
+    head.append(title)
+    # Link external CSS
+    link_tag = soup.new_tag("link", rel="stylesheet", href="toc_style.css")
+    head.append(link_tag)
+    
+    # Add inline JavaScript that controls toggle behavior
+    script = soup.new_tag("script", type="text/javascript")
+    script.string = r'''
+document.addEventListener("DOMContentLoaded", function () {
+  // For every list item with class "heading", add a click event listener.
+  var tocItems = document.querySelectorAll("#toc-list li.heading");
+  tocItems.forEach(function(item) {
+    // Mark collapsed state initially.
+    item.setAttribute("data-expanded", "false");
+    item.addEventListener("click", function(e) {
+      // Avoid following link if click event originates from icon/text spans
+      e.stopPropagation();
+      var expanded = item.getAttribute("data-expanded") === "true";
+      // Toggle expanded state
+      if(expanded){
+        collapse(item);
+      } else {
+        expand(item);
+      }
+    });
+  });
+
+  function expand(item) {
+    item.setAttribute("data-expanded", "true");
+    // Rotate the SVG icon to point down (i.e. add a CSS class or style)
+    var icon = item.querySelector("svg.toggle-svg");
+    if(icon) { icon.style.transform = "rotate(90deg)"; }
+    var currentLevel = parseInt(item.getAttribute("data-level"));
+    var next = item.nextElementSibling;
+    while(next) {
+      var nextLevel = parseInt(next.getAttribute("data-level"));
+      if(nextLevel <= currentLevel) break;
+      // Only show immediate children (i.e. those whose parent is this heading)
+      if(nextLevel === currentLevel+1) {
+        next.style.display = "list-item";
+      }
+      next = next.nextElementSibling;
+    }
+  }
+
+  function collapse(item) {
+    item.setAttribute("data-expanded", "false");
+    var icon = item.querySelector("svg.toggle-svg");
+    if(icon) { icon.style.transform = "rotate(0deg)"; }
+    var currentLevel = parseInt(item.getAttribute("data-level"));
+    var next = item.nextElementSibling;
+    while(next) {
+      var nextLevel = parseInt(next.getAttribute("data-level"));
+      if(nextLevel <= currentLevel) break;
+      // Hide all descendants regardless of level
+      next.style.display = "none";
+      // For any descendant that is a heading, mark them as collapsed so that if later expanded,
+      // they will be re-expanded by their click.
+      if(next.classList.contains("heading")) {
+        next.setAttribute("data-expanded", "false");
+        var iconDesc = next.querySelector("svg.toggle-svg");
+        if(iconDesc) { iconDesc.style.transform = "rotate(0deg)"; }
+      }
+      next = next.nextElementSibling;
+    }
+  }
+});
+    '''
+    head.append(script)
+    
+    # Create body and wrapper div.
+    body = soup.new_tag("body")
+    html.append(body)
+    container = soup.new_tag("div", id="toc-container", style="width:400px;")  # fixed width; adjust as needed
+    body.append(container)
+    
+    # Create an unordered list for the TOC.
+    toc_ul = soup.new_tag("ul", id="toc-list", style="list-style-type:none; margin:0; padding:0;")
+    container.append(toc_ul)
+    
+    # Generate list items in a flat list. Every li gets a data-level attribute.
+    for node in flat_nodes:
+        li = soup.new_tag("li")
+        # Every li gets a data-level attribute equal to its "level"
+        level = node.get("level", 0)
+        li['data-level'] = str(level)
+        # initial style: only show top–level entries (level 0) and hide others
+        if level > 0:
+            li['style'] = "display:none;"
+        else:
+            li['style'] = "display:list-item;"
+        # For potential toggling, store the node id.
+        li['data-id'] = node.get("id")
+        
+        # Determine the proper CSS class for the node.
+        css_class = compute_node_class(node, children_map)
+        if css_class:
+            li['class'] = css_class
+        
+        # Add indentation via inline style padding (for example, 20px per level)
+        indent = level * 20
+        li['style'] = li.get("style", "") + "padding-left: {}px;".format(indent)
+        
+        # If this node is a heading (has children), add the SVG toggle icon.
+        if css_class == "heading":
+            # Create a span for the icon (the SVG will be inserted in it)
+            icon_span = soup.new_tag("span", **{"class": "toggle-icon"})
+            icon_span.append(create_svg_icon(soup))
+            li.append(icon_span)
+            # Also add a space between the icon and text.
+            li.append(" ")
+        
+        # Now add the entry text. If a URL exists and the entry is not a heading, wrap in <a>.
+        text = node.get("title", "")
+        url = node.get("url")
+        if url and css_class != "heading":
+            a_tag = soup.new_tag("a", href=url)
+            a_tag.string = text
+            li.append(a_tag)
+        else:
+            # For headings (or entries without a url) simply add a span.
+            span_tag = soup.new_tag("span")
+            span_tag.string = text
+            li.append(span_tag)
+        
+        toc_ul.append(li)
+    
+    return soup
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: {} toc_data.json".format(os.path.basename(sys.argv[0])))
+        sys.exit(1)
+    json_filepath = sys.argv[1]
+    data = load_json(json_filepath)
+    
+    # In data, the entities are in data["entities"]["pages"]
+    entities = data["entities"]["pages"]
+    topLevelIds = data.get("topLevelIds", [])
+    
+    children_map = build_children_map(entities)
+    flat_nodes = flatten_tree(entities, topLevelIds, children_map)
+    
+    soup = build_html_document(flat_nodes, children_map)
+    # Write output to stdout (or you could write to an output file)
+    print(soup.prettify())
+
+if __name__ == '__main__':
+    main()
+
+-------------------------------------------------
+
+How the script works:
+
+1. It reads the JSON file and builds a mapping of each node’s children (using the “parentId” field).
+
+2. It “flattens” the tree starting with the top–level IDs (given in data["topLevelIds"]) so that a flat list (in display order) is produced. Each node keeps its “level” value (which is used for indentation).
+
+3. Each list element (“li”) is given a data-level attribute, a data-id attribute and an inline padding style (20px per level). If the node is a heading (has children) a toggle SVG icon (an equilateral triangle) is prepended.
+
+4. JavaScript is inserted (inside a <script> tag in the document’s head) to attach click events to heading items. When clicked, the headings’ immediate child entries (all subsequent <li>s with a higher “data-level” until one with a level equal to or lower than the clicked heading is encountered) are toggled (shown/hidden) and the SVG icon’s rotation is updated accordingly.
+
+5. The document links to “toc_style.css” for additional styling. Also note that each entry’s CSS class is set to “page” (for a relative URL), “external” (for an absolute URL), or “heading” (if it has children).
+
+You can now run this script (e.g., in a Unix shell) with:
+
+  python generate_toc.py your_toc_data.json
+
+and the resulting HTML will be printed to standard output.
+
+This script is self–contained and makes use of BeautifulSoup to generate the document.
