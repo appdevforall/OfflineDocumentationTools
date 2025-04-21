@@ -240,6 +240,13 @@ def main():
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
 
+        # Copy docs commit hash
+        if os.path.exists(args.input_dir):
+            shutil.copy(os.path.join(args.input_dir, "..", "docs_version.txt"), args.output_dir)
+        else:
+            logging.info("Input directory " + args.input_dir + " does not exist.")
+            sys.exit(1)
+
         # Process HTML files in the input directory (only files in the immediate directory ending with .html).
         for filename in os.listdir(args.input_dir):
             input_path = os.path.join(args.input_dir, filename)
