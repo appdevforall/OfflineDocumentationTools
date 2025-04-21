@@ -2,7 +2,7 @@
 DOC_DIRNAME="docs"
 
 if [ "$#" -ne 2 ]; then
-  echo "Usage: ./init_writerside.sh /path/to/kotlin-site /path/to/out/dir"
+  echo "Usage: ./init_writerside.sh /path/to/kotlin-site /path/to/out/dir\nSet up Kotlin website docs for use in Writerside, recording docs version.."
   exit
 fi
 
