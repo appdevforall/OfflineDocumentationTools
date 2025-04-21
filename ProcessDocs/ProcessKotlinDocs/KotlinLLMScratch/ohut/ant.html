@@ -1,0 +1,726 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="ant" id="ant.md">
+    Ant
+   </h1>
+   <section class="chapter">
+    <h2 data-toc="getting-the-ant-tasks" id="getting-the-ant-tasks">
+     Getting the Ant tasks
+    </h2>
+    <p id="-o1x2g3_10">
+     Kotlin provides three tasks for Ant:
+    </p>
+    <ul class="list _bullet" id="-o1x2g3_11">
+     <li class="list__item" id="-o1x2g3_13">
+      <p id="-o1x2g3_16">
+       <code class="code" id="-o1x2g3_17">
+        kotlinc
+       </code>
+       : Kotlin compiler targeting the JVM
+      </p>
+     </li>
+     <li class="list__item" id="-o1x2g3_14">
+      <p id="-o1x2g3_18">
+       <code class="code" id="-o1x2g3_19">
+        kotlin2js
+       </code>
+       : Kotlin compiler targeting JavaScript
+      </p>
+     </li>
+     <li class="list__item" id="-o1x2g3_15">
+      <p id="-o1x2g3_20">
+       <code class="code" id="-o1x2g3_21">
+        withKotlin
+       </code>
+       : Task to compile Kotlin files when using the standard
+       <span class="emphasis" id="-o1x2g3_22">
+        javac
+       </span>
+       Ant task
+      </p>
+     </li>
+    </ul>
+    <p id="-o1x2g3_12">
+     These tasks are defined in the
+     <span class="emphasis" id="-o1x2g3_23">
+      kotlin-ant.jar
+     </span>
+     library which is located in the
+     <code class="code" id="-o1x2g3_24">
+      lib
+     </code>
+     folder in the
+     <a data-external="true" href="https://github.com/JetBrains/kotlin/releases/tag/v2.1.20" id="-o1x2g3_25" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Kotlin Compiler
+     </a>
+     archive. Ant version 1.8.2+ is required.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-jvm-with-kotlin-only-source" id="targeting-jvm-with-kotlin-only-source">
+     Targeting JVM with Kotlin-only source
+    </h2>
+    <p id="-o1x2g3_26">
+     When the project consists of exclusively Kotlin source code, the easiest way to compile the project is to use the
+     <code class="code" id="-o1x2g3_29">
+      kotlinc
+     </code>
+     task:
+    </p>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;typedef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;kotlinc src="hello.kt" output="hello.jar"/&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+    <p id="-o1x2g3_28">
+     where
+     <code class="code" id="-o1x2g3_30">
+      ${kotlin.lib}
+     </code>
+     points to the folder where the Kotlin standalone compiler was unzipped.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-jvm-with-kotlin-only-source-and-multiple-roots" id="targeting-jvm-with-kotlin-only-source-and-multiple-roots">
+     Targeting JVM with Kotlin-only source and multiple roots
+    </h2>
+    <p id="-o1x2g3_31">
+     If a project consists of multiple source roots, use
+     <code class="code" id="-o1x2g3_33">
+      src
+     </code>
+     as elements to define paths:
+    </p>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;typedef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;kotlinc output="hello.jar"&gt;
+            &lt;src path="root1"/&gt;
+            &lt;src path="root2"/&gt;
+        &lt;/kotlinc&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-jvm-with-kotlin-and-java-source" id="targeting-jvm-with-kotlin-and-java-source">
+     Targeting JVM with Kotlin and Java source
+    </h2>
+    <p id="-o1x2g3_34">
+     If a project consists of both Kotlin and Java source code, while it is possible to use
+     <code class="code" id="-o1x2g3_38">
+      kotlinc
+     </code>
+     , to avoid repetition of task parameters, it is recommended to use
+     <code class="code" id="-o1x2g3_39">
+      withKotlin
+     </code>
+     task:
+    </p>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;typedef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;delete dir="classes" failonerror="false"/&gt;
+        &lt;mkdir dir="classes"/&gt;
+        &lt;javac destdir="classes" includeAntRuntime="false" srcdir="src"&gt;
+            &lt;withKotlin/&gt;
+        &lt;/javac&gt;
+        &lt;jar destfile="hello.jar"&gt;
+            &lt;fileset dir="classes"/&gt;
+        &lt;/jar&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+    <p id="-o1x2g3_36">
+     You can also specify the name of the module being compiled as the
+     <code class="code" id="-o1x2g3_40">
+      moduleName
+     </code>
+     attribute:
+    </p>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;withKotlin moduleName="myModule"/&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-javascript-with-single-source-folder" id="targeting-javascript-with-single-source-folder">
+     Targeting JavaScript with single source folder
+    </h2>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;typedef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;kotlin2js src="root1" output="out.js"/&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-javascript-with-prefix-postfix-and-sourcemap-options" id="targeting-javascript-with-prefix-postfix-and-sourcemap-options">
+     Targeting JavaScript with Prefix, PostFix and sourcemap options
+    </h2>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;taskdef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;kotlin2js src="root1" output="out.js" outputPrefix="prefix" outputPostfix="postfix" sourcemap="true"/&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="targeting-javascript-with-single-source-folder-and-metainfo-option" id="targeting-javascript-with-single-source-folder-and-metainfo-option">
+     Targeting JavaScript with single source folder and metaInfo option
+    </h2>
+    <p id="-o1x2g3_43">
+     The
+     <code class="code" id="-o1x2g3_45">
+      metaInfo
+     </code>
+     option is useful, if you want to distribute the result of translation as a Kotlin/JavaScript library. If
+     <code class="code" id="-o1x2g3_46">
+      metaInfo
+     </code>
+     was set to
+     <code class="code" id="-o1x2g3_47">
+      true
+     </code>
+     , then during compilation additional JS file with binary metadata will be created. This file should be distributed together with the result of translation:
+    </p>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;project name="Ant Task Test" default="build"&gt;
+    &lt;typedef resource="org/jetbrains/kotlin/ant/antlib.xml" classpath="${kotlin.lib}/kotlin-ant.jar"/&gt;
+
+    &lt;target name="build"&gt;
+        &lt;!-- out.meta.js will be created, which contains binary metadata --&gt;
+        &lt;kotlin2js src="root1" output="out.js" metaInfo="true"/&gt;
+    &lt;/target&gt;
+&lt;/project&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="references" id="references">
+     References
+    </h2>
+    <p id="-o1x2g3_48">
+     Complete list of elements and attributes are listed below:
+    </p>
+    <section class="chapter">
+     <h3 data-toc="attributes-common-for-kotlinc-and-kotlin2js" id="attributes-common-for-kotlinc-and-kotlin2js">
+      Attributes common for kotlinc and kotlin2js
+     </h3>
+     <div class="table-wrapper">
+      <table class="wide" id="-o1x2g3_53">
+       <thead>
+        <tr class="ijRowHead" id="-o1x2g3_54">
+         <th id="-o1x2g3_59">
+          <p>
+           Name
+          </p>
+         </th>
+         <th id="-o1x2g3_60">
+          <p>
+           Description
+          </p>
+         </th>
+         <th id="-o1x2g3_61">
+          <p>
+           Required
+          </p>
+         </th>
+         <th id="-o1x2g3_62">
+          <p>
+           Default Value
+          </p>
+         </th>
+        </tr>
+       </thead>
+       <tbody>
+        <tr id="-o1x2g3_55">
+         <td id="-o1x2g3_63">
+          <p>
+           <code class="code" id="-o1x2g3_67">
+            src
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_64">
+          <p>
+           Kotlin source file or directory to compile
+          </p>
+         </td>
+         <td id="-o1x2g3_65">
+          <p>
+           Yes
+          </p>
+         </td>
+         <td id="-o1x2g3_66">
+         </td>
+        </tr>
+        <tr id="-o1x2g3_56">
+         <td id="-o1x2g3_68">
+          <p>
+           <code class="code" id="-o1x2g3_72">
+            nowarn
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_69">
+          <p>
+           Suppresses all compilation warnings
+          </p>
+         </td>
+         <td id="-o1x2g3_70">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_71">
+          <p>
+           false
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_57">
+         <td id="-o1x2g3_73">
+          <p>
+           <code class="code" id="-o1x2g3_77">
+            noStdlib
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_74">
+          <p>
+           Does not include the Kotlin standard library into the classpath
+          </p>
+         </td>
+         <td id="-o1x2g3_75">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_76">
+          <p>
+           false
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_58">
+         <td id="-o1x2g3_78">
+          <p>
+           <code class="code" id="-o1x2g3_82">
+            failOnError
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_79">
+          <p>
+           Fails the build if errors are detected during the compilation
+          </p>
+         </td>
+         <td id="-o1x2g3_80">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_81">
+          <p>
+           true
+          </p>
+         </td>
+        </tr>
+       </tbody>
+      </table>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="kotlinc-attributes" id="kotlinc-attributes">
+      kotlinc attributes
+     </h3>
+     <div class="table-wrapper">
+      <table class="wide" id="-o1x2g3_83">
+       <thead>
+        <tr class="ijRowHead" id="-o1x2g3_84">
+         <th id="-o1x2g3_90">
+          <p>
+           Name
+          </p>
+         </th>
+         <th id="-o1x2g3_91">
+          <p>
+           Description
+          </p>
+         </th>
+         <th id="-o1x2g3_92">
+          <p>
+           Required
+          </p>
+         </th>
+         <th id="-o1x2g3_93">
+          <p>
+           Default Value
+          </p>
+         </th>
+        </tr>
+       </thead>
+       <tbody>
+        <tr id="-o1x2g3_85">
+         <td id="-o1x2g3_94">
+          <p>
+           <code class="code" id="-o1x2g3_98">
+            output
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_95">
+          <p>
+           Destination directory or .jar file name
+          </p>
+         </td>
+         <td id="-o1x2g3_96">
+          <p>
+           Yes
+          </p>
+         </td>
+         <td id="-o1x2g3_97">
+         </td>
+        </tr>
+        <tr id="-o1x2g3_86">
+         <td id="-o1x2g3_99">
+          <p>
+           <code class="code" id="-o1x2g3_103">
+            classpath
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_100">
+          <p>
+           Compilation class path
+          </p>
+         </td>
+         <td id="-o1x2g3_101">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_102">
+         </td>
+        </tr>
+        <tr id="-o1x2g3_87">
+         <td id="-o1x2g3_104">
+          <p>
+           <code class="code" id="-o1x2g3_108">
+            classpathref
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_105">
+          <p>
+           Compilation class path reference
+          </p>
+         </td>
+         <td id="-o1x2g3_106">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_107">
+         </td>
+        </tr>
+        <tr id="-o1x2g3_88">
+         <td id="-o1x2g3_109">
+          <p>
+           <code class="code" id="-o1x2g3_113">
+            includeRuntime
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_110">
+          <p>
+           If
+           <code class="code" id="-o1x2g3_114">
+            output
+           </code>
+           is a .jar file, whether Kotlin runtime library is included in the jar
+          </p>
+         </td>
+         <td id="-o1x2g3_111">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_112">
+          <p>
+           true
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_89">
+         <td id="-o1x2g3_115">
+          <p>
+           <code class="code" id="-o1x2g3_119">
+            moduleName
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_116">
+          <p>
+           Name of the module being compiled
+          </p>
+         </td>
+         <td id="-o1x2g3_117">
+          <p>
+           No
+          </p>
+         </td>
+         <td id="-o1x2g3_118">
+          <p>
+           The name of the target (if specified) or the project
+          </p>
+         </td>
+        </tr>
+       </tbody>
+      </table>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="kotlin2js-attributes" id="kotlin2js-attributes">
+      kotlin2js attributes
+     </h3>
+     <div class="table-wrapper">
+      <table class="wide" id="-o1x2g3_120">
+       <thead>
+        <tr class="ijRowHead" id="-o1x2g3_121">
+         <th id="-o1x2g3_129">
+          <p>
+           Name
+          </p>
+         </th>
+         <th id="-o1x2g3_130">
+          <p>
+           Description
+          </p>
+         </th>
+         <th id="-o1x2g3_131">
+          <p>
+           Required
+          </p>
+         </th>
+        </tr>
+       </thead>
+       <tbody>
+        <tr id="-o1x2g3_122">
+         <td id="-o1x2g3_132">
+          <p>
+           <code class="code" id="-o1x2g3_135">
+            output
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_133">
+          <p>
+           Destination file
+          </p>
+         </td>
+         <td id="-o1x2g3_134">
+          <p>
+           Yes
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_123">
+         <td id="-o1x2g3_136">
+          <p>
+           <code class="code" id="-o1x2g3_139">
+            libraries
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_137">
+          <p>
+           Paths to Kotlin libraries
+          </p>
+         </td>
+         <td id="-o1x2g3_138">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_124">
+         <td id="-o1x2g3_140">
+          <p>
+           <code class="code" id="-o1x2g3_143">
+            outputPrefix
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_141">
+          <p>
+           Prefix to use for generated JavaScript files
+          </p>
+         </td>
+         <td id="-o1x2g3_142">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_125">
+         <td id="-o1x2g3_144">
+          <p>
+           <code class="code" id="-o1x2g3_147">
+            outputSuffix
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_145">
+          <p>
+           Suffix to use for generated JavaScript files
+          </p>
+         </td>
+         <td id="-o1x2g3_146">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_126">
+         <td id="-o1x2g3_148">
+          <p>
+           <code class="code" id="-o1x2g3_151">
+            sourcemap
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_149">
+          <p>
+           Whether sourcemap file should be generated
+          </p>
+         </td>
+         <td id="-o1x2g3_150">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_127">
+         <td id="-o1x2g3_152">
+          <p>
+           <code class="code" id="-o1x2g3_155">
+            metaInfo
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_153">
+          <p>
+           Whether metadata file with binary descriptors should be generated
+          </p>
+         </td>
+         <td id="-o1x2g3_154">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+        <tr id="-o1x2g3_128">
+         <td id="-o1x2g3_156">
+          <p>
+           <code class="code" id="-o1x2g3_159">
+            main
+           </code>
+          </p>
+         </td>
+         <td id="-o1x2g3_157">
+          <p>
+           Should compiler generated code call the main function
+          </p>
+         </td>
+         <td id="-o1x2g3_158">
+          <p>
+           No
+          </p>
+         </td>
+        </tr>
+       </tbody>
+      </table>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="passing-raw-compiler-arguments" id="passing-raw-compiler-arguments">
+      Passing raw compiler arguments
+     </h3>
+     <p id="-o1x2g3_160">
+      To pass custom raw compiler arguments, you can use
+      <code class="code" id="-o1x2g3_163">
+       &lt;compilerarg&gt;
+      </code>
+      elements with either
+      <code class="code" id="-o1x2g3_164">
+       value
+      </code>
+      or
+      <code class="code" id="-o1x2g3_165">
+       line
+      </code>
+      attributes. This can be done within the
+      <code class="code" id="-o1x2g3_166">
+       &lt;kotlinc&gt;
+      </code>
+      ,
+      <code class="code" id="-o1x2g3_167">
+       &lt;kotlin2js&gt;
+      </code>
+      , and
+      <code class="code" id="-o1x2g3_168">
+       &lt;withKotlin&gt;
+      </code>
+      task elements, as follows:
+     </p>
+     <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      &lt;kotlinc src="${test.data}/hello.kt" output="${temp}/hello.jar"&gt;
+    &lt;compilerarg value="-Xno-inline"/&gt;
+    &lt;compilerarg line="-Xno-call-assertions -Xno-param-assertions"/&gt;
+    &lt;compilerarg value="-Xno-optimize"/&gt;
+&lt;/kotlinc&gt;
+     </div>
+     <p id="-o1x2g3_162">
+      The full list of arguments that can be used is shown when you run
+      <code class="code" id="-o1x2g3_169">
+       kotlinc -help
+      </code>
+      .
+     </p>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

@@ -1,0 +1,211 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="ksp-additional-details" id="ksp-additional-details.md">
+    How KSP models Kotlin code
+   </h1>
+   <p id="-hdbtzv_2">
+    You can find the API definition in the
+    <a data-external="true" href="https://github.com/google/ksp/tree/main/api/src/main/kotlin/com/google/devtools/ksp" id="-hdbtzv_6" rel="noopener noreferrer" style="color: red;" target="_blank">
+     KSP GitHub repository
+    </a>
+    . The diagram shows an overview of how Kotlin is
+    <a data-external="true" href="https://github.com/google/ksp/tree/main/api/src/main/kotlin/com/google/devtools/ksp/symbol/" id="-hdbtzv_7" rel="noopener noreferrer" style="color: red;" target="_blank">
+     modeled
+    </a>
+    in KSP:
+   </p>
+   <figure id="-hdbtzv_3">
+    <a class="lightbox" href="images/ksp-class-diagram.svg" style="color: blue;">
+     <img alt="class diagram" height="312" src="images/ksp-class-diagram.svg" title="class diagram" width="800"/>
+    </a>
+   </figure>
+   <aside class="prompt" data-title="" data-type="note" id="-hdbtzv_4">
+    <p id="-hdbtzv_8">
+     <a data-external="true" href="https://kotlinlang.org/docs/images/ksp-class-diagram.svg" id="-hdbtzv_9" rel="noopener noreferrer" style="color: red;" target="_blank">
+      See the full-sized diagram
+     </a>
+     .
+    </p>
+   </aside>
+   <section class="chapter">
+    <h2 data-toc="type-and-resolution" id="type-and-resolution">
+     Type and resolution
+    </h2>
+    <p id="-hdbtzv_10">
+     The resolution takes most of the cost of the underlying API implementation. So type references are designed to be resolved by processors explicitly (with a few exceptions). When a
+     <span class="emphasis" id="-hdbtzv_19">
+      type
+     </span>
+     (such as
+     <code class="code" id="-hdbtzv_20">
+      KSFunctionDeclaration.returnType
+     </code>
+     or
+     <code class="code" id="-hdbtzv_21">
+      KSAnnotation.annotationType
+     </code>
+     ) is referenced, it is always a
+     <code class="code" id="-hdbtzv_22">
+      KSTypeReference
+     </code>
+     , which is a
+     <code class="code" id="-hdbtzv_23">
+      KSReferenceElement
+     </code>
+     with annotations and modifiers.
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface KSFunctionDeclaration : ... {
+  val returnType: KSTypeReference?
+  // ...
+}
+
+interface KSTypeReference : KSAnnotated, KSModifierListOwner {
+  val type: KSReferenceElement
+}
+    </div>
+    <p id="-hdbtzv_12">
+     A
+     <code class="code" id="-hdbtzv_24">
+      KSTypeReference
+     </code>
+     can be resolved to a
+     <code class="code" id="-hdbtzv_25">
+      KSType
+     </code>
+     , which refers to a type in Kotlin's type system.
+    </p>
+    <p id="-hdbtzv_13">
+     A
+     <code class="code" id="-hdbtzv_26">
+      KSTypeReference
+     </code>
+     has a
+     <code class="code" id="-hdbtzv_27">
+      KSReferenceElement
+     </code>
+     , which models Kotlin's program structure: namely, how the reference is written. It corresponds to the
+     <a data-external="true" href="https://kotlinlang.org/docs/reference/grammar.html#type" id="-hdbtzv_28" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="-hdbtzv_29">
+       type
+      </code>
+     </a>
+     element in Kotlin's grammar.
+    </p>
+    <p id="-hdbtzv_14">
+     A
+     <code class="code" id="-hdbtzv_30">
+      KSReferenceElement
+     </code>
+     can be a
+     <code class="code" id="-hdbtzv_31">
+      KSClassifierReference
+     </code>
+     or
+     <code class="code" id="-hdbtzv_32">
+      KSCallableReference
+     </code>
+     , which contains a lot of useful information without the need for resolution. For example,
+     <code class="code" id="-hdbtzv_33">
+      KSClassifierReference
+     </code>
+     has
+     <code class="code" id="-hdbtzv_34">
+      referencedName
+     </code>
+     , while
+     <code class="code" id="-hdbtzv_35">
+      KSCallableReference
+     </code>
+     has
+     <code class="code" id="-hdbtzv_36">
+      receiverType
+     </code>
+     ,
+     <code class="code" id="-hdbtzv_37">
+      functionArguments
+     </code>
+     , and
+     <code class="code" id="-hdbtzv_38">
+      returnType
+     </code>
+     .
+    </p>
+    <p id="-hdbtzv_15">
+     If the original declaration referenced by a
+     <code class="code" id="-hdbtzv_39">
+      KSTypeReference
+     </code>
+     is needed, it can usually be found by resolving to
+     <code class="code" id="-hdbtzv_40">
+      KSType
+     </code>
+     and accessing through
+     <code class="code" id="-hdbtzv_41">
+      KSType.declaration
+     </code>
+     . Moving from where a type is mentioned to where its class is defined looks like this:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val ksType: KSType = ksTypeReference.resolve()
+val ksDeclaration: KSDeclaration = ksType.declaration
+    </div>
+    <p id="-hdbtzv_17">
+     Type resolution is costly and therefore has explicit form. Some of the information obtained from resolution is already available in
+     <code class="code" id="-hdbtzv_42">
+      KSReferenceElement
+     </code>
+     . For example,
+     <code class="code" id="-hdbtzv_43">
+      KSClassifierReference.referencedName
+     </code>
+     can filter out a lot of elements that are not interesting. You should resolve type only if you need specific information from
+     <code class="code" id="-hdbtzv_44">
+      KSDeclaration
+     </code>
+     or
+     <code class="code" id="-hdbtzv_45">
+      KSType
+     </code>
+     .
+    </p>
+    <p id="-hdbtzv_18">
+     <code class="code" id="-hdbtzv_46">
+      KSTypeReference
+     </code>
+     pointing to a function type has most of its information in its element. Although it can be resolved to the family of
+     <code class="code" id="-hdbtzv_47">
+      Function0
+     </code>
+     ,
+     <code class="code" id="-hdbtzv_48">
+      Function1
+     </code>
+     , and so on, these resolutions don't bring any more information than
+     <code class="code" id="-hdbtzv_49">
+      KSCallableReference
+     </code>
+     . One use case for resolving function type references is dealing with the identity of the function's prototype.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

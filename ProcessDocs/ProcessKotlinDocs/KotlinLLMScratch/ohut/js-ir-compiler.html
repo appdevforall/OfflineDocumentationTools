@@ -1,0 +1,530 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="js-ir-compiler" id="js-ir-compiler.md">
+    Kotlin/JS IR compiler
+   </h1>
+   <p id="-4ix995_2">
+    The Kotlin/JS IR compiler backend is the main focus of innovation around Kotlin/JS, and paves the way forward for the technology.
+   </p>
+   <p id="-4ix995_3">
+    Rather than directly generating JavaScript code from Kotlin source code, the Kotlin/JS IR compiler backend leverages a new approach. Kotlin source code is first transformed into a
+    <a data-tooltip="In Kotlin, we have three backends that generate executables: Kotlin/JVM, Kotlin/JS, and Kotlin/Native. Kotlin/JVM and Kotlin/JS don't share much code since they were developed independently of each other. Kotlin/Native is based on a new infrastructure built around an intermediate…" href="whatsnew14.html#unified-backends-and-extensibility" id="-4ix995_17" style="color: blue;">
+     Kotlin intermediate representation (IR)
+    </a>
+    , which is subsequently compiled into JavaScript. For Kotlin/JS, this enables aggressive optimizations, and allows improvements on pain points that were present in the previous compiler, such as generated code size (through dead code elimination), and JavaScript and TypeScript ecosystem interoperability, to name some examples.
+   </p>
+   <p id="-4ix995_4">
+    The IR compiler backend is available starting with Kotlin 1.4.0 through the Kotlin Multiplatform Gradle plugin. To enable it in your project, pass a compiler type to the
+    <code class="code" id="-4ix995_18">
+     js
+    </code>
+    function in your Gradle build script:
+   </p>
+   <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    kotlin {
+    js(IR) { // or: LEGACY, BOTH
+        // ...
+        binaries.executable() // not applicable to BOTH, see details below
+    }
+}
+   </div>
+   <ul class="list _bullet" id="-4ix995_6">
+    <li class="list__item" id="-4ix995_19">
+     <p id="-4ix995_22">
+      <code class="code" id="-4ix995_23">
+       IR
+      </code>
+      uses the new IR compiler backend for Kotlin/JS.
+     </p>
+    </li>
+    <li class="list__item" id="-4ix995_20">
+     <p id="-4ix995_24">
+      <code class="code" id="-4ix995_25">
+       LEGACY
+      </code>
+      uses the old compiler backend.
+     </p>
+    </li>
+    <li class="list__item" id="-4ix995_21">
+     <p id="-4ix995_26">
+      <code class="code" id="-4ix995_27">
+       BOTH
+      </code>
+      compiles your project with the new IR compiler as well as the default compiler backend. Use this mode for
+      <a data-tooltip="If you're a library maintainer who is looking to provide compatibility with the default backend as well as the new IR compiler backend, a setting for the compiler selection is available that allows you to create artifacts for both backends, allowing you to keep compatibility for…" href="#authoring-libraries-for-the-ir-compiler-with-backwards-compatibility" id="-4ix995_28" style="color: blue;">
+       authoring libraries compatible with both backends
+      </a>
+      .
+     </p>
+    </li>
+   </ul>
+   <aside class="prompt" data-title="" data-type="warning" id="-4ix995_7">
+    <p id="-4ix995_29">
+     The old compiler backend has been deprecated since Kotlin 1.8.0. Starting with Kotlin 1.9.0, using compiler types
+     <code class="code" id="-4ix995_30">
+      LEGACY
+     </code>
+     or
+     <code class="code" id="-4ix995_31">
+      BOTH
+     </code>
+     leads to an error.
+    </p>
+   </aside>
+   <p id="-4ix995_8">
+    The compiler type can also be set in the
+    <code class="code" id="-4ix995_32">
+     gradle.properties
+    </code>
+    file, with the key
+    <code class="code" id="-4ix995_33">
+     kotlin.js.compiler=ir
+    </code>
+    . This behaviour is overwritten by any settings in the
+    <code class="code" id="-4ix995_34">
+     build.gradle(.kts)
+    </code>
+    , however.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="lazy-initialization-of-top-level-properties" id="lazy-initialization-of-top-level-properties">
+     Lazy initialization of top-level properties
+    </h2>
+    <p id="-4ix995_35">
+     For better application startup performance, the Kotlin/JS IR compiler initializes top-level properties lazily. This way, the application loads without initializing all the top-level properties used in its code. It initializes only the ones needed at startup; other properties receive their values later when the code that uses them actually runs.
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val a = run {
+    val result = // intensive computations
+    println(result)
+    result
+} // value is computed upon the first usage
+    </div>
+    <p id="-4ix995_37">
+     If for some reason you need to initialize a property eagerly (upon the application start), mark it with the
+     <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.js/-eager-initialization/" id="-4ix995_38" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="-4ix995_39">
+       @EagerInitialization
+      </code>
+     </a>
+     annotation.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="incremental-compilation-for-development-binaries" id="incremental-compilation-for-development-binaries">
+     Incremental compilation for development binaries
+    </h2>
+    <p id="-4ix995_40">
+     The JS IR compiler provides the
+     <span class="emphasis" id="-4ix995_44">
+      incremental compilation mode for development binaries
+     </span>
+     that speeds up the development process. In this mode, the compiler caches the results of
+     <code class="code" id="-4ix995_45">
+      compileDevelopmentExecutableKotlinJs
+     </code>
+     Gradle task on the module level. It uses the cached compilation results for unchanged source files during subsequent compilations, making them complete faster, especially with small changes.
+    </p>
+    <p id="-4ix995_41">
+     Incremental compilation is enabled by default. To disable incremental compilation for development binaries, add the following line to the project's
+     <code class="code" id="-4ix995_46">
+      gradle.properties
+     </code>
+     or
+     <code class="code" id="-4ix995_47">
+      local.properties
+     </code>
+     :
+    </p>
+    <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin.incremental.js.ir=false // true by default
+    </div>
+    <aside class="prompt" data-title="" data-type="note" id="-4ix995_43">
+     <p id="-4ix995_48">
+      The clean build in the incremental compilation mode is usually slower because of the need to create and populate the caches.
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="output-mode" id="output-mode">
+     Output mode
+    </h2>
+    <p id="-4ix995_49">
+     You can choose how the JS IR compiler outputs
+     <code class="code" id="-4ix995_51">
+      .js
+     </code>
+     files in your project:
+    </p>
+    <ul class="list _bullet" id="-4ix995_50">
+     <li class="list__item" id="-4ix995_52">
+      <p id="-4ix995_55">
+       <span class="control" id="-4ix995_56">
+        One per module
+       </span>
+       . By default, the JS compiler outputs separate
+       <code class="code" id="-4ix995_57">
+        .js
+       </code>
+       files for each module of a project as a compilation result.
+      </p>
+     </li>
+     <li class="list__item" id="-4ix995_53">
+      <p id="-4ix995_58">
+       <span class="control" id="-4ix995_60">
+        One per project
+       </span>
+       . You can compile the whole project into a single
+       <code class="code" id="-4ix995_61">
+        .js
+       </code>
+       file by adding the following line to
+       <code class="code" id="-4ix995_62">
+        gradle.properties
+       </code>
+       :
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin.js.ir.output.granularity=whole-program // 'per-module' is the default
+      </div>
+     </li>
+     <li class="list__item" id="-4ix995_54">
+      <p id="-4ix995_63">
+       <span class="control" id="-4ix995_65">
+        One per file
+       </span>
+       . You can set up a more granular output that generates one (or two, if the file contains exported declarations) JavaScript file per each Kotlin file. To enable the per-file compilation mode:
+      </p>
+      <ol class="list _decimal" id="-4ix995_64" type="1">
+       <li class="list__item" id="-4ix995_66">
+        <p id="-4ix995_68">
+         Add the
+         <code class="code" id="-4ix995_71">
+          useEsModules()
+         </code>
+         function to your build file to support ECMAScript modules:
+        </p>
+        <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         // build.gradle.kts
+kotlin {
+    js(IR) {
+        useEsModules() // Enables ES2015 modules
+        browser()
+    }
+}
+        </div>
+        <p id="-4ix995_70">
+         Alternatively, you can use the
+         <code class="code" id="-4ix995_72">
+          es2015
+         </code>
+         <a data-tooltip="Kotlin provides an Experimental support for the following ES2015 features:" href="js-project-setup.html#support-for-es2015-features" id="-4ix995_73" style="color: blue;">
+          compilation target
+         </a>
+         to support ES2015 features in your project.
+        </p>
+       </li>
+       <li class="list__item" id="-4ix995_67">
+        <p id="-4ix995_74">
+         Apply the
+         <code class="code" id="-4ix995_76">
+          -Xir-per-file
+         </code>
+         compiler option or update your
+         <code class="code" id="-4ix995_77">
+          gradle.properties
+         </code>
+         file with:
+        </p>
+        <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         # gradle.properties
+kotlin.js.ir.output.granularity=per-file // `per-module` is the default
+        </div>
+       </li>
+      </ol>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="minification-of-member-names-in-production" id="minification-of-member-names-in-production">
+     Minification of member names in production
+    </h2>
+    <p id="-4ix995_78">
+     The Kotlin/JS IR compiler uses its internal information about the relationships of your Kotlin classes and functions to apply more efficient minification, shortening the names of functions, properties, and classes. This reduces the size of resulting bundled applications.
+    </p>
+    <p id="-4ix995_79">
+     This type of minification is automatically applied when you build your Kotlin/JS application in
+     <a data-tooltip="For building executable JavaScript artifacts through webpack, the Kotlin Multiplatform Gradle plugin contains the browserDevelopmentWebpack and browserProductionWebpack Gradle tasks." href="js-project-setup.html#building-executables" id="-4ix995_81" style="color: blue;">
+      production
+     </a>
+     mode, and enabled by default. To disable member name minification, use the
+     <code class="code" id="-4ix995_82">
+      -Xir-minimized-member-names
+     </code>
+     compiler option:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js(IR) {
+        compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions.freeCompilerArgs.add("-Xir-minimized-member-names=false")
+            }
+        }
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="preview-generation-of-typescript-declaration-files-d-ts" id="preview-generation-of-typescript-declaration-files-d-ts">
+     Preview: generation of TypeScript declaration files (d.ts)
+    </h2>
+    <aside class="prompt" data-title="" data-type="warning" id="-4ix995_83">
+     <p id="-4ix995_89">
+      The generation of TypeScript declaration files (
+      <code class="code" id="-4ix995_90">
+       d.ts
+      </code>
+      ) is
+      <a data-tooltip="The Kotlin language and toolset are divided into many components such as the compilers for the JVM, JS and Native targets, the Standard Library, various accompanying tools and so on. Many of these components were officially released as Stable, which means that they were evolved in a…" href="components-stability.html" id="-4ix995_91" style="color: blue;">
+       Experimental
+      </a>
+      . It may be dropped or changed at any time. Opt-in is required (see the details below), and you should use it only for evaluation purposes. We would appreciate your feedback on it in
+      <a data-external="true" href="https://youtrack.jetbrains.com/issues?q=%23%7BKJS:%20d.ts%20generation%7D" id="-4ix995_92" rel="noopener noreferrer" style="color: red;" target="_blank">
+       YouTrack
+      </a>
+      .
+     </p>
+    </aside>
+    <p id="-4ix995_84">
+     The Kotlin/JS IR compiler is capable of generating TypeScript definitions from your Kotlin code. These definitions can be used by JavaScript tools and IDEs when working on hybrid apps to provide autocompletion, support static analyzers, and make it easier to include Kotlin code in JavaScript and TypeScript projects.
+    </p>
+    <p id="-4ix995_85">
+     If your project produces executable files (
+     <code class="code" id="-4ix995_93">
+      binaries.executable()
+     </code>
+     ), the Kotlin/JS IR compiler collects any top-level declarations marked with
+     <a data-tooltip="This feature is Experimental. Its design may change in future versions." href="js-to-kotlin-interop.html#jsexport-annotation" id="-4ix995_94" style="color: blue;">
+      <code class="code" id="-4ix995_96">
+       @JsExport
+      </code>
+     </a>
+     and automatically generates TypeScript definitions in a
+     <code class="code" id="-4ix995_95">
+      .d.ts
+     </code>
+     file.
+    </p>
+    <p id="-4ix995_86">
+     If you want to generate TypeScript definitions, you have to explicitly configure this in your Gradle build file. Add
+     <code class="code" id="-4ix995_97">
+      generateTypeScriptDefinitions()
+     </code>
+     to your
+     <code class="code" id="-4ix995_98">
+      build.gradle.kts
+     </code>
+     file in the
+     <a data-tooltip="Kotlin/JS projects can target two different execution environments:" href="js-project-setup.html#execution-environments" id="-4ix995_99" style="color: blue;">
+      <code class="code" id="-4ix995_100">
+       js
+      </code>
+      section
+     </a>
+     . For example:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        binaries.executable()
+        browser {
+        }
+        generateTypeScriptDefinitions()
+    }
+}
+    </div>
+    <p id="-4ix995_88">
+     The definitions can be found in
+     <code class="code" id="-4ix995_101">
+      build/js/packages/&lt;package_name&gt;/kotlin
+     </code>
+     alongside the corresponding un-webpacked JavaScript code.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="current-limitations-of-the-ir-compiler" id="current-limitations-of-the-ir-compiler">
+     Current limitations of the IR compiler
+    </h2>
+    <p id="-4ix995_102">
+     A major change with the new IR compiler backend is the
+     <span class="control" id="-4ix995_107">
+      absence of binary compatibility
+     </span>
+     with the default backend. A library created with the new IR compiler uses a
+     <a data-tooltip="Kotlin/Native libraries are zip files containing a predefined directory structure, with the following layout:" href="native-libraries.html#library-format" id="-4ix995_108" style="color: blue;">
+      <code class="code" id="-4ix995_111">
+       klib
+      </code>
+      format
+     </a>
+     and can't be used from the default backend. In the meantime, a library created with the old compiler is a
+     <code class="code" id="-4ix995_109">
+      jar
+     </code>
+     with
+     <code class="code" id="-4ix995_110">
+      js
+     </code>
+     files, which can't be used from the IR backend.
+    </p>
+    <p id="-4ix995_103">
+     If you want to use the IR compiler backend for your project, you need to
+     <span class="control" id="-4ix995_112">
+      update all Kotlin dependencies to versions that support this new backend
+     </span>
+     . Libraries published by JetBrains for Kotlin 1.4+ targeting Kotlin/JS already contain all artifacts required for usage with the new IR compiler backend.
+    </p>
+    <p id="-4ix995_104">
+     <span class="control" id="-4ix995_113">
+      If you are a library author
+     </span>
+     looking to provide compatibility with the current compiler backend as well as the new IR compiler backend, additionally check out the
+     <a data-tooltip="If you're a library maintainer who is looking to provide compatibility with the default backend as well as the new IR compiler backend, a setting for the compiler selection is available that allows you to create artifacts for both backends, allowing you to keep compatibility for…" href="#authoring-libraries-for-the-ir-compiler-with-backwards-compatibility" id="-4ix995_114" style="color: blue;">
+      section about authoring libraries for the IR compiler
+     </a>
+     section.
+    </p>
+    <p id="-4ix995_105">
+     The IR compiler backend also has some discrepancies in comparison to the default backend. When trying out the new backend, it's good to be mindful of these possible pitfalls.
+    </p>
+    <ul class="list _bullet" id="-4ix995_106">
+     <li class="list__item" id="-4ix995_115">
+      <p id="-4ix995_117">
+       Some
+       <span class="control" id="-4ix995_118">
+        libraries that rely on specific characteristics
+       </span>
+       of the default backend, such as
+       <code class="code" id="-4ix995_119">
+        kotlin-wrappers
+       </code>
+       , can display some problems. You can follow the investigation and progress
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-40525" id="-4ix995_120" rel="noopener noreferrer" style="color: red;" target="_blank">
+        on YouTrack
+       </a>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="-4ix995_116">
+      <p id="-4ix995_121">
+       The IR backend
+       <span class="control" id="-4ix995_122">
+        does not make Kotlin declarations available to JavaScript
+       </span>
+       by default at all. To make Kotlin declarations visible to JavaScript, they
+       <span class="control" id="-4ix995_123">
+        must be
+       </span>
+       annotated with
+       <a data-tooltip="This feature is Experimental. Its design may change in future versions." href="js-to-kotlin-interop.html#jsexport-annotation" id="-4ix995_124" style="color: blue;">
+        <code class="code" id="-4ix995_125">
+         @JsExport
+        </code>
+       </a>
+       .
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="migrating-existing-projects-to-the-ir-compiler" id="migrating-existing-projects-to-the-ir-compiler">
+     Migrating existing projects to the IR compiler
+    </h2>
+    <p id="-4ix995_126">
+     Due to significant differences between the two Kotlin/JS compilers, making your Kotlin/JS code work with the IR compiler may require some adjustments. Learn how to migrate existing Kotlin/JS projects to the IR compiler in the
+     <a data-tooltip="We replaced the old Kotlin/JS compiler with the IR-based compiler in order to unify Kotlin's behavior on all platforms and to make it possible to implement new JS-specific optimizations, among other reasons. You can learn more about the internal differences between the two compilers…" href="js-ir-migration.html" id="-4ix995_127" style="color: blue;">
+      Kotlin/JS IR compiler migration guide
+     </a>
+     .
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="authoring-libraries-for-the-ir-compiler-with-backwards-compatibility" id="authoring-libraries-for-the-ir-compiler-with-backwards-compatibility">
+     Authoring libraries for the IR compiler with backwards compatibility
+    </h2>
+    <p id="-4ix995_128">
+     If you're a library maintainer who is looking to provide compatibility with the default backend as well as the new IR compiler backend, a setting for the compiler selection is available that allows you to create artifacts for both backends, allowing you to keep compatibility for your existing users while providing support for the next generation of Kotlin compiler. This so-called
+     <code class="code" id="-4ix995_131">
+      both
+     </code>
+     -mode can be turned on using the
+     <code class="code" id="-4ix995_132">
+      kotlin.js.compiler=both
+     </code>
+     setting in your
+     <code class="code" id="-4ix995_133">
+      gradle.properties
+     </code>
+     file, or can be set as one of the project-specific options inside your
+     <code class="code" id="-4ix995_134">
+      js
+     </code>
+     block inside the
+     <code class="code" id="-4ix995_135">
+      build.gradle(.kts)
+     </code>
+     file:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js(BOTH) {
+        // ...
+    }
+}
+    </div>
+    <p id="-4ix995_130">
+     When in
+     <code class="code" id="-4ix995_136">
+      both
+     </code>
+     mode, the IR compiler backend and default compiler backend are both used when building a library from your sources (hence the name). This means that both
+     <code class="code" id="-4ix995_137">
+      klib
+     </code>
+     files with Kotlin IR as well as
+     <code class="code" id="-4ix995_138">
+      jar
+     </code>
+     files for the default compiler will be generated. When published under the same Maven coordinate, Gradle will automatically choose the right artifact depending on the use case –
+     <code class="code" id="-4ix995_139">
+      js
+     </code>
+     for the old compiler,
+     <code class="code" id="-4ix995_140">
+      klib
+     </code>
+     for the new one. This enables you to compile and publish your library for projects that are using either of the two compiler backends.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

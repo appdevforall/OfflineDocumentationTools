@@ -1,0 +1,222 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="interfaces" id="interfaces.md">
+    Interfaces
+   </h1>
+   <p id="ee050s_2">
+    Interfaces in Kotlin can contain declarations of abstract methods, as well as method implementations. What makes them different from abstract classes is that interfaces cannot store state. They can have properties, but these need to be abstract or provide accessor implementations.
+   </p>
+   <p id="ee050s_3">
+    An interface is defined using the keyword
+    <code class="code" id="ee050s_9">
+     interface
+    </code>
+    :
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    interface MyInterface {
+    fun bar()
+    fun foo() {
+      // optional body
+    }
+}
+   </div>
+   <section class="chapter">
+    <h2 data-toc="implementing-interfaces" id="implementing-interfaces">
+     Implementing interfaces
+    </h2>
+    <p id="ee050s_10">
+     A class or object can implement one or more interfaces:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     class Child : MyInterface {
+    override fun bar() {
+        // body
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="properties-in-interfaces" id="properties-in-interfaces">
+     Properties in interfaces
+    </h2>
+    <p id="ee050s_12">
+     You can declare properties in interfaces. A property declared in an interface can either be abstract or provide implementations for accessors. Properties declared in interfaces can't have backing fields, and therefore accessors declared in interfaces can't reference them:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface MyInterface {
+    val prop: Int // abstract
+
+    val propertyWithImplementation: String
+        get() = "foo"
+
+    fun foo() {
+        print(prop)
+    }
+}
+
+class Child : MyInterface {
+    override val prop: Int = 29
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="interfaces-inheritance" id="interfaces-inheritance">
+     Interfaces Inheritance
+    </h2>
+    <p id="ee050s_14">
+     An interface can derive from other interfaces, meaning it can both provide implementations for their members and declare new functions and properties. Quite naturally, classes implementing such an interface are only required to define the missing implementations:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface Named {
+    val name: String
+}
+
+interface Person : Named {
+    val firstName: String
+    val lastName: String
+    
+    override val name: String get() = "$firstName $lastName"
+}
+
+data class Employee(
+    // implementing 'name' is not required
+    override val firstName: String,
+    override val lastName: String,
+    val position: Position
+) : Person
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="resolving-overriding-conflicts" id="resolving-overriding-conflicts">
+     Resolving overriding conflicts
+    </h2>
+    <p id="ee050s_16">
+     When you declare many types in your supertype list, you may inherit more than one implementation of the same method:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface A {
+    fun foo() { print("A") }
+    fun bar()
+}
+
+interface B {
+    fun foo() { print("B") }
+    fun bar() { print("bar") }
+}
+
+class C : A {
+    override fun bar() { print("bar") }
+}
+
+class D : A, B {
+    override fun foo() {
+        super&lt;A&gt;.foo()
+        super&lt;B&gt;.foo()
+    }
+
+    override fun bar() {
+        super&lt;B&gt;.bar()
+    }
+}
+    </div>
+    <p id="ee050s_18">
+     Interfaces
+     <span class="emphasis" id="ee050s_20">
+      A
+     </span>
+     and
+     <span class="emphasis" id="ee050s_21">
+      B
+     </span>
+     both declare functions
+     <span class="emphasis" id="ee050s_22">
+      foo()
+     </span>
+     and
+     <span class="emphasis" id="ee050s_23">
+      bar()
+     </span>
+     . Both of them implement
+     <span class="emphasis" id="ee050s_24">
+      foo()
+     </span>
+     , but only
+     <span class="emphasis" id="ee050s_25">
+      B
+     </span>
+     implements
+     <span class="emphasis" id="ee050s_26">
+      bar()
+     </span>
+     (
+     <span class="emphasis" id="ee050s_27">
+      bar()
+     </span>
+     is not marked as abstract in
+     <span class="emphasis" id="ee050s_28">
+      A
+     </span>
+     , because this is the default for interfaces if the function has no body). Now, if you derive a concrete class
+     <span class="emphasis" id="ee050s_29">
+      C
+     </span>
+     from
+     <span class="emphasis" id="ee050s_30">
+      A
+     </span>
+     , you have to override
+     <span class="emphasis" id="ee050s_31">
+      bar()
+     </span>
+     and provide an implementation.
+    </p>
+    <p id="ee050s_19">
+     However, if you derive
+     <span class="emphasis" id="ee050s_32">
+      D
+     </span>
+     from
+     <span class="emphasis" id="ee050s_33">
+      A
+     </span>
+     and
+     <span class="emphasis" id="ee050s_34">
+      B
+     </span>
+     , you need to implement all the methods that you have inherited from multiple interfaces, and you need to specify how exactly
+     <span class="emphasis" id="ee050s_35">
+      D
+     </span>
+     should implement them. This rule applies both to methods for which you've inherited a single implementation (
+     <span class="emphasis" id="ee050s_36">
+      bar()
+     </span>
+     ) and to those for which you've inherited multiple implementations (
+     <span class="emphasis" id="ee050s_37">
+      foo()
+     </span>
+     ).
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

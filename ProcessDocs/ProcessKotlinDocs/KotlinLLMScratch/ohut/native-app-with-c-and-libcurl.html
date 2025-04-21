@@ -1,0 +1,563 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="native-app-with-c-and-libcurl" id="native-app-with-c-and-libcurl.md">
+    Create an app using C interop and libcurl – tutorial
+   </h1>
+   <p id="glkuk8_2">
+    This tutorial demonstrates how to use IntelliJ IDEA to create a command-line application. You'll learn how to create a simple HTTP client that can run natively on specified platforms using Kotlin/Native and the libcurl library.
+   </p>
+   <p id="glkuk8_3">
+    The output will be an executable command-line app that you can run on macOS and Linux and make simple HTTP GET requests.
+   </p>
+   <p id="glkuk8_4">
+    You can use the command line to generate a Kotlin library, either directly or with a script file (such as
+    <code class="code" id="glkuk8_11">
+     .sh
+    </code>
+    or
+    <code class="code" id="glkuk8_12">
+     .bat
+    </code>
+    file). However, this approach doesn't scale well for larger projects that have hundreds of files and libraries. Using a build system simplifies the process by downloading and caching the Kotlin/Native compiler binaries and libraries with transitive dependencies, as well as by running the compiler and tests. Kotlin/Native can use the
+    <a data-external="true" href="https://gradle.org" id="glkuk8_13" rel="noopener noreferrer" style="color: red;" target="_blank">
+     Gradle
+    </a>
+    build system through the
+    <a data-tooltip="Projects targeting multiple platforms, called multiplatform projects, require the kotlin-multiplatform plugin." href="gradle-configure-project.html#targeting-multiple-platforms" id="glkuk8_14" style="color: blue;">
+     Kotlin Multiplatform plugin
+    </a>
+    .
+   </p>
+   <section class="chapter">
+    <h2 data-toc="before-you-start" id="before-you-start">
+     Before you start
+    </h2>
+    <ol class="list _decimal" id="glkuk8_15" type="1">
+     <li class="list__item" id="glkuk8_16">
+      <p id="glkuk8_20">
+       Download and install the latest version of
+       <a data-external="true" href="https://www.jetbrains.com/idea/" id="glkuk8_21" rel="noopener noreferrer" style="color: red;" target="_blank">
+        IntelliJ IDEA
+       </a>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_17">
+      <p id="glkuk8_22">
+       Clone the
+       <a data-external="true" href="https://github.com/Kotlin/kmp-native-wizard" id="glkuk8_24" rel="noopener noreferrer" style="color: red;" target="_blank">
+        project template
+       </a>
+       by selecting
+       <span class="control" id="glkuk8_25">
+        File
+       </span>
+       |
+       <span class="control" id="glkuk8_26">
+        New
+       </span>
+       |
+       <span class="control" id="glkuk8_27">
+        Project from Version Control
+       </span>
+       in IntelliJ IDEA and using this URL:
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       https://github.com/Kotlin/kmp-native-wizard
+      </div>
+     </li>
+     <li class="list__item" id="glkuk8_18">
+      <p id="glkuk8_28">
+       Explore the project structure:
+      </p>
+      <figure id="glkuk8_29">
+       <img alt="Native application project structure" height="436" src="images/native-project-structure.png" title="Native application project structure" width="700"/>
+      </figure>
+      <p id="glkuk8_30">
+       The template includes a project with the files and folders you need to get started. It's important to understand that an application written in Kotlin/Native can target different platforms if the code does not have platform-specific requirements. Your code is placed in the
+       <code class="code" id="glkuk8_31">
+        nativeMain
+       </code>
+       directory with a corresponding
+       <code class="code" id="glkuk8_32">
+        nativeTest
+       </code>
+       . For this tutorial, keep the folder structure as is.
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_19">
+      <p id="glkuk8_33">
+       Open the
+       <code class="code" id="glkuk8_36">
+        build.gradle.kts
+       </code>
+       file, the build script that contains the project settings. Pay special attention to the following in the build file:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    val hostOs = System.getProperty("os.name")
+    val isArm64 = System.getProperty("os.arch") == "aarch64"
+    val isMingwX64 = hostOs.startsWith("Windows")
+    val nativeTarget = when {
+        hostOs == "Mac OS X" &amp;&amp; isArm64 -&gt; macosArm64("native")
+        hostOs == "Mac OS X" &amp;&amp; !isArm64 -&gt; macosX64("native")
+        hostOs == "Linux" &amp;&amp; isArm64 -&gt; linuxArm64("native")
+        hostOs == "Linux" &amp;&amp; !isArm64 -&gt; linuxX64("native")
+        isMingwX64 -&gt; mingwX64("native")
+        else -&gt; throw GradleException("Host OS is not supported in Kotlin/Native.")
+    }
+
+    nativeTarget.apply {
+        binaries {
+            executable {
+                entryPoint = "main"
+            }
+        }
+    }
+}
+      </div>
+      <ul class="list _bullet" id="glkuk8_35">
+       <li class="list__item" id="glkuk8_37">
+        <p id="glkuk8_40">
+         Targets are defined using
+         <code class="code" id="glkuk8_41">
+          macosArm64
+         </code>
+         ,
+         <code class="code" id="glkuk8_42">
+          macosX64
+         </code>
+         ,
+         <code class="code" id="glkuk8_43">
+          linuxArm64
+         </code>
+         ,
+         <code class="code" id="glkuk8_44">
+          linuxX64
+         </code>
+         , and
+         <code class="code" id="glkuk8_45">
+          mingwX64
+         </code>
+         for macOS, Linux, and Windows. See the complete list of
+         <a data-tooltip="The Kotlin/Native compiler supports a great number of different targets, though it is hard to provide the same level of support for all of them. This document describes which targets Kotlin/Native supports and breaks them into several tiers depending on how well the compiler…" href="native-target-support.html" id="glkuk8_46" style="color: blue;">
+          supported platforms
+         </a>
+         .
+        </p>
+       </li>
+       <li class="list__item" id="glkuk8_38">
+        <p id="glkuk8_47">
+         The entry itself defines a series of properties to indicate how the binary is generated and the entry point of the applications. These can be left as default values.
+        </p>
+       </li>
+       <li class="list__item" id="glkuk8_39">
+        <p id="glkuk8_48">
+         C interoperability is configured as an additional step in the build. By default, all the symbols from C are imported to the
+         <code class="code" id="glkuk8_49">
+          interop
+         </code>
+         package. You may want to import the whole package in
+         <code class="code" id="glkuk8_50">
+          .kt
+         </code>
+         files. Learn more about
+         <a data-tooltip="Projects targeting multiple platforms, called multiplatform projects, require the kotlin-multiplatform plugin." href="gradle-configure-project.html#targeting-multiple-platforms" id="glkuk8_51" style="color: blue;">
+          how to configure
+         </a>
+         it.
+        </p>
+       </li>
+      </ul>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="create-a-definition-file" id="create-a-definition-file">
+     Create a definition file
+    </h2>
+    <p id="glkuk8_52">
+     When writing native applications, you often need access to certain functionalities that are not included in the
+     <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/" id="glkuk8_59" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Kotlin standard library
+     </a>
+     , such as making HTTP requests, reading and writing from disk, and so on.
+    </p>
+    <p id="glkuk8_53">
+     Kotlin/Native helps consume standard C libraries, opening up an entire ecosystem of functionality that exists for pretty much anything you may need. Kotlin/Native is already shipped with a set of prebuilt
+     <a data-tooltip="To provide access to native services of operating systems, the Kotlin/Native distribution includes a set of prebuilt libraries specific to each target. These are called platform libraries." href="native-platform-libs.html" id="glkuk8_60" style="color: blue;">
+      platform libraries
+     </a>
+     , which provide some additional common functionality to the standard library.
+    </p>
+    <p id="glkuk8_54">
+     An ideal scenario for interop is to call C functions as if you are calling Kotlin functions, following the same signature and conventions. This is when the cinterop tool comes in handy. It takes a C library and generates the corresponding Kotlin bindings, so that the library can be used as if it were Kotlin code.
+    </p>
+    <p id="glkuk8_55">
+     To generate these bindings, each library needs a definition file, usually with the same name as the library. This is a property file that describes exactly how the library should be consumed.
+    </p>
+    <p id="glkuk8_56">
+     In this app, you'll need the libcurl library to make some HTTP calls. To create its definition file:
+    </p>
+    <ol class="list _decimal" id="glkuk8_57" type="1">
+     <li class="list__item" id="glkuk8_61">
+      <p id="glkuk8_65">
+       Select the
+       <code class="code" id="glkuk8_66">
+        src
+       </code>
+       folder and create a new directory with
+       <span class="control" id="glkuk8_67">
+        File | New | Directory
+       </span>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_62">
+      <p id="glkuk8_68">
+       Name the new directory
+       <span class="control" id="glkuk8_69">
+        nativeInterop/cinterop
+       </span>
+       . This is the default convention for header file locations, though it can be overridden in the
+       <code class="code" id="glkuk8_70">
+        build.gradle.kts
+       </code>
+       file if you use a different location.
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_63">
+      <p id="glkuk8_71">
+       Select this new subfolder and create a new
+       <code class="code" id="glkuk8_72">
+        libcurl.def
+       </code>
+       file with
+       <span class="control" id="glkuk8_73">
+        File | New | File
+       </span>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_64">
+      <p id="glkuk8_74">
+       Update your file with the following code:
+      </p>
+      <div class="code-block" data-lang="c" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       headers = curl/curl.h
+headerFilter = curl/*
+
+compilerOpts.linux = -I/usr/include -I/usr/include/x86_64-linux-gnu
+linkerOpts.osx = -L/opt/local/lib -L/usr/local/opt/curl/lib -lcurl
+linkerOpts.linux = -L/usr/lib/x86_64-linux-gnu -lcurl
+      </div>
+      <ul class="list _bullet" id="glkuk8_76">
+       <li class="list__item" id="glkuk8_78">
+        <p id="glkuk8_81">
+         <code class="code" id="glkuk8_82">
+          headers
+         </code>
+         is the list of header files to generate Kotlin stubs for. You can add multiple files to this entry, separating each with a space. In this case, it's only
+         <code class="code" id="glkuk8_83">
+          curl.h
+         </code>
+         . The referenced files need to be available on the specified path (in this case, it's
+         <code class="code" id="glkuk8_84">
+          /usr/include/curl
+         </code>
+         ).
+        </p>
+       </li>
+       <li class="list__item" id="glkuk8_79">
+        <p id="glkuk8_85">
+         <code class="code" id="glkuk8_87">
+          headerFilter
+         </code>
+         shows what exactly is included. In C, all the headers are also included when one file references another one with the
+         <code class="code" id="glkuk8_88">
+          #include
+         </code>
+         directive. Sometimes it's not necessary, and you can add this parameter
+         <a data-external="true" href="https://en.wikipedia.org/wiki/Glob_(programming)" id="glkuk8_89" rel="noopener noreferrer" style="color: red;" target="_blank">
+          using glob patterns
+         </a>
+         to make adjustments.
+        </p>
+        <p id="glkuk8_86">
+         You can use
+         <code class="code" id="glkuk8_90">
+          headerFilter
+         </code>
+         if you don't want to fetch external dependencies (such as system
+         <code class="code" id="glkuk8_91">
+          stdint.h
+         </code>
+         header) into the interop library. Also, it may be useful for library size optimization and fixing potential conflicts between the system and the provided Kotlin/Native compilation environment.
+        </p>
+       </li>
+       <li class="list__item" id="glkuk8_80">
+        <p id="glkuk8_92">
+         If the behavior for a certain platform needs to be modified, you can use a format like
+         <code class="code" id="glkuk8_93">
+          compilerOpts.osx
+         </code>
+         or
+         <code class="code" id="glkuk8_94">
+          compilerOpts.linux
+         </code>
+         to provide platform-specific values to the options. In this case, they are macOS (the
+         <code class="code" id="glkuk8_95">
+          .osx
+         </code>
+         suffix) and Linux (the
+         <code class="code" id="glkuk8_96">
+          .linux
+         </code>
+         suffix). Parameters without a suffix are also possible (for example,
+         <code class="code" id="glkuk8_97">
+          linkerOpts=
+         </code>
+         ) and applied to all platforms.
+        </p>
+       </li>
+      </ul>
+      <p id="glkuk8_77">
+       For the full list of available options, see
+       <a data-tooltip="Here's the full list of properties you can use in your definition file to adjust the content of the generated binaries. For more information, see the corresponding sections below." href="native-definition-file.html#properties" id="glkuk8_98" style="color: blue;">
+        Definition file
+       </a>
+       .
+      </p>
+     </li>
+    </ol>
+    <aside class="prompt" data-title="" data-type="note" id="glkuk8_58">
+     <p id="glkuk8_99">
+      You need to have the
+      <code class="code" id="glkuk8_100">
+       curl
+      </code>
+      library binaries on your system to make the sample work. On macOS and Linux, they are usually included. On Windows, you can build it from
+      <a data-external="true" href="https://curl.se/download.html" id="glkuk8_101" rel="noopener noreferrer" style="color: red;" target="_blank">
+       sources
+      </a>
+      (you'll need Microsoft Visual Studio or Windows SDK command-line tools). For more details, see the
+      <a data-external="true" href="https://jonnyzzz.com/blog/2018/10/29/kn-libcurl-windows/" id="glkuk8_102" rel="noopener noreferrer" style="color: red;" target="_blank">
+       related blog post
+      </a>
+      . Alternatively, you may want to consider a
+      <a data-external="true" href="https://www.msys2.org/" id="glkuk8_103" rel="noopener noreferrer" style="color: red;" target="_blank">
+       MinGW/MSYS2
+      </a>
+      <code class="code" id="glkuk8_104">
+       curl
+      </code>
+      binary.
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="add-interoperability-to-the-build-process" id="add-interoperability-to-the-build-process">
+     Add interoperability to the build process
+    </h2>
+    <p id="glkuk8_105">
+     To use header files, make sure they are generated as a part of the build process. For this, add the following entry to the
+     <code class="code" id="glkuk8_109">
+      build.gradle.kts
+     </code>
+     file:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     nativeTarget.apply {
+    compilations.getByName("main") {
+        cinterops {
+            val libcurl by creating
+        }
+    }
+    binaries {
+        executable {
+            entryPoint = "main"
+        }
+    }
+}
+    </div>
+    <p id="glkuk8_107">
+     First,
+     <code class="code" id="glkuk8_110">
+      cinterops
+     </code>
+     is added, and then an entry for a definition file. By default, the name of the file is used. You can override this with additional parameters:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     cinterops {
+    val libcurl by creating {
+        definitionFile.set(project.file("src/nativeInterop/cinterop/libcurl.def"))
+        packageName("com.jetbrains.handson.http")
+        compilerOpts("-I/path")
+        includeDirs.allHeaders("path")
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="write-the-application-code" id="write-the-application-code">
+     Write the application code
+    </h2>
+    <p id="glkuk8_111">
+     Now that you have the library and the corresponding Kotlin stubs, you can use them from your application. For this tutorial, convert the
+     <a data-external="true" href="https://curl.se/libcurl/c/simple.html" id="glkuk8_116" rel="noopener noreferrer" style="color: red;" target="_blank">
+      simple.c
+     </a>
+     example to Kotlin.
+    </p>
+    <p id="glkuk8_112">
+     In the
+     <code class="code" id="glkuk8_117">
+      src/nativeMain/kotlin/
+     </code>
+     folder, update your
+     <code class="code" id="glkuk8_118">
+      Main.kt
+     </code>
+     file with the following code:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     import kotlinx.cinterop.*
+import libcurl.*
+
+@OptIn(ExperimentalForeignApi::class)
+fun main(args: Array&lt;String&gt;) {
+    val curl = curl_easy_init()
+    if (curl != null) {
+        curl_easy_setopt(curl, CURLOPT_URL, "https://example.com")
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L)
+        val res = curl_easy_perform(curl)
+        if (res != CURLE_OK) {
+            println("curl_easy_perform() failed ${curl_easy_strerror(res)?.toKString()}")
+        }
+        curl_easy_cleanup(curl)
+    }
+}
+    </div>
+    <p id="glkuk8_114">
+     As you can see, explicit variable declarations are eliminated in the Kotlin version, but everything else is pretty much the same as the C version. All the calls you'd expect in the libcurl library are available in the Kotlin equivalent.
+    </p>
+    <aside class="prompt" data-title="" data-type="tip" id="glkuk8_115">
+     <p id="glkuk8_119">
+      This is a line-by-line literal translation. You could also write this in a more Kotlin idiomatic way.
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="compile-and-run-the-application" id="compile-and-run-the-application">
+     Compile and run the application
+    </h2>
+    <ol class="list _decimal" id="glkuk8_120" type="1">
+     <li class="list__item" id="glkuk8_123">
+      <p id="glkuk8_125">
+       Compile the application. To do that, run the
+       <code class="code" id="glkuk8_128">
+        runDebugExecutableNative
+       </code>
+       Gradle task from the task list or use the following command in the terminal:
+      </p>
+      <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       ./gradlew runDebugExecutableNative
+      </div>
+      <p id="glkuk8_127">
+       In this case, the part generated by the cinterop tool is implicitly included in the build.
+      </p>
+     </li>
+     <li class="list__item" id="glkuk8_124">
+      <p id="glkuk8_129">
+       If there are no errors during compilation, click the green
+       <span class="control" id="glkuk8_132">
+        Run
+       </span>
+       icon in the gutter next to the
+       <code class="code" id="glkuk8_133">
+        main()
+       </code>
+       function or use the
+       <kbd class="keystroke" data-bypass="true" id="glkuk8_134">
+        <span class="keystroke__value">
+         Shift + Cmd + R
+        </span>
+       </kbd>
+       /
+       <kbd class="keystroke" data-bypass="true" id="glkuk8_135">
+        <span class="keystroke__value">
+         Shift + F10
+        </span>
+       </kbd>
+       shortcut.
+      </p>
+      <p id="glkuk8_130">
+       IntelliJ IDEA opens the
+       <span class="control" id="glkuk8_136">
+        Run
+       </span>
+       tab and shows the output — the contents of
+       <a data-external="true" href="https://example.com/" id="glkuk8_137" rel="noopener noreferrer" style="color: red;" target="_blank">
+        example.com
+       </a>
+       :
+      </p>
+      <figure id="glkuk8_131">
+       <img alt="Application output with HTML-code" height="672" src="images/native-output.png" title="Application output with HTML-code" width="700"/>
+      </figure>
+     </li>
+    </ol>
+    <p id="glkuk8_121">
+     You can see the actual output because the call
+     <code class="code" id="glkuk8_138">
+      curl_easy_perform
+     </code>
+     prints the result to the standard output. You could hide this using
+     <code class="code" id="glkuk8_139">
+      curl_easy_setopt
+     </code>
+     .
+    </p>
+    <aside class="prompt" data-title="" data-type="note" id="glkuk8_122">
+     <p id="glkuk8_140">
+      You can get the full project code in our
+      <a data-external="true" href="https://github.com/Kotlin/kotlin-hands-on-intro-kotlin-native" id="glkuk8_141" rel="noopener noreferrer" style="color: red;" target="_blank">
+       GitHub repository
+      </a>
+      .
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="what-s-next" id="what-s-next">
+     What's next
+    </h2>
+    <p id="glkuk8_142">
+     Learn more about
+     <a data-tooltip="The C libraries import is Experimental. All Kotlin declarations generated by the cinterop tool from C libraries should have the @ExperimentalForeignApi annotation." href="native-c-interop.html" id="glkuk8_143" style="color: blue;">
+      Kotlin's interoperability with C
+     </a>
+     .
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

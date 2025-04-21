@@ -1,0 +1,983 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="jvm-spring-boot-add-db-support" id="jvm-spring-boot-add-db-support.md">
+    Add database support for Spring Boot project
+   </h1>
+   <div class="micro-format" data-content='{"microFormat":["\u003cp id\u003d\"-bxbtf1_13\"\u003eThis is the third part of the \u003cb id\u003d\"-bxbtf1_16\"\u003eGetting started with Spring Boot and Kotlin\u003c/b\u003e tutorial. Before proceeding, make sure you\u0027ve completed previous steps:\u003c/p\u003e","\u003cbr\u003e","\u003cp id\u003d\"-bxbtf1_15\"\u003e\u003cimg alt\u003d\"First step\" src\u003d\"images/icon-1-done.svg\" class\u003d\"inline-icon-\" title\u003d\"First step\" id\u003d\"-bxbtf1_17\" width\u003d\"20\" height\u003d\"20\"\u003e \u003ca href\u003d\"jvm-create-project-with-spring-boot.html\" id\u003d\"-bxbtf1_18\" data-tooltip\u003d\"This is the first part of the Get started with Spring Boot and Kotlin tutorial:\"\u003eCreate a Spring Boot project with Kotlin\u003c/a\u003e\u003cbr\u003e\u003cimg alt\u003d\"Second step\" src\u003d\"images/icon-2-done.svg\" class\u003d\"inline-icon-\" title\u003d\"Second step\" id\u003d\"-bxbtf1_20\" width\u003d\"20\" height\u003d\"20\"\u003e \u003ca href\u003d\"jvm-spring-boot-add-data-class.html\" id\u003d\"-bxbtf1_21\" data-tooltip\u003d\"This is the second part of the Getting started with Spring Boot and Kotlin tutorial. Before proceeding, make sure you\u0027ve completed previous steps:\"\u003eAdd a data class to the Spring Boot project\u003c/a\u003e\u003cbr\u003e\u003cimg alt\u003d\"Third step\" src\u003d\"images/icon-3.svg\" class\u003d\"inline-icon-\" title\u003d\"Third step\" id\u003d\"-bxbtf1_23\" width\u003d\"20\" height\u003d\"20\"\u003e \u003cb id\u003d\"-bxbtf1_24\"\u003eAdd database support for Spring Boot project\u003c/b\u003e\u003cbr\u003e\u003cimg alt\u003d\"Fourth step\" src\u003d\"images/icon-4-todo.svg\" class\u003d\"inline-icon-\" title\u003d\"Fourth step\" id\u003d\"-bxbtf1_26\" width\u003d\"20\" height\u003d\"20\"\u003e Use Spring Data CrudRepository for database access\u003c/p\u003e"]}'>
+   </div>
+   <p id="-bxbtf1_4">
+    In this part of the tutorial, you'll add and configure a database to your project using JDBC. In JVM applications, you use JDBC to interact with databases. For convenience, the Spring Framework provides the
+    <code class="code" id="-bxbtf1_27">
+     JdbcTemplate
+    </code>
+    class that simplifies the use of JDBC and helps to avoid common errors.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="add-database-support" id="add-database-support">
+     Add database support
+    </h2>
+    <p id="-bxbtf1_28">
+     The common practice in Spring Framework based applications is to implement the database access logic within the so-called
+     <span class="emphasis" id="-bxbtf1_32">
+      service
+     </span>
+     layer – this is where business logic lives. In Spring, you should mark classes with the
+     <code class="code" id="-bxbtf1_33">
+      @Service
+     </code>
+     annotation to imply that the class belongs to the service layer of the application. In this application, you will create the
+     <code class="code" id="-bxbtf1_34">
+      MessageService
+     </code>
+     class for this purpose.
+    </p>
+    <p id="-bxbtf1_29">
+     In the same package, create the
+     <code class="code" id="-bxbtf1_35">
+      MessageService.kt
+     </code>
+     file and the
+     <code class="code" id="-bxbtf1_36">
+      MessageService
+     </code>
+     class as follows:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     // MessageService.kt
+package demo
+
+import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
+import java.util.*
+
+@Service
+class MessageService(private val db: JdbcTemplate) {
+    fun findMessages(): List&lt;Message&gt; = db.query("select * from messages") { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }
+
+    fun save(message: Message): Message {
+        db.update(
+            "insert into messages values ( ?, ? )",
+            message.id, message.text
+        )
+        return message
+    }
+}
+    </div>
+    <dl data-style="title-top" id="-bxbtf1_31">
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_37">
+      Constructor argument and dependency injection – (private val db: JdbcTemplate)
+     </dt>
+     <dd>
+      <p id="-bxbtf1_40">
+       A class in Kotlin has a primary constructor. It can also have one or more
+       <a data-tooltip="A class can also declare secondary constructors, which are prefixed with constructor:" href="classes.html#secondary-constructors" id="-bxbtf1_43" style="color: blue;">
+        secondary constructors
+       </a>
+       . The
+       <em id="-bxbtf1_44">
+        primary constructor
+       </em>
+       is a part of the class header, and it goes after the class name and optional type parameters. In our case, the constructor is
+       <code class="code" id="-bxbtf1_45">
+        (val db: JdbcTemplate)
+       </code>
+       .
+      </p>
+      <p id="-bxbtf1_41">
+       <code class="code" id="-bxbtf1_46">
+        val db: JdbcTemplate
+       </code>
+       is the constructor's argument:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       @Service
+      class MessageService(private val db: JdbcTemplate)
+      </div>
+     </dd>
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_38">
+      Trailing lambda and SAM conversion
+     </dt>
+     <dd>
+      <p id="-bxbtf1_47">
+       The
+       <code class="code" id="-bxbtf1_55">
+        findMessages()
+       </code>
+       function calls the
+       <code class="code" id="-bxbtf1_56">
+        query()
+       </code>
+       function of the
+       <code class="code" id="-bxbtf1_57">
+        JdbcTemplate
+       </code>
+       class. The
+       <code class="code" id="-bxbtf1_58">
+        query()
+       </code>
+       function takes two arguments: an SQL query as a String instance, and a callback that will map one object per row:
+      </p>
+      <div class="code-block" data-lang="sql" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       db.query("...", RowMapper { ... } )
+      </div>
+      <p id="-bxbtf1_50">
+       The
+       <code class="code" id="-bxbtf1_59">
+        RowMapper
+       </code>
+       interface declares only one method, so it is possible to implement it via lambda expression by omitting the name of the interface. The Kotlin compiler knows the interface that the lambda expression needs to be converted to because you use it as a parameter for the function call. This is known as
+       <a data-tooltip="Kotlin supports SAM conversions for both Java and Kotlin interfaces. This support for Java means that Kotlin function literals can be automatically converted into implementations of Java interfaces with a single non-default method, as long as the parameter types of the interface…" href="java-interop.html#sam-conversions" id="-bxbtf1_60" style="color: blue;">
+        SAM conversion in Kotlin
+       </a>
+       :
+      </p>
+      <div class="code-block" data-lang="sql" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       db.query("...", { ... } )
+      </div>
+      <p id="-bxbtf1_53">
+       After the SAM conversion, the query function ends up with two arguments: a String at the first position, and a lambda expression at the last position. According to the Kotlin convention, if the last parameter of a function is a function, then a lambda expression passed as the corresponding argument can be placed outside the parentheses. Such syntax is also known as
+       <a data-tooltip="According to Kotlin convention, if the last parameter of a function is a function, then a lambda expression passed as the corresponding argument can be placed outside the parentheses:" href="lambdas.html#passing-trailing-lambdas" id="-bxbtf1_61" style="color: blue;">
+        trailing lambda
+       </a>
+       :
+      </p>
+      <div class="code-block" data-lang="sql" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       db.query("...") { ... }
+      </div>
+     </dd>
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_39">
+      Underscore for unused lambda argument
+     </dt>
+     <dd>
+      <p id="-bxbtf1_62">
+       For a lambda with multiple parameters, you can use the underscore
+       <code class="code" id="-bxbtf1_65">
+        _
+       </code>
+       character to replace the names of the parameters you don't use.
+      </p>
+      <p id="-bxbtf1_63">
+       Hence, the final syntax for query function call looks like this:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       db.query("select * from messages") { response, _ -&gt;
+          Message(response.getString("id"), response.getString("text"))
+      }
+      </div>
+     </dd>
+    </dl>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="update-the-messagecontroller-class" id="update-the-messagecontroller-class">
+     Update the MessageController class
+    </h2>
+    <p id="-bxbtf1_66">
+     Update
+     <code class="code" id="-bxbtf1_69">
+      MessageController.kt
+     </code>
+     to use the new
+     <code class="code" id="-bxbtf1_70">
+      MessageService
+     </code>
+     class:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     // MessageController.kt
+package demo
+
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+import java.net.URI
+
+
+@RestController
+@RequestMapping("/")
+class MessageController(private val service: MessageService) {
+    @GetMapping
+    fun listMessages() = service.findMessages()
+
+    @PostMapping
+    fun post(@RequestBody message: Message): ResponseEntity&lt;Message&gt; {
+        val savedMessage = service.save(message)
+        return ResponseEntity.created(URI("/${savedMessage.id}")).body(savedMessage)
+    }
+}
+    </div>
+    <dl data-style="title-top" id="-bxbtf1_68">
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_71">
+      @PostMapping annotation
+     </dt>
+     <dd>
+      <p id="-bxbtf1_73">
+       The method responsible for handling HTTP POST requests needs to be annotated with
+       <code class="code" id="-bxbtf1_74">
+        @PostMapping
+       </code>
+       annotation. To be able to convert the JSON sent as HTTP Body content into an object, you need to use the
+       <code class="code" id="-bxbtf1_75">
+        @RequestBody
+       </code>
+       annotation for the method argument. Thanks to having Jackson library in the classpath of the application, the conversion happens automatically.
+      </p>
+     </dd>
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_72">
+      ResponseEntity
+     </dt>
+     <dd>
+      <p id="-bxbtf1_76">
+       <code class="code" id="-bxbtf1_78">
+        ResponseEntity
+       </code>
+       represents the whole HTTP response: status code, headers, and body.
+      </p>
+      <p id="-bxbtf1_77">
+       Using the
+       <code class="code" id="-bxbtf1_79">
+        created()
+       </code>
+       method you configure the response status code (201) and set the location header indicating the context path for the created resource.
+      </p>
+     </dd>
+    </dl>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="update-the-messageservice-class" id="update-the-messageservice-class">
+     Update the MessageService class
+    </h2>
+    <p id="-bxbtf1_80">
+     The
+     <code class="code" id="-bxbtf1_87">
+      id
+     </code>
+     for
+     <code class="code" id="-bxbtf1_88">
+      Message
+     </code>
+     class was declared as a nullable String:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     data class Message(val id: String?, val text: String)
+    </div>
+    <p id="-bxbtf1_82">
+     It would not be correct to store the
+     <code class="code" id="-bxbtf1_89">
+      null
+     </code>
+     as an
+     <code class="code" id="-bxbtf1_90">
+      id
+     </code>
+     value in the database though: you need to handle this situation gracefully.
+    </p>
+    <p id="-bxbtf1_83">
+     Update your code of the
+     <code class="code" id="-bxbtf1_91">
+      MessageService.kt
+     </code>
+     file to generate a new value when the
+     <code class="code" id="-bxbtf1_92">
+      id
+     </code>
+     is
+     <code class="code" id="-bxbtf1_93">
+      null
+     </code>
+     while storing the messages in the database:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     // MessageService.kt
+package demo
+
+import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.query
+import java.util.UUID
+
+@Service
+class MessageService(private val db: JdbcTemplate) {
+    fun findMessages(): List&lt;Message&gt; = db.query("select * from messages") { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }
+
+    fun save(message: Message): Message {
+        val id = message.id ?: UUID.randomUUID().toString() // Generate new id if it is null
+        db.update(
+            "insert into messages values ( ?, ? )",
+            id, message.text
+        )
+        return message.copy(id = id) // Return a copy of the message with the new id
+   }
+}
+    </div>
+    <dl data-style="title-top" id="-bxbtf1_85">
+     <dt data-expandable="true" data-expanded="false" id="-bxbtf1_94">
+      Elvis operator – ?:
+     </dt>
+     <dd>
+      <p id="-bxbtf1_95">
+       The code
+       <code class="code" id="-bxbtf1_96">
+        message.id ?: UUID.randomUUID().toString()
+       </code>
+       uses the
+       <a data-tooltip="When working with nullable types, you can check for null and provide an alternative value. For example, if b is not null, access b.length. Otherwise, return an alternative value:" href="null-safety.html#elvis-operator" id="-bxbtf1_97" style="color: blue;">
+        Elvis operator (if-not-null-else shorthand)
+        <code class="code" id="-bxbtf1_101">
+         ?:
+        </code>
+       </a>
+       . If the expression to the left of
+       <code class="code" id="-bxbtf1_98">
+        ?:
+       </code>
+       is not
+       <code class="code" id="-bxbtf1_99">
+        null
+       </code>
+       , the Elvis operator returns it; otherwise, it returns the expression to the right. Note that the expression on the right-hand side is evaluated only if the left-hand side is
+       <code class="code" id="-bxbtf1_100">
+        null
+       </code>
+       .
+      </p>
+     </dd>
+    </dl>
+    <p id="-bxbtf1_86">
+     The application code is ready to work with the database. It is now required to configure the data source.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="configure-the-database" id="configure-the-database">
+     Configure the database
+    </h2>
+    <p id="-bxbtf1_102">
+     Configure the database in the application:
+    </p>
+    <ol class="list _decimal" id="-bxbtf1_103" type="1">
+     <li class="list__item" id="-bxbtf1_104">
+      <p id="-bxbtf1_107">
+       Create
+       <code class="code" id="-bxbtf1_109">
+        schema.sql
+       </code>
+       file in the
+       <code class="code" id="-bxbtf1_110">
+        src/main/resources
+       </code>
+       directory. It will store the database object definitions:
+      </p>
+      <figure id="-bxbtf1_108">
+       <img alt="Create database schema" height="195" src="images/create-database-schema.png" title="Create database schema" width="400"/>
+      </figure>
+     </li>
+     <li class="list__item" id="-bxbtf1_105">
+      <p id="-bxbtf1_111">
+       Update the
+       <code class="code" id="-bxbtf1_114">
+        src/main/resources/schema.sql
+       </code>
+       file with the following code:
+      </p>
+      <div class="code-block" data-lang="sql" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       -- schema.sql
+CREATE TABLE IF NOT EXISTS messages (
+id       VARCHAR(60)  PRIMARY KEY,
+text     VARCHAR      NOT NULL
+);
+      </div>
+      <p id="-bxbtf1_113">
+       It creates the
+       <code class="code" id="-bxbtf1_115">
+        messages
+       </code>
+       table with two columns:
+       <code class="code" id="-bxbtf1_116">
+        id
+       </code>
+       and
+       <code class="code" id="-bxbtf1_117">
+        text
+       </code>
+       . The table structure matches the structure of the
+       <code class="code" id="-bxbtf1_118">
+        Message
+       </code>
+       class.
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_106">
+      <p id="-bxbtf1_119">
+       Open the
+       <code class="code" id="-bxbtf1_122">
+        application.properties
+       </code>
+       file located in the
+       <code class="code" id="-bxbtf1_123">
+        src/main/resources
+       </code>
+       folder and add the following application properties:
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       spring.application.name=demo
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.url=jdbc:h2:file:./data/testdb
+spring.datasource.username=name
+spring.datasource.password=password
+spring.sql.init.schema-locations=classpath:schema.sql
+spring.sql.init.mode=always
+      </div>
+      <p id="-bxbtf1_121">
+       These settings enable the database for the Spring Boot application.
+       <br/>
+       See the full list of common application properties in the
+       <a data-external="true" href="https://docs.spring.io/spring-boot/docs/current/reference/html/appendix-application-properties.html" id="-bxbtf1_125" rel="noopener noreferrer" style="color: red;" target="_blank">
+        Spring documentation
+       </a>
+       .
+      </p>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="add-messages-to-database-via-http-request" id="add-messages-to-database-via-http-request">
+     Add messages to database via HTTP request
+    </h2>
+    <p id="-bxbtf1_126">
+     You should use an HTTP client to work with previously created endpoints. In IntelliJ IDEA, use the embedded HTTP client:
+    </p>
+    <ol class="list _decimal" id="-bxbtf1_127" type="1">
+     <li class="list__item" id="-bxbtf1_129">
+      <p id="-bxbtf1_133">
+       Run the application. Once the application is up and running, you can execute POST requests to store messages in the database.
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_130">
+      <p id="-bxbtf1_134">
+       Create the
+       <code class="code" id="-bxbtf1_136">
+        requests.http
+       </code>
+       file in the project root folder and add the following HTTP requests:
+      </p>
+      <div class="code-block" data-lang="http" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       ### Post "Hello!"
+POST http://localhost:8080/
+Content-Type: application/json
+
+{
+  "text": "Hello!"
+}
+
+### Post "Bonjour!"
+
+POST http://localhost:8080/
+Content-Type: application/json
+
+{
+  "text": "Bonjour!"
+}
+
+### Post "Privet!"
+
+POST http://localhost:8080/
+Content-Type: application/json
+
+{
+  "text": "Privet!"
+}
+
+### Get all the messages
+GET http://localhost:8080/
+      </div>
+     </li>
+     <li class="list__item" id="-bxbtf1_131">
+      <p id="-bxbtf1_137">
+       Execute all POST requests. Use the green
+       <span class="control" id="-bxbtf1_139">
+        Run
+       </span>
+       icon in the gutter next to the request declaration. These requests write the text messages to the database:
+      </p>
+      <figure id="-bxbtf1_138">
+       <img alt="Execute POST request" height="1686" src="images/execute-post-requests.png" title="Execute POST request" width="2942"/>
+      </figure>
+     </li>
+     <li class="list__item" id="-bxbtf1_132">
+      <p id="-bxbtf1_140">
+       Execute the GET request and see the result in the
+       <span class="control" id="-bxbtf1_142">
+        Run
+       </span>
+       tool window:
+      </p>
+      <figure id="-bxbtf1_141">
+       <img alt="Execute GET requests" height="1686" src="images/execute-get-requests.png" title="Execute GET requests" width="2942"/>
+      </figure>
+     </li>
+    </ol>
+    <section class="chapter">
+     <div class="collapse">
+      <div class="collapse__title">
+       <h3 data-toc="alternative-way-to-execute-requests" id="alternative-way-to-execute-requests">
+        Alternative way to execute requests
+       </h3>
+      </div>
+      <div class="collapse__content">
+       <p id="-bxbtf1_143">
+        You can also use any other HTTP client or the cURL command-line tool. For example, run the following commands in the terminal to get the same result:
+       </p>
+       <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        curl -X POST --location "http://localhost:8080" -H "Content-Type: application/json" -d "{ \"text\": \"Hello!\" }"
+
+curl -X POST --location "http://localhost:8080" -H "Content-Type: application/json" -d "{ \"text\": \"Bonjour!\" }"
+
+curl -X POST --location "http://localhost:8080" -H "Content-Type: application/json" -d "{ \"text\": \"Privet!\" }"
+
+curl -X GET --location "http://localhost:8080"
+       </div>
+      </div>
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="retrieve-messages-by-id" id="retrieve-messages-by-id">
+     Retrieve messages by id
+    </h2>
+    <p id="-bxbtf1_145">
+     Extend the functionality of the application to retrieve the individual messages by id.
+    </p>
+    <ol class="list _decimal" id="-bxbtf1_146" type="1">
+     <li class="list__item" id="-bxbtf1_152">
+      <p id="-bxbtf1_154">
+       In the
+       <code class="code" id="-bxbtf1_158">
+        MessageService
+       </code>
+       class, add the new function
+       <code class="code" id="-bxbtf1_159">
+        findMessageById(id: String)
+       </code>
+       to retrieve the individual messages by id:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       // MessageService.kt
+package demo
+
+import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.query
+import java.util.*
+
+@Service
+class MessageService(private val db: JdbcTemplate) {
+
+    fun findMessages(): List&lt;Message&gt; = db.query("select * from messages") { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }
+
+    fun findMessageById(id: String): Message? = db.query("select * from messages where id = ?", id) { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }.singleOrNull()
+
+    fun save(message: Message): Message {
+        val id = message.id ?: UUID.randomUUID().toString() // Generate new id if it is null
+        db.update(
+            "insert into messages values ( ?, ? )",
+            id, message.text
+        )
+        return message.copy(id = id) // Return a copy of the message with the new id
+    }
+}
+      </div>
+      <aside class="prompt" data-title="" data-type="warning" id="-bxbtf1_156">
+       <p id="-bxbtf1_160">
+        The
+        <code class="code" id="-bxbtf1_161">
+         .query()
+        </code>
+        function that is used to fetch the message by its id is a
+        <a data-tooltip="To declare an extension function, prefix its name with a receiver type, which refers to the type being extended. The following adds a swap function to MutableList&lt;Int&gt;:" href="extensions.html#extension-functions" id="-bxbtf1_162" style="color: blue;">
+         Kotlin extension function
+        </a>
+        provided by the Spring Framework. It requires an additional import
+        <code class="code" id="-bxbtf1_163">
+         import org.springframework.jdbc.core.query
+        </code>
+        as demonstrated in the code above.
+       </p>
+      </aside>
+      <p id="-bxbtf1_157">
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_153">
+      <p id="-bxbtf1_164">
+       Add the new
+       <code class="code" id="-bxbtf1_167">
+        index(...)
+       </code>
+       function with the
+       <code class="code" id="-bxbtf1_168">
+        id
+       </code>
+       parameter to the
+       <code class="code" id="-bxbtf1_169">
+        MessageController
+       </code>
+       class:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       // MessageController.kt
+package demo
+
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+import java.net.URI
+
+@RestController
+@RequestMapping("/")
+class MessageController(private val service: MessageService) {
+    @GetMapping
+    fun listMessages() = ResponseEntity.ok(service.findMessages())
+
+    @PostMapping
+    fun post(@RequestBody message: Message): ResponseEntity&lt;Message&gt; {
+        val savedMessage = service.save(message)
+        return ResponseEntity.created(URI("/${savedMessage.id}")).body(savedMessage)
+    }
+
+    @GetMapping("/{id}")
+    fun getMessage(@PathVariable id: String): ResponseEntity&lt;Message&gt; =
+        service.findMessageById(id).toResponseEntity()
+
+    private fun Message?.toResponseEntity(): ResponseEntity&lt;Message&gt; =
+        // If the message is null (not found), set response code to 404
+        this?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build() 
+}
+      </div>
+      <dl data-style="title-top" id="-bxbtf1_166">
+       <dt data-expandable="true" data-expanded="false" id="-bxbtf1_170">
+        Retrieving a value from the context path
+       </dt>
+       <dd>
+        <p id="-bxbtf1_174">
+         The message
+         <code class="code" id="-bxbtf1_175">
+          id
+         </code>
+         is retrieved from the context path by the Spring Framework as you annotated the new function by
+         <code class="code" id="-bxbtf1_176">
+          @GetMapping("/{id}")
+         </code>
+         . By annotating the function argument with
+         <code class="code" id="-bxbtf1_177">
+          @PathVariable
+         </code>
+         , you tell the framework to use the retrieved value as a function argument. The new function makes a call to
+         <code class="code" id="-bxbtf1_178">
+          MessageService
+         </code>
+         to retrieve the individual message by its id.
+        </p>
+       </dd>
+       <dt data-expandable="true" data-expanded="false" id="-bxbtf1_171">
+        vararg argument position in the parameter list
+       </dt>
+       <dd>
+        <p id="-bxbtf1_179">
+         The
+         <code class="code" id="-bxbtf1_182">
+          query()
+         </code>
+         function takes three arguments:
+        </p>
+        <ul class="list _bullet" id="-bxbtf1_180">
+         <li class="list__item" id="-bxbtf1_183">
+          <p>
+           SQL query string that requires a parameter to run
+          </p>
+         </li>
+         <li class="list__item" id="-bxbtf1_184">
+          <p>
+           <code class="code" id="-bxbtf1_186">
+            id
+           </code>
+           , which is a parameter of type String
+          </p>
+         </li>
+         <li class="list__item" id="-bxbtf1_185">
+          <p>
+           <code class="code" id="-bxbtf1_187">
+            RowMapper
+           </code>
+           instance is implemented by a lambda expression
+          </p>
+         </li>
+        </ul>
+        <p id="-bxbtf1_181">
+         The second parameter for the
+         <code class="code" id="-bxbtf1_188">
+          query()
+         </code>
+         function is declared as a
+         <em id="-bxbtf1_189">
+          variable argument
+         </em>
+         (
+         <code class="code" id="-bxbtf1_190">
+          vararg
+         </code>
+         ). In Kotlin, the position of the variable arguments parameter is not required to be the last in the parameters list.
+        </p>
+       </dd>
+       <dt data-expandable="true" data-expanded="false" id="-bxbtf1_172">
+        Extension function with nullable receiver
+       </dt>
+       <dd>
+        <p id="-bxbtf1_191">
+         Extensions can be defined with a nullable receiver type. If the receiver is
+         <code class="code" id="-bxbtf1_194">
+          null
+         </code>
+         , then
+         <code class="code" id="-bxbtf1_195">
+          this
+         </code>
+         is also
+         <code class="code" id="-bxbtf1_196">
+          null
+         </code>
+         . So when defining an extension with a nullable receiver type, it is recommended performing a
+         <code class="code" id="-bxbtf1_197">
+          this == null
+         </code>
+         check inside the function body.
+        </p>
+        <p id="-bxbtf1_192">
+         You can also use the null-safe invocation operator (
+         <code class="code" id="-bxbtf1_198">
+          ?.
+         </code>
+         ) to perform the null check as in the
+         <code class="code" id="-bxbtf1_199">
+          toResponseBody
+         </code>
+         function above:
+        </p>
+        <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         this?.let { ResponseEntity.ok(it) }
+        </div>
+       </dd>
+       <dt data-expandable="true" data-expanded="false" id="-bxbtf1_173">
+        ResponseEntity
+       </dt>
+       <dd>
+        <p id="-bxbtf1_200">
+         <code class="code" id="-bxbtf1_201">
+          ResponseEntity
+         </code>
+         represents the HTTP response, including the status code, headers, and body. It is a generic wrapper that allows you to send customized HTTP responses back to the client with more control over the content.
+        </p>
+       </dd>
+      </dl>
+     </li>
+    </ol>
+    <p id="-bxbtf1_147">
+     Here is a complete code of the application:
+    </p>
+    <div class="code-collapse" data-is-expanded="false" data-lang="kotlin" data-synopsis="// DemoApplication.kt">
+     // DemoApplication.kt
+package demo
+
+import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.runApplication
+
+@SpringBootApplication
+class DemoApplication
+
+fun main(args: Array&lt;String&gt;) {
+   runApplication&lt;DemoApplication&gt;(*args)
+}
+    </div>
+    <div class="code-collapse" data-is-expanded="false" data-lang="kotlin" data-synopsis="// Message.kt">
+     // Message.kt
+package demo
+
+data class Message(val id: String?, val text: String)
+    </div>
+    <div class="code-collapse" data-is-expanded="false" data-lang="kotlin" data-synopsis="// MessageService.kt">
+     // MessageService.kt
+package demo
+
+import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.query
+import java.util.*
+
+@Service
+class MessageService(private val db: JdbcTemplate) {
+    fun findMessages(): List&lt;Message&gt; = db.query("select * from messages") { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }
+
+    fun findMessageById(id: String): Message? = db.query("select * from messages where id = ?", id) { response, _ -&gt;
+        Message(response.getString("id"), response.getString("text"))
+    }.singleOrNull()
+
+    fun save(message: Message): Message {
+        val id = message.id ?: UUID.randomUUID().toString()
+        db.update(
+            "insert into messages values ( ?, ? )",
+            id, message.text
+        )
+        return message.copy(id = id)
+    }
+}
+    </div>
+    <div class="code-collapse" data-is-expanded="false" data-lang="kotlin" data-synopsis="// MessageController.kt">
+     // MessageController.kt
+package demo
+
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+import java.net.URI
+
+
+@RestController
+@RequestMapping("/")
+class MessageController(private val service: MessageService) {
+    @GetMapping
+    fun listMessages() = ResponseEntity.ok(service.findMessages())
+
+    @PostMapping
+    fun post(@RequestBody message: Message): ResponseEntity&lt;Message&gt; {
+        val savedMessage = service.save(message)
+        return ResponseEntity.created(URI("/${savedMessage.id}")).body(savedMessage)
+    }
+
+    @GetMapping("/{id}")
+    fun getMessage(@PathVariable id: String): ResponseEntity&lt;Message&gt; =
+        service.findMessageById(id).toResponseEntity()
+
+    private fun Message?.toResponseEntity(): ResponseEntity&lt;Message&gt; =
+        this?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build()
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="run-the-application" id="run-the-application">
+     Run the application
+    </h2>
+    <p id="-bxbtf1_202">
+     The Spring application is ready to run:
+    </p>
+    <ol class="list _decimal" id="-bxbtf1_203" type="1">
+     <li class="list__item" id="-bxbtf1_204">
+      <p id="-bxbtf1_209">
+       Run the application again.
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_205">
+      <p id="-bxbtf1_210">
+       Open the
+       <code class="code" id="-bxbtf1_212">
+        requests.http
+       </code>
+       file and add the new GET request:
+      </p>
+      <div class="code-block" data-lang="http" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       ### Get the message by its id
+GET http://localhost:8080/id
+      </div>
+     </li>
+     <li class="list__item" id="-bxbtf1_206">
+      <p id="-bxbtf1_213">
+       Execute the GET request to retrieve all the messages from the database.
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_207">
+      <p id="-bxbtf1_214">
+       In the
+       <span class="control" id="-bxbtf1_218">
+        Run
+       </span>
+       tool window copy one of the ids and add it to the request, like this:
+      </p>
+      <div class="code-block" data-lang="http" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       ### Get the message by its id
+GET http://localhost:8080/f16c1d2e-08dc-455c-abfe-68440229b84f
+      </div>
+      <aside class="prompt" data-title="" data-type="note" id="-bxbtf1_216">
+       <p id="-bxbtf1_219">
+        Put your message id instead of the mentioned above.
+       </p>
+      </aside>
+      <p id="-bxbtf1_217">
+      </p>
+     </li>
+     <li class="list__item" id="-bxbtf1_208">
+      <p id="-bxbtf1_220">
+       Execute the GET request and see the result in the
+       <span class="control" id="-bxbtf1_222">
+        Run
+       </span>
+       tool window:
+      </p>
+      <figure id="-bxbtf1_221">
+       <img alt="Retrieve message by its id" height="405" src="images/retrieve-message-by-its-id.png" title="Retrieve message by its id" width="706"/>
+      </figure>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="next-step" id="next-step">
+     Next step
+    </h2>
+    <p id="-bxbtf1_223">
+     The final step shows you how to use more popular connection to database using Spring Data.
+    </p>
+    <p id="-bxbtf1_224">
+     <span class="control" id="-bxbtf1_225">
+      <a data-tooltip="This is the final part of the Getting started with Spring Boot and Kotlin tutorial. Before proceeding, make sure you've completed previous steps:" href="jvm-spring-boot-using-crudrepository.html" id="-bxbtf1_226" style="color: blue;">
+       Proceed to the next chapter
+      </a>
+     </span>
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

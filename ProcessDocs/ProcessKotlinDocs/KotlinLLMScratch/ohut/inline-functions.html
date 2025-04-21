@@ -1,0 +1,443 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="inline-functions" id="inline-functions.md">
+    Inline functions
+   </h1>
+   <p id="-imqmpt_2">
+    Using
+    <a data-tooltip="Kotlin functions are first-class, which means they can be stored in variables and data structures, and can be passed as arguments to and returned from other higher-order functions. You can perform any operations on functions that are possible for other non-function values." href="lambdas.html" id="-imqmpt_16" style="color: blue;">
+     higher-order functions
+    </a>
+    imposes certain runtime penalties: each function is an object, and it captures a closure. A closure is a scope of variables that can be accessed in the body of the function. Memory allocations (both for function objects and classes) and virtual calls introduce runtime overhead.
+   </p>
+   <p id="-imqmpt_3">
+    But it appears that in many cases this kind of overhead can be eliminated by inlining the lambda expressions. The functions shown below are good examples of this situation. The
+    <code class="code" id="-imqmpt_17">
+     lock()
+    </code>
+    function could be easily inlined at call-sites. Consider the following case:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    lock(l) { foo() }
+   </div>
+   <p id="-imqmpt_5">
+    Instead of creating a function object for the parameter and generating a call, the compiler could emit the following code:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    l.lock()
+try {
+    foo()
+} finally {
+    l.unlock()
+}
+   </div>
+   <p id="-imqmpt_7">
+    To make the compiler do this, mark the
+    <code class="code" id="-imqmpt_18">
+     lock()
+    </code>
+    function with the
+    <code class="code" id="-imqmpt_19">
+     inline
+    </code>
+    modifier:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    inline fun &lt;T&gt; lock(lock: Lock, body: () -&gt; T): T { ... }
+   </div>
+   <p id="-imqmpt_9">
+    The
+    <code class="code" id="-imqmpt_20">
+     inline
+    </code>
+    modifier affects both the function itself and the lambdas passed to it: all of those will be inlined into the call site.
+   </p>
+   <p id="-imqmpt_10">
+    Inlining may cause the generated code to grow. However, if you do it in a reasonable way (avoiding inlining large functions), it will pay off in performance, especially at "megamorphic" call-sites inside loops.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="noinline" id="noinline">
+     noinline
+    </h2>
+    <p id="-imqmpt_21">
+     If you don't want all of the lambdas passed to an inline function to be inlined, mark some of your function parameters with the
+     <code class="code" id="-imqmpt_25">
+      noinline
+     </code>
+     modifier:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     inline fun foo(inlined: () -&gt; Unit, noinline notInlined: () -&gt; Unit) { ... }
+    </div>
+    <p id="-imqmpt_23">
+     Inlinable lambdas can only be called inside inline functions or passed as inlinable arguments.
+     <code class="code" id="-imqmpt_26">
+      noinline
+     </code>
+     lambdas, however, can be manipulated in any way you like, including being stored in fields or passed around.
+    </p>
+    <aside class="prompt" data-title="" data-type="note" id="-imqmpt_24">
+     <p id="-imqmpt_27">
+      If an inline function has no inlinable function parameters and no
+      <a data-tooltip="Sometimes you need to access a type passed as a parameter:" href="#reified-type-parameters" id="-imqmpt_28" style="color: blue;">
+       reified type parameters
+      </a>
+      , the compiler will issue a warning, since inlining such functions is very unlikely to be beneficial (you can use the
+      <code class="code" id="-imqmpt_29">
+       @Suppress("NOTHING_TO_INLINE")
+      </code>
+      annotation to suppress the warning if you are sure the inlining is needed).
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="non-local-jump-expressions" id="non-local-jump-expressions">
+     Non-local jump expressions
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="returns" id="returns">
+      Returns
+     </h3>
+     <p id="-imqmpt_32">
+      In Kotlin, you can only use a normal, unqualified
+      <code class="code" id="-imqmpt_40">
+       return
+      </code>
+      to exit a named function or an anonymous function. To exit a lambda, use a
+      <a data-tooltip="In Kotlin, functions can be nested using function literals, local functions, and object expressions. A qualified return allows you to return from an outer function." href="returns.html#return-to-labels" id="-imqmpt_41" style="color: blue;">
+       label
+      </a>
+      . A bare
+      <code class="code" id="-imqmpt_42">
+       return
+      </code>
+      is forbidden inside a lambda because a lambda cannot make the enclosing function
+      <code class="code" id="-imqmpt_43">
+       return
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun ordinaryFunction(block: () -&gt; Unit) {
+    println("hi!")
+}
+//sampleStart
+fun foo() {
+    ordinaryFunction {
+        return // ERROR: cannot make `foo` return here
+    }
+}
+//sampleEnd
+fun main() {
+    foo()
+}
+     </div>
+     <p id="-imqmpt_34">
+      But if the function the lambda is passed to is inlined, the return can be inlined, as well. So it is allowed:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      inline fun inlined(block: () -&gt; Unit) {
+    println("hi!")
+}
+//sampleStart
+fun foo() {
+    inlined {
+        return // OK: the lambda is inlined
+    }
+}
+//sampleEnd
+fun main() {
+    foo()
+}
+     </div>
+     <p id="-imqmpt_36">
+      Such returns (located in a lambda, but exiting the enclosing function) are called
+      <span class="emphasis" id="-imqmpt_44">
+       non-local
+      </span>
+      returns. This sort of construct usually occurs in loops, which inline functions often enclose:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun hasZeros(ints: List&lt;Int&gt;): Boolean {
+    ints.forEach {
+        if (it == 0) return true // returns from hasZeros
+    }
+    return false
+}
+     </div>
+     <p id="-imqmpt_38">
+      Note that some inline functions may call the lambdas passed to them as parameters not directly from the function body, but from another execution context, such as a local object or a nested function. In such cases, non-local control flow is also not allowed in the lambdas. To indicate that the lambda parameter of the inline function cannot use non-local returns, mark the lambda parameter with the
+      <code class="code" id="-imqmpt_45">
+       crossinline
+      </code>
+      modifier:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      inline fun f(crossinline body: () -&gt; Unit) {
+    val f = object: Runnable {
+        override fun run() = body()
+    }
+    // ...
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="break-and-continue" id="break-and-continue">
+      Break and continue
+     </h3>
+     <aside class="prompt" data-title="" data-type="warning" id="-imqmpt_46">
+      <p id="-imqmpt_49">
+       This feature is currently
+       <a data-tooltip="According to the Feedback Loop principle described above, we iterate on our designs in the open and release versions of the language where some features have one of the pre-stable statuses and are supposed to change. Such features can be added, changed or removed at any point and…" href="kotlin-evolution-principles.html#pre-stable-features" id="-imqmpt_50" style="color: blue;">
+        In preview
+       </a>
+       . We're planning to stabilize it in future releases. To opt in, use the
+       <code class="code" id="-imqmpt_51">
+        -Xnon-local-break-continue
+       </code>
+       compiler option. We would appreciate your feedback on it in
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-1436" id="-imqmpt_52" rel="noopener noreferrer" style="color: red;" target="_blank">
+        YouTrack
+       </a>
+       .
+      </p>
+     </aside>
+     <p id="-imqmpt_47">
+      Similar to non-local
+      <code class="code" id="-imqmpt_53">
+       return
+      </code>
+      , you can apply
+      <code class="code" id="-imqmpt_54">
+       break
+      </code>
+      and
+      <code class="code" id="-imqmpt_55">
+       continue
+      </code>
+      <a data-tooltip="Kotlin has three structural jump expressions:" href="returns.html" id="-imqmpt_56" style="color: blue;">
+       jump expressions
+      </a>
+      in lambdas passed as arguments to an inline function that encloses a loop:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun processList(elements: List&lt;Int&gt;): Boolean {
+    for (element in elements) {
+        val variable = element.nullableMethod() ?: run {
+            log.warning("Element is null or invalid, continuing...")
+            continue
+        }
+        if (variable == 0) return true
+    }
+    return false
+}
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="reified-type-parameters" id="reified-type-parameters">
+     Reified type parameters
+    </h2>
+    <p id="-imqmpt_57">
+     Sometimes you need to access a type passed as a parameter:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun &lt;T&gt; TreeNode.findParentOfType(clazz: Class&lt;T&gt;): T? {
+    var p = parent
+    while (p != null &amp;&amp; !clazz.isInstance(p)) {
+        p = p.parent
+    }
+    @Suppress("UNCHECKED_CAST")
+    return p as T?
+}
+    </div>
+    <p id="-imqmpt_59">
+     Here, you walk up a tree and use reflection to check whether a node has a certain type. It's all fine, but the call site is not very pretty:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     treeNode.findParentOfType(MyTreeNode::class.java)
+    </div>
+    <p id="-imqmpt_61">
+     A better solution would be to simply pass a type to this function. You can call it as follows:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     treeNode.findParentOfType&lt;MyTreeNode&gt;()
+    </div>
+    <p id="-imqmpt_63">
+     To enable this, inline functions support
+     <span class="emphasis" id="-imqmpt_69">
+      reified type parameters
+     </span>
+     , so you can write something like this:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     inline fun &lt;reified T&gt; TreeNode.findParentOfType(): T? {
+    var p = parent
+    while (p != null &amp;&amp; p !is T) {
+        p = p.parent
+    }
+    return p as T?
+}
+    </div>
+    <p id="-imqmpt_65">
+     The code above qualifies the type parameter with the
+     <code class="code" id="-imqmpt_70">
+      reified
+     </code>
+     modifier to make it accessible inside the function, almost as if it were a normal class. Since the function is inlined, no reflection is needed and normal operators like
+     <code class="code" id="-imqmpt_71">
+      !is
+     </code>
+     and
+     <code class="code" id="-imqmpt_72">
+      as
+     </code>
+     are now available for you to use. Also, you can call the function as shown above:
+     <code class="code" id="-imqmpt_73">
+      myTree.findParentOfType&lt;MyTreeNodeType&gt;()
+     </code>
+     .
+    </p>
+    <p id="-imqmpt_66">
+     Though reflection may not be needed in many cases, you can still use it with a reified type parameter:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     inline fun &lt;reified T&gt; membersOf() = T::class.members
+
+fun main(s: Array&lt;String&gt;) {
+    println(membersOf&lt;StringBuilder&gt;().joinToString("\n"))
+}
+    </div>
+    <p id="-imqmpt_68">
+     Normal functions (not marked as inline) cannot have reified parameters. A type that does not have a run-time representation (for example, a non-reified type parameter or a fictitious type like
+     <code class="code" id="-imqmpt_74">
+      Nothing
+     </code>
+     ) cannot be used as an argument for a reified type parameter.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="inline-properties" id="inline-properties">
+     Inline properties
+    </h2>
+    <p id="-imqmpt_75">
+     The
+     <code class="code" id="-imqmpt_80">
+      inline
+     </code>
+     modifier can be used on accessors of properties that don't have
+     <a data-tooltip="In Kotlin, a field is only used as a part of a property to hold its value in memory. Fields cannot be declared directly. However, when a property needs a backing field, Kotlin provides it automatically. This backing field can be referenced in the accessors using the field identifier:" href="properties.html#backing-fields" id="-imqmpt_81" style="color: blue;">
+      backing fields
+     </a>
+     . You can annotate individual property accessors:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val foo: Foo
+    inline get() = Foo()
+
+var bar: Bar
+    get() = ...
+    inline set(v) { ... }
+    </div>
+    <p id="-imqmpt_77">
+     You can also annotate an entire property, which marks both of its accessors as
+     <code class="code" id="-imqmpt_82">
+      inline
+     </code>
+     :
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     inline var bar: Bar
+    get() = ...
+    set(v) { ... }
+    </div>
+    <p id="-imqmpt_79">
+     At the call site, inline accessors are inlined as regular inline functions.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="restrictions-for-public-api-inline-functions" id="restrictions-for-public-api-inline-functions">
+     Restrictions for public API inline functions
+    </h2>
+    <p id="-imqmpt_83">
+     When an inline function is
+     <code class="code" id="-imqmpt_87">
+      public
+     </code>
+     or
+     <code class="code" id="-imqmpt_88">
+      protected
+     </code>
+     but is not a part of a
+     <code class="code" id="-imqmpt_89">
+      private
+     </code>
+     or
+     <code class="code" id="-imqmpt_90">
+      internal
+     </code>
+     declaration, it is considered a
+     <a data-tooltip="The internal visibility modifier means that the member is visible within the same module. More specifically, a module is a set of Kotlin files compiled together, for example:" href="visibility-modifiers.html#modules" id="-imqmpt_91" style="color: blue;">
+      module
+     </a>
+     's public API. It can be called in other modules and is inlined at such call sites as well.
+    </p>
+    <p id="-imqmpt_84">
+     This imposes certain risks of binary incompatibility caused by changes in the module that declares an inline function in case the calling module is not re-compiled after the change.
+    </p>
+    <p id="-imqmpt_85">
+     To eliminate the risk of such incompatibility being introduced by a change in a
+     <span class="emphasis" id="-imqmpt_92">
+      non
+     </span>
+     -public API of a module, public API inline functions are not allowed to use non-public-API declarations, i.e.
+     <code class="code" id="-imqmpt_93">
+      private
+     </code>
+     and
+     <code class="code" id="-imqmpt_94">
+      internal
+     </code>
+     declarations and their parts, in their bodies.
+    </p>
+    <p id="-imqmpt_86">
+     An
+     <code class="code" id="-imqmpt_95">
+      internal
+     </code>
+     declaration can be annotated with
+     <code class="code" id="-imqmpt_96">
+      @PublishedApi
+     </code>
+     , which allows its use in public API inline functions. When an
+     <code class="code" id="-imqmpt_97">
+      internal
+     </code>
+     inline function is marked as
+     <code class="code" id="-imqmpt_98">
+      @PublishedApi
+     </code>
+     , its body is checked too, as if it were public.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

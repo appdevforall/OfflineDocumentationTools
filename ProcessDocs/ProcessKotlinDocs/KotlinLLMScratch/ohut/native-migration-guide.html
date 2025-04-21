@@ -1,0 +1,529 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="native-migration-guide" id="native-migration-guide.md">
+    Migrate to the new memory manager
+   </h1>
+   <aside class="prompt" data-title="" data-type="note" id="thn5wf_2">
+    <p id="thn5wf_13">
+     Support for the legacy memory manager has been completely removed in Kotlin 1.9.20. Migrate your projects to the current memory model, enabled by default since Kotlin 1.7.20.
+    </p>
+   </aside>
+   <p id="thn5wf_3">
+    This guide compares the new
+    <a data-tooltip="Kotlin/Native uses a modern memory manager that is similar to the JVM, Go, and other mainstream technologies, including the following features:" href="native-memory-manager.html" id="thn5wf_14" style="color: blue;">
+     Kotlin/Native memory manager
+    </a>
+    with the legacy one and describes how to migrate your projects.
+   </p>
+   <p id="thn5wf_4">
+    The most noticeable change in the new memory manager is lifting restrictions on object sharing. You don't need to freeze objects to share them between threads, specifically:
+   </p>
+   <ul class="list _bullet" id="thn5wf_5">
+    <li class="list__item" id="thn5wf_15">
+     <p id="thn5wf_20">
+      Top-level properties can be accessed and modified by any thread without using
+      <code class="code" id="thn5wf_21">
+       @SharedImmutable
+      </code>
+      .
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_16">
+     <p id="thn5wf_22">
+      Objects passing through interop can be accessed and modified by any thread without freezing them.
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_17">
+     <p id="thn5wf_23">
+      <code class="code" id="thn5wf_24">
+       Worker.executeAfter
+      </code>
+      no longer requires operations to be frozen.
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_18">
+     <p id="thn5wf_25">
+      <code class="code" id="thn5wf_26">
+       Worker.execute
+      </code>
+      no longer requires producers to return an isolated object subgraph.
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_19">
+     <p id="thn5wf_27">
+      Reference cycles containing
+      <code class="code" id="thn5wf_28">
+       AtomicReference
+      </code>
+      and
+      <code class="code" id="thn5wf_29">
+       FreezableAtomicReference
+      </code>
+      do not cause memory leaks.
+     </p>
+    </li>
+   </ul>
+   <p id="thn5wf_6">
+    Apart from easy object sharing, the new memory manager also brings other major changes:
+   </p>
+   <ul class="list _bullet" id="thn5wf_7">
+    <li class="list__item" id="thn5wf_30">
+     <p id="thn5wf_34">
+      Global properties are initialized lazily when the file they are defined in is accessed first. Previously global properties were initialized at the program startup. As a workaround, you can mark properties that must be initialized at the program start with the
+      <code class="code" id="thn5wf_35">
+       @EagerInitialization
+      </code>
+      annotation. Before using, check its
+      <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native/-eager-initialization/" id="thn5wf_36" rel="noopener noreferrer" style="color: red;" target="_blank">
+       documentation
+      </a>
+      .
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_31">
+     <p id="thn5wf_37">
+      <code class="code" id="thn5wf_38">
+       by lazy {}
+      </code>
+      properties support thread-safety modes and do not handle unbounded recursion.
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_32">
+     <p id="thn5wf_39">
+      Exceptions that escape
+      <code class="code" id="thn5wf_40">
+       operation
+      </code>
+      in
+      <code class="code" id="thn5wf_41">
+       Worker.executeAfter
+      </code>
+      are processed like in other runtime parts, by trying to execute a user-defined unhandled exception hook or terminating the program if the hook was not found or failed with an exception itself.
+     </p>
+    </li>
+    <li class="list__item" id="thn5wf_33">
+     <p id="thn5wf_42">
+      Freezing is deprecated and always disabled.
+     </p>
+    </li>
+   </ul>
+   <p id="thn5wf_8">
+    Follow these guidelines to migrate your projects from the legacy memory manager:
+   </p>
+   <section class="chapter">
+    <h2 data-toc="update-kotlin" id="update-kotlin">
+     Update Kotlin
+    </h2>
+    <p id="thn5wf_43">
+     The new Kotlin/Native memory manager has been enabled by default since Kotlin 1.7.20. Check the Kotlin version and
+     <a data-tooltip="To upgrade your project to a new release, you need to update your build script file. For example, to update to Kotlin 2.1.20, change the version of the Kotlin Gradle plugin in your build.gradle(.kts) file:" href="releases.html#update-to-a-new-kotlin-version" id="thn5wf_44" style="color: blue;">
+      update to the latest one
+     </a>
+     if necessary.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="update-dependencies" id="update-dependencies">
+     Update dependencies
+    </h2>
+    <dl data-style="title-left" data-title-width="medium" id="thn5wf_45">
+     <dt data-expandable="false" id="thn5wf_46">
+      kotlinx.coroutines
+     </dt>
+     <dd>
+      <p id="thn5wf_49">
+       Update to version 1.6.0 or later. Do not use versions with the
+       <code class="code" id="thn5wf_52">
+        native-mt
+       </code>
+       suffix.
+      </p>
+      <p id="thn5wf_50">
+       There are also some specifics with the new memory manager you should keep in mind:
+      </p>
+      <ul class="list _bullet" id="thn5wf_51">
+       <li class="list__item" id="thn5wf_53">
+        <p>
+         Every common primitive (channels, flows, coroutines) works through the Worker boundaries, since freezing is not required.
+        </p>
+       </li>
+       <li class="list__item" id="thn5wf_54">
+        <p>
+         <code class="code" id="thn5wf_58">
+          Dispatchers.Default
+         </code>
+         is backed by a pool of Workers on Linux and Windows and by a global queue on Apple targets.
+        </p>
+       </li>
+       <li class="list__item" id="thn5wf_55">
+        <p>
+         Use
+         <code class="code" id="thn5wf_59">
+          newSingleThreadContext
+         </code>
+         to create a coroutine dispatcher that is backed by a Worker.
+        </p>
+       </li>
+       <li class="list__item" id="thn5wf_56">
+        <p>
+         Use
+         <code class="code" id="thn5wf_60">
+          newFixedThreadPoolContext
+         </code>
+         to create a coroutine dispatcher backed by a pool of
+         <code class="code" id="thn5wf_61">
+          N
+         </code>
+         Workers.
+        </p>
+       </li>
+       <li class="list__item" id="thn5wf_57">
+        <p>
+         <code class="code" id="thn5wf_62">
+          Dispatchers.Main
+         </code>
+         is backed by the main queue on Darwin and by a standalone Worker on other platforms.
+        </p>
+       </li>
+      </ul>
+     </dd>
+     <dt data-expandable="false" id="thn5wf_47">
+      Ktor
+     </dt>
+     <dd>
+      <p>
+       Update to version 2.0 or later.
+      </p>
+     </dd>
+     <dt data-expandable="false" id="thn5wf_48">
+      Other dependencies
+     </dt>
+     <dd>
+      <p id="thn5wf_63">
+       The majority of libraries should work without any changes, however, there might be exceptions.
+      </p>
+      <p id="thn5wf_64">
+       Make sure that you update dependencies to the latest versions, and there is no difference between library versions for the legacy and the new memory manager.
+      </p>
+     </dd>
+    </dl>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="update-your-code" id="update-your-code">
+     Update your code
+    </h2>
+    <p id="thn5wf_65">
+     To support the new memory manager, remove usages of the affected API:
+    </p>
+    <div class="table-wrapper">
+     <table class="wide" id="thn5wf_66">
+      <thead>
+       <tr class="ijRowHead" id="thn5wf_67">
+        <th id="thn5wf_80">
+         <p>
+          Old API
+         </p>
+        </th>
+        <th id="thn5wf_81">
+         <p>
+          What to do
+         </p>
+        </th>
+       </tr>
+      </thead>
+      <tbody>
+       <tr id="thn5wf_68">
+        <td id="thn5wf_82">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-shared-immutable/" id="thn5wf_84" rel="noopener noreferrer" style="color: red;" target="_blank">
+           <code class="code" id="thn5wf_85">
+            @SharedImmutable
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_83">
+         <p>
+          You can remove all usages, though there are no warnings for using this API in the new memory manager.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_69">
+        <td id="thn5wf_86">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-freezable-atomic-reference/" id="thn5wf_88" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_89">
+            FreezableAtomicReference
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_87">
+         <p>
+          Use
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-atomic-reference/" id="thn5wf_90" rel="noopener noreferrer" style="color: red;" target="_blank">
+           <code class="code" id="thn5wf_91">
+            AtomicReference
+           </code>
+          </a>
+          instead.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_70">
+        <td id="thn5wf_92">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-freezing-exception/" id="thn5wf_94" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_95">
+            FreezingException
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_93">
+         <p>
+          Remove all usages.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_71">
+        <td id="thn5wf_96">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-invalid-mutability-exception/" id="thn5wf_98" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_99">
+            InvalidMutabilityException
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_97">
+         <p>
+          Remove all usages.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_72">
+        <td id="thn5wf_100">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native/-incorrect-dereference-exception/" id="thn5wf_102" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_103">
+            IncorrectDereferenceException
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_101">
+         <p>
+          Remove all usages.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_73">
+        <td id="thn5wf_104">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/freeze.html" id="thn5wf_106" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_107">
+            freeze()
+           </code>
+           function
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_105">
+         <p>
+          Remove all usages.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_74">
+        <td id="thn5wf_108">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/is-frozen.html" id="thn5wf_110" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_111">
+            isFrozen
+           </code>
+           property
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_109">
+         <p>
+          You can remove all usages. Since freezing is deprecated, the property always returns
+          <code class="code" id="thn5wf_112">
+           false
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_75">
+        <td id="thn5wf_113">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/ensure-never-frozen.html" id="thn5wf_115" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_116">
+            ensureNeverFrozen()
+           </code>
+           function
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_114">
+         <p>
+          Remove all usages.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_76">
+        <td id="thn5wf_117">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/atomic-lazy.html" id="thn5wf_119" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_120">
+            atomicLazy()
+           </code>
+           function
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_118">
+         <p>
+          Use
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/lazy.html" id="thn5wf_121" rel="noopener noreferrer" style="color: red;" target="_blank">
+           <code class="code" id="thn5wf_122">
+            lazy()
+           </code>
+          </a>
+          instead.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_77">
+        <td id="thn5wf_123">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-mutable-data/" id="thn5wf_125" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_126">
+            MutableData
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_124">
+         <p>
+          Use any regular collection instead.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_78">
+        <td id="thn5wf_127">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-worker-bound-reference/" id="thn5wf_129" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_130">
+            WorkerBoundReference&lt;out T : Any&gt;
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_128">
+         <p>
+          Use
+          <code class="code" id="thn5wf_131">
+           T
+          </code>
+          directly.
+         </p>
+        </td>
+       </tr>
+       <tr id="thn5wf_79">
+        <td id="thn5wf_132">
+         <p>
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.native.concurrent/-detached-object-graph/" id="thn5wf_134" rel="noopener noreferrer" style="color: red;" target="_blank">
+           The
+           <code class="code" id="thn5wf_135">
+            DetachedObjectGraph&lt;T&gt;
+           </code>
+           class
+          </a>
+         </p>
+        </td>
+        <td id="thn5wf_133">
+         <p>
+          Use
+          <code class="code" id="thn5wf_136">
+           T
+          </code>
+          directly. To pass the value through the C interop, use
+          <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlinx.cinterop/-stable-ref/" id="thn5wf_137" rel="noopener noreferrer" style="color: red;" target="_blank">
+           the StableRef class
+          </a>
+          .
+         </p>
+        </td>
+       </tr>
+      </tbody>
+     </table>
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="what-s-next" id="what-s-next">
+     What's next
+    </h2>
+    <ul class="list _bullet" id="thn5wf_138">
+     <li class="list__item" id="thn5wf_139">
+      <p id="thn5wf_142">
+       <a data-tooltip="Kotlin/Native uses a modern memory manager that is similar to the JVM, Go, and other mainstream technologies, including the following features:" href="native-memory-manager.html" id="thn5wf_143" style="color: blue;">
+        Learn more about the new memory manager
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="thn5wf_140">
+      <p id="thn5wf_144">
+       <a data-tooltip="Kotlin and Objective-C use different memory management strategies. Kotlin has a tracing garbage collector, while Objective-C relies on automatic reference counting (ARC)." href="native-arc-integration.html" id="thn5wf_145" style="color: blue;">
+        Check the specifics of integration with Swift/Objective-C ARC
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="thn5wf_141">
+      <p id="thn5wf_146">
+       <a data-tooltip="To safely access or update an object across multiple coroutines in Kotlin/Native, consider using concurrency-safe constructs, such as @Volatile and AtomicReference." href="native-faq.html#how-do-i-reference-objects-safely-from-different-coroutines" id="thn5wf_147" style="color: blue;">
+        Learn how to reference objects safely from different coroutines
+       </a>
+      </p>
+     </li>
+    </ul>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

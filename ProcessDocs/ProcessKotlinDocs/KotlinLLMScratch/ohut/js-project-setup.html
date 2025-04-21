@@ -1,0 +1,1822 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="js-project-setup" id="js-project-setup.md">
+    Set up a Kotlin/JS project
+   </h1>
+   <p id="-yqhhcv_2">
+    Kotlin/JS projects use Gradle as a build system. To let developers easily manage their Kotlin/JS projects, we offer the
+    <code class="code" id="-yqhhcv_22">
+     kotlin.multiplatform
+    </code>
+    Gradle plugin that provides project configuration tools together with helper tasks for automating routines typical for JavaScript development.
+   </p>
+   <p id="-yqhhcv_3">
+    The plugin downloads npm dependencies in the background using the
+    <a data-external="true" href="https://www.npmjs.com/" id="-yqhhcv_23" rel="noopener noreferrer" style="color: red;" target="_blank">
+     npm
+    </a>
+    or
+    <a data-external="true" href="https://yarnpkg.com/" id="-yqhhcv_24" rel="noopener noreferrer" style="color: red;" target="_blank">
+     Yarn
+    </a>
+    package managers and builds a JavaScript bundle from a Kotlin project using
+    <a data-external="true" href="https://webpack.js.org/" id="-yqhhcv_25" rel="noopener noreferrer" style="color: red;" target="_blank">
+     webpack
+    </a>
+    . Dependency management and configuration adjustments can be done to a large part directly from the Gradle build file, with the option to override automatically generated configurations for full control.
+   </p>
+   <p id="-yqhhcv_4">
+    You can apply the
+    <code class="code" id="-yqhhcv_26">
+     org.jetbrains.kotlin.multiplatform
+    </code>
+    plugin to a Gradle project manually in the
+    <code class="code" id="-yqhhcv_27">
+     build.gradle(.kts)
+    </code>
+    file:
+   </p>
+   <div class="tabs" data-anchors="[-yqhhcv_28,-yqhhcv_29]" data-group="build-script" id="-yqhhcv_5">
+    <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_28">
+     <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      plugins {
+    kotlin("multiplatform") version "2.1.20"
+}
+     </div>
+    </div>
+    <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_29">
+     <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      plugins {
+    id 'org.jetbrains.kotlin.multiplatform' version '2.1.20'
+}
+     </div>
+    </div>
+   </div>
+   <p id="-yqhhcv_6">
+    The Kotlin Multiplatform Gradle plugin lets you manage aspects of your project in the
+    <code class="code" id="-yqhhcv_32">
+     kotlin {}
+    </code>
+    block of the build script:
+   </p>
+   <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    kotlin {
+    // ...
+}
+   </div>
+   <p id="-yqhhcv_8">
+    Inside the
+    <code class="code" id="-yqhhcv_33">
+     kotlin {}
+    </code>
+    block, you can manage the following aspects:
+   </p>
+   <ul class="list _bullet" id="-yqhhcv_9">
+    <li class="list__item" id="-yqhhcv_34">
+     <p id="-yqhhcv_42">
+      <a data-tooltip="Kotlin/JS projects can target two different execution environments:" href="#execution-environments" id="-yqhhcv_43" style="color: blue;">
+       Target execution environment
+      </a>
+      : browser or Node.js
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_35">
+     <p id="-yqhhcv_44">
+      <a data-tooltip="Kotlin provides an Experimental support for the following ES2015 features:" href="#support-for-es2015-features" id="-yqhhcv_45" style="color: blue;">
+       Support for ES2015 features
+      </a>
+      : classes, modules, and generators
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_36">
+     <p id="-yqhhcv_46">
+      <a data-tooltip="Like any other Gradle projects, Kotlin/JS projects support traditional Gradle dependency declarations in the dependencies {} block of the build script:" href="#dependencies" id="-yqhhcv_47" style="color: blue;">
+       Project dependencies
+      </a>
+      : Maven and npm
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_37">
+     <p id="-yqhhcv_48">
+      <a data-tooltip="The Kotlin Multiplatform Gradle plugin provides a jsBrowserDevelopmentRun task that lets you run pure Kotlin/JS projects without additional configuration." href="#run-task" id="-yqhhcv_49" style="color: blue;">
+       Run configuration
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_38">
+     <p id="-yqhhcv_50">
+      <a data-tooltip="The Kotlin Multiplatform Gradle plugin automatically sets up a test infrastructure for projects. For browser projects, it downloads and installs the Karma test runner with other required dependencies; for Node.js projects, the Mocha test framework is used." href="#test-task" id="-yqhhcv_51" style="color: blue;">
+       Test configuration
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_39">
+     <p id="-yqhhcv_52">
+      <a data-tooltip="For browser targets, the Kotlin Multiplatform Gradle plugin uses the widely known webpack module bundler." href="#webpack-bundling" id="-yqhhcv_53" style="color: blue;">
+       Bundling
+      </a>
+      and
+      <a data-tooltip="The Kotlin Multiplatform Gradle plugin also provides support for webpack's CSS and style loaders. While all options can be changed by directly modifying the webpack configuration files that are used to build your project, the most commonly used settings are available directly from…" href="#css" id="-yqhhcv_54" style="color: blue;">
+       CSS support
+      </a>
+      for browser projects
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_40">
+     <p id="-yqhhcv_55">
+      <a data-tooltip="By default, the results of a Kotlin/JS project build reside in the /build/dist/&lt;targetName&gt;/&lt;binaryName&gt; directory within the project root." href="#distribution-target-directory" id="-yqhhcv_56" style="color: blue;">
+       Target directory
+      </a>
+      and
+      <a data-tooltip="To adjust the name for the JavaScript module (which is generated in build/js/packages/myModuleName), including the corresponding .js and .d.ts files, use the moduleName option:" href="#module-name" id="-yqhhcv_57" style="color: blue;">
+       module name
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="-yqhhcv_41">
+     <p id="-yqhhcv_58">
+      <a data-tooltip="The package.json file holds the metadata of a JavaScript package. Popular package registries such as npm require all published packages to have such a file. They use it to track and manage package publications." href="#package-json-customization" id="-yqhhcv_59" style="color: blue;">
+       Project's
+       <code class="code" id="-yqhhcv_60">
+        package.json
+       </code>
+       file
+      </a>
+     </p>
+    </li>
+   </ul>
+   <section class="chapter">
+    <h2 data-toc="execution-environments" id="execution-environments">
+     Execution environments
+    </h2>
+    <p id="-yqhhcv_61">
+     Kotlin/JS projects can target two different execution environments:
+    </p>
+    <ul class="list _bullet" id="-yqhhcv_62">
+     <li class="list__item" id="-yqhhcv_68">
+      <p id="-yqhhcv_70">
+       Browser for client-side scripting in browsers
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_69">
+      <p id="-yqhhcv_71">
+       <a data-external="true" href="https://nodejs.org/" id="-yqhhcv_72" rel="noopener noreferrer" style="color: red;" target="_blank">
+        Node.js
+       </a>
+       for running JavaScript code outside of a browser, for example, for server-side scripting.
+      </p>
+     </li>
+    </ul>
+    <p id="-yqhhcv_63">
+     To define the target execution environment for a Kotlin/JS project, add the
+     <code class="code" id="-yqhhcv_73">
+      js {}
+     </code>
+     block with
+     <code class="code" id="-yqhhcv_74">
+      browser {}
+     </code>
+     or
+     <code class="code" id="-yqhhcv_75">
+      nodejs {}
+     </code>
+     inside:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        browser {
+        }
+        binaries.executable()
+    }
+}
+    </div>
+    <p id="-yqhhcv_65">
+     The instruction
+     <code class="code" id="-yqhhcv_76">
+      binaries.executable()
+     </code>
+     explicitly instructs the Kotlin compiler to emit executable
+     <code class="code" id="-yqhhcv_77">
+      .js
+     </code>
+     files. Omitting
+     <code class="code" id="-yqhhcv_78">
+      binaries.executable()
+     </code>
+     will cause the compiler to only generate Kotlin-internal library files, which can be used from other projects, but not run on their own.
+    </p>
+    <aside class="prompt" data-title="" data-type="tip" id="-yqhhcv_66">
+     <p id="-yqhhcv_79">
+      This is typically faster than creating executable files, and can be a possible optimization when dealing with non-leaf modules of your project.
+     </p>
+    </aside>
+    <p id="-yqhhcv_67">
+     The Kotlin Multiplatform plugin automatically configures its tasks for working with the selected environment. This includes downloading and installing the required environment and dependencies for running and testing the application. This allows developers to build, run, and test simple projects without additional configuration. For projects targeting Node.js, there is also an option to use an existing Node.js installation. Learn how to
+     <a data-tooltip="If Node.js is already installed on the host where you build Kotlin/JS projects, you can configure the Kotlin Multiplatform Gradle plugin to use it instead of installing its own Node.js instance." href="#use-pre-installed-node-js" id="-yqhhcv_80" style="color: blue;">
+      use pre-installed Node.js
+     </a>
+     .
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="support-for-es2015-features" id="support-for-es2015-features">
+     Support for ES2015 features
+    </h2>
+    <p id="-yqhhcv_81">
+     Kotlin provides an
+     <a data-tooltip="Here's a quick guide to these stability levels and their meaning:" href="components-stability.html#stability-levels-explained" id="-yqhhcv_86" style="color: blue;">
+      Experimental
+     </a>
+     support for the following ES2015 features:
+    </p>
+    <ul class="list _bullet" id="-yqhhcv_82">
+     <li class="list__item" id="-yqhhcv_87">
+      <p id="-yqhhcv_90">
+       Modules that simplify your codebase and improve maintainability.
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_88">
+      <p id="-yqhhcv_91">
+       Classes that allow incorporating OOP principles, resulting in cleaner and more intuitive code.
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_89">
+      <p id="-yqhhcv_92">
+       Generators for compiling
+       <span id="-yqhhcv_93">
+        suspend functions
+       </span>
+       that improve the final bundle size and help with debugging.
+      </p>
+     </li>
+    </ul>
+    <p id="-yqhhcv_83">
+     You can enable all the supported ES2015 features at once by adding the
+     <code class="code" id="-yqhhcv_94">
+      es2015
+     </code>
+     compilation target to your
+     <code class="code" id="-yqhhcv_95">
+      build.gradle(.kts)
+     </code>
+     file:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     tasks.withType&lt;KotlinJsCompile&gt;().configureEach {
+    kotlinOptions {
+        target = "es2015"
+    }
+}
+    </div>
+    <p id="-yqhhcv_85">
+     <a data-external="true" href="https://262.ecma-international.org/6.0/" id="-yqhhcv_96" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Learn more about ES2015 (ECMAScript 2015, ES6) in the official documentation
+     </a>
+     .
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="dependencies" id="dependencies">
+     Dependencies
+    </h2>
+    <p id="-yqhhcv_97">
+     Like any other Gradle projects, Kotlin/JS projects support traditional Gradle
+     <a data-external="true" href="https://docs.gradle.org/current/userguide/declaring_dependencies.html" id="-yqhhcv_105" rel="noopener noreferrer" style="color: red;" target="_blank">
+      dependency declarations
+     </a>
+     in the
+     <code class="code" id="-yqhhcv_106">
+      dependencies {}
+     </code>
+     block of the build script:
+    </p>
+    <div class="tabs" data-anchors="[-yqhhcv_107,-yqhhcv_108]" data-group="build-script" id="-yqhhcv_98">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_107">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       dependencies {
+    implementation("org.example.myproject", "1.1.0")
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_108">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       dependencies {
+    implementation 'org.example.myproject:1.1.0'
+}
+      </div>
+     </div>
+    </div>
+    <p id="-yqhhcv_99">
+     The Kotlin Multiplatform Gradle plugin also supports dependency declarations for particular source sets in the
+     <code class="code" id="-yqhhcv_111">
+      kotlin {}
+     </code>
+     block of the build script:
+    </p>
+    <div class="tabs" data-anchors="[-yqhhcv_112,-yqhhcv_113]" data-group="build-script" id="-yqhhcv_100">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_112">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    sourceSets {
+        val jsMain by getting {
+            dependencies {
+                implementation("org.example.myproject:1.1.0")
+            }
+        }
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_113">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    sourceSets {
+        jsMain {
+            dependencies {
+                implementation 'org.example.myproject:1.1.0'
+            }
+        }
+    }
+}
+      </div>
+     </div>
+    </div>
+    <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_101">
+     <p id="-yqhhcv_116">
+      Not all libraries available for the Kotlin programming language are available when targeting JavaScript: only libraries that include artifacts for Kotlin/JS can be used.
+     </p>
+    </aside>
+    <p id="-yqhhcv_102">
+     If the library you are adding has dependencies on
+     <a data-tooltip="In the JavaScript world, the most common way to manage dependencies is npm. It offers the biggest public repository of JavaScript modules." href="#npm-dependencies" id="-yqhhcv_117" style="color: blue;">
+      packages from npm
+     </a>
+     , Gradle will automatically resolve these transitive dependencies as well.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="kotlin-standard-libraries" id="kotlin-standard-libraries">
+      Kotlin standard libraries
+     </h3>
+     <p id="-yqhhcv_118">
+      The dependencies on the
+      <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/index.html" id="-yqhhcv_121" rel="noopener noreferrer" style="color: red;" target="_blank">
+       standard library
+      </a>
+      are added automatically. The version of the standard library is the same as the version of the Kotlin Multiplatform plugin.
+     </p>
+     <p id="-yqhhcv_119">
+      For multiplatform tests, the
+      <a data-external="true" href="https://kotlinlang.org/api/latest/kotlin.test/" id="-yqhhcv_122" rel="noopener noreferrer" style="color: red;" target="_blank">
+       <code class="code" id="-yqhhcv_124">
+        kotlin.test
+       </code>
+      </a>
+      API is available. When you create a multiplatform project, you can add test dependencies to all the source sets by using a single dependency in
+      <code class="code" id="-yqhhcv_123">
+       commonTest
+      </code>
+      :
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_125,-yqhhcv_126]" data-group="build-script" id="-yqhhcv_120">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_125">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlin {
+    sourceSets {
+        commonTest.dependencies {
+            implementation(kotlin("test")) // Brings all the platform dependencies automatically
+        }
+    }
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_126">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlin {
+    sourceSets {
+        commonTest {
+            dependencies {
+                implementation kotlin("test") // Brings all the platform dependencies automatically
+            }
+        }
+    }
+}
+       </div>
+      </div>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="npm-dependencies" id="npm-dependencies">
+      npm dependencies
+     </h3>
+     <p id="-yqhhcv_129">
+      In the JavaScript world, the most common way to manage dependencies is
+      <a data-external="true" href="https://www.npmjs.com/" id="-yqhhcv_139" rel="noopener noreferrer" style="color: red;" target="_blank">
+       npm
+      </a>
+      . It offers the biggest public repository of JavaScript modules.
+     </p>
+     <p id="-yqhhcv_130">
+      The Kotlin Multiplatform Gradle plugin lets you declare npm dependencies in the Gradle build script, just how you declare any other dependencies.
+     </p>
+     <p id="-yqhhcv_131">
+      To declare an npm dependency, pass its name and version to the
+      <code class="code" id="-yqhhcv_140">
+       npm()
+      </code>
+      function inside a dependency declaration. You can also specify one or multiple version ranges based on
+      <a data-external="true" href="https://docs.npmjs.com/about-semantic-versioning" id="-yqhhcv_141" rel="noopener noreferrer" style="color: red;" target="_blank">
+       npm's semver syntax
+      </a>
+      .
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_142,-yqhhcv_143]" data-group="build-script" id="-yqhhcv_132">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_142">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        dependencies {
+    implementation(npm("react", "&gt; 14.0.0 &lt;=16.9.0"))
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_143">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        dependencies {
+    implementation npm('react', '&gt; 14.0.0 &lt;=16.9.0')
+}
+       </div>
+      </div>
+     </div>
+     <p id="-yqhhcv_133">
+      By default, the plugin uses a separate instance of the
+      <a data-external="true" href="https://yarnpkg.com/lang/en/" id="-yqhhcv_146" rel="noopener noreferrer" style="color: red;" target="_blank">
+       Yarn
+      </a>
+      package manager to download and install npm dependencies. It works out of the box without additional configuration, but you can
+      <a data-tooltip="By default, to download and install your declared dependencies at build time, the plugin manages its own instance of the Yarn package manager. It works out of the box without additional configuration, but you can tune it or use Yarn already installed on your host." href="#yarn" id="-yqhhcv_147" style="color: blue;">
+       tune it to specific needs
+      </a>
+      .
+     </p>
+     <p id="-yqhhcv_134">
+      You can also work with npm dependencies directly using the
+      <a data-external="true" href="https://www.npmjs.com/" id="-yqhhcv_148" rel="noopener noreferrer" style="color: red;" target="_blank">
+       npm
+      </a>
+      package manager instead. To use npm as your package manager, in your
+      <code class="code" id="-yqhhcv_149">
+       gradle.properties
+      </code>
+      file, set the following property:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      kotlin.js.yarn=false
+     </div>
+     <p id="-yqhhcv_136">
+      Besides regular dependencies, there are three more types of dependencies that can be used from the Gradle DSL. To learn more about when each type of dependency can best be used, have a look at the official documentation linked from npm:
+     </p>
+     <ul class="list _bullet" id="-yqhhcv_137">
+      <li class="list__item" id="-yqhhcv_150">
+       <p id="-yqhhcv_153">
+        <a data-external="true" href="https://docs.npmjs.com/files/package.json#devdependencies" id="-yqhhcv_154" rel="noopener noreferrer" style="color: red;" target="_blank">
+         devDependencies
+        </a>
+        , via
+        <code class="code" id="-yqhhcv_155">
+         devNpm(...)
+        </code>
+        ,
+       </p>
+      </li>
+      <li class="list__item" id="-yqhhcv_151">
+       <p id="-yqhhcv_156">
+        <a data-external="true" href="https://docs.npmjs.com/files/package.json#optionaldependencies" id="-yqhhcv_157" rel="noopener noreferrer" style="color: red;" target="_blank">
+         optionalDependencies
+        </a>
+        via
+        <code class="code" id="-yqhhcv_158">
+         optionalNpm(...)
+        </code>
+        , and
+       </p>
+      </li>
+      <li class="list__item" id="-yqhhcv_152">
+       <p id="-yqhhcv_159">
+        <a data-external="true" href="https://docs.npmjs.com/files/package.json#peerdependencies" id="-yqhhcv_160" rel="noopener noreferrer" style="color: red;" target="_blank">
+         peerDependencies
+        </a>
+        via
+        <code class="code" id="-yqhhcv_161">
+         peerNpm(...)
+        </code>
+        .
+       </p>
+      </li>
+     </ul>
+     <p id="-yqhhcv_138">
+      Once an npm dependency is installed, you can use its API in your code as described in
+      <a data-tooltip="Kotlin was first designed for easy interoperation with the Java platform: it sees Java classes as Kotlin classes, and Java sees Kotlin classes as Java classes." href="js-interop.html" id="-yqhhcv_162" style="color: blue;">
+       Calling JS from Kotlin
+      </a>
+      .
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="run-task" id="run-task">
+     run task
+    </h2>
+    <p id="-yqhhcv_163">
+     The Kotlin Multiplatform Gradle plugin provides a
+     <code class="code" id="-yqhhcv_173">
+      jsBrowserDevelopmentRun
+     </code>
+     task that lets you run pure Kotlin/JS projects without additional configuration.
+    </p>
+    <p id="-yqhhcv_164">
+     For running Kotlin/JS projects in the browser, this task is an alias for the
+     <code class="code" id="-yqhhcv_174">
+      browserDevelopmentRun
+     </code>
+     task (which is also available in Kotlin multiplatform projects). It uses the
+     <a data-external="true" href="https://webpack.js.org/configuration/dev-server/" id="-yqhhcv_175" rel="noopener noreferrer" style="color: red;" target="_blank">
+      webpack-dev-server
+     </a>
+     to serve your JavaScript artifacts. If you want to customize the configuration used by
+     <code class="code" id="-yqhhcv_176">
+      webpack-dev-server
+     </code>
+     , for example, adjust the port the server runs on, use the
+     <a data-tooltip="For browser targets, the Kotlin Multiplatform Gradle plugin uses the widely known webpack module bundler." href="#webpack-bundling" id="-yqhhcv_177" style="color: blue;">
+      webpack configuration file
+     </a>
+     .
+    </p>
+    <p id="-yqhhcv_165">
+     For running Kotlin/JS projects targeting Node.js, use the
+     <code class="code" id="-yqhhcv_178">
+      jsNodeDevelopmentRun
+     </code>
+     task that is an alias for the
+     <code class="code" id="-yqhhcv_179">
+      nodeRun
+     </code>
+     task.
+    </p>
+    <p id="-yqhhcv_166">
+     To run a project, execute the standard lifecycle
+     <code class="code" id="-yqhhcv_180">
+      jsBrowserDevelopmentRun
+     </code>
+     task, or the alias to which it corresponds:
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     ./gradlew jsBrowserDevelopmentRun
+    </div>
+    <p id="-yqhhcv_168">
+     To automatically trigger a re-build of your application after making changes to the source files, use the Gradle
+     <a data-external="true" href="https://docs.gradle.org/current/userguide/command_line_interface.html#sec:continuous_build" id="-yqhhcv_181" rel="noopener noreferrer" style="color: red;" target="_blank">
+      continuous build
+     </a>
+     feature:
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     ./gradlew jsBrowserDevelopmentRun --continuous
+    </div>
+    <p id="-yqhhcv_170">
+     or
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     ./gradlew jsBrowserDevelopmentRun -t
+    </div>
+    <p id="-yqhhcv_172">
+     Once the build of your project has succeeded, the
+     <code class="code" id="-yqhhcv_182">
+      webpack-dev-server
+     </code>
+     will automatically refresh the browser page.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="test-task" id="test-task">
+     test task
+    </h2>
+    <p id="-yqhhcv_183">
+     The Kotlin Multiplatform Gradle plugin automatically sets up a test infrastructure for projects. For browser projects, it downloads and installs the
+     <a data-external="true" href="https://karma-runner.github.io/" id="-yqhhcv_199" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Karma
+     </a>
+     test runner with other required dependencies; for Node.js projects, the
+     <a data-external="true" href="https://mochajs.org/" id="-yqhhcv_200" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Mocha
+     </a>
+     test framework is used.
+    </p>
+    <p id="-yqhhcv_184">
+     The plugin also provides useful testing features, for example:
+    </p>
+    <ul class="list _bullet" id="-yqhhcv_185">
+     <li class="list__item" id="-yqhhcv_201">
+      <p id="-yqhhcv_204">
+       Source maps generation
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_202">
+      <p id="-yqhhcv_205">
+       Test reports generation
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_203">
+      <p id="-yqhhcv_206">
+       Test run results in the console
+      </p>
+     </li>
+    </ul>
+    <p id="-yqhhcv_186">
+     For running browser tests, the plugin uses
+     <a data-external="true" href="https://chromium.googlesource.com/chromium/src/+/lkgr/headless/README.md" id="-yqhhcv_207" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Headless Chrome
+     </a>
+     by default. You can also choose another browser to run tests in, by adding the corresponding entries inside the
+     <code class="code" id="-yqhhcv_208">
+      useKarma {}
+     </code>
+     block of the build script:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        browser {
+            testTask {
+                useKarma {
+                    useIe()
+                    useSafari()
+                    useFirefox()
+                    useChrome()
+                    useChromeCanary()
+                    useChromeHeadless()
+                    usePhantomJS()
+                    useOpera()
+                }
+            }
+        }
+        binaries.executable()
+        // ...
+    }
+}
+    </div>
+    <p id="-yqhhcv_188">
+     Alternatively, you can add test targets for browsers in the
+     <code class="code" id="-yqhhcv_209">
+      gradle.properties
+     </code>
+     file:
+    </p>
+    <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin.js.browser.karma.browsers=firefox,safari
+    </div>
+    <p id="-yqhhcv_190">
+     This approach allows you to define a list of browsers for all modules, and then add specific browsers in the build scripts of particular modules.
+    </p>
+    <p id="-yqhhcv_191">
+     Please note that the Kotlin Multiplatform Gradle plugin does not automatically install these browsers for you, but only uses those that are available in its execution environment. If you are executing Kotlin/JS tests on a continuous integration server, for example, make sure that the browsers you want to test against are installed.
+    </p>
+    <p id="-yqhhcv_192">
+     If you want to skip tests, add the line
+     <code class="code" id="-yqhhcv_210">
+      enabled = false
+     </code>
+     to the
+     <code class="code" id="-yqhhcv_211">
+      testTask {}
+     </code>
+     :
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        browser {
+            testTask {
+                enabled = false
+            }
+        }
+        binaries.executable()
+        // ...
+    }
+}
+    </div>
+    <p id="-yqhhcv_194">
+     To run tests, execute the standard lifecycle
+     <code class="code" id="-yqhhcv_212">
+      check
+     </code>
+     task:
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     ./gradlew check
+    </div>
+    <p id="-yqhhcv_196">
+     To specify environment variables used by your Node.js test runners (for example, to pass external information to your tests, or to fine-tune package resolution), use the
+     <code class="code" id="-yqhhcv_213">
+      environment()
+     </code>
+     function with a key-value pair inside the
+     <code class="code" id="-yqhhcv_214">
+      testTask {}
+     </code>
+     block in your build script:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        nodejs {
+            testTask {
+                environment("key", "value")
+            }
+        }
+    }
+}
+    </div>
+    <section class="chapter">
+     <h3 data-toc="karma-configuration" id="karma-configuration">
+      Karma configuration
+     </h3>
+     <p id="-yqhhcv_215">
+      The Kotlin Multiplatform Gradle plugin automatically generates a Karma configuration file at build time which includes your settings from the
+      <a data-tooltip="The Kotlin Multiplatform Gradle plugin automatically sets up a test infrastructure for projects. For browser projects, it downloads and installs the Karma test runner with other required dependencies; for Node.js projects, the Mocha test framework is used." href="#test-task" id="-yqhhcv_217" style="color: blue;">
+       <code class="code" id="-yqhhcv_223">
+        kotlin.js.browser.testTask.useKarma {}
+       </code>
+       block
+      </a>
+      in your
+      <code class="code" id="-yqhhcv_218">
+       build.gradle(.kts)
+      </code>
+      . You can find the file at
+      <code class="code" id="-yqhhcv_219">
+       build/js/packages/projectName-test/karma.conf.js
+      </code>
+      . To make adjustments to the configuration used by Karma, place your additional configuration files inside a directory called
+      <code class="code" id="-yqhhcv_220">
+       karma.config.d
+      </code>
+      in the root of your project. All
+      <code class="code" id="-yqhhcv_221">
+       .js
+      </code>
+      configuration files in this directory will be picked up and are automatically merged into the generated
+      <code class="code" id="-yqhhcv_222">
+       karma.conf.js
+      </code>
+      at build time.
+     </p>
+     <p id="-yqhhcv_216">
+      All Karma configuration abilities are well described in Karma's
+      <a data-external="true" href="https://karma-runner.github.io/5.0/config/configuration-file.html" id="-yqhhcv_224" rel="noopener noreferrer" style="color: red;" target="_blank">
+       documentation
+      </a>
+      .
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="webpack-bundling" id="webpack-bundling">
+     webpack bundling
+    </h2>
+    <p id="-yqhhcv_225">
+     For browser targets, the Kotlin Multiplatform Gradle plugin uses the widely known
+     <a data-external="true" href="https://webpack.js.org/" id="-yqhhcv_230" rel="noopener noreferrer" style="color: red;" target="_blank">
+      webpack
+     </a>
+     module bundler.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="webpack-version" id="webpack-version">
+      webpack version
+     </h3>
+     <p id="-yqhhcv_231">
+      The Kotlin Multiplatform plugin uses webpack 5.
+     </p>
+     <p id="-yqhhcv_232">
+      If you have projects created with plugin versions earlier than 1.5.0, you can temporarily switch back to webpack 4 used in these versions by adding the following line to the project's
+      <code class="code" id="-yqhhcv_234">
+       gradle.properties
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      kotlin.js.webpack.major.version=4
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="webpack-task" id="webpack-task">
+      webpack task
+     </h3>
+     <p id="-yqhhcv_235">
+      The most common webpack adjustments can be made directly via the
+      <code class="code" id="-yqhhcv_239">
+       kotlin.js.browser.webpackTask {}
+      </code>
+      configuration block in the Gradle build file:
+     </p>
+     <ul class="list _bullet" id="-yqhhcv_236">
+      <li class="list__item" id="-yqhhcv_240">
+       <p id="-yqhhcv_242">
+        <code class="code" id="-yqhhcv_243">
+         outputFileName
+        </code>
+        - the name of the webpacked output file. It will be generated in
+        <code class="code" id="-yqhhcv_244">
+         &lt;projectDir&gt;/build/dist/&lt;targetName&gt;
+        </code>
+        after an execution of a webpack task. The default value is the project name.
+       </p>
+      </li>
+      <li class="list__item" id="-yqhhcv_241">
+       <p id="-yqhhcv_245">
+        <code class="code" id="-yqhhcv_246">
+         output.libraryTarget
+        </code>
+        - the module system for the webpacked output. Learn more about
+        <a data-tooltip="You can compile your Kotlin projects to JavaScript modules for various popular module systems. We currently support the following configurations for JavaScript modules:" href="js-modules.html" id="-yqhhcv_247" style="color: blue;">
+         available module systems for Kotlin/JS projects
+        </a>
+        . The default value is
+        <code class="code" id="-yqhhcv_248">
+         umd
+        </code>
+        .
+       </p>
+      </li>
+     </ul>
+     <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      webpackTask {
+    outputFileName = "mycustomfilename.js"
+    output.libraryTarget = "commonjs2"
+}
+     </div>
+     <p id="-yqhhcv_238">
+      You can also configure common webpack settings to use in bundling, running, and testing tasks in the
+      <code class="code" id="-yqhhcv_249">
+       commonWebpackConfig {}
+      </code>
+      block.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="webpack-configuration-file" id="webpack-configuration-file">
+      webpack configuration file
+     </h3>
+     <p id="-yqhhcv_250">
+      The Kotlin Multiplatform Gradle plugin automatically generates a standard webpack configuration file at the build time. It is located in
+      <code class="code" id="-yqhhcv_255">
+       build/js/packages/projectName/webpack.config.js
+      </code>
+      .
+     </p>
+     <p id="-yqhhcv_251">
+      If you want to make further adjustments to the webpack configuration, place your additional configuration files inside a directory called
+      <code class="code" id="-yqhhcv_256">
+       webpack.config.d
+      </code>
+      in the root of your project. When building your project, all
+      <code class="code" id="-yqhhcv_257">
+       .js
+      </code>
+      configuration files will automatically be merged into the
+      <code class="code" id="-yqhhcv_258">
+       build/js/packages/projectName/webpack.config.js
+      </code>
+      file. For example, To add a new
+      <a data-external="true" href="https://webpack.js.org/loaders/" id="-yqhhcv_259" rel="noopener noreferrer" style="color: red;" target="_blank">
+       webpack loader
+      </a>
+      , add the following to a
+      <code class="code" id="-yqhhcv_260">
+       .js
+      </code>
+      file inside the
+      <code class="code" id="-yqhhcv_261">
+       webpack.config.d
+      </code>
+      directory:
+     </p>
+     <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_252">
+      <p id="-yqhhcv_262">
+       In this case, the configuration object is the
+       <code class="code" id="-yqhhcv_263">
+        config
+       </code>
+       global object. You need to modify it in your script.
+      </p>
+     </aside>
+     <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      config.module.rules.push({
+    test: /\.extension$/,
+    loader: 'loader-name'
+});
+     </div>
+     <p id="-yqhhcv_254">
+      All webpack configuration capabilities are well described in its
+      <a data-external="true" href="https://webpack.js.org/concepts/configuration/" id="-yqhhcv_264" rel="noopener noreferrer" style="color: red;" target="_blank">
+       documentation
+      </a>
+      .
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="building-executables" id="building-executables">
+      Building executables
+     </h3>
+     <p id="-yqhhcv_265">
+      For building executable JavaScript artifacts through webpack, the Kotlin Multiplatform Gradle plugin contains the
+      <code class="code" id="-yqhhcv_270">
+       browserDevelopmentWebpack
+      </code>
+      and
+      <code class="code" id="-yqhhcv_271">
+       browserProductionWebpack
+      </code>
+      Gradle tasks.
+     </p>
+     <ul class="list _bullet" id="-yqhhcv_266">
+      <li class="list__item" id="-yqhhcv_272">
+       <p id="-yqhhcv_274">
+        <code class="code" id="-yqhhcv_275">
+         browserDevelopmentWebpack
+        </code>
+        creates development artifacts, which are larger in size, but take little time to create. As such, use the
+        <code class="code" id="-yqhhcv_276">
+         browserDevelopmentWebpack
+        </code>
+        tasks during active development.
+       </p>
+      </li>
+      <li class="list__item" id="-yqhhcv_273">
+       <p id="-yqhhcv_277">
+        <code class="code" id="-yqhhcv_278">
+         browserProductionWebpack
+        </code>
+        applies dead code elimination to the generated artifacts and minifies the resulting JavaScript file, which takes more time, but generates executables that are smaller in size. As such, use the
+        <code class="code" id="-yqhhcv_279">
+         browserProductionWebpack
+        </code>
+        task when preparing your project for production use.
+       </p>
+      </li>
+     </ul>
+     <p id="-yqhhcv_267">
+      Execute either of these tasks to obtain the respective artifacts for development or production. The generated files will be available in
+      <code class="code" id="-yqhhcv_280">
+       build/dist
+      </code>
+      unless
+      <a data-tooltip="By default, the results of a Kotlin/JS project build reside in the /build/dist/&lt;targetName&gt;/&lt;binaryName&gt; directory within the project root." href="#distribution-target-directory" id="-yqhhcv_281" style="color: blue;">
+       specified otherwise
+      </a>
+      .
+     </p>
+     <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      ./gradlew browserProductionWebpack
+     </div>
+     <p id="-yqhhcv_269">
+      Note that these tasks will only be available if your target is configured to generate executable files (via
+      <code class="code" id="-yqhhcv_282">
+       binaries.executable()
+      </code>
+      ).
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="css" id="css">
+     CSS
+    </h2>
+    <p id="-yqhhcv_283">
+     The Kotlin Multiplatform Gradle plugin also provides support for webpack's
+     <a data-external="true" href="https://webpack.js.org/loaders/css-loader/" id="-yqhhcv_292" rel="noopener noreferrer" style="color: red;" target="_blank">
+      CSS
+     </a>
+     and
+     <a data-external="true" href="https://webpack.js.org/loaders/style-loader/" id="-yqhhcv_293" rel="noopener noreferrer" style="color: red;" target="_blank">
+      style
+     </a>
+     loaders. While all options can be changed by directly modifying the
+     <a data-tooltip="For browser targets, the Kotlin Multiplatform Gradle plugin uses the widely known webpack module bundler." href="#webpack-bundling" id="-yqhhcv_294" style="color: blue;">
+      webpack configuration files
+     </a>
+     that are used to build your project, the most commonly used settings are available directly from the
+     <code class="code" id="-yqhhcv_295">
+      build.gradle(.kts)
+     </code>
+     file.
+    </p>
+    <p id="-yqhhcv_284">
+     To turn on CSS support in your project, set the
+     <code class="code" id="-yqhhcv_296">
+      cssSupport.enabled
+     </code>
+     option in the Gradle build file in the
+     <code class="code" id="-yqhhcv_297">
+      commonWebpackConfig {}
+     </code>
+     block. This configuration is also enabled by default when creating a new project using the wizard.
+    </p>
+    <div class="tabs" data-anchors="[-yqhhcv_298,-yqhhcv_299]" data-group="build-script" id="-yqhhcv_285">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_298">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       browser {
+    commonWebpackConfig {
+        cssSupport {
+            enabled.set(true)
+        }
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_299">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       browser {
+    commonWebpackConfig {
+        cssSupport {
+            it.enabled = true
+        }
+    }
+}
+      </div>
+     </div>
+    </div>
+    <p id="-yqhhcv_286">
+     Alternatively, you can add CSS support independently for
+     <code class="code" id="-yqhhcv_302">
+      webpackTask {}
+     </code>
+     ,
+     <code class="code" id="-yqhhcv_303">
+      runTask {}
+     </code>
+     , and
+     <code class="code" id="-yqhhcv_304">
+      testTask {}
+     </code>
+     :
+    </p>
+    <div class="tabs" data-anchors="[-yqhhcv_305,-yqhhcv_306]" data-group="build-script" id="-yqhhcv_287">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_305">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       browser {
+    webpackTask {
+        cssSupport {
+            enabled.set(true)
+        }
+    }
+    runTask {
+        cssSupport {
+            enabled.set(true)
+        }
+    }
+    testTask {
+        useKarma {
+            // ...
+            webpackConfig.cssSupport {
+                enabled.set(true)
+            }
+        }
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_306">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       browser {
+    webpackTask {
+        cssSupport {
+            it.enabled = true
+        }
+    }
+    runTask {
+        cssSupport {
+            it.enabled = true
+        }
+    }
+    testTask {
+        useKarma {
+            // ...
+            webpackConfig.cssSupport {
+                it.enabled = true
+            }
+        }
+    }
+}
+      </div>
+     </div>
+    </div>
+    <p id="-yqhhcv_288">
+     Activating CSS support in your project helps prevent common errors that occur when trying to use style sheets from an unconfigured project, such as
+     <code class="code" id="-yqhhcv_309">
+      Module parse failed: Unexpected character '@' (14:0)
+     </code>
+     .
+    </p>
+    <p id="-yqhhcv_289">
+     You can use
+     <code class="code" id="-yqhhcv_310">
+      cssSupport.mode
+     </code>
+     to specify how encountered CSS should be handled. The following values are available:
+    </p>
+    <ul class="list _bullet" id="-yqhhcv_290">
+     <li class="list__item" id="-yqhhcv_311">
+      <p id="-yqhhcv_314">
+       <code class="code" id="-yqhhcv_315">
+        "inline"
+       </code>
+       (default): styles are added to the global
+       <code class="code" id="-yqhhcv_316">
+        &lt;style&gt;
+       </code>
+       tag.
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_312">
+      <p id="-yqhhcv_317">
+       <code class="code" id="-yqhhcv_318">
+        "extract"
+       </code>
+       : styles are extracted into a separate file. They can then be included from an HTML page.
+      </p>
+     </li>
+     <li class="list__item" id="-yqhhcv_313">
+      <p id="-yqhhcv_319">
+       <code class="code" id="-yqhhcv_320">
+        "import"
+       </code>
+       : styles are processed as strings. This can be useful if you need access to the CSS from your code (such as
+       <code class="code" id="-yqhhcv_321">
+        val styles = require("main.css")
+       </code>
+       ).
+      </p>
+     </li>
+    </ul>
+    <p id="-yqhhcv_291">
+     To use different modes for the same project, use
+     <code class="code" id="-yqhhcv_322">
+      cssSupport.rules
+     </code>
+     . Here, you can specify a list of
+     <code class="code" id="-yqhhcv_323">
+      KotlinWebpackCssRules
+     </code>
+     , each of which defines a mode, as well as
+     <a data-external="true" href="https://webpack.js.org/configuration/module/#ruleinclude" id="-yqhhcv_324" rel="noopener noreferrer" style="color: red;" target="_blank">
+      include
+     </a>
+     and
+     <a data-external="true" href="https://webpack.js.org/configuration/module/#ruleexclude" id="-yqhhcv_325" rel="noopener noreferrer" style="color: red;" target="_blank">
+      exclude
+     </a>
+     patterns.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="node-js" id="node-js">
+     Node.js
+    </h2>
+    <p id="-yqhhcv_326">
+     For Kotlin/JS projects targeting Node.js, the plugin automatically downloads and installs the Node.js environment on the host. You can also use an existing Node.js instance if you have it.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="configuring-node-js-settings" id="configuring-node-js-settings">
+      Configuring Node.js settings
+     </h3>
+     <p id="-yqhhcv_329">
+      You can configure Node.js settings for each subproject, or set them for the project as a whole.
+     </p>
+     <p id="-yqhhcv_330">
+      For example, to set the Node.js version for a specific subproject, add the following lines to its Gradle block in your
+      <code class="code" id="-yqhhcv_335">
+       build.gradle(.kts)
+      </code>
+      file:
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_336,-yqhhcv_337]" data-group="build-script" id="-yqhhcv_331">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_336">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        project.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin&gt; {
+    project.the&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec&gt;().version = "your Node.js version"
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_337">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        project.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin) {
+    project.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec).version = "your Node.js version"
+}
+       </div>
+      </div>
+     </div>
+     <p id="-yqhhcv_332">
+      To set a version for the entire project, including all subprojects, apply the same code to the
+      <code class="code" id="-yqhhcv_340">
+       allProjects {}
+      </code>
+      block:
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_341,-yqhhcv_342]" data-group="build-script" id="-yqhhcv_333">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_341">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        allprojects {
+    project.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin&gt; {
+        project.the&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec&gt;().version = "your Node.js version"
+    }
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_342">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        allprojects {
+    project.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin) {
+        project.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec).version = "your Node.js version"
+}
+       </div>
+      </div>
+     </div>
+     <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_334">
+      <p id="-yqhhcv_345">
+       Using the
+       <code class="code" id="-yqhhcv_346">
+        NodeJsRootPlugin
+       </code>
+       class to configure Node.js setting for the entire project is deprecated and will eventually stop being supported.
+      </p>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="use-pre-installed-node-js" id="use-pre-installed-node-js">
+      Use pre-installed Node.js
+     </h3>
+     <p id="-yqhhcv_347">
+      If Node.js is already installed on the host where you build Kotlin/JS projects, you can configure the Kotlin Multiplatform Gradle plugin to use it instead of installing its own Node.js instance.
+     </p>
+     <p id="-yqhhcv_348">
+      To use a pre-installed Node.js instance, add the following lines to your
+      <code class="code" id="-yqhhcv_350">
+       build.gradle(.kts)
+      </code>
+      file:
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_351,-yqhhcv_352]" data-group="build-script" id="-yqhhcv_349">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_351">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        project.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin) {
+    // Set to `true` for default behavior
+    project.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec).download = false
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_352">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        project.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin&gt; {
+    // Set to `true` for default behavior
+    project.the&lt;org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec&gt;().download = false
+}
+       </div>
+      </div>
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="yarn" id="yarn">
+     Yarn
+    </h2>
+    <p id="-yqhhcv_355">
+     By default, to download and install your declared dependencies at build time, the plugin manages its own instance of the
+     <a data-external="true" href="https://yarnpkg.com/lang/en/" id="-yqhhcv_361" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Yarn
+     </a>
+     package manager. It works out of the box without additional configuration, but you can tune it or use Yarn already installed on your host.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="additional-yarn-features-yarnrc" id="additional-yarn-features-yarnrc">
+      Additional Yarn features: .yarnrc
+     </h3>
+     <p id="-yqhhcv_362">
+      To configure additional Yarn features, place a
+      <code class="code" id="-yqhhcv_366">
+       .yarnrc
+      </code>
+      file in the root of your project. At build time, it gets picked up automatically.
+     </p>
+     <p id="-yqhhcv_363">
+      For example, to use a custom registry for npm packages, add the following line to a file called
+      <code class="code" id="-yqhhcv_367">
+       .yarnrc
+      </code>
+      in the project root:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      registry "http://my.registry/api/npm/"
+     </div>
+     <p id="-yqhhcv_365">
+      To learn more about
+      <code class="code" id="-yqhhcv_368">
+       .yarnrc
+      </code>
+      , visit the
+      <a data-external="true" href="https://classic.yarnpkg.com/en/docs/yarnrc/" id="-yqhhcv_369" rel="noopener noreferrer" style="color: red;" target="_blank">
+       official Yarn documentation
+      </a>
+      .
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="use-pre-installed-yarn" id="use-pre-installed-yarn">
+      Use pre-installed Yarn
+     </h3>
+     <p id="-yqhhcv_370">
+      If Yarn is already installed on the host where you build Kotlin/JS projects, you can configure the Kotlin Multiplatform Gradle plugin to use it instead of installing its own Yarn instance.
+     </p>
+     <p id="-yqhhcv_371">
+      To use the pre-installed Yarn instance, add the following lines to
+      <code class="code" id="-yqhhcv_373">
+       build.gradle(.kts)
+      </code>
+      :
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_374,-yqhhcv_375]" data-group="build-script" id="-yqhhcv_372">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_374">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin&gt; {
+    rootProject.the&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension&gt;().download = false
+    // "true" for default behavior
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_375">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin) {
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).download = false
+}
+       </div>
+      </div>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="version-locking-via-kotlin-js-store" id="version-locking-via-kotlin-js-store">
+      Version locking via kotlin-js-store
+     </h3>
+     <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_378">
+      <p id="-yqhhcv_385">
+       Version locking via
+       <code class="code" id="-yqhhcv_386">
+        kotlin-js-store
+       </code>
+       is available since Kotlin 1.6.10.
+      </p>
+     </aside>
+     <p id="-yqhhcv_379">
+      The
+      <code class="code" id="-yqhhcv_387">
+       kotlin-js-store
+      </code>
+      directory in the project root is automatically generated by the Kotlin Multiplatform Gradle plugin to hold the
+      <code class="code" id="-yqhhcv_388">
+       yarn.lock
+      </code>
+      file, which is necessary for version locking. The lockfile is entirely managed by the Yarn plugin and gets updated during the execution of the
+      <code class="code" id="-yqhhcv_389">
+       kotlinNpmInstall
+      </code>
+      Gradle task.
+     </p>
+     <p id="-yqhhcv_380">
+      To follow a
+      <a data-external="true" href="https://classic.yarnpkg.com/blog/2016/11/24/lockfiles-for-all/" id="-yqhhcv_390" rel="noopener noreferrer" style="color: red;" target="_blank">
+       recommended practice
+      </a>
+      , commit
+      <code class="code" id="-yqhhcv_391">
+       kotlin-js-store
+      </code>
+      and its contents to your version control system. It ensures that your application is being built with the exact same dependency tree on all machines.
+     </p>
+     <p id="-yqhhcv_381">
+      If needed, you can change both directory and lockfile names in
+      <code class="code" id="-yqhhcv_392">
+       build.gradle(.kts)
+      </code>
+      :
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_393,-yqhhcv_394]" data-group="build-script" id="-yqhhcv_382">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_393">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin&gt; {
+    rootProject.the&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension&gt;().lockFileDirectory =
+        project.rootDir.resolve("my-kotlin-js-store")
+    rootProject.the&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension&gt;().lockFileName = "my-yarn.lock"
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_394">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin) {
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).lockFileDirectory =
+        file("my-kotlin-js-store")
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).lockFileName = 'my-yarn.lock'
+}
+       </div>
+      </div>
+     </div>
+     <aside class="prompt" data-title="" data-type="warning" id="-yqhhcv_383">
+      <p id="-yqhhcv_397">
+       Changing the name of the lockfile may cause dependency inspection tools to no longer pick up the file.
+      </p>
+     </aside>
+     <p id="-yqhhcv_384">
+      To learn more about
+      <code class="code" id="-yqhhcv_398">
+       yarn.lock
+      </code>
+      , visit the
+      <a data-external="true" href="https://classic.yarnpkg.com/lang/en/docs/yarn-lock/" id="-yqhhcv_399" rel="noopener noreferrer" style="color: red;" target="_blank">
+       official Yarn documentation
+      </a>
+      .
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="reporting-that-yarn-lock-has-been-updated" id="reporting-that-yarn-lock-has-been-updated">
+      Reporting that yarn.lock has been updated
+     </h3>
+     <p id="-yqhhcv_400">
+      Kotlin/JS provides Gradle settings that could notify you if the
+      <code class="code" id="-yqhhcv_404">
+       yarn.lock
+      </code>
+      file has been updated. You can use these settings when you want to be notified if
+      <code class="code" id="-yqhhcv_405">
+       yarn.lock
+      </code>
+      has been changed silently during the CI build process:
+     </p>
+     <ul class="list _bullet" id="-yqhhcv_401">
+      <li class="list__item" id="-yqhhcv_406">
+       <p id="-yqhhcv_409">
+        <code class="code" id="-yqhhcv_411">
+         YarnLockMismatchReport
+        </code>
+        , which specifies how changes to the
+        <code class="code" id="-yqhhcv_412">
+         yarn.lock
+        </code>
+        file are reported. You can use one of the following values:
+       </p>
+       <ul class="list _bullet" id="-yqhhcv_410">
+        <li class="list__item" id="-yqhhcv_413">
+         <p id="-yqhhcv_416">
+          <code class="code" id="-yqhhcv_417">
+           FAIL
+          </code>
+          fails the corresponding Gradle task. This is the default.
+         </p>
+        </li>
+        <li class="list__item" id="-yqhhcv_414">
+         <p id="-yqhhcv_418">
+          <code class="code" id="-yqhhcv_419">
+           WARNING
+          </code>
+          writes the information about changes in the warning log.
+         </p>
+        </li>
+        <li class="list__item" id="-yqhhcv_415">
+         <p id="-yqhhcv_420">
+          <code class="code" id="-yqhhcv_421">
+           NONE
+          </code>
+          disables reporting.
+         </p>
+        </li>
+       </ul>
+      </li>
+      <li class="list__item" id="-yqhhcv_407">
+       <p id="-yqhhcv_422">
+        <code class="code" id="-yqhhcv_423">
+         reportNewYarnLock
+        </code>
+        , which reports about the recently created
+        <code class="code" id="-yqhhcv_424">
+         yarn.lock
+        </code>
+        file explicitly. By default, this option is disabled: it's a common practice to generate a new
+        <code class="code" id="-yqhhcv_425">
+         yarn.lock
+        </code>
+        file at the first start. You can use this option to ensure that the file has been committed to your repository.
+       </p>
+      </li>
+      <li class="list__item" id="-yqhhcv_408">
+       <p id="-yqhhcv_426">
+        <code class="code" id="-yqhhcv_427">
+         yarnLockAutoReplace
+        </code>
+        , which replaces
+        <code class="code" id="-yqhhcv_428">
+         yarn.lock
+        </code>
+        automatically every time the Gradle task is run.
+       </p>
+      </li>
+     </ul>
+     <p id="-yqhhcv_402">
+      To use these options, update
+      <code class="code" id="-yqhhcv_429">
+       build.gradle(.kts)
+      </code>
+      as follows:
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_430,-yqhhcv_431]" data-group="build-script" id="-yqhhcv_403">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_430">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnLockMismatchReport
+import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
+
+rootProject.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin::class.java) {
+    rootProject.the&lt;YarnRootExtension&gt;().yarnLockMismatchReport =
+        YarnLockMismatchReport.WARNING // NONE | FAIL
+    rootProject.the&lt;YarnRootExtension&gt;().reportNewYarnLock = false // true
+    rootProject.the&lt;YarnRootExtension&gt;().yarnLockAutoReplace = false // true
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_431">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnLockMismatchReport
+import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
+
+rootProject.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin) {
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).yarnLockMismatchReport =
+        YarnLockMismatchReport.WARNING // NONE | FAIL
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).reportNewYarnLock = false // true
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).yarnLockAutoReplace = false // true
+}
+       </div>
+      </div>
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="installing-npm-dependencies-with-ignore-scripts-by-default" id="installing-npm-dependencies-with-ignore-scripts-by-default">
+      Installing npm dependencies with --ignore-scripts by default
+     </h3>
+     <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_434">
+      <p id="-yqhhcv_438">
+       Installing npm dependencies with
+       <code class="code" id="-yqhhcv_439">
+        --ignore-scripts
+       </code>
+       by default is available since Kotlin 1.6.10.
+      </p>
+     </aside>
+     <p id="-yqhhcv_435">
+      To reduce the likelihood of executing malicious code from compromised npm packages, the Kotlin Multiplatform Gradle plugin prevents the execution of
+      <a data-external="true" href="https://docs.npmjs.com/cli/v8/using-npm/scripts#life-cycle-scripts" id="-yqhhcv_440" rel="noopener noreferrer" style="color: red;" target="_blank">
+       lifecycle scripts
+      </a>
+      during the installation of npm dependencies by default.
+     </p>
+     <p id="-yqhhcv_436">
+      You can explicitly enable lifecycle scripts execution by adding the following lines to
+      <code class="code" id="-yqhhcv_441">
+       build.gradle(.kts)
+      </code>
+      :
+     </p>
+     <div class="tabs" data-anchors="[-yqhhcv_442,-yqhhcv_443]" data-group="build-script" id="-yqhhcv_437">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_442">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin&gt; { 
+    rootProject.the&lt;org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension&gt;().ignoreScripts = false
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_443">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        rootProject.plugins.withType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin) {
+    rootProject.extensions.getByType(org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension).ignoreScripts = false
+}
+       </div>
+      </div>
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="distribution-target-directory" id="distribution-target-directory">
+     Distribution target directory
+    </h2>
+    <p id="-yqhhcv_446">
+     By default, the results of a Kotlin/JS project build reside in the
+     <code class="code" id="-yqhhcv_450">
+      /build/dist/&lt;targetName&gt;/&lt;binaryName&gt;
+     </code>
+     directory within the project root.
+    </p>
+    <aside class="prompt" data-title="" data-type="note" id="-yqhhcv_447">
+     <p id="-yqhhcv_451">
+      Prior to Kotlin 1.9.0, the default distribution target directory was
+      <code class="code" id="-yqhhcv_452">
+       /build/distributions
+      </code>
+      .
+     </p>
+    </aside>
+    <p id="-yqhhcv_448">
+     To set another location for project distribution files, in your build script inside the
+     <code class="code" id="-yqhhcv_453">
+      browser {}
+     </code>
+     block, add a
+     <code class="code" id="-yqhhcv_454">
+      distribution {}
+     </code>
+     block and assign a value to the
+     <code class="code" id="-yqhhcv_455">
+      outputDirectory
+     </code>
+     property by using the
+     <code class="code" id="-yqhhcv_456">
+      set()
+     </code>
+     method. Once you run a project build task, Gradle will save the output bundle in this location together with project resources.
+    </p>
+    <div class="tabs" data-anchors="[-yqhhcv_457,-yqhhcv_458]" data-group="build-script" id="-yqhhcv_449">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-yqhhcv_457">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    js {
+        browser {
+            distribution {
+                outputDirectory.set(projectDir.resolve("output"))
+            }
+        }
+        binaries.executable()
+        // ...
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-yqhhcv_458">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    js {
+        browser {
+            distribution {
+                outputDirectory = file("$projectDir/output")
+            }
+        }
+        binaries.executable()
+        // ...
+    }
+}
+      </div>
+     </div>
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="module-name" id="module-name">
+     Module name
+    </h2>
+    <p id="-yqhhcv_461">
+     To adjust the name for the JavaScript
+     <span class="emphasis" id="-yqhhcv_464">
+      module
+     </span>
+     (which is generated in
+     <code class="code" id="-yqhhcv_465">
+      build/js/packages/myModuleName
+     </code>
+     ), including the corresponding
+     <code class="code" id="-yqhhcv_466">
+      .js
+     </code>
+     and
+     <code class="code" id="-yqhhcv_467">
+      .d.ts
+     </code>
+     files, use the
+     <code class="code" id="-yqhhcv_468">
+      moduleName
+     </code>
+     option:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     js {
+    moduleName = "myModuleName"
+}
+    </div>
+    <p id="-yqhhcv_463">
+     Note that this does not affect the webpacked output in
+     <code class="code" id="-yqhhcv_469">
+      build/dist
+     </code>
+     .
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="package-json-customization" id="package-json-customization">
+     package.json customization
+    </h2>
+    <p id="-yqhhcv_470">
+     The
+     <code class="code" id="-yqhhcv_478">
+      package.json
+     </code>
+     file holds the metadata of a JavaScript package. Popular package registries such as npm require all published packages to have such a file. They use it to track and manage package publications.
+    </p>
+    <p id="-yqhhcv_471">
+     The Kotlin Multiplatform Gradle plugin automatically generates
+     <code class="code" id="-yqhhcv_479">
+      package.json
+     </code>
+     for Kotlin/JS projects during build time. By default, the file contains essential data: name, version, license, dependencies, and some other package attributes.
+    </p>
+    <p id="-yqhhcv_472">
+     Aside from basic package attributes,
+     <code class="code" id="-yqhhcv_480">
+      package.json
+     </code>
+     can define how a JavaScript project should behave, for example, identifying scripts that are available to run.
+    </p>
+    <p id="-yqhhcv_473">
+     You can add custom entries to the project's
+     <code class="code" id="-yqhhcv_481">
+      package.json
+     </code>
+     via the Gradle DSL. To add custom fields to your
+     <code class="code" id="-yqhhcv_482">
+      package.json
+     </code>
+     , use the
+     <code class="code" id="-yqhhcv_483">
+      customField()
+     </code>
+     function in the compilations
+     <code class="code" id="-yqhhcv_484">
+      packageJson
+     </code>
+     block:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    js {
+        compilations["main"].packageJson {
+            customField("hello", mapOf("one" to 1, "two" to 2))
+        }
+    }
+}
+    </div>
+    <p id="-yqhhcv_475">
+     When you build the project, this code adds the following block to the
+     <code class="code" id="-yqhhcv_485">
+      package.json
+     </code>
+     file:
+    </p>
+    <div class="code-block" data-lang="json" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     "hello": {
+    "one": 1,
+    "two": 2
+}
+    </div>
+    <p id="-yqhhcv_477">
+     Learn more about writing
+     <code class="code" id="-yqhhcv_486">
+      package.json
+     </code>
+     files for npm registry in the
+     <a data-external="true" href="https://docs.npmjs.com/cli/v6/configuring-npm/package-json" id="-yqhhcv_487" rel="noopener noreferrer" style="color: red;" target="_blank">
+      npm docs
+     </a>
+     .
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

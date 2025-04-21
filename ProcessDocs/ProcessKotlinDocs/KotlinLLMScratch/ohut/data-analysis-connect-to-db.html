@@ -1,0 +1,423 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="data-analysis-connect-to-db" id="data-analysis-connect-to-db.md">
+    Connect and retrieve data from databases
+   </h1>
+   <p id="z5447lx_2">
+    <a data-tooltip="Kotlin Notebook is a dynamic plugin for IntelliJ IDEA that provides an interactive environment to create and edit notebooks, leveraging the full potential of Kotlin's capabilities." href="kotlin-notebook-overview.html" id="z5447lx_9" style="color: blue;">
+     Kotlin Notebook
+    </a>
+    offers capabilities for connecting to and retrieving data from various types of SQL databases, such as MariaDB, PostgreSQL, MySQL, and SQLite. Utilizing the
+    <a data-external="true" href="https://kotlin.github.io/dataframe/gettingstarted.html" id="z5447lx_10" rel="noopener noreferrer" style="color: red;" target="_blank">
+     Kotlin DataFrame library
+    </a>
+    , Kotlin Notebook can establish connections to databases, execute SQL queries, and import the results for further operations.
+   </p>
+   <p id="z5447lx_3">
+    For a detailed example, see the
+    <a data-external="true" href="https://github.com/zaleslaw/KotlinDataFrame-SQL-Examples/blob/master/notebooks/imdb.ipynb" id="z5447lx_11" rel="noopener noreferrer" style="color: red;" target="_blank">
+     Notebook in the KotlinDataFrame SQL Examples GitHub repository
+    </a>
+    .
+   </p>
+   <section class="chapter">
+    <h2 data-toc="before-you-start" id="before-you-start">
+     Before you start
+    </h2>
+    <ol class="list _decimal" id="z5447lx_12" type="1">
+     <li class="list__item" id="z5447lx_13">
+      <p id="z5447lx_17">
+       Download and install the latest version of
+       <a data-external="true" href="https://www.jetbrains.com/idea/download/?section=mac" id="z5447lx_18" rel="noopener noreferrer" style="color: red;" target="_blank">
+        IntelliJ IDEA Ultimate
+       </a>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_14">
+      <p id="z5447lx_19">
+       Install the
+       <a data-external="true" href="https://plugins.jetbrains.com/plugin/16340-kotlin-notebook" id="z5447lx_22" rel="noopener noreferrer" style="color: red;" target="_blank">
+        Kotlin Notebook plugin
+       </a>
+       in IntelliJ IDEA.
+      </p>
+      <aside class="prompt" data-title="" data-type="tip" id="z5447lx_20">
+       <p id="z5447lx_23">
+        Alternatively, access the Kotlin Notebook plugin from
+        <span class="control" id="z5447lx_24">
+         Settings
+        </span>
+        |
+        <span class="control" id="z5447lx_25">
+         Plugins
+        </span>
+        |
+        <span class="control" id="z5447lx_26">
+         Marketplace
+        </span>
+        within IntelliJ IDEA.
+       </p>
+      </aside>
+      <p id="z5447lx_21">
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_15">
+      <p id="z5447lx_27">
+       Create a new Kotlin Notebook by selecting
+       <span class="control" id="z5447lx_28">
+        File
+       </span>
+       |
+       <span class="control" id="z5447lx_29">
+        New
+       </span>
+       |
+       <span class="control" id="z5447lx_30">
+        Kotlin Notebook
+       </span>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_16">
+      <p id="z5447lx_31">
+       Ensure you have access to an SQL database, such as MariaDB or MySQL.
+      </p>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="connect-to-database" id="connect-to-database">
+     Connect to database
+    </h2>
+    <p id="z5447lx_32">
+     You can connect to and interact with an SQL database using specific functions from the
+     <a data-external="true" href="https://kotlin.github.io/dataframe/gettingstarted.html" id="z5447lx_35" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Kotlin DataFrame library
+     </a>
+     . You can use
+     <code class="code" id="z5447lx_36">
+      DatabaseConfiguration
+     </code>
+     to establish a connection to your database and
+     <code class="code" id="z5447lx_37">
+      getSchemaForAllSqlTables()
+     </code>
+     to retrieve the schema of all tables within it.
+    </p>
+    <p id="z5447lx_33">
+     Let's look at an example:
+    </p>
+    <ol class="list _decimal" id="z5447lx_34" type="1">
+     <li class="list__item" id="z5447lx_38">
+      <p id="z5447lx_43">
+       Open your Kotlin Notebook file (
+       <code class="code" id="z5447lx_44">
+        .ipynb
+       </code>
+       ).
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_39">
+      <p id="z5447lx_45">
+       Add a dependency for a JDBC (Java Database Connectivity) driver, and specify the JDBC driver version. This example uses MariaDB:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       USE {
+   dependencies("org.mariadb.jdbc:mariadb-java-client:$version")
+}
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_40">
+      <p id="z5447lx_47">
+       Import the Kotlin DataFrame library, which is essential for data manipulation tasks, along with the necessary Java libraries for SQL connectivity and utility functions:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       %use dataframe
+import java.sql.DriverManager
+import java.util.*
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_41">
+      <p id="z5447lx_49">
+       Use the
+       <code class="code" id="z5447lx_51">
+        DatabaseConfiguration
+       </code>
+       class to define your database's connection parameters, including the URL, username, and password:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val URL = "YOUR_URL"
+val USER_NAME = "YOUR_USERNAME"
+val PASSWORD = "YOUR_PASSWORD"
+
+val dbConfig = DatabaseConfiguration(URL, USER_NAME, PASSWORD)
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_42">
+      <p id="z5447lx_52">
+       Once connected, use the
+       <code class="code" id="z5447lx_56">
+        getSchemaForAllSqlTables()
+       </code>
+       function to fetch and display the schema information for each table in the database:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val dataschemas = DataFrame.getSchemaForAllSqlTables(dbConfig)
+
+dataschemas.forEach { 
+    println("---Yet another table schema---")
+    println(it)
+    println()
+}
+      </div>
+      <aside class="prompt" data-title="" data-type="tip" id="z5447lx_54">
+       <p id="z5447lx_57">
+        For more information on connecting to SQL databases, see
+        <a data-external="true" href="https://kotlin.github.io/dataframe/readsqldatabases.html" id="z5447lx_58" rel="noopener noreferrer" style="color: red;" target="_blank">
+         Read from SQL databases in the Kotlin DataFrame documentation
+        </a>
+        .
+       </p>
+      </aside>
+      <p id="z5447lx_55">
+      </p>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="retrieve-and-manipulate-data" id="retrieve-and-manipulate-data">
+     Retrieve and manipulate data
+    </h2>
+    <p id="z5447lx_59">
+     After
+     <a data-tooltip="You can connect to and interact with an SQL database using specific functions from the Kotlin DataFrame library. You can use DatabaseConfiguration to establish a connection to your database and getSchemaForAllSqlTables() to retrieve the schema of all tables within it." href="#connect-to-database" id="z5447lx_63" style="color: blue;">
+      establishing a connection to an SQL database
+     </a>
+     , you can retrieve and manipulate data in Kotlin Notebook, utilizing the Kotlin DataFrame library. You can use the
+     <code class="code" id="z5447lx_64">
+      readSqlTable()
+     </code>
+     function to retrieve data. To manipulate data, you can use methods, such as
+     <a data-external="true" href="https://kotlin.github.io/dataframe/filter.html" id="z5447lx_65" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_68">
+       filter
+      </code>
+     </a>
+     ,
+     <a data-external="true" href="https://kotlin.github.io/dataframe/groupby.html" id="z5447lx_66" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_69">
+       groupBy
+      </code>
+     </a>
+     , and
+     <a data-external="true" href="https://kotlin.github.io/dataframe/convert.html" id="z5447lx_67" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_70">
+       convert
+      </code>
+     </a>
+     .
+    </p>
+    <p id="z5447lx_60">
+     Let's look at an example of connecting to an IMDB database and retrieving data about movies directed by Quentin Tarantino:
+    </p>
+    <ol class="list _decimal" id="z5447lx_61" type="1">
+     <li class="list__item" id="z5447lx_71">
+      <p id="z5447lx_74">
+       Use the
+       <code class="code" id="z5447lx_76">
+        readSqlTable()
+       </code>
+       function to retrieve data from the "movies" table, setting
+       <code class="code" id="z5447lx_77">
+        limit
+       </code>
+       to restrict the query to the first 100 records for efficiency:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val dfs = DataFrame.readSqlTable(dbConfig, tableName = "movies", limit = 100)
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_72">
+      <p id="z5447lx_78">
+       Use an SQL query to retrieve a specific dataset related to movies directed by Quentin Tarantino. This query selects movie details and combines genres for each movie:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val props = Properties()
+props.setProperty("user", USER_NAME)
+props.setProperty("password", PASSWORD)
+
+val TARANTINO_FILMS_SQL_QUERY = """
+    SELECT name, year, rank, GROUP_CONCAT(genre) as "genres"
+    FROM movies JOIN movies_directors ON movie_id = movies.id
+    JOIN directors ON directors.id=director_id LEFT JOIN movies_genres ON movies.id = movies_genres.movie_id
+    WHERE directors.first_name = "Quentin" AND directors.last_name = "Tarantino"
+    GROUP BY name, year, rank
+    ORDER BY year
+    """
+
+// Retrieves a list of Quentin Tarantino's movies, including their name, year, rank, and a concatenated string of all genres. 
+// The results are grouped by name, year, rank, and sorted by year.
+
+var dfTarantinoMovies: DataFrame&lt;*&gt;
+
+DriverManager.getConnection(URL, props).use { connection -&gt;
+   connection.createStatement().use { st -&gt;
+      st.executeQuery(TARANTINO_FILMS_SQL_QUERY).use { rs -&gt;
+         val dfTarantinoFilmsSchema = DataFrame.getSchemaForResultSet(rs, connection)
+         dfTarantinoFilmsSchema.print()
+
+         dfTarantinoMovies = DataFrame.readResultSet(rs, connection)
+         dfTarantinoMovies
+      }
+   }
+}
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_73">
+      <p id="z5447lx_80">
+       After fetching the Tarantino movies dataset, you can further manipulate and filter the data.
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val df = dfTarantinoMovies
+    // Replaces any missing values in the 'year' column with 0.
+    .fillNA { year }.with { 0 }
+
+    // Converts the 'year' column to integers.
+    .convert { year }.toInt()
+
+    // Filters the data to include only movies released after the year 2000.
+    .filter { year &gt; 2000 }
+df
+      </div>
+     </li>
+    </ol>
+    <p id="z5447lx_62">
+     The resulting output is a DataFrame where missing values in the year column are replaced with 0 using the
+     <a data-external="true" href="https://kotlin.github.io/dataframe/fill.html#fillna" id="z5447lx_82" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_85">
+       fillNA
+      </code>
+     </a>
+     method. The year column is converted to integer values with the
+     <a data-external="true" href="https://kotlin.github.io/dataframe/convert.html" id="z5447lx_83" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_86">
+       convert
+      </code>
+     </a>
+     method, and the data is filtered to include only rows from the year 2000 onwards using the
+     <a data-external="true" href="https://kotlin.github.io/dataframe/filter.html" id="z5447lx_84" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z5447lx_87">
+       filter
+      </code>
+     </a>
+     method.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="analyze-data-in-kotlin-notebook" id="analyze-data-in-kotlin-notebook">
+     Analyze data in Kotlin Notebook
+    </h2>
+    <p id="z5447lx_88">
+     After
+     <a data-tooltip="You can connect to and interact with an SQL database using specific functions from the Kotlin DataFrame library. You can use DatabaseConfiguration to establish a connection to your database and getSchemaForAllSqlTables() to retrieve the schema of all tables within it." href="#connect-to-database" id="z5447lx_91" style="color: blue;">
+      establishing a connection to an SQL database
+     </a>
+     , you can use Kotlin Notebook for in-depth data analysis utilizing the
+     <a data-external="true" href="https://kotlin.github.io/dataframe/gettingstarted.html" id="z5447lx_92" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Kotlin DataFrame library
+     </a>
+     . This includes functions for grouping, sorting, and aggregating data, helping you to uncover and understand patterns within your data.
+    </p>
+    <p id="z5447lx_89">
+     Let's dive into an example that involves analyzing actor data from a movie database, focusing on the most frequently occurring first names of actors:
+    </p>
+    <ol class="list _decimal" id="z5447lx_90" type="1">
+     <li class="list__item" id="z5447lx_93">
+      <p id="z5447lx_95">
+       Extract data from the "actors" table using the
+       <a data-external="true" href="https://kotlin.github.io/dataframe/readsqldatabases.html#reading-specific-tables" id="z5447lx_97" rel="noopener noreferrer" style="color: red;" target="_blank">
+        <code class="code" id="z5447lx_98">
+         readSqlTable()
+        </code>
+       </a>
+       function:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val actorDf = DataFrame.readSqlTable(dbConfig, "actors", 10000)
+      </div>
+     </li>
+     <li class="list__item" id="z5447lx_94">
+      <p id="z5447lx_99">
+       Process the retrieved data to identify the top 20 most common actor first names. This analysis involves several DataFrame methods:
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       val top20ActorNames = actorDf
+    // Groups the data by the first_name column to organize it based on actor first names.
+   .groupBy { first_name }
+
+    // Counts the occurrences of each unique first name, providing a frequency distribution.
+   .count()
+
+    // Sorts the results in descending order of count to identify the most common names.
+   .sortByDesc("count")
+
+    // Selects the top 20 most frequent names for analysis.
+   .take(20)
+top20ActorNames
+      </div>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="what-s-next" id="what-s-next">
+     What's next
+    </h2>
+    <ul class="list _bullet" id="z5447lx_101">
+     <li class="list__item" id="z5447lx_102">
+      <p id="z5447lx_105">
+       Explore data visualization using the
+       <a data-external="true" href="https://kotlin.github.io/kandy/examples.html" id="z5447lx_106" rel="noopener noreferrer" style="color: red;" target="_blank">
+        Kandy library
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_103">
+      <p id="z5447lx_107">
+       Find additional information about data visualization in
+       <a data-tooltip="Kotlin offers an all-in-one-place solution for powerful and flexible data visualization, providing an intuitive way to present and explore data before diving into complex models." href="data-analysis-visualization.html" id="z5447lx_108" style="color: blue;">
+        Data visualization in Kotlin Notebook with Kandy
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z5447lx_104">
+      <p id="z5447lx_109">
+       For an extensive overview of tools and resources available for data science and analysis in Kotlin, see
+       <a data-tooltip="From data collection to model building, Kotlin offers robust libraries facilitating different tasks in the data pipeline." href="data-analysis-libraries.html" id="z5447lx_110" style="color: blue;">
+        Kotlin and Java libraries for data analysis
+       </a>
+      </p>
+     </li>
+    </ul>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

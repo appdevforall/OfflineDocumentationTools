@@ -1,0 +1,2472 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="compatibility-guide-20" id="compatibility-guide-20.md">
+    Compatibility guide for Kotlin 2.0
+   </h1>
+   <p id="c11r4q_2">
+    <span class="emphasis" id="c11r4q_8">
+     <a data-tooltip="Language design is cast in stone," href="kotlin-evolution-principles.html" id="c11r4q_10" style="color: blue;">
+      Keeping the Language Modern
+     </a>
+    </span>
+    and
+    <span class="emphasis" id="c11r4q_9">
+     <a data-tooltip="Language design is cast in stone," href="kotlin-evolution-principles.html" id="c11r4q_11" style="color: blue;">
+      Comfortable Updates
+     </a>
+    </span>
+    are among the fundamental principles in Kotlin Language Design. The former says that constructs which obstruct language evolution should be removed, and the latter says that this removal should be well-communicated beforehand to make code migration as smooth as possible.
+   </p>
+   <p id="c11r4q_3">
+    While most of the language changes were already announced through other channels, like updated changelogs or compiler warnings, this document provides a complete reference for migration from Kotlin 1.9 to Kotlin 2.0.
+   </p>
+   <aside class="prompt" data-title="" data-type="note" id="c11r4q_4">
+    <p id="c11r4q_12">
+     The Kotlin K2 compiler is introduced as part of Kotlin 2.0. For information on the benefits of the new compiler, changes you might encounter during migration, and how to roll back to the previous compiler, see
+     <a data-tooltip="As the Kotlin language and ecosystem have continued to evolve, so has the Kotlin compiler. The first step was the introduction of the new JVM and JS IR (Intermediate Representation) backends that share logic, simplifying code generation for targets on different platforms. Now, the…" href="k2-compiler-migration-guide.html" id="c11r4q_13" style="color: blue;">
+      K2 compiler migration guide
+     </a>
+     .
+    </p>
+   </aside>
+   <section class="chapter">
+    <h2 data-toc="basic-terms" id="basic-terms">
+     Basic terms
+    </h2>
+    <p id="c11r4q_14">
+     In this document we introduce several kinds of compatibility:
+    </p>
+    <ul class="list _bullet" id="c11r4q_15">
+     <li class="list__item" id="c11r4q_17">
+      <p id="c11r4q_20">
+       <span class="emphasis" id="c11r4q_21">
+        source
+       </span>
+       : source-incompatible change stops code that used to compile fine (without errors or warnings) from compiling anymore
+      </p>
+     </li>
+     <li class="list__item" id="c11r4q_18">
+      <p id="c11r4q_22">
+       <span class="emphasis" id="c11r4q_23">
+        binary
+       </span>
+       : two binary artifacts are said to be binary-compatible if interchanging them doesn't lead to loading or linkage errors
+      </p>
+     </li>
+     <li class="list__item" id="c11r4q_19">
+      <p id="c11r4q_24">
+       <span class="emphasis" id="c11r4q_25">
+        behavioral
+       </span>
+       : a change is said to be behavioral-incompatible if the same program demonstrates different behavior before and after applying the change
+      </p>
+     </li>
+    </ul>
+    <p id="c11r4q_16">
+     Remember that those definitions are given only for pure Kotlin. Compatibility of Kotlin code from the other languages perspective (for example, from Java) is out of the scope of this document.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="language" id="language">
+     Language
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="deprecate-use-of-a-synthetic-setter-on-a-projected-receiver" id="deprecate-use-of-a-synthetic-setter-on-a-projected-receiver">
+      Deprecate use of a synthetic setter on a projected receiver
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_67">
+      <p id="c11r4q_68">
+       <span class="control" id="c11r4q_74">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54309" id="c11r4q_75" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54309
+       </a>
+      </p>
+      <p id="c11r4q_69">
+       <span class="control" id="c11r4q_76">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_70">
+       <span class="control" id="c11r4q_77">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_71">
+       <span class="control" id="c11r4q_78">
+        Short summary
+       </span>
+       : If you use the synthetic setter of a Java class to assign a type that conflicts with the class's projected type, an error is triggered.
+      </p>
+      <p id="c11r4q_72">
+       <span class="control" id="c11r4q_79">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_73">
+       <li class="list__item" id="c11r4q_80">
+        <p id="c11r4q_82">
+         1.8.20: report a warning when a synthetic property setter has a projected parameter type in contravariant position making call-site argument types incompatible
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_81">
+        <p id="c11r4q_83">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="correct-mangling-when-calling-functions-with-inline-class-parameters-that-are-overloaded-in-a-java-subclass" id="correct-mangling-when-calling-functions-with-inline-class-parameters-that-are-overloaded-in-a-java-subclass">
+      Correct mangling when calling functions with inline class parameters that are overloaded in a Java subclass
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_84">
+      <p id="c11r4q_85">
+       <span class="control" id="c11r4q_90">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-56545" id="c11r4q_91" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-56545
+       </a>
+      </p>
+      <p id="c11r4q_86">
+       <span class="control" id="c11r4q_92">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_87">
+       <span class="control" id="c11r4q_93">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_88">
+       <span class="control" id="c11r4q_94">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_89">
+       <li class="list__item" id="c11r4q_95">
+        <p id="c11r4q_96">
+         2.0.0: use the correct mangling behavior in function invocations; to revert to the previous behaviour, use the
+         <code class="code" id="c11r4q_97">
+          -XXLanguage:-MangleCallsToJavaMethodsWithValueClasses
+         </code>
+         compiler option.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="correct-type-approximation-algorithm-for-contravariant-captured-types" id="correct-type-approximation-algorithm-for-contravariant-captured-types">
+      Correct type approximation algorithm for contravariant captured types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_98">
+      <p id="c11r4q_99">
+       <span class="control" id="c11r4q_104">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-49404" id="c11r4q_105" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-49404
+       </a>
+      </p>
+      <p id="c11r4q_100">
+       <span class="control" id="c11r4q_106">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_101">
+       <span class="control" id="c11r4q_107">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_102">
+       <span class="control" id="c11r4q_108">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_103">
+       <li class="list__item" id="c11r4q_109">
+        <p id="c11r4q_111">
+         1.8.20: report a warning on problematic calls
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_110">
+        <p id="c11r4q_112">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-accessing-property-value-before-property-initialization" id="prohibit-accessing-property-value-before-property-initialization">
+      Prohibit accessing property value before property initialization
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_113">
+      <p id="c11r4q_114">
+       <span class="control" id="c11r4q_119">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-56408" id="c11r4q_120" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-56408
+       </a>
+      </p>
+      <p id="c11r4q_115">
+       <span class="control" id="c11r4q_121">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_116">
+       <span class="control" id="c11r4q_122">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_117">
+       <span class="control" id="c11r4q_123">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_118">
+       <li class="list__item" id="c11r4q_124">
+        <p id="c11r4q_125">
+         2.0.0: report an error when a property is accessed before initialization in the affected contexts
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="report-error-when-there-s-ambiguity-in-imported-classes-with-the-same-name" id="report-error-when-there-s-ambiguity-in-imported-classes-with-the-same-name">
+      Report error when there's ambiguity in imported classes with the same name
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_126">
+      <p id="c11r4q_127">
+       <span class="control" id="c11r4q_132">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57750" id="c11r4q_133" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57750
+       </a>
+      </p>
+      <p id="c11r4q_128">
+       <span class="control" id="c11r4q_134">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_129">
+       <span class="control" id="c11r4q_135">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_130">
+       <span class="control" id="c11r4q_136">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_131">
+       <li class="list__item" id="c11r4q_137">
+        <p id="c11r4q_138">
+         2.0.0: report an error when resolving a class name that is present in several packages imported with a star import
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="generate-kotlin-lambdas-via-invokedynamic-and-lambdametafactory-by-default" id="generate-kotlin-lambdas-via-invokedynamic-and-lambdametafactory-by-default">
+      Generate Kotlin lambdas via invokedynamic and LambdaMetafactory by default
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_139">
+      <p id="c11r4q_140">
+       <span class="control" id="c11r4q_145">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-45375" id="c11r4q_146" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-45375
+       </a>
+      </p>
+      <p id="c11r4q_141">
+       <span class="control" id="c11r4q_147">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_142">
+       <span class="control" id="c11r4q_148">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_143">
+       <span class="control" id="c11r4q_149">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_144">
+       <li class="list__item" id="c11r4q_150">
+        <p id="c11r4q_151">
+         2.0.0: implement new behavior; lambdas are generated using
+         <code class="code" id="c11r4q_152">
+          invokedynamic
+         </code>
+         and
+         <code class="code" id="c11r4q_153">
+          LambdaMetafactory
+         </code>
+         by default
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-if-condition-with-one-branch-when-an-expression-is-required" id="forbid-if-condition-with-one-branch-when-an-expression-is-required">
+      Forbid if condition with one branch when an expression is required
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_154">
+      <p id="c11r4q_155">
+       <span class="control" id="c11r4q_160">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57871" id="c11r4q_161" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57871
+       </a>
+      </p>
+      <p id="c11r4q_156">
+       <span class="control" id="c11r4q_162">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_157">
+       <span class="control" id="c11r4q_163">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_158">
+       <span class="control" id="c11r4q_164">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_159">
+       <li class="list__item" id="c11r4q_165">
+        <p id="c11r4q_166">
+         2.0.0: report an error in case the
+         <code class="code" id="c11r4q_167">
+          if
+         </code>
+         condition has only one branch
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-violation-of-self-upper-bounds-by-passing-a-star-projection-of-a-generic-type" id="prohibit-violation-of-self-upper-bounds-by-passing-a-star-projection-of-a-generic-type">
+      Prohibit violation of self upper bounds by passing a star-projection of a generic type
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_168">
+      <p id="c11r4q_169">
+       <span class="control" id="c11r4q_174">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-61718" id="c11r4q_175" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-61718
+       </a>
+      </p>
+      <p id="c11r4q_170">
+       <span class="control" id="c11r4q_176">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_171">
+       <span class="control" id="c11r4q_177">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_172">
+       <span class="control" id="c11r4q_178">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_173">
+       <li class="list__item" id="c11r4q_179">
+        <p id="c11r4q_180">
+         2.0.0: report an error when self upper bounds are violated by passing a star-projection of a generic type
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="approximate-anonymous-types-in-private-inline-functions-return-type" id="approximate-anonymous-types-in-private-inline-functions-return-type">
+      Approximate anonymous types in private inline functions return type
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_181">
+      <p id="c11r4q_182">
+       <span class="control" id="c11r4q_187">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54862" id="c11r4q_188" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54862
+       </a>
+      </p>
+      <p id="c11r4q_183">
+       <span class="control" id="c11r4q_189">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_184">
+       <span class="control" id="c11r4q_190">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_185">
+       <span class="control" id="c11r4q_191">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_186">
+       <li class="list__item" id="c11r4q_192">
+        <p id="c11r4q_194">
+         1.9.0: report a warning on private inline functions if the inferred return type contains an anonymous type
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_193">
+        <p id="c11r4q_195">
+         2.0.0: approximate return type of such private inline functions to a supertype
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-overload-resolution-behavior-to-prioritize-local-extension-function-calls-over-invoke-conventions-of-local-functional-type-properties" id="change-overload-resolution-behavior-to-prioritize-local-extension-function-calls-over-invoke-conventions-of-local-functional-type-properties">
+      Change overload resolution behavior to prioritize local extension function calls over invoke conventions of local functional type properties
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_196">
+      <p id="c11r4q_197">
+       <span class="control" id="c11r4q_202">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-37592" id="c11r4q_203" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-37592
+       </a>
+      </p>
+      <p id="c11r4q_198">
+       <span class="control" id="c11r4q_204">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_199">
+       <span class="control" id="c11r4q_205">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_200">
+       <span class="control" id="c11r4q_206">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_201">
+       <li class="list__item" id="c11r4q_207">
+        <p id="c11r4q_208">
+         2.0.0: new overload resolution behavior; function calls are consistently prioritized over invoke conventions
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="report-error-when-an-inherited-member-conflict-occurs-due-to-a-change-in-a-supertype-from-binary-dependency" id="report-error-when-an-inherited-member-conflict-occurs-due-to-a-change-in-a-supertype-from-binary-dependency">
+      Report error when an inherited member conflict occurs due to a change in a supertype from binary dependency
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_209">
+      <p id="c11r4q_210">
+       <span class="control" id="c11r4q_215">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-51194" id="c11r4q_216" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-51194
+       </a>
+      </p>
+      <p id="c11r4q_211">
+       <span class="control" id="c11r4q_217">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_212">
+       <span class="control" id="c11r4q_218">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_213">
+       <span class="control" id="c11r4q_219">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_214">
+       <li class="list__item" id="c11r4q_220">
+        <p id="c11r4q_222">
+         1.7.0: report a warning CONFLICTING_INHERITED_MEMBERS_WARNING on declarations where inherited member conflict has occurred in the supertype from binary dependency
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_221">
+        <p id="c11r4q_223">
+         2.0.0: raise the warning to an error: CONFLICTING_INHERITED_MEMBERS
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="ignore-unsafevariance-annotations-on-parameters-in-invariant-types" id="ignore-unsafevariance-annotations-on-parameters-in-invariant-types">
+      Ignore @UnsafeVariance annotations on parameters in invariant types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_224">
+      <p id="c11r4q_225">
+       <span class="control" id="c11r4q_230">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57609" id="c11r4q_231" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57609
+       </a>
+      </p>
+      <p id="c11r4q_226">
+       <span class="control" id="c11r4q_232">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_227">
+       <span class="control" id="c11r4q_233">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_228">
+       <span class="control" id="c11r4q_234">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_229">
+       <li class="list__item" id="c11r4q_235">
+        <p id="c11r4q_236">
+         2.0.0: implement new behavior; the
+         <code class="code" id="c11r4q_237">
+          @UnsafeVariance
+         </code>
+         annotation is ignored when reporting errors about type mismatch in contravariant parameters
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-type-for-out-of-call-references-to-a-companion-object-s-member" id="change-type-for-out-of-call-references-to-a-companion-object-s-member">
+      Change type for out-of-call references to a companion object's member
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_238">
+      <p id="c11r4q_239">
+       <span class="control" id="c11r4q_244">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54316" id="c11r4q_245" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54316
+       </a>
+      </p>
+      <p id="c11r4q_240">
+       <span class="control" id="c11r4q_246">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_241">
+       <span class="control" id="c11r4q_247">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_242">
+       <span class="control" id="c11r4q_248">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_243">
+       <li class="list__item" id="c11r4q_249">
+        <p id="c11r4q_251">
+         1.8.20: report a warning on a companion object function reference type inferred as an unbound reference
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_250">
+        <p id="c11r4q_252">
+         2.0.0: change the behavior so that companion object function references are inferred as bound references in all usage contexts
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-exposure-of-anonymous-types-from-private-inline-functions" id="prohibit-exposure-of-anonymous-types-from-private-inline-functions">
+      Prohibit exposure of anonymous types from private inline functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_253">
+      <p id="c11r4q_254">
+       <span class="control" id="c11r4q_259">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-33917" id="c11r4q_260" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-33917
+       </a>
+      </p>
+      <p id="c11r4q_255">
+       <span class="control" id="c11r4q_261">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_256">
+       <span class="control" id="c11r4q_262">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_257">
+       <span class="control" id="c11r4q_263">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_258">
+       <li class="list__item" id="c11r4q_264">
+        <p id="c11r4q_266">
+         1.3.0: report a warning on calls to own members of anonymous objects, returned from private inline functions
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_265">
+        <p id="c11r4q_267">
+         2.0.0: approximate return type of such private inline functions to a supertype and don't resolve calls to anonymous object members
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="report-error-for-an-unsound-smart-cast-after-a-while-loop-break" id="report-error-for-an-unsound-smart-cast-after-a-while-loop-break">
+      Report error for an unsound smart cast after a while-loop break
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_268">
+      <p id="c11r4q_269">
+       <span class="control" id="c11r4q_274">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-22379" id="c11r4q_275" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-22379
+       </a>
+      </p>
+      <p id="c11r4q_270">
+       <span class="control" id="c11r4q_276">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_271">
+       <span class="control" id="c11r4q_277">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_272">
+       <span class="control" id="c11r4q_278">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_273">
+       <li class="list__item" id="c11r4q_279">
+        <p id="c11r4q_280">
+         2.0.0: implement new behavior; the old behavior can be restored by switching to language version 1.9
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="report-error-when-a-variable-of-an-intersection-type-is-assigned-a-value-that-is-not-a-subtype-of-that-intersection-type" id="report-error-when-a-variable-of-an-intersection-type-is-assigned-a-value-that-is-not-a-subtype-of-that-intersection-type">
+      Report error when a variable of an intersection type is assigned a value that is not a subtype of that intersection type
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_281">
+      <p id="c11r4q_282">
+       <span class="control" id="c11r4q_287">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-53752" id="c11r4q_288" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-53752
+       </a>
+      </p>
+      <p id="c11r4q_283">
+       <span class="control" id="c11r4q_289">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_284">
+       <span class="control" id="c11r4q_290">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_285">
+       <span class="control" id="c11r4q_291">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_286">
+       <li class="list__item" id="c11r4q_292">
+        <p id="c11r4q_293">
+         2.0.0: report an error when a variable having an intersection type is assigned a value that is not a subtype of that intersection type
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="require-opt-in-when-an-interface-constructed-with-a-sam-constructor-contains-a-method-that-requires-an-opt-in" id="require-opt-in-when-an-interface-constructed-with-a-sam-constructor-contains-a-method-that-requires-an-opt-in">
+      Require opt-in when an interface constructed with a SAM constructor contains a method that requires an opt-in
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_294">
+      <p id="c11r4q_295">
+       <span class="control" id="c11r4q_300">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-52628" id="c11r4q_301" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-52628
+       </a>
+      </p>
+      <p id="c11r4q_296">
+       <span class="control" id="c11r4q_302">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_297">
+       <span class="control" id="c11r4q_303">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_298">
+       <span class="control" id="c11r4q_304">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_299">
+       <li class="list__item" id="c11r4q_305">
+        <p id="c11r4q_307">
+         1.7.20: report a warning for
+         <code class="code" id="c11r4q_308">
+          OptIn
+         </code>
+         usages via SAM constructor
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_306">
+        <p id="c11r4q_309">
+         2.0.0: raise the warning to an error for
+         <code class="code" id="c11r4q_310">
+          OptIn
+         </code>
+         usages via SAM constructor (or keep reporting the warning if
+         <code class="code" id="c11r4q_311">
+          OptIn
+         </code>
+         marker severity is a warning)
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-upper-bound-violation-in-typealias-constructors" id="prohibit-upper-bound-violation-in-typealias-constructors">
+      Prohibit upper bound violation in typealias constructors
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_312">
+      <p id="c11r4q_313">
+       <span class="control" id="c11r4q_318">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54066" id="c11r4q_319" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54066
+       </a>
+      </p>
+      <p id="c11r4q_314">
+       <span class="control" id="c11r4q_320">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_315">
+       <span class="control" id="c11r4q_321">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_316">
+       <span class="control" id="c11r4q_322">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_317">
+       <li class="list__item" id="c11r4q_323">
+        <p id="c11r4q_325">
+         1.8.0: introduce a warning for cases when the upper bound is violated in typealias constructors
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_324">
+        <p id="c11r4q_326">
+         2.0.0: raise the warning to an error in the K2 compiler
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="make-the-real-type-of-a-destructuring-variable-consistent-with-the-explicit-type-when-specified" id="make-the-real-type-of-a-destructuring-variable-consistent-with-the-explicit-type-when-specified">
+      Make the real type of a destructuring variable consistent with the explicit type when specified
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_327">
+      <p id="c11r4q_328">
+       <span class="control" id="c11r4q_333">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57011" id="c11r4q_334" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57011
+       </a>
+      </p>
+      <p id="c11r4q_329">
+       <span class="control" id="c11r4q_335">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_330">
+       <span class="control" id="c11r4q_336">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_331">
+       <span class="control" id="c11r4q_337">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_332">
+       <li class="list__item" id="c11r4q_338">
+        <p id="c11r4q_339">
+         2.0.0: implement new behavior; the real type of destructuring variable is now consistent with the explicit type when specified
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="require-opt-in-when-calling-a-constructor-that-has-parameter-types-with-default-values-that-require-an-opt-in" id="require-opt-in-when-calling-a-constructor-that-has-parameter-types-with-default-values-that-require-an-opt-in">
+      Require opt-in when calling a constructor that has parameter types with default values that require an opt-in
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_340">
+      <p id="c11r4q_341">
+       <span class="control" id="c11r4q_346">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-55111" id="c11r4q_347" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-55111
+       </a>
+      </p>
+      <p id="c11r4q_342">
+       <span class="control" id="c11r4q_348">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_343">
+       <span class="control" id="c11r4q_349">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_344">
+       <span class="control" id="c11r4q_350">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_345">
+       <li class="list__item" id="c11r4q_351">
+        <p id="c11r4q_353">
+         1.8.20: report a warning on constructor calls that has parameter types which require opt-in
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_352">
+        <p id="c11r4q_354">
+         2.0.0: raise the warning to an error (or keep reporting a warning if the
+         <code class="code" id="c11r4q_355">
+          OptIn
+         </code>
+         marker severity is a warning)
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="report-ambiguity-between-a-property-and-an-enum-entry-with-the-same-name-at-the-same-scope-level" id="report-ambiguity-between-a-property-and-an-enum-entry-with-the-same-name-at-the-same-scope-level">
+      Report ambiguity between a property and an enum entry with the same name at the same scope level
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_356">
+      <p id="c11r4q_357">
+       <span class="control" id="c11r4q_362">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-52802" id="c11r4q_363" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-52802
+       </a>
+      </p>
+      <p id="c11r4q_358">
+       <span class="control" id="c11r4q_364">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_359">
+       <span class="control" id="c11r4q_365">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_360">
+       <span class="control" id="c11r4q_366">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_361">
+       <li class="list__item" id="c11r4q_367">
+        <p id="c11r4q_369">
+         1.7.20: report a warning when the compiler resolves to a property instead of an enum entry at the same scope level
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_368">
+        <p id="c11r4q_370">
+         2.0.0: report ambiguity when the compiler encounters both a property and an enum entry with the same name at the same scope level in the K2 compiler (leaving the warning as is in the old compiler)
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-qualifier-resolution-behavior-to-prefer-companion-property-over-enum-entry" id="change-qualifier-resolution-behavior-to-prefer-companion-property-over-enum-entry">
+      Change qualifier resolution behavior to prefer companion property over enum entry
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_371">
+      <p id="c11r4q_372">
+       <span class="control" id="c11r4q_377">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-47310" id="c11r4q_378" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-47310
+       </a>
+      </p>
+      <p id="c11r4q_373">
+       <span class="control" id="c11r4q_379">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_374">
+       <span class="control" id="c11r4q_380">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_375">
+       <span class="control" id="c11r4q_381">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_376">
+       <li class="list__item" id="c11r4q_382">
+        <p id="c11r4q_383">
+         2.0.0: implement new resolution behavior; companion property is preferred over enum entry
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="resolve-invoke-call-receiver-type-and-the-invoke-function-type-as-if-written-in-desugared-form" id="resolve-invoke-call-receiver-type-and-the-invoke-function-type-as-if-written-in-desugared-form">
+      Resolve invoke call receiver type and the invoke function type as if written in desugared form
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_384">
+      <p id="c11r4q_385">
+       <span class="control" id="c11r4q_390">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-58260" id="c11r4q_391" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-58260
+       </a>
+      </p>
+      <p id="c11r4q_386">
+       <span class="control" id="c11r4q_392">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_387">
+       <span class="control" id="c11r4q_393">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_388">
+       <span class="control" id="c11r4q_394">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_389">
+       <li class="list__item" id="c11r4q_395">
+        <p id="c11r4q_396">
+         2.0.0: resolve invoke call receiver type and the invoke function type independently as if they were written in a desugared form
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-exposing-private-class-members-through-non-private-inline-functions" id="prohibit-exposing-private-class-members-through-non-private-inline-functions">
+      Prohibit exposing private class members through non-private inline functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_397">
+      <p id="c11r4q_398">
+       <span class="control" id="c11r4q_403">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-55179" id="c11r4q_404" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-55179
+       </a>
+      </p>
+      <p id="c11r4q_399">
+       <span class="control" id="c11r4q_405">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_400">
+       <span class="control" id="c11r4q_406">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_401">
+       <span class="control" id="c11r4q_407">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_402">
+       <li class="list__item" id="c11r4q_408">
+        <p id="c11r4q_410">
+         1.9.0: report the
+         <code class="code" id="c11r4q_411">
+          PRIVATE_CLASS_MEMBER_FROM_INLINE_WARNING
+         </code>
+         warning when calling private class companion object member from internal inline functions
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_409">
+        <p id="c11r4q_412">
+         2.0.0: raise this warning to the
+         <code class="code" id="c11r4q_413">
+          PRIVATE_CLASS_MEMBER_FROM_INLINE
+         </code>
+         error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="correct-nullability-of-definitely-non-null-types-in-projected-generic-types" id="correct-nullability-of-definitely-non-null-types-in-projected-generic-types">
+      Correct nullability of definitely non-null types in projected generic types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_414">
+      <p id="c11r4q_415">
+       <span class="control" id="c11r4q_420">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54663" id="c11r4q_421" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54663
+       </a>
+      </p>
+      <p id="c11r4q_416">
+       <span class="control" id="c11r4q_422">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_417">
+       <span class="control" id="c11r4q_423">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_418">
+       <span class="control" id="c11r4q_424">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_419">
+       <li class="list__item" id="c11r4q_425">
+        <p id="c11r4q_426">
+         2.0.0: implement new behavior; projected types take into account all in-place not-null types
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-inferred-type-of-prefix-increment-to-match-getter-s-return-type-instead-of-inc-operator-s-return-type" id="change-inferred-type-of-prefix-increment-to-match-getter-s-return-type-instead-of-inc-operator-s-return-type">
+      Change inferred type of prefix increment to match getter's return type instead of inc() operator's return type
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_427">
+      <p id="c11r4q_428">
+       <span class="control" id="c11r4q_433">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57178" id="c11r4q_434" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57178
+       </a>
+      </p>
+      <p id="c11r4q_429">
+       <span class="control" id="c11r4q_435">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_430">
+       <span class="control" id="c11r4q_436">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_431">
+       <span class="control" id="c11r4q_437">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_432">
+       <li class="list__item" id="c11r4q_438">
+        <p id="c11r4q_439">
+         2.0.0: implement new behavior; inferred type of prefix increment is changed to match getter's return type instead of the
+         <code class="code" id="c11r4q_440">
+          inc()
+         </code>
+         operator's return type
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="enforce-bound-checks-when-inheriting-inner-classes-from-generic-inner-classes-declared-in-superclasses" id="enforce-bound-checks-when-inheriting-inner-classes-from-generic-inner-classes-declared-in-superclasses">
+      Enforce bound checks when inheriting inner classes from generic inner classes declared in superclasses
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_441">
+      <p id="c11r4q_442">
+       <span class="control" id="c11r4q_447">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-61749" id="c11r4q_448" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-61749
+       </a>
+      </p>
+      <p id="c11r4q_443">
+       <span class="control" id="c11r4q_449">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_444">
+       <span class="control" id="c11r4q_450">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_445">
+       <span class="control" id="c11r4q_451">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_446">
+       <li class="list__item" id="c11r4q_452">
+        <p id="c11r4q_453">
+         2.0.0: report an error when upper bound of the type parameter of a generic inner superclass is violated
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-assigning-callable-references-with-sam-types-when-the-expected-type-is-a-function-type-with-a-function-type-parameter" id="forbid-assigning-callable-references-with-sam-types-when-the-expected-type-is-a-function-type-with-a-function-type-parameter">
+      Forbid assigning callable references with SAM types when the expected type is a function type with a function type parameter
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_454">
+      <p id="c11r4q_455">
+       <span class="control" id="c11r4q_460">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-64342" id="c11r4q_461" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-64342
+       </a>
+      </p>
+      <p id="c11r4q_456">
+       <span class="control" id="c11r4q_462">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_457">
+       <span class="control" id="c11r4q_463">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_458">
+       <span class="control" id="c11r4q_464">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_459">
+       <li class="list__item" id="c11r4q_465">
+        <p id="c11r4q_466">
+         2.0.0: report a compilation error on callable references with SAM types when the expected type is a function type with a function type parameter
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="consider-companion-object-scope-for-annotation-resolution-on-companion-objects" id="consider-companion-object-scope-for-annotation-resolution-on-companion-objects">
+      Consider companion object scope for annotation resolution on companion objects
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_467">
+      <p id="c11r4q_468">
+       <span class="control" id="c11r4q_473">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-64299" id="c11r4q_474" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-64299
+       </a>
+      </p>
+      <p id="c11r4q_469">
+       <span class="control" id="c11r4q_475">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_470">
+       <span class="control" id="c11r4q_476">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_471">
+       <span class="control" id="c11r4q_477">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_472">
+       <li class="list__item" id="c11r4q_478">
+        <p id="c11r4q_479">
+         2.0.0: implement new behavior; the companion object scope is now not ignored during annotation resolution on companion objects
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-evaluation-semantics-for-combination-of-safe-calls-and-convention-operators" id="change-evaluation-semantics-for-combination-of-safe-calls-and-convention-operators">
+      Change evaluation semantics for combination of safe calls and convention operators
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_480">
+      <p id="c11r4q_481">
+       <span class="control" id="c11r4q_486">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-41034" id="c11r4q_487" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-41034
+       </a>
+      </p>
+      <p id="c11r4q_482">
+       <span class="control" id="c11r4q_488">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_483">
+       <span class="control" id="c11r4q_489">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_484">
+       <span class="control" id="c11r4q_490">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_485">
+       <li class="list__item" id="c11r4q_491">
+        <p id="c11r4q_493">
+         1.4.0: report warnings on each incorrect call
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_492">
+        <p id="c11r4q_494">
+         2.0.0: implement new resolution behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="require-properties-with-backing-field-and-a-custom-setter-to-be-immediately-initialized" id="require-properties-with-backing-field-and-a-custom-setter-to-be-immediately-initialized">
+      Require properties with backing field and a custom setter to be immediately initialized
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_495">
+      <p id="c11r4q_496">
+       <span class="control" id="c11r4q_501">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-58589" id="c11r4q_502" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-58589
+       </a>
+      </p>
+      <p id="c11r4q_497">
+       <span class="control" id="c11r4q_503">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_498">
+       <span class="control" id="c11r4q_504">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_499">
+       <span class="control" id="c11r4q_505">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_500">
+       <li class="list__item" id="c11r4q_506">
+        <p id="c11r4q_508">
+         1.9.20: introduce the
+         <code class="code" id="c11r4q_509">
+          MUST_BE_INITIALIZED
+         </code>
+         warning for cases where there is no primary constructor
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_507">
+        <p id="c11r4q_510">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-unit-conversion-on-arbitrary-expressions-in-invoke-operator-convention-call" id="prohibit-unit-conversion-on-arbitrary-expressions-in-invoke-operator-convention-call">
+      Prohibit Unit conversion on arbitrary expressions in invoke operator convention call
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_511">
+      <p id="c11r4q_512">
+       <span class="control" id="c11r4q_517">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-61182" id="c11r4q_518" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-61182
+       </a>
+      </p>
+      <p id="c11r4q_513">
+       <span class="control" id="c11r4q_519">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_514">
+       <span class="control" id="c11r4q_520">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_515">
+       <span class="control" id="c11r4q_521">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_516">
+       <li class="list__item" id="c11r4q_522">
+        <p id="c11r4q_523">
+         2.0.0: report an error when Unit conversion is applied to an arbitrary expression on variable and invoke resolution; use the
+         <code class="code" id="c11r4q_524">
+          -XXLanguage:+UnitConversionsOnArbitraryExpressions
+         </code>
+         compiler option to keep the previous behavior with affected expressions.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-nullable-assignment-to-non-null-java-field-when-the-field-is-accessed-with-a-safe-call" id="forbid-nullable-assignment-to-non-null-java-field-when-the-field-is-accessed-with-a-safe-call">
+      Forbid nullable assignment to non-null Java field when the field is accessed with a safe call
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_525">
+      <p id="c11r4q_526">
+       <span class="control" id="c11r4q_531">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-62998" id="c11r4q_532" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-62998
+       </a>
+      </p>
+      <p id="c11r4q_527">
+       <span class="control" id="c11r4q_533">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_528">
+       <span class="control" id="c11r4q_534">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_529">
+       <span class="control" id="c11r4q_535">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_530">
+       <li class="list__item" id="c11r4q_536">
+        <p id="c11r4q_537">
+         2.0.0: report to an error in case a nullable is assigned to a non-null Java field
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="require-star-projected-type-when-overriding-a-java-method-containing-a-raw-type-parameter" id="require-star-projected-type-when-overriding-a-java-method-containing-a-raw-type-parameter">
+      Require star-projected type when overriding a Java method containing a raw-type parameter
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_538">
+      <p id="c11r4q_539">
+       <span class="control" id="c11r4q_544">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57600" id="c11r4q_545" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57600
+       </a>
+      </p>
+      <p id="c11r4q_540">
+       <span class="control" id="c11r4q_546">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_541">
+       <span class="control" id="c11r4q_547">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_542">
+       <span class="control" id="c11r4q_548">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_543">
+       <li class="list__item" id="c11r4q_549">
+        <p id="c11r4q_550">
+         2.0.0: implement new behavior; overriding is forbidden for raw type parameters
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-v-foo-reference-resolution-when-v-has-a-companion" id="change-v-foo-reference-resolution-when-v-has-a-companion">
+      Change (V)::foo reference resolution when V has a companion
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_551">
+      <p id="c11r4q_552">
+       <span class="control" id="c11r4q_557">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-47313" id="c11r4q_558" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-47313
+       </a>
+      </p>
+      <p id="c11r4q_553">
+       <span class="control" id="c11r4q_559">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_554">
+       <span class="control" id="c11r4q_560">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_555">
+       <span class="control" id="c11r4q_561">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_556">
+       <li class="list__item" id="c11r4q_562">
+        <p id="c11r4q_564">
+         1.6.0: report a warning on callable references currently bound to companion object instances
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_563">
+        <p id="c11r4q_565">
+         2.0.0: implement new behavior; adding parentheses around a type no longer makes it a reference to the type's companion object instance
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-implicit-non-public-api-access-in-effectively-public-inline-functions" id="forbid-implicit-non-public-api-access-in-effectively-public-inline-functions">
+      Forbid implicit non-public API access in effectively public inline functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_566">
+      <p id="c11r4q_567">
+       <span class="control" id="c11r4q_572">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-54997" id="c11r4q_573" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-54997
+       </a>
+      </p>
+      <p id="c11r4q_568">
+       <span class="control" id="c11r4q_574">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_569">
+       <span class="control" id="c11r4q_575">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_570">
+       <span class="control" id="c11r4q_576">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_571">
+       <li class="list__item" id="c11r4q_577">
+        <p id="c11r4q_579">
+         1.8.20: report a compilation warning when implicit non-public API is accessed in public inline functions
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_578">
+        <p id="c11r4q_580">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-use-site-get-annotations-on-property-getters" id="prohibit-use-site-get-annotations-on-property-getters">
+      Prohibit use-site get annotations on property getters
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_581">
+      <p id="c11r4q_582">
+       <span class="control" id="c11r4q_587">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-57422" id="c11r4q_588" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-57422
+       </a>
+      </p>
+      <p id="c11r4q_583">
+       <span class="control" id="c11r4q_589">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_584">
+       <span class="control" id="c11r4q_590">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_585">
+       <span class="control" id="c11r4q_591">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_586">
+       <li class="list__item" id="c11r4q_592">
+        <p id="c11r4q_594">
+         1.9.0: report a warning (an error in the progressive mode) on use-site
+         <code class="code" id="c11r4q_595">
+          get
+         </code>
+         annotations on getters
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_593">
+        <p id="c11r4q_596">
+         2.0.0: raise the warning to the
+         <code class="code" id="c11r4q_597">
+          INAPPLICABLE_TARGET_ON_PROPERTY
+         </code>
+         error; use
+         <code class="code" id="c11r4q_598">
+          -XXLanguage:-ProhibitUseSiteGetTargetAnnotations
+         </code>
+         to revert to a warning
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prevent-implicit-inference-of-type-parameters-into-upper-bounds-in-builder-inference-lambda-functions" id="prevent-implicit-inference-of-type-parameters-into-upper-bounds-in-builder-inference-lambda-functions">
+      Prevent implicit inference of type parameters into upper bounds in builder inference lambda functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_599">
+      <p id="c11r4q_600">
+       <span class="control" id="c11r4q_605">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-47986" id="c11r4q_606" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-47986
+       </a>
+      </p>
+      <p id="c11r4q_601">
+       <span class="control" id="c11r4q_607">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_602">
+       <span class="control" id="c11r4q_608">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_603">
+       <span class="control" id="c11r4q_609">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_604">
+       <li class="list__item" id="c11r4q_610">
+        <p id="c11r4q_612">
+         1.7.20: report a warning (or an error in the progressive mode) when the type parameter for a type argument cannot be inferred into declared upper bounds
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_611">
+        <p id="c11r4q_613">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="keep-nullability-when-approximating-local-types-in-public-signatures" id="keep-nullability-when-approximating-local-types-in-public-signatures">
+      Keep nullability when approximating local types in public signatures
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_614">
+      <p id="c11r4q_615">
+       <span class="control" id="c11r4q_620">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-53982" id="c11r4q_621" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-53982
+       </a>
+      </p>
+      <p id="c11r4q_616">
+       <span class="control" id="c11r4q_622">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_617">
+       <span class="control" id="c11r4q_623">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_618">
+       <span class="control" id="c11r4q_624">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_619">
+       <li class="list__item" id="c11r4q_625">
+        <p id="c11r4q_627">
+         1.8.0: flexible types are approximated by flexible supertypes; report a warning when a declaration is inferred to have a non-nullable type that should be nullable, prompting to specify the type explicitly to avoid NPEs
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_626">
+        <p id="c11r4q_628">
+         2.0.0: nullable types are approximated by nullable supertypes
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-special-handling-for-false-and-false-for-the-purposes-of-smart-casting" id="remove-special-handling-for-false-and-false-for-the-purposes-of-smart-casting">
+      Remove special handling for false &amp;&amp; ... and false || ... for the purposes of smart-casting
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_629">
+      <p id="c11r4q_630">
+       <span class="control" id="c11r4q_635">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-65776" id="c11r4q_636" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-65776
+       </a>
+      </p>
+      <p id="c11r4q_631">
+       <span class="control" id="c11r4q_637">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_632">
+       <span class="control" id="c11r4q_638">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_633">
+       <span class="control" id="c11r4q_639">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_634">
+       <li class="list__item" id="c11r4q_640">
+        <p id="c11r4q_641">
+         2.0.0: implement new behavior; no special handling for
+         <code class="code" id="c11r4q_642">
+          false &amp;&amp; ...
+         </code>
+         and
+         <code class="code" id="c11r4q_643">
+          false || ...
+         </code>
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-inline-open-functions-in-enums" id="forbid-inline-open-functions-in-enums">
+      Forbid inline open functions in enums
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_644">
+      <p id="c11r4q_645">
+       <span class="control" id="c11r4q_650">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-34372" id="c11r4q_651" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-34372
+       </a>
+      </p>
+      <p id="c11r4q_646">
+       <span class="control" id="c11r4q_652">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c11r4q_647">
+       <span class="control" id="c11r4q_653">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_648">
+       <span class="control" id="c11r4q_654">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_649">
+       <li class="list__item" id="c11r4q_655">
+        <p id="c11r4q_657">
+         1.8.0: report a warning on inline open functions in enums
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_656">
+        <p id="c11r4q_658">
+         2.0.0: raise the warning to an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="tools" id="tools">
+     Tools
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="visibility-changes-in-gradle" id="visibility-changes-in-gradle">
+      Visibility changes in Gradle
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_666">
+      <p id="c11r4q_667">
+       <span class="control" id="c11r4q_674">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-64653" id="c11r4q_675" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-64653
+       </a>
+      </p>
+      <p id="c11r4q_668">
+       <span class="control" id="c11r4q_676">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_669">
+       <span class="control" id="c11r4q_677">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_670">
+       <span class="control" id="c11r4q_678">
+        Short summary
+       </span>
+       : Previously, certain Kotlin DSL functions and properties intended for a specific DSL context would inadvertently leak into other DSL contexts. We've added the
+       <code class="code" id="c11r4q_679">
+        @KotlinGradlePluginDsl
+       </code>
+       annotation, which prevents the exposure of the Kotlin Gradle plugin DSL functions and properties to levels where they are not intended to be available. The following levels are separated from each other:
+      </p>
+      <ul class="list _bullet" id="c11r4q_671">
+       <li class="list__item" id="c11r4q_680">
+        <p id="c11r4q_684">
+         Kotlin extension
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_681">
+        <p id="c11r4q_685">
+         Kotlin target
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_682">
+        <p id="c11r4q_686">
+         Kotlin compilation
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_683">
+        <p id="c11r4q_687">
+         Kotlin compilation task
+        </p>
+       </li>
+      </ul>
+      <p id="c11r4q_672">
+       <span class="control" id="c11r4q_688">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_673">
+       <li class="list__item" id="c11r4q_689">
+        <p id="c11r4q_690">
+         2.0.0: for most popular cases, the compiler reports warnings with suggestions on how to fix them if your build script is configured incorrectly; otherwise, the compiler reports an error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="deprecate-kotlinoptions-dsl" id="deprecate-kotlinoptions-dsl">
+      Deprecate kotlinOptions DSL
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_691">
+      <p id="c11r4q_692">
+       <span class="control" id="c11r4q_698">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-63419" id="c11r4q_699" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-63419
+       </a>
+      </p>
+      <p id="c11r4q_693">
+       <span class="control" id="c11r4q_700">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_694">
+       <span class="control" id="c11r4q_701">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_695">
+       <span class="control" id="c11r4q_702">
+        Short summary
+       </span>
+       : The ability to configure compiler options through the
+       <code class="code" id="c11r4q_703">
+        kotlinOptions
+       </code>
+       DSL and the related
+       <code class="code" id="c11r4q_704">
+        KotlinCompile&lt;KotlinOptions&gt;
+       </code>
+       task interface have been deprecated.
+      </p>
+      <p id="c11r4q_696">
+       <span class="control" id="c11r4q_705">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_697">
+       <li class="list__item" id="c11r4q_706">
+        <p id="c11r4q_707">
+         2.0.0: report a warning
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="deprecate-compileroptions-in-kotlincompilation-dsl" id="deprecate-compileroptions-in-kotlincompilation-dsl">
+      Deprecate compilerOptions in KotlinCompilation DSL
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_708">
+      <p id="c11r4q_709">
+       <span class="control" id="c11r4q_715">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-65568" id="c11r4q_716" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-65568
+       </a>
+      </p>
+      <p id="c11r4q_710">
+       <span class="control" id="c11r4q_717">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_711">
+       <span class="control" id="c11r4q_718">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_712">
+       <span class="control" id="c11r4q_719">
+        Short summary
+       </span>
+       : The ability to configure the
+       <code class="code" id="c11r4q_720">
+        compilerOptions
+       </code>
+       property in the
+       <code class="code" id="c11r4q_721">
+        KotlinCompilation
+       </code>
+       DSL has been deprecated.
+      </p>
+      <p id="c11r4q_713">
+       <span class="control" id="c11r4q_722">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_714">
+       <li class="list__item" id="c11r4q_723">
+        <p id="c11r4q_724">
+         2.0.0: report a warning
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="deprecate-old-ways-of-cinteropprocess-handling" id="deprecate-old-ways-of-cinteropprocess-handling">
+      Deprecate old ways of CInteropProcess handling
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_725">
+      <p id="c11r4q_726">
+       <span class="control" id="c11r4q_734">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-62795" id="c11r4q_735" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-62795
+       </a>
+      </p>
+      <p id="c11r4q_727">
+       <span class="control" id="c11r4q_736">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_728">
+       <span class="control" id="c11r4q_737">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_729">
+       <span class="control" id="c11r4q_738">
+        Short summary
+       </span>
+       : the
+       <code class="code" id="c11r4q_739">
+        CInteropProcess
+       </code>
+       task and the
+       <code class="code" id="c11r4q_740">
+        CInteropSettings
+       </code>
+       class now use the
+       <code class="code" id="c11r4q_741">
+        definitionFile
+       </code>
+       property instead of
+       <code class="code" id="c11r4q_742">
+        defFile
+       </code>
+       and
+       <code class="code" id="c11r4q_743">
+        defFileProperty
+       </code>
+       .
+      </p>
+      <p id="c11r4q_730">
+       This eliminates the need to add extra
+       <code class="code" id="c11r4q_744">
+        dependsOn
+       </code>
+       relations between the
+       <code class="code" id="c11r4q_745">
+        CInteropProcess
+       </code>
+       task and the task that generates
+       <code class="code" id="c11r4q_746">
+        defFile
+       </code>
+       when the
+       <code class="code" id="c11r4q_747">
+        defFile
+       </code>
+       is dynamically generated.
+      </p>
+      <p id="c11r4q_731">
+       In Kotlin/Native projects, Gradle now lazily verifies the presence of the
+       <code class="code" id="c11r4q_748">
+        definitionFile
+       </code>
+       property after the connected task has run later in the build process.
+      </p>
+      <p id="c11r4q_732">
+       <span class="control" id="c11r4q_749">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_733">
+       <li class="list__item" id="c11r4q_750">
+        <p id="c11r4q_751">
+         2.0.0:
+         <code class="code" id="c11r4q_752">
+          defFile
+         </code>
+         and
+         <code class="code" id="c11r4q_753">
+          defFileProperty
+         </code>
+         parameters are deprecated
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-kotlin-usek2-gradle-property" id="remove-kotlin-usek2-gradle-property">
+      Remove kotlin.useK2 Gradle property
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_754">
+      <p id="c11r4q_755">
+       <span class="control" id="c11r4q_761">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-64379" id="c11r4q_762" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-64379
+       </a>
+      </p>
+      <p id="c11r4q_756">
+       <span class="control" id="c11r4q_763">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_757">
+       <span class="control" id="c11r4q_764">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c11r4q_758">
+       <span class="control" id="c11r4q_765">
+        Short summary
+       </span>
+       : The
+       <code class="code" id="c11r4q_766">
+        kotlin.useK2
+       </code>
+       Gradle property has been removed. In Kotlin 1.9.*, it could be used to enable the K2 compiler. In Kotlin 2.0.0 and later, the K2 compiler is enabled by default, so the property has no effect and cannot be used to switch back to the previous compiler.
+      </p>
+      <p id="c11r4q_759">
+       <span class="control" id="c11r4q_767">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_760">
+       <li class="list__item" id="c11r4q_768">
+        <p id="c11r4q_770">
+         1.8.20: the
+         <code class="code" id="c11r4q_771">
+          kotlin.useK2
+         </code>
+         Gradle property is deprecated
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_769">
+        <p id="c11r4q_772">
+         2.0.0: the
+         <code class="code" id="c11r4q_773">
+          kotlin.useK2
+         </code>
+         Gradle property is removed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-deprecated-platform-plugin-ids" id="remove-deprecated-platform-plugin-ids">
+      Remove deprecated platform plugin IDs
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_774">
+      <p id="c11r4q_775">
+       <span class="control" id="c11r4q_782">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-65187" id="c11r4q_783" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-65187
+       </a>
+      </p>
+      <p id="c11r4q_776">
+       <span class="control" id="c11r4q_784">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_777">
+       <span class="control" id="c11r4q_785">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_778">
+       <span class="control" id="c11r4q_786">
+        Short summary
+       </span>
+       : support for these platform plugin IDs have been removed:
+      </p>
+      <ul class="list _bullet" id="c11r4q_779">
+       <li class="list__item" id="c11r4q_787">
+        <p id="c11r4q_793">
+         <code class="code" id="c11r4q_794">
+          kotlin-platform-android
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_788">
+        <p id="c11r4q_795">
+         <code class="code" id="c11r4q_796">
+          kotlin-platform-jvm
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_789">
+        <p id="c11r4q_797">
+         <code class="code" id="c11r4q_798">
+          kotlin-platform-js
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_790">
+        <p id="c11r4q_799">
+         <code class="code" id="c11r4q_800">
+          org.jetbrains.kotlin.platform.android
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_791">
+        <p id="c11r4q_801">
+         <code class="code" id="c11r4q_802">
+          org.jetbrains.kotlin.platform.jvm
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_792">
+        <p id="c11r4q_803">
+         <code class="code" id="c11r4q_804">
+          org.jetbrains.kotlin.platform.js
+         </code>
+        </p>
+       </li>
+      </ul>
+      <p id="c11r4q_780">
+       <span class="control" id="c11r4q_805">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_781">
+       <li class="list__item" id="c11r4q_806">
+        <p id="c11r4q_808">
+         1.3: the platform plugin IDs are deprecated
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_807">
+        <p id="c11r4q_809">
+         2.0.0: the platform plugin IDs are no longer supported
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-outputfile-javascript-compiler-option" id="remove-outputfile-javascript-compiler-option">
+      Remove outputFile JavaScript compiler option
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c11r4q_810">
+      <p id="c11r4q_811">
+       <span class="control" id="c11r4q_817">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-61116" id="c11r4q_818" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-61116
+       </a>
+      </p>
+      <p id="c11r4q_812">
+       <span class="control" id="c11r4q_819">
+        Component
+       </span>
+       : Gradle
+      </p>
+      <p id="c11r4q_813">
+       <span class="control" id="c11r4q_820">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c11r4q_814">
+       <span class="control" id="c11r4q_821">
+        Short summary
+       </span>
+       : The
+       <code class="code" id="c11r4q_822">
+        outputFile
+       </code>
+       JavaScript compiler option has been removed. Instead, you can use the
+       <code class="code" id="c11r4q_823">
+        destinationDirectory
+       </code>
+       property of the
+       <code class="code" id="c11r4q_824">
+        Kotlin2JsCompile
+       </code>
+       task to specify the directory where the compiled JavaScript output files are written.
+      </p>
+      <p id="c11r4q_815">
+       <span class="control" id="c11r4q_825">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c11r4q_816">
+       <li class="list__item" id="c11r4q_826">
+        <p id="c11r4q_828">
+         1.9.25: the
+         <code class="code" id="c11r4q_829">
+          outputFile
+         </code>
+         compiler option is deprecated
+        </p>
+       </li>
+       <li class="list__item" id="c11r4q_827">
+        <p id="c11r4q_830">
+         2.0.0: the
+         <code class="code" id="c11r4q_831">
+          outputFile
+         </code>
+         compiler option is removed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

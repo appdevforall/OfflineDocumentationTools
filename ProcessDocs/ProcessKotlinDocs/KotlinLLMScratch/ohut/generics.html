@@ -1,0 +1,1421 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="generics" id="generics.md">
+    Generics: in, out, where
+   </h1>
+   <p id="f0yxca_2">
+    Classes in Kotlin can have type parameters, just like in Java:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    class Box&lt;T&gt;(t: T) {
+    var value = t
+}
+   </div>
+   <p id="f0yxca_4">
+    To create an instance of such a class, simply provide the type arguments:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    val box: Box&lt;Int&gt; = Box&lt;Int&gt;(1)
+   </div>
+   <p id="f0yxca_6">
+    But if the parameters can be inferred, for example, from the constructor arguments, you can omit the type arguments:
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    val box = Box(1) // 1 has type Int, so the compiler figures out that it is Box&lt;Int&gt;
+   </div>
+   <section class="chapter">
+    <h2 data-toc="variance" id="variance">
+     Variance
+    </h2>
+    <p id="f0yxca_15">
+     One of the trickiest aspects of Java's type system is the wildcard types (see
+     <a data-external="true" href="http://www.angelikalanger.com/GenericsFAQ/JavaGenericsFAQ.html" id="f0yxca_18" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Java Generics FAQ
+     </a>
+     ). Kotlin doesn't have these. Instead, Kotlin has declaration-site variance and type projections.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="variance-and-wildcards-in-java" id="variance-and-wildcards-in-java">
+      Variance and wildcards in Java
+     </h3>
+     <p id="f0yxca_19">
+      Let's think about why Java needs these mysterious wildcards. First, generic types in Java are
+      <span class="emphasis" id="f0yxca_34">
+       invariant
+      </span>
+      , meaning that
+      <code class="code" id="f0yxca_35">
+       List&lt;String&gt;
+      </code>
+      is
+      <span class="emphasis" id="f0yxca_36">
+       not
+      </span>
+      a subtype of
+      <code class="code" id="f0yxca_37">
+       List&lt;Object&gt;
+      </code>
+      . If
+      <code class="code" id="f0yxca_38">
+       List
+      </code>
+      were not
+      <span class="emphasis" id="f0yxca_39">
+       invariant
+      </span>
+      , it would have been no better than Java's arrays, as the following code would have compiled but caused an exception at runtime:
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+List&lt;String&gt; strs = new ArrayList&lt;String&gt;();
+
+// Java reports a type mismatch here at compile-time.
+List&lt;Object&gt; objs = strs;
+
+// What if it didn't?
+// We would be able to put an Integer into a list of Strings.
+objs.add(1);
+
+// And then at runtime, Java would throw
+// a ClassCastException: Integer cannot be cast to String
+String s = strs.get(0);
+     </div>
+     <p id="f0yxca_21">
+      Java prohibits such things to guarantee runtime safety. But this has implications. For example, consider the
+      <code class="code" id="f0yxca_40">
+       addAll()
+      </code>
+      method from the
+      <code class="code" id="f0yxca_41">
+       Collection
+      </code>
+      interface. What's the signature of this method? Intuitively, you'd write it this way:
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+interface Collection&lt;E&gt; ... {
+    void addAll(Collection&lt;E&gt; items);
+}
+     </div>
+     <p id="f0yxca_23">
+      But then, you would not be able to do the following (which is perfectly safe):
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+
+// The following would not compile with the naive declaration of addAll:
+// Collection&lt;String&gt; is not a subtype of Collection&lt;Object&gt;
+void copyAll(Collection&lt;Object&gt; to, Collection&lt;String&gt; from) {
+    to.addAll(from);
+}
+     </div>
+     <p id="f0yxca_25">
+      That's why the actual signature of
+      <code class="code" id="f0yxca_42">
+       addAll()
+      </code>
+      is the following:
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+interface Collection&lt;E&gt; ... {
+    void addAll(Collection&lt;? extends E&gt; items);
+}
+     </div>
+     <p id="f0yxca_27">
+      The
+      <span class="emphasis" id="f0yxca_43">
+       wildcard type argument
+      </span>
+      <code class="code" id="f0yxca_44">
+       ? extends E
+      </code>
+      indicates that this method accepts a collection of objects of
+      <code class="code" id="f0yxca_45">
+       E
+      </code>
+      <span class="emphasis" id="f0yxca_46">
+       or a subtype of
+      </span>
+      <code class="code" id="f0yxca_47">
+       E
+      </code>
+      , not just
+      <code class="code" id="f0yxca_48">
+       E
+      </code>
+      itself. This means that you can safely
+      <span class="emphasis" id="f0yxca_49">
+       read
+      </span>
+      <code class="code" id="f0yxca_50">
+       E
+      </code>
+      's from items (elements of this collection are instances of a subclass of E), but
+      <span class="emphasis" id="f0yxca_51">
+       cannot write
+      </span>
+      to it as you don't know what objects comply with that unknown subtype of
+      <code class="code" id="f0yxca_52">
+       E
+      </code>
+      . In return for this limitation, you get the desired behavior:
+      <code class="code" id="f0yxca_53">
+       Collection&lt;String&gt;
+      </code>
+      <span class="emphasis" id="f0yxca_54">
+       is
+      </span>
+      a subtype of
+      <code class="code" id="f0yxca_55">
+       Collection&lt;? extends Object&gt;
+      </code>
+      . In other words, the wildcard with an
+      <span class="emphasis" id="f0yxca_56">
+       extends
+      </span>
+      -bound (
+      <span class="emphasis" id="f0yxca_57">
+       upper
+      </span>
+      bound) makes the type
+      <span class="emphasis" id="f0yxca_58">
+       covariant
+      </span>
+      .
+     </p>
+     <p id="f0yxca_28">
+      The key to understanding why this works is rather simple: if you can only
+      <span class="emphasis" id="f0yxca_59">
+       take
+      </span>
+      items from a collection, then using a collection of
+      <code class="code" id="f0yxca_60">
+       String
+      </code>
+      s and reading
+      <code class="code" id="f0yxca_61">
+       Object
+      </code>
+      s from it is fine. Conversely, if you can only
+      <span class="emphasis" id="f0yxca_62">
+       put
+      </span>
+      items into the collection, it's okay to take a collection of
+      <code class="code" id="f0yxca_63">
+       Object
+      </code>
+      s and put
+      <code class="code" id="f0yxca_64">
+       String
+      </code>
+      s into it: in Java there is
+      <code class="code" id="f0yxca_65">
+       List&lt;? super String&gt;
+      </code>
+      , which accepts
+      <code class="code" id="f0yxca_66">
+       String
+      </code>
+      s or any of its supertypes.
+     </p>
+     <p id="f0yxca_29">
+      The latter is called
+      <span class="emphasis" id="f0yxca_67">
+       contravariance
+      </span>
+      , and you can only call methods that take
+      <code class="code" id="f0yxca_68">
+       String
+      </code>
+      as an argument on
+      <code class="code" id="f0yxca_69">
+       List&lt;? super String&gt;
+      </code>
+      (for example, you can call
+      <code class="code" id="f0yxca_70">
+       add(String)
+      </code>
+      or
+      <code class="code" id="f0yxca_71">
+       set(int, String)
+      </code>
+      ). If you call something that returns
+      <code class="code" id="f0yxca_72">
+       T
+      </code>
+      in
+      <code class="code" id="f0yxca_73">
+       List&lt;T&gt;
+      </code>
+      , you don't get a
+      <code class="code" id="f0yxca_74">
+       String
+      </code>
+      , but rather an
+      <code class="code" id="f0yxca_75">
+       Object
+      </code>
+      .
+     </p>
+     <p id="f0yxca_30">
+      Joshua Bloch, in his book
+      <a data-external="true" href="http://www.oracle.com/technetwork/java/effectivejava-136174.html" id="f0yxca_76" rel="noopener noreferrer" style="color: red;" target="_blank">
+       Effective Java, 3rd Edition
+      </a>
+      , explains the problem well (Item 31: "Use bounded wildcards to increase API flexibility"). He gives the name
+      <span class="emphasis" id="f0yxca_77">
+       Producers
+      </span>
+      to objects you only
+      <span class="emphasis" id="f0yxca_78">
+       read from
+      </span>
+      and
+      <span class="emphasis" id="f0yxca_79">
+       Consumers
+      </span>
+      to those you only
+      <span class="emphasis" id="f0yxca_80">
+       write to
+      </span>
+      . He recommends:
+     </p>
+     <aside class="prompt" data-title="" data-type="tip" id="f0yxca_31">
+      <p id="f0yxca_81">
+       "For maximum flexibility, use wildcard types on input parameters that represent producers or consumers."
+      </p>
+     </aside>
+     <p id="f0yxca_32">
+      He then proposes the following mnemonic:
+      <span class="emphasis" id="f0yxca_82">
+       PECS
+      </span>
+      stands for
+      <span class="emphasis" id="f0yxca_83">
+       Producer-Extends, Consumer-Super.
+      </span>
+     </p>
+     <aside class="prompt" data-title="" data-type="note" id="f0yxca_33">
+      <p id="f0yxca_84">
+       If you use a producer-object, say,
+       <code class="code" id="f0yxca_86">
+        List&lt;? extends Foo&gt;
+       </code>
+       , you are not allowed to call
+       <code class="code" id="f0yxca_87">
+        add()
+       </code>
+       or
+       <code class="code" id="f0yxca_88">
+        set()
+       </code>
+       on this object, but this does not mean that it is
+       <span class="emphasis" id="f0yxca_89">
+        immutable
+       </span>
+       : for example, nothing prevents you from calling
+       <code class="code" id="f0yxca_90">
+        clear()
+       </code>
+       to remove all the items from the list, since
+       <code class="code" id="f0yxca_91">
+        clear()
+       </code>
+       does not take any parameters at all.
+      </p>
+      <p id="f0yxca_85">
+       The only thing guaranteed by wildcards (or other types of variance) is
+       <span class="emphasis" id="f0yxca_92">
+        type safety
+       </span>
+       . Immutability is a completely different story.
+      </p>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="declaration-site-variance" id="declaration-site-variance">
+      Declaration-site variance
+     </h3>
+     <p id="f0yxca_93">
+      Let's suppose that there is a generic interface
+      <code class="code" id="f0yxca_107">
+       Source&lt;T&gt;
+      </code>
+      that does not have any methods that take
+      <code class="code" id="f0yxca_108">
+       T
+      </code>
+      as a parameter, only methods that return
+      <code class="code" id="f0yxca_109">
+       T
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+interface Source&lt;T&gt; {
+    T nextT();
+}
+     </div>
+     <p id="f0yxca_95">
+      Then, it would be perfectly safe to store a reference to an instance of
+      <code class="code" id="f0yxca_110">
+       Source&lt;String&gt;
+      </code>
+      in a variable of type
+      <code class="code" id="f0yxca_111">
+       Source&lt;Object&gt;
+      </code>
+      - there are no consumer-methods to call. But Java does not know this, and still prohibits it:
+     </p>
+     <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      // Java
+void demo(Source&lt;String&gt; strs) {
+    Source&lt;Object&gt; objects = strs; // !!! Not allowed in Java
+    // ...
+}
+     </div>
+     <p id="f0yxca_97">
+      To fix this, you should declare objects of type
+      <code class="code" id="f0yxca_112">
+       Source&lt;? extends Object&gt;
+      </code>
+      . Doing so is meaningless, because you can call all the same methods on such a variable as before, so there's no value added by the more complex type. But the compiler does not know that.
+     </p>
+     <p id="f0yxca_98">
+      In Kotlin, there is a way to explain this sort of thing to the compiler. This is called
+      <span class="emphasis" id="f0yxca_113">
+       declaration-site variance
+      </span>
+      : you can annotate the
+      <span class="emphasis" id="f0yxca_114">
+       type parameter
+      </span>
+      <code class="code" id="f0yxca_115">
+       T
+      </code>
+      of
+      <code class="code" id="f0yxca_116">
+       Source
+      </code>
+      to make sure that it is only
+      <span class="emphasis" id="f0yxca_117">
+       returned
+      </span>
+      (produced) from members of
+      <code class="code" id="f0yxca_118">
+       Source&lt;T&gt;
+      </code>
+      , and never consumed. To do this, use the
+      <code class="code" id="f0yxca_119">
+       out
+      </code>
+      modifier:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      interface Source&lt;out T&gt; {
+    fun nextT(): T
+}
+
+fun demo(strs: Source&lt;String&gt;) {
+    val objects: Source&lt;Any&gt; = strs // This is OK, since T is an out-parameter
+    // ...
+}
+     </div>
+     <p id="f0yxca_100">
+      The general rule is this: when a type parameter
+      <code class="code" id="f0yxca_120">
+       T
+      </code>
+      of a class
+      <code class="code" id="f0yxca_121">
+       C
+      </code>
+      is declared
+      <code class="code" id="f0yxca_122">
+       out
+      </code>
+      , it may occur only in the
+      <span class="emphasis" id="f0yxca_123">
+       out
+      </span>
+      -position in the members of
+      <code class="code" id="f0yxca_124">
+       C
+      </code>
+      , but in return
+      <code class="code" id="f0yxca_125">
+       C&lt;Base&gt;
+      </code>
+      can safely be a supertype of
+      <code class="code" id="f0yxca_126">
+       C&lt;Derived&gt;
+      </code>
+      .
+     </p>
+     <p id="f0yxca_101">
+      In other words, you can say that the class
+      <code class="code" id="f0yxca_127">
+       C
+      </code>
+      is
+      <span class="emphasis" id="f0yxca_128">
+       covariant
+      </span>
+      in the parameter
+      <code class="code" id="f0yxca_129">
+       T
+      </code>
+      , or that
+      <code class="code" id="f0yxca_130">
+       T
+      </code>
+      is a
+      <span class="emphasis" id="f0yxca_131">
+       covariant
+      </span>
+      type parameter. You can think of
+      <code class="code" id="f0yxca_132">
+       C
+      </code>
+      as being a
+      <span class="emphasis" id="f0yxca_133">
+       producer
+      </span>
+      of
+      <code class="code" id="f0yxca_134">
+       T
+      </code>
+      's, and NOT a
+      <span class="emphasis" id="f0yxca_135">
+       consumer
+      </span>
+      of
+      <code class="code" id="f0yxca_136">
+       T
+      </code>
+      's.
+     </p>
+     <p id="f0yxca_102">
+      The
+      <code class="code" id="f0yxca_137">
+       out
+      </code>
+      modifier is called a
+      <span class="emphasis" id="f0yxca_138">
+       variance annotation
+      </span>
+      , and since it is provided at the type parameter declaration site, it provides
+      <span class="emphasis" id="f0yxca_139">
+       declaration-site variance
+      </span>
+      . This is in contrast with Java's
+      <span class="emphasis" id="f0yxca_140">
+       use-site variance
+      </span>
+      where wildcards in the type usages make the types covariant.
+     </p>
+     <p id="f0yxca_103">
+      In addition to
+      <code class="code" id="f0yxca_141">
+       out
+      </code>
+      , Kotlin provides a complementary variance annotation:
+      <code class="code" id="f0yxca_142">
+       in
+      </code>
+      . It makes a type parameter
+      <span class="emphasis" id="f0yxca_143">
+       contravariant
+      </span>
+      , meaning it can only be consumed and never produced. A good example of a contravariant type is
+      <code class="code" id="f0yxca_144">
+       Comparable
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      interface Comparable&lt;in T&gt; {
+    operator fun compareTo(other: T): Int
+}
+
+fun demo(x: Comparable&lt;Number&gt;) {
+    x.compareTo(1.0) // 1.0 has type Double, which is a subtype of Number
+    // Thus, you can assign x to a variable of type Comparable&lt;Double&gt;
+    val y: Comparable&lt;Double&gt; = x // OK!
+}
+     </div>
+     <p id="f0yxca_105">
+      The words
+      <span class="emphasis" id="f0yxca_145">
+       in
+      </span>
+      and
+      <span class="emphasis" id="f0yxca_146">
+       out
+      </span>
+      seem to be self-explanatory (as they've already been used successfully in C# for quite some time), and so the mnemonic mentioned above is not really needed. It can in fact be rephrased at a higher level of abstraction:
+     </p>
+     <p id="f0yxca_106">
+      <span class="control" id="f0yxca_147">
+       <a data-external="true" href="https://en.wikipedia.org/wiki/Existentialism" id="f0yxca_148" rel="noopener noreferrer" style="color: red;" target="_blank">
+        The Existential
+       </a>
+       Transformation: Consumer in, Producer out!
+      </span>
+      :-)
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="type-projections" id="type-projections">
+     Type projections
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="use-site-variance-type-projections" id="use-site-variance-type-projections">
+      Use-site variance: type projections
+     </h3>
+     <p id="f0yxca_151">
+      It is very easy to declare a type parameter
+      <code class="code" id="f0yxca_164">
+       T
+      </code>
+      as
+      <code class="code" id="f0yxca_165">
+       out
+      </code>
+      and avoid trouble with subtyping on the use site, but some classes
+      <span class="emphasis" id="f0yxca_166">
+       can't
+      </span>
+      actually be restricted to only return
+      <code class="code" id="f0yxca_167">
+       T
+      </code>
+      's! A good example of this is
+      <code class="code" id="f0yxca_168">
+       Array
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class Array&lt;T&gt;(val size: Int) {
+    operator fun get(index: Int): T { ... }
+    operator fun set(index: Int, value: T) { ... }
+}
+     </div>
+     <p id="f0yxca_153">
+      This class can be neither co- nor contravariant in
+      <code class="code" id="f0yxca_169">
+       T
+      </code>
+      . And this imposes certain inflexibilities. Consider the following function:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun copy(from: Array&lt;Any&gt;, to: Array&lt;Any&gt;) {
+    assert(from.size == to.size)
+    for (i in from.indices)
+        to[i] = from[i]
+}
+     </div>
+     <p id="f0yxca_155">
+      This function is supposed to copy items from one array to another. Let's try to apply it in practice:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val ints: Array&lt;Int&gt; = arrayOf(1, 2, 3)
+val any = Array&lt;Any&gt;(3) { "" } 
+copy(ints, any)
+//   ^ type is Array&lt;Int&gt; but Array&lt;Any&gt; was expected
+     </div>
+     <p id="f0yxca_157">
+      Here you run into the same familiar problem:
+      <code class="code" id="f0yxca_170">
+       Array&lt;T&gt;
+      </code>
+      is
+      <span class="emphasis" id="f0yxca_171">
+       invariant
+      </span>
+      in
+      <code class="code" id="f0yxca_172">
+       T
+      </code>
+      , and so neither
+      <code class="code" id="f0yxca_173">
+       Array&lt;Int&gt;
+      </code>
+      nor
+      <code class="code" id="f0yxca_174">
+       Array&lt;Any&gt;
+      </code>
+      is a subtype of the other. Why not? Again, this is because
+      <code class="code" id="f0yxca_175">
+       copy
+      </code>
+      could have an unexpected behavior, for example, it may attempt to write a
+      <code class="code" id="f0yxca_176">
+       String
+      </code>
+      to
+      <code class="code" id="f0yxca_177">
+       from
+      </code>
+      , and if you actually pass an array of
+      <code class="code" id="f0yxca_178">
+       Int
+      </code>
+      there, a
+      <code class="code" id="f0yxca_179">
+       ClassCastException
+      </code>
+      will be thrown later.
+     </p>
+     <p id="f0yxca_158">
+      To prohibit the
+      <code class="code" id="f0yxca_180">
+       copy
+      </code>
+      function from
+      <span class="emphasis" id="f0yxca_181">
+       writing
+      </span>
+      to
+      <code class="code" id="f0yxca_182">
+       from
+      </code>
+      , you can do the following:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun copy(from: Array&lt;out Any&gt;, to: Array&lt;Any&gt;) { ... }
+     </div>
+     <p id="f0yxca_160">
+      This is
+      <span class="emphasis" id="f0yxca_183">
+       type projection
+      </span>
+      , which means that
+      <code class="code" id="f0yxca_184">
+       from
+      </code>
+      is not a simple array, but is rather a restricted (
+      <span class="emphasis" id="f0yxca_185">
+       projected
+      </span>
+      ) one. You can only call methods that return the type parameter
+      <code class="code" id="f0yxca_186">
+       T
+      </code>
+      , which in this case means that you can only call
+      <code class="code" id="f0yxca_187">
+       get()
+      </code>
+      . This is our approach to
+      <span class="emphasis" id="f0yxca_188">
+       use-site variance
+      </span>
+      , and it corresponds to Java's
+      <code class="code" id="f0yxca_189">
+       Array&lt;? extends Object&gt;
+      </code>
+      while being slightly simpler.
+     </p>
+     <p id="f0yxca_161">
+      You can project a type with
+      <code class="code" id="f0yxca_190">
+       in
+      </code>
+      as well:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun fill(dest: Array&lt;in String&gt;, value: String) { ... }
+     </div>
+     <p id="f0yxca_163">
+      <code class="code" id="f0yxca_191">
+       Array&lt;in String&gt;
+      </code>
+      corresponds to Java's
+      <code class="code" id="f0yxca_192">
+       Array&lt;? super String&gt;
+      </code>
+      . This means that you can pass an array of
+      <code class="code" id="f0yxca_193">
+       String
+      </code>
+      ,
+      <code class="code" id="f0yxca_194">
+       CharSequence
+      </code>
+      , or
+      <code class="code" id="f0yxca_195">
+       Object
+      </code>
+      to the
+      <code class="code" id="f0yxca_196">
+       fill()
+      </code>
+      function.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="star-projections" id="star-projections">
+      Star-projections
+     </h3>
+     <p id="f0yxca_197">
+      Sometimes you want to say that you know nothing about the type argument, but you still want to use it in a safe way. The safe way here is to define such a projection of the generic type, that every concrete instantiation of that generic type will be a subtype of that projection.
+     </p>
+     <p id="f0yxca_198">
+      Kotlin provides so-called
+      <span class="emphasis" id="f0yxca_203">
+       star-projection
+      </span>
+      syntax for this:
+     </p>
+     <ul class="list _bullet" id="f0yxca_199">
+      <li class="list__item" id="f0yxca_204">
+       <p id="f0yxca_207">
+        For
+        <code class="code" id="f0yxca_208">
+         Foo&lt;out T : TUpper&gt;
+        </code>
+        , where
+        <code class="code" id="f0yxca_209">
+         T
+        </code>
+        is a covariant type parameter with the upper bound
+        <code class="code" id="f0yxca_210">
+         TUpper
+        </code>
+        ,
+        <code class="code" id="f0yxca_211">
+         Foo&lt;*&gt;
+        </code>
+        is equivalent to
+        <code class="code" id="f0yxca_212">
+         Foo&lt;out TUpper&gt;
+        </code>
+        . This means that when the
+        <code class="code" id="f0yxca_213">
+         T
+        </code>
+        is unknown you can safely
+        <span class="emphasis" id="f0yxca_214">
+         read
+        </span>
+        values of
+        <code class="code" id="f0yxca_215">
+         TUpper
+        </code>
+        from
+        <code class="code" id="f0yxca_216">
+         Foo&lt;*&gt;
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="f0yxca_205">
+       <p id="f0yxca_217">
+        For
+        <code class="code" id="f0yxca_218">
+         Foo&lt;in T&gt;
+        </code>
+        , where
+        <code class="code" id="f0yxca_219">
+         T
+        </code>
+        is a contravariant type parameter,
+        <code class="code" id="f0yxca_220">
+         Foo&lt;*&gt;
+        </code>
+        is equivalent to
+        <code class="code" id="f0yxca_221">
+         Foo&lt;in Nothing&gt;
+        </code>
+        . This means there is nothing you can
+        <span class="emphasis" id="f0yxca_222">
+         write
+        </span>
+        to
+        <code class="code" id="f0yxca_223">
+         Foo&lt;*&gt;
+        </code>
+        in a safe way when
+        <code class="code" id="f0yxca_224">
+         T
+        </code>
+        is unknown.
+       </p>
+      </li>
+      <li class="list__item" id="f0yxca_206">
+       <p id="f0yxca_225">
+        For
+        <code class="code" id="f0yxca_226">
+         Foo&lt;T : TUpper&gt;
+        </code>
+        , where
+        <code class="code" id="f0yxca_227">
+         T
+        </code>
+        is an invariant type parameter with the upper bound
+        <code class="code" id="f0yxca_228">
+         TUpper
+        </code>
+        ,
+        <code class="code" id="f0yxca_229">
+         Foo&lt;*&gt;
+        </code>
+        is equivalent to
+        <code class="code" id="f0yxca_230">
+         Foo&lt;out TUpper&gt;
+        </code>
+        for reading values and to
+        <code class="code" id="f0yxca_231">
+         Foo&lt;in Nothing&gt;
+        </code>
+        for writing values.
+       </p>
+      </li>
+     </ul>
+     <p id="f0yxca_200">
+      If a generic type has several type parameters, each of them can be projected independently. For example, if the type is declared as
+      <code class="code" id="f0yxca_232">
+       interface Function&lt;in T, out U&gt;
+      </code>
+      you could use the following star-projections:
+     </p>
+     <ul class="list _bullet" id="f0yxca_201">
+      <li class="list__item" id="f0yxca_233">
+       <p id="f0yxca_236">
+        <code class="code" id="f0yxca_237">
+         Function&lt;*, String&gt;
+        </code>
+        means
+        <code class="code" id="f0yxca_238">
+         Function&lt;in Nothing, String&gt;
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="f0yxca_234">
+       <p id="f0yxca_239">
+        <code class="code" id="f0yxca_240">
+         Function&lt;Int, *&gt;
+        </code>
+        means
+        <code class="code" id="f0yxca_241">
+         Function&lt;Int, out Any?&gt;
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="f0yxca_235">
+       <p id="f0yxca_242">
+        <code class="code" id="f0yxca_243">
+         Function&lt;*, *&gt;
+        </code>
+        means
+        <code class="code" id="f0yxca_244">
+         Function&lt;in Nothing, out Any?&gt;
+        </code>
+        .
+       </p>
+      </li>
+     </ul>
+     <aside class="prompt" data-title="" data-type="note" id="f0yxca_202">
+      <p id="f0yxca_245">
+       Star-projections are very much like Java's raw types, but safe.
+      </p>
+     </aside>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="generic-functions" id="generic-functions">
+     Generic functions
+    </h2>
+    <p id="f0yxca_246">
+     Classes aren't the only declarations that can have type parameters. Functions can, too. Type parameters are placed
+     <span class="emphasis" id="f0yxca_252">
+      before
+     </span>
+     the name of the function:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun &lt;T&gt; singletonList(item: T): List&lt;T&gt; {
+    // ...
+}
+
+fun &lt;T&gt; T.basicToString(): String { // extension function
+    // ...
+}
+    </div>
+    <p id="f0yxca_248">
+     To call a generic function, specify the type arguments at the call site
+     <span class="emphasis" id="f0yxca_253">
+      after
+     </span>
+     the name of the function:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val l = singletonList&lt;Int&gt;(1)
+    </div>
+    <p id="f0yxca_250">
+     Type arguments can be omitted if they can be inferred from the context, so the following example works as well:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val l = singletonList(1)
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="generic-constraints" id="generic-constraints">
+     Generic constraints
+    </h2>
+    <p id="f0yxca_254">
+     The set of all possible types that can be substituted for a given type parameter may be restricted by
+     <span class="emphasis" id="f0yxca_256">
+      generic constraints
+     </span>
+     .
+    </p>
+    <section class="chapter">
+     <h3 data-toc="upper-bounds" id="upper-bounds">
+      Upper bounds
+     </h3>
+     <p id="f0yxca_257">
+      The most common type of constraint is an
+      <span class="emphasis" id="f0yxca_264">
+       upper bound
+      </span>
+      , which corresponds to Java's
+      <code class="code" id="f0yxca_265">
+       extends
+      </code>
+      keyword:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun &lt;T : Comparable&lt;T&gt;&gt; sort(list: List&lt;T&gt;) {  ... }
+     </div>
+     <p id="f0yxca_259">
+      The type specified after a colon is the
+      <span class="emphasis" id="f0yxca_266">
+       upper bound
+      </span>
+      , indicating that only a subtype of
+      <code class="code" id="f0yxca_267">
+       Comparable&lt;T&gt;
+      </code>
+      can be substituted for
+      <code class="code" id="f0yxca_268">
+       T
+      </code>
+      . For example:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      sort(listOf(1, 2, 3)) // OK. Int is a subtype of Comparable&lt;Int&gt;
+sort(listOf(HashMap&lt;Int, String&gt;())) // Error: HashMap&lt;Int, String&gt; is not a subtype of Comparable&lt;HashMap&lt;Int, String&gt;&gt;
+     </div>
+     <p id="f0yxca_261">
+      The default upper bound (if there was none specified) is
+      <code class="code" id="f0yxca_269">
+       Any?
+      </code>
+      . Only one upper bound can be specified inside the angle brackets. If the same type parameter needs more than one upper bound, you need a separate
+      <span class="emphasis" id="f0yxca_270">
+       where
+      </span>
+      -clause:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun &lt;T&gt; copyWhenGreater(list: List&lt;T&gt;, threshold: T): List&lt;String&gt;
+    where T : CharSequence,
+          T : Comparable&lt;T&gt; {
+    return list.filter { it &gt; threshold }.map { it.toString() }
+}
+     </div>
+     <p id="f0yxca_263">
+      The passed type must satisfy all conditions of the
+      <code class="code" id="f0yxca_271">
+       where
+      </code>
+      clause simultaneously. In the above example, the
+      <code class="code" id="f0yxca_272">
+       T
+      </code>
+      type must implement
+      <span class="emphasis" id="f0yxca_273">
+       both
+      </span>
+      <code class="code" id="f0yxca_274">
+       CharSequence
+      </code>
+      and
+      <code class="code" id="f0yxca_275">
+       Comparable
+      </code>
+      .
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="definitely-non-nullable-types" id="definitely-non-nullable-types">
+     Definitely non-nullable types
+    </h2>
+    <p id="f0yxca_276">
+     To make interoperability with generic Java classes and interfaces easier, Kotlin supports declaring a generic type parameter as
+     <span class="control" id="f0yxca_284">
+      definitely non-nullable
+     </span>
+     .
+    </p>
+    <p id="f0yxca_277">
+     To declare a generic type
+     <code class="code" id="f0yxca_285">
+      T
+     </code>
+     as definitely non-nullable, declare the type with
+     <code class="code" id="f0yxca_286">
+      &amp; Any
+     </code>
+     . For example:
+     <code class="code" id="f0yxca_287">
+      T &amp; Any
+     </code>
+     .
+    </p>
+    <p id="f0yxca_278">
+     A definitely non-nullable type must have a nullable
+     <a data-tooltip="The most common type of constraint is an upper bound, which corresponds to Java's extends keyword:" href="#upper-bounds" id="f0yxca_288" style="color: blue;">
+      upper bound
+     </a>
+     .
+    </p>
+    <p id="f0yxca_279">
+     The most common use case for declaring definitely non-nullable types is when you want to override a Java method that contains
+     <code class="code" id="f0yxca_289">
+      @NotNull
+     </code>
+     as an argument. For example, consider the
+     <code class="code" id="f0yxca_290">
+      load()
+     </code>
+     method:
+    </p>
+    <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     import org.jetbrains.annotations.*;
+
+public interface Game&lt;T&gt; {
+    public T save(T x) {}
+    @NotNull
+    public T load(@NotNull T x) {}
+}
+    </div>
+    <p id="f0yxca_281">
+     To override the
+     <code class="code" id="f0yxca_291">
+      load()
+     </code>
+     method in Kotlin successfully, you need
+     <code class="code" id="f0yxca_292">
+      T1
+     </code>
+     to be declared as definitely non-nullable:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface ArcadeGame&lt;T1&gt; : Game&lt;T1&gt; {
+    override fun save(x: T1): T1
+    // T1 is definitely non-nullable
+    override fun load(x: T1 &amp; Any): T1 &amp; Any
+}
+    </div>
+    <p id="f0yxca_283">
+     When working only with Kotlin, it's unlikely that you will need to declare definitely non-nullable types explicitly because Kotlin's type inference takes care of this for you.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="type-erasure" id="type-erasure">
+     Type erasure
+    </h2>
+    <p id="f0yxca_293">
+     The type safety checks that Kotlin performs for generic declaration usages are done at compile time. At runtime, the instances of generic types do not hold any information about their actual type arguments. The type information is said to be
+     <span class="emphasis" id="f0yxca_296">
+      erased
+     </span>
+     . For example, the instances of
+     <code class="code" id="f0yxca_297">
+      Foo&lt;Bar&gt;
+     </code>
+     and
+     <code class="code" id="f0yxca_298">
+      Foo&lt;Baz?&gt;
+     </code>
+     are erased to just
+     <code class="code" id="f0yxca_299">
+      Foo&lt;*&gt;
+     </code>
+     .
+    </p>
+    <section class="chapter">
+     <h3 data-toc="generics-type-checks-and-casts" id="generics-type-checks-and-casts">
+      Generics type checks and casts
+     </h3>
+     <p id="f0yxca_300">
+      Due to the type erasure, there is no general way to check whether an instance of a generic type was created with certain type arguments at runtime, and the compiler prohibits such
+      <code class="code" id="f0yxca_307">
+       is
+      </code>
+      -checks such as
+      <code class="code" id="f0yxca_308">
+       ints is List&lt;Int&gt;
+      </code>
+      or
+      <code class="code" id="f0yxca_309">
+       list is T
+      </code>
+      (type parameter). However, you can check an instance against a star-projected type:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      if (something is List&lt;*&gt;) {
+    something.forEach { println(it) } // The items are typed as `Any?`
+}
+     </div>
+     <p id="f0yxca_302">
+      Similarly, when you already have the type arguments of an instance checked statically (at compile time), you can make an
+      <code class="code" id="f0yxca_310">
+       is
+      </code>
+      -check or a cast that involves the non-generic part of the type. Note that angle brackets are omitted in this case:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun handleStrings(list: MutableList&lt;String&gt;) {
+    if (list is ArrayList) {
+        // `list` is smart-cast to `ArrayList&lt;String&gt;`
+    }
+}
+     </div>
+     <p id="f0yxca_304">
+      The same syntax but with the type arguments omitted can be used for casts that do not take type arguments into account:
+      <code class="code" id="f0yxca_311">
+       list as ArrayList
+      </code>
+      .
+     </p>
+     <p id="f0yxca_305">
+      The type arguments of generic function calls are also only checked at compile time. Inside the function bodies, the type parameters cannot be used for type checks, and type casts to type parameters (
+      <code class="code" id="f0yxca_312">
+       foo as T
+      </code>
+      ) are unchecked. The only exclusion is inline functions with
+      <a data-tooltip="Sometimes you need to access a type passed as a parameter:" href="inline-functions.html#reified-type-parameters" id="f0yxca_313" style="color: blue;">
+       reified type parameters
+      </a>
+      , which have their actual type arguments inlined at each call site. This enables type checks and casts for the type parameters. However, the restrictions described above still apply for instances of generic types used inside checks or casts. For example, in the type check
+      <code class="code" id="f0yxca_314">
+       arg is T
+      </code>
+      , if
+      <code class="code" id="f0yxca_315">
+       arg
+      </code>
+      is an instance of a generic type itself, its type arguments are still erased.
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+inline fun &lt;reified A, reified B&gt; Pair&lt;*, *&gt;.asPairOf(): Pair&lt;A, B&gt;? {
+    if (first !is A || second !is B) return null
+    return first as A to second as B
+}
+
+val somePair: Pair&lt;Any?, Any?&gt; = "items" to listOf(1, 2, 3)
+
+
+val stringToSomething = somePair.asPairOf&lt;String, Any&gt;()
+val stringToInt = somePair.asPairOf&lt;String, Int&gt;()
+val stringToList = somePair.asPairOf&lt;String, List&lt;*&gt;&gt;()
+val stringToStringList = somePair.asPairOf&lt;String, List&lt;String&gt;&gt;() // Compiles but breaks type safety!
+// Expand the sample for more details
+
+//sampleEnd
+
+fun main() {
+    println("stringToSomething = " + stringToSomething)
+    println("stringToInt = " + stringToInt)
+    println("stringToList = " + stringToList)
+    println("stringToStringList = " + stringToStringList)
+    //println(stringToStringList?.second?.forEach() {it.length}) // This will throw ClassCastException as list items are not String
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="unchecked-casts" id="unchecked-casts">
+      Unchecked casts
+     </h3>
+     <p id="f0yxca_316">
+      Type casts to generic types with concrete type arguments such as
+      <code class="code" id="f0yxca_324">
+       foo as List&lt;String&gt;
+      </code>
+      cannot be checked at runtime.
+      <br/>
+      These unchecked casts can be used when type safety is implied by the high-level program logic but cannot be inferred directly by the compiler. See the example below.
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun readDictionary(file: File): Map&lt;String, *&gt; = file.inputStream().use { 
+    TODO("Read a mapping of strings to arbitrary elements.")
+}
+
+// We saved a map with `Int`s into this file
+val intsFile = File("ints.dictionary")
+
+// Warning: Unchecked cast: `Map&lt;String, *&gt;` to `Map&lt;String, Int&gt;`
+val intsDictionary: Map&lt;String, Int&gt; = readDictionary(intsFile) as Map&lt;String, Int&gt;
+     </div>
+     <p id="f0yxca_318">
+      A warning appears for the cast in the last line. The compiler can't fully check it at runtime and provides no guarantee that the values in the map are
+      <code class="code" id="f0yxca_326">
+       Int
+      </code>
+      .
+     </p>
+     <p id="f0yxca_319">
+      To avoid unchecked casts, you can redesign the program structure. In the example above, you could use the
+      <code class="code" id="f0yxca_327">
+       DictionaryReader&lt;T&gt;
+      </code>
+      and
+      <code class="code" id="f0yxca_328">
+       DictionaryWriter&lt;T&gt;
+      </code>
+      interfaces with type-safe implementations for different types. You can introduce reasonable abstractions to move unchecked casts from the call site to the implementation details. Proper use of
+      <a data-tooltip="One of the trickiest aspects of Java's type system is the wildcard types (see Java Generics FAQ). Kotlin doesn't have these. Instead, Kotlin has declaration-site variance and type projections." href="#variance" id="f0yxca_329" style="color: blue;">
+       generic variance
+      </a>
+      can also help.
+     </p>
+     <p id="f0yxca_320">
+      For generic functions, using
+      <a data-tooltip="Sometimes you need to access a type passed as a parameter:" href="inline-functions.html#reified-type-parameters" id="f0yxca_330" style="color: blue;">
+       reified type parameters
+      </a>
+      makes casts like
+      <code class="code" id="f0yxca_331">
+       arg as T
+      </code>
+      checked, unless
+      <code class="code" id="f0yxca_332">
+       arg
+      </code>
+      's type has
+      <span class="emphasis" id="f0yxca_333">
+       its own
+      </span>
+      type arguments that are erased.
+     </p>
+     <p id="f0yxca_321">
+      An unchecked cast warning can be suppressed by
+      <a data-tooltip="Annotations are means of attaching metadata to code. To declare an annotation, put the annotation modifier in front of a class:" href="annotations.html" id="f0yxca_334" style="color: blue;">
+       annotating
+      </a>
+      the statement or the declaration where it occurs with
+      <code class="code" id="f0yxca_335">
+       @Suppress("UNCHECKED_CAST")
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      inline fun &lt;reified T&gt; List&lt;*&gt;.asListOfType(): List&lt;T&gt;? =
+    if (all { it is T })
+        @Suppress("UNCHECKED_CAST")
+        this as List&lt;T&gt; else
+        null
+     </div>
+     <aside class="prompt" data-title="" data-type="note" id="f0yxca_323">
+      <p id="f0yxca_336">
+       <span class="control" id="f0yxca_337">
+        On the JVM
+       </span>
+       :
+       <a data-tooltip="An array is a data structure that holds a fixed number of values of the same type or its subtypes. The most common type of array in Kotlin is the object-type array, represented by the Array class." href="arrays.html" id="f0yxca_338" style="color: blue;">
+        array types
+       </a>
+       (
+       <code class="code" id="f0yxca_339">
+        Array&lt;Foo&gt;
+       </code>
+       ) retain information about the erased type of their elements, and type casts to an array type are partially checked: the nullability and actual type arguments of the element type are still erased. For example, the cast
+       <code class="code" id="f0yxca_340">
+        foo as Array&lt;List&lt;String&gt;?&gt;
+       </code>
+       will succeed if
+       <code class="code" id="f0yxca_341">
+        foo
+       </code>
+       is an array holding any
+       <code class="code" id="f0yxca_342">
+        List&lt;*&gt;
+       </code>
+       , whether it is nullable or not.
+      </p>
+     </aside>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="underscore-operator-for-type-arguments" id="underscore-operator-for-type-arguments">
+     Underscore operator for type arguments
+    </h2>
+    <p id="f0yxca_343">
+     The underscore operator
+     <code class="code" id="f0yxca_345">
+      _
+     </code>
+     can be used for type arguments. Use it to automatically infer a type of the argument when other types are explicitly specified:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     abstract class SomeClass&lt;T&gt; {
+    abstract fun execute() : T
+}
+
+class SomeImplementation : SomeClass&lt;String&gt;() {
+    override fun execute(): String = "Test"
+}
+
+class OtherImplementation : SomeClass&lt;Int&gt;() {
+    override fun execute(): Int = 42
+}
+
+object Runner {
+    inline fun &lt;reified S: SomeClass&lt;T&gt;, T&gt; run() : T {
+        return S::class.java.getDeclaredConstructor().newInstance().execute()
+    }
+}
+
+fun main() {
+    // T is inferred as String because SomeImplementation derives from SomeClass&lt;String&gt;
+    val s = Runner.run&lt;SomeImplementation, _&gt;()
+    assert(s == "Test")
+
+    // T is inferred as Int because OtherImplementation derives from SomeClass&lt;Int&gt;
+    val n = Runner.run&lt;OtherImplementation, _&gt;()
+    assert(n == 42)
+}
+    </div>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

@@ -1,0 +1,667 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="ksp-overview" id="ksp-overview.md">
+    Kotlin Symbol Processing API
+   </h1>
+   <p id="-gxpguw_2">
+    Kotlin Symbol Processing (
+    <span class="emphasis" id="-gxpguw_9">
+     KSP
+    </span>
+    ) is an API that you can use to develop lightweight compiler plugins. KSP provides a simplified compiler plugin API that leverages the power of Kotlin while keeping the learning curve at a minimum. Compared to
+    <a data-tooltip="kapt is in maintenance mode. We are keeping it up-to-date with recent Kotlin and Java releases but have no plans to implement new features. Please use the Kotlin Symbol Processing API (KSP) for annotation processing. See the list of libraries supported by KSP." href="kapt.html" id="-gxpguw_10" style="color: blue;">
+     kapt
+    </a>
+    , annotation processors that use KSP can run up to two times faster.
+   </p>
+   <ul class="list _bullet" id="-gxpguw_3">
+    <li class="list__item" id="-gxpguw_11">
+     <p id="-gxpguw_13">
+      To learn more about how KSP compares to kapt, check out
+      <a data-tooltip="Compiler plugins are powerful metaprogramming tools that can greatly enhance how you write code. Compiler plugins call compilers directly as libraries to analyze and edit input programs. These plugins can also generate output for various uses. For example, they can generate…" href="ksp-why-ksp.html" id="-gxpguw_14" style="color: blue;">
+       why KSP
+      </a>
+      .
+     </p>
+    </li>
+    <li class="list__item" id="-gxpguw_12">
+     <p id="-gxpguw_15">
+      To get started writing a KSP processor, take a look at the
+      <a data-tooltip="For a quick start, you can create your own processor or get a sample one." href="ksp-quickstart.html" id="-gxpguw_16" style="color: blue;">
+       KSP quickstart
+      </a>
+      .
+     </p>
+    </li>
+   </ul>
+   <section class="chapter">
+    <h2 data-toc="overview" id="overview">
+     Overview
+    </h2>
+    <p id="-gxpguw_17">
+     The KSP API processes Kotlin programs idiomatically. KSP understands Kotlin-specific features, such as extension functions, declaration-site variance, and local functions. It also models types explicitly and provides basic type checking, such as equivalence and assign-compatibility.
+    </p>
+    <p id="-gxpguw_18">
+     The API models Kotlin program structures at the symbol level according to
+     <a data-external="true" href="https://kotlinlang.org/docs/reference/grammar.html" id="-gxpguw_25" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Kotlin grammar
+     </a>
+     . When KSP-based plugins process source programs, constructs like classes, class members, functions, and associated parameters are accessible for the processors, while things like
+     <code class="code" id="-gxpguw_26">
+      if
+     </code>
+     blocks and
+     <code class="code" id="-gxpguw_27">
+      for
+     </code>
+     loops are not.
+    </p>
+    <p id="-gxpguw_19">
+     Conceptually, KSP is similar to
+     <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.reflect/-k-type/" id="-gxpguw_28" rel="noopener noreferrer" style="color: red;" target="_blank">
+      KType
+     </a>
+     in Kotlin reflection. The API allows processors to navigate from class declarations to corresponding types with specific type arguments and vice-versa. You can also substitute type arguments, specify variances, apply star projections, and mark nullabilities of types.
+    </p>
+    <p id="-gxpguw_20">
+     Another way to think of KSP is as a preprocessor framework of Kotlin programs. By considering KSP-based plugins as
+     <span class="emphasis" id="-gxpguw_29">
+      symbol processors
+     </span>
+     , or simply
+     <span class="emphasis" id="-gxpguw_30">
+      processors
+     </span>
+     , the data flow in a compilation can be described in the following steps:
+    </p>
+    <ol class="list _decimal" id="-gxpguw_21" type="1">
+     <li class="list__item" id="-gxpguw_31">
+      <p id="-gxpguw_34">
+       Processors read and analyze source programs and resources.
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_32">
+      <p id="-gxpguw_35">
+       Processors generate code or other forms of output.
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_33">
+      <p id="-gxpguw_36">
+       The Kotlin compiler compiles the source programs together with the generated code.
+      </p>
+     </li>
+    </ol>
+    <p id="-gxpguw_22">
+     Unlike a full-fledged compiler plugin, processors cannot modify the code. A compiler plugin that changes language semantics can sometimes be very confusing. KSP avoids that by treating the source programs as read-only.
+    </p>
+    <p id="-gxpguw_23">
+     You can also get an overview of KSP in this video:
+    </p>
+    <div class="video-player" id="-gxpguw_24">
+     <object class="article__bordered-element" data="https://www.youtube.com/v/bv-VyGM3HCY?color2=FBE9EC&amp;rel=0&amp;hd=1&amp;autoplay=0&amp;version=3&amp;modestbranding=1&amp;fs=1" data-theme="light" height="315" type="application/x-shockwave-flash" width="560">
+     </object>
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="how-ksp-looks-at-source-files" id="how-ksp-looks-at-source-files">
+     How KSP looks at source files
+    </h2>
+    <p id="-gxpguw_37">
+     Most processors navigate through the various program structures of the input source code. Before diving into usage of the API, let's see at how a file might look from KSP's point of view:
+    </p>
+    <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     KSFile
+  packageName: KSName
+  fileName: String
+  annotations: List&lt;KSAnnotation&gt;  (File annotations)
+  declarations: List&lt;KSDeclaration&gt;
+    KSClassDeclaration // class, interface, object
+      simpleName: KSName
+      qualifiedName: KSName
+      containingFile: String
+      typeParameters: KSTypeParameter
+      parentDeclaration: KSDeclaration
+      classKind: ClassKind
+      primaryConstructor: KSFunctionDeclaration
+      superTypes: List&lt;KSTypeReference&gt;
+      // contains inner classes, member functions, properties, etc.
+      declarations: List&lt;KSDeclaration&gt;
+    KSFunctionDeclaration // top level function
+      simpleName: KSName
+      qualifiedName: KSName
+      containingFile: String
+      typeParameters: KSTypeParameter
+      parentDeclaration: KSDeclaration
+      functionKind: FunctionKind
+      extensionReceiver: KSTypeReference?
+      returnType: KSTypeReference
+      parameters: List&lt;KSValueParameter&gt;
+      // contains local classes, local functions, local variables, etc.
+      declarations: List&lt;KSDeclaration&gt;
+    KSPropertyDeclaration // global variable
+      simpleName: KSName
+      qualifiedName: KSName
+      containingFile: String
+      typeParameters: KSTypeParameter
+      parentDeclaration: KSDeclaration
+      extensionReceiver: KSTypeReference?
+      type: KSTypeReference
+      getter: KSPropertyGetter
+        returnType: KSTypeReference
+      setter: KSPropertySetter
+        parameter: KSValueParameter
+    </div>
+    <p id="-gxpguw_39">
+     This view lists common things that are declared in the file: classes, functions, properties, and so on.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="symbolprocessorprovider-the-entry-point" id="symbolprocessorprovider-the-entry-point">
+     SymbolProcessorProvider: the entry point
+    </h2>
+    <p id="-gxpguw_40">
+     KSP expects an implementation of the
+     <code class="code" id="-gxpguw_46">
+      SymbolProcessorProvider
+     </code>
+     interface to instantiate
+     <code class="code" id="-gxpguw_47">
+      SymbolProcessor
+     </code>
+     :
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface SymbolProcessorProvider {
+    fun create(environment: SymbolProcessorEnvironment): SymbolProcessor
+}
+    </div>
+    <p id="-gxpguw_42">
+     While
+     <code class="code" id="-gxpguw_48">
+      SymbolProcessor
+     </code>
+     is defined as:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface SymbolProcessor {
+    fun process(resolver: Resolver): List&lt;KSAnnotated&gt; // Let's focus on this
+    fun finish() {}
+    fun onError() {}
+}
+    </div>
+    <p id="-gxpguw_44">
+     A
+     <code class="code" id="-gxpguw_49">
+      Resolver
+     </code>
+     provides
+     <code class="code" id="-gxpguw_50">
+      SymbolProcessor
+     </code>
+     with access to compiler details such as symbols. A processor that finds all top-level functions and non-local functions in top-level classes might look something like the following:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     class HelloFunctionFinderProcessor : SymbolProcessor() {
+    // ...
+    val functions = mutableListOf&lt;KSClassDeclaration&gt;()
+    val visitor = FindFunctionsVisitor()
+
+    override fun process(resolver: Resolver) {
+        resolver.getAllFiles().forEach { it.accept(visitor, Unit) }
+    }
+
+    inner class FindFunctionsVisitor : KSVisitorVoid() {
+        override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
+            classDeclaration.getDeclaredFunctions().forEach { it.accept(this, Unit) }
+        }
+
+        override fun visitFunctionDeclaration(function: KSFunctionDeclaration, data: Unit) {
+            functions.add(function)
+        }
+
+        override fun visitFile(file: KSFile, data: Unit) {
+            file.declarations.forEach { it.accept(this, Unit) }
+        }
+    }
+    // ...
+    
+    class Provider : SymbolProcessorProvider {
+        override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor = TODO()
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="resources" id="resources">
+     Resources
+    </h2>
+    <ul class="list _bullet" id="-gxpguw_51">
+     <li class="list__item" id="-gxpguw_52">
+      <p id="-gxpguw_62">
+       <a data-tooltip="For a quick start, you can create your own processor or get a sample one." href="ksp-quickstart.html" id="-gxpguw_63" style="color: blue;">
+        Quickstart
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_53">
+      <p id="-gxpguw_64">
+       <a data-tooltip="Compiler plugins are powerful metaprogramming tools that can greatly enhance how you write code. Compiler plugins call compilers directly as libraries to analyze and edit input programs. These plugins can also generate output for various uses. For example, they can generate…" href="ksp-why-ksp.html" id="-gxpguw_65" style="color: blue;">
+        Why use KSP?
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_54">
+      <p id="-gxpguw_66">
+       <a data-tooltip="fun KSClassDeclaration.getDeclaredFunctions(): Sequence&lt;KSFunctionDeclaration&gt; = declarations.filterIsInstance&lt;KSFunctionDeclaration&gt;() fun KSDeclaration.isLocal(): Boolean = parentDeclaration != null &amp;&amp; parentDeclaration !is KSClassDeclaration fun…" href="ksp-examples.html" id="-gxpguw_67" style="color: blue;">
+        Examples
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_55">
+      <p id="-gxpguw_68">
+       <a data-tooltip="You can find the API definition in the KSP GitHub repository. The diagram shows an overview of how Kotlin is modeled in KSP:" href="ksp-additional-details.html" id="-gxpguw_69" style="color: blue;">
+        How KSP models Kotlin code
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_56">
+      <p id="-gxpguw_70">
+       <a data-tooltip="KSP requires explicit type resolution, so some functionalities in Java can only be carried out by KSType and the corresponding elements before resolution." href="ksp-reference.html" id="-gxpguw_71" style="color: blue;">
+        Reference for Java annotation processor authors
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_57">
+      <p id="-gxpguw_72">
+       <a data-tooltip="Incremental processing is a processing technique that avoids re-processing of sources as much as possible. The primary goal of incremental processing is to reduce the turn-around time of a typical change-compile-test cycle. For general information, see Wikipedia's article on…" href="ksp-incremental.html" id="-gxpguw_73" style="color: blue;">
+        Incremental processing notes
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_58">
+      <p id="-gxpguw_74">
+       <a data-tooltip="KSP supports multiple round processing, or processing files over multiple rounds. It means that subsequent rounds use an output from previous rounds as additional input." href="ksp-multi-round.html" id="-gxpguw_75" style="color: blue;">
+        Multiple round processing notes
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_59">
+      <p id="-gxpguw_76">
+       <a data-tooltip="For a quick start, see a sample Kotlin Multiplatform project defining a KSP processor." href="ksp-multiplatform.html" id="-gxpguw_77" style="color: blue;">
+        KSP on multiplatform projects
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_60">
+      <p id="-gxpguw_78">
+       <a data-tooltip="KSP is a Kotlin compiler plugin and needs to run with Kotlin compiler. Download and extract them." href="ksp-command-line.html" id="-gxpguw_79" style="color: blue;">
+        Running KSP from command line
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-gxpguw_61">
+      <p id="-gxpguw_80">
+       <a data-tooltip="KSP has several advantages over kapt:" href="ksp-faq.html" id="-gxpguw_81" style="color: blue;">
+        FAQ
+       </a>
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="supported-libraries" id="supported-libraries">
+     Supported libraries
+    </h2>
+    <p id="-gxpguw_82">
+     The table includes a list of popular libraries on Android and their various stages of support for KSP:
+    </p>
+    <div class="table-wrapper">
+     <table class="wide" id="-gxpguw_83">
+      <thead>
+       <tr class="ijRowHead" id="-gxpguw_84">
+        <th id="-gxpguw_107">
+         <p>
+          Library
+         </p>
+        </th>
+        <th id="-gxpguw_108">
+         <p>
+          Status
+         </p>
+        </th>
+       </tr>
+      </thead>
+      <tbody>
+       <tr id="-gxpguw_85">
+        <td id="-gxpguw_109">
+         <p>
+          Room
+         </p>
+        </td>
+        <td id="-gxpguw_110">
+         <p>
+          <a data-external="true" href="https://developer.android.com/jetpack/androidx/releases/room#2.3.0-beta02" id="-gxpguw_111" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_86">
+        <td id="-gxpguw_112">
+         <p>
+          Moshi
+         </p>
+        </td>
+        <td id="-gxpguw_113">
+         <p>
+          <a data-external="true" href="https://github.com/square/moshi/" id="-gxpguw_114" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_87">
+        <td id="-gxpguw_115">
+         <p>
+          RxHttp
+         </p>
+        </td>
+        <td id="-gxpguw_116">
+         <p>
+          <a data-external="true" href="https://github.com/liujingxing/rxhttp" id="-gxpguw_117" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_88">
+        <td id="-gxpguw_118">
+         <p>
+          Kotshi
+         </p>
+        </td>
+        <td id="-gxpguw_119">
+         <p>
+          <a data-external="true" href="https://github.com/ansman/kotshi" id="-gxpguw_120" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_89">
+        <td id="-gxpguw_121">
+         <p>
+          Lyricist
+         </p>
+        </td>
+        <td id="-gxpguw_122">
+         <p>
+          <a data-external="true" href="https://github.com/adrielcafe/lyricist" id="-gxpguw_123" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_90">
+        <td id="-gxpguw_124">
+         <p>
+          Lich SavedState
+         </p>
+        </td>
+        <td id="-gxpguw_125">
+         <p>
+          <a data-external="true" href="https://github.com/line/lich/tree/master/savedstate" id="-gxpguw_126" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_91">
+        <td id="-gxpguw_127">
+         <p>
+          gRPC Dekorator
+         </p>
+        </td>
+        <td id="-gxpguw_128">
+         <p>
+          <a data-external="true" href="https://github.com/mottljan/grpc-dekorator" id="-gxpguw_129" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_92">
+        <td id="-gxpguw_130">
+         <p>
+          EasyAdapter
+         </p>
+        </td>
+        <td id="-gxpguw_131">
+         <p>
+          <a data-external="true" href="https://github.com/AmrDeveloper/EasyAdapter" id="-gxpguw_132" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_93">
+        <td id="-gxpguw_133">
+         <p>
+          Koin Annotations
+         </p>
+        </td>
+        <td id="-gxpguw_134">
+         <p>
+          <a data-external="true" href="https://github.com/InsertKoinIO/koin-annotations" id="-gxpguw_135" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_94">
+        <td id="-gxpguw_136">
+         <p>
+          Glide
+         </p>
+        </td>
+        <td id="-gxpguw_137">
+         <p>
+          <a data-external="true" href="https://github.com/bumptech/glide" id="-gxpguw_138" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_95">
+        <td id="-gxpguw_139">
+         <p>
+          Micronaut
+         </p>
+        </td>
+        <td id="-gxpguw_140">
+         <p>
+          <a data-external="true" href="https://micronaut.io/2023/07/14/micronaut-framework-4-0-0-released/" id="-gxpguw_141" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_96">
+        <td id="-gxpguw_142">
+         <p>
+          Epoxy
+         </p>
+        </td>
+        <td id="-gxpguw_143">
+         <p>
+          <a data-external="true" href="https://github.com/airbnb/epoxy" id="-gxpguw_144" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_97">
+        <td id="-gxpguw_145">
+         <p>
+          Paris
+         </p>
+        </td>
+        <td id="-gxpguw_146">
+         <p>
+          <a data-external="true" href="https://github.com/airbnb/paris" id="-gxpguw_147" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_98">
+        <td id="-gxpguw_148">
+         <p>
+          Auto Dagger
+         </p>
+        </td>
+        <td id="-gxpguw_149">
+         <p>
+          <a data-external="true" href="https://github.com/ansman/auto-dagger" id="-gxpguw_150" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_99">
+        <td id="-gxpguw_151">
+         <p>
+          SealedX
+         </p>
+        </td>
+        <td id="-gxpguw_152">
+         <p>
+          <a data-external="true" href="https://github.com/skydoves/sealedx" id="-gxpguw_153" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_100">
+        <td id="-gxpguw_154">
+         <p>
+          Ktorfit
+         </p>
+        </td>
+        <td id="-gxpguw_155">
+         <p>
+          <a data-external="true" href="https://github.com/Foso/Ktorfit" id="-gxpguw_156" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_101">
+        <td id="-gxpguw_157">
+         <p>
+          Mockative
+         </p>
+        </td>
+        <td id="-gxpguw_158">
+         <p>
+          <a data-external="true" href="https://github.com/mockative/mockative" id="-gxpguw_159" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Officially supported
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_102">
+        <td id="-gxpguw_160">
+         <p>
+          DeeplinkDispatch
+         </p>
+        </td>
+        <td id="-gxpguw_161">
+         <p>
+          <a data-external="true" href="https://github.com/airbnb/DeepLinkDispatch/pull/323" id="-gxpguw_162" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Supported via airbnb/DeepLinkDispatch#323
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_103">
+        <td id="-gxpguw_163">
+         <p>
+          Dagger
+         </p>
+        </td>
+        <td id="-gxpguw_164">
+         <p>
+          <a data-external="true" href="https://dagger.dev/dev-guide/ksp" id="-gxpguw_165" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Alpha
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_104">
+        <td id="-gxpguw_166">
+         <p>
+          Motif
+         </p>
+        </td>
+        <td id="-gxpguw_167">
+         <p>
+          <a data-external="true" href="https://github.com/uber/motif" id="-gxpguw_168" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Alpha
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_105">
+        <td id="-gxpguw_169">
+         <p>
+          Hilt
+         </p>
+        </td>
+        <td id="-gxpguw_170">
+         <p>
+          <a data-external="true" href="https://dagger.dev/dev-guide/ksp" id="-gxpguw_171" rel="noopener noreferrer" style="color: red;" target="_blank">
+           In progress
+          </a>
+         </p>
+        </td>
+       </tr>
+       <tr id="-gxpguw_106">
+        <td id="-gxpguw_172">
+         <p>
+          Auto Factory
+         </p>
+        </td>
+        <td id="-gxpguw_173">
+         <p>
+          <a data-external="true" href="https://github.com/google/auto/issues/982" id="-gxpguw_174" rel="noopener noreferrer" style="color: red;" target="_blank">
+           Not yet supported
+          </a>
+         </p>
+        </td>
+       </tr>
+      </tbody>
+     </table>
+    </div>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

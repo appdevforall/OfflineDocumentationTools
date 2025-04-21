@@ -1,0 +1,2754 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="compatibility-guide-14" id="compatibility-guide-14.md">
+    Compatibility guide for Kotlin 1.4
+   </h1>
+   <p id="c0kihh_2">
+    <span class="emphasis" id="c0kihh_7">
+     <a data-tooltip="Language design is cast in stone," href="kotlin-evolution-principles.html" id="c0kihh_9" style="color: blue;">
+      Keeping the Language Modern
+     </a>
+    </span>
+    and
+    <span class="emphasis" id="c0kihh_8">
+     <a data-tooltip="Language design is cast in stone," href="kotlin-evolution-principles.html" id="c0kihh_10" style="color: blue;">
+      Comfortable Updates
+     </a>
+    </span>
+    are among the fundamental principles in Kotlin Language Design. The former says that constructs which obstruct language evolution should be removed, and the latter says that this removal should be well-communicated beforehand to make code migration as smooth as possible.
+   </p>
+   <p id="c0kihh_3">
+    While most of the language changes were already announced through other channels, like update changelogs or compiler warnings, this document summarizes them all, providing a complete reference for migration from Kotlin 1.3 to Kotlin 1.4.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="basic-terms" id="basic-terms">
+     Basic terms
+    </h2>
+    <p id="c0kihh_11">
+     In this document we introduce several kinds of compatibility:
+    </p>
+    <ul class="list _bullet" id="c0kihh_12">
+     <li class="list__item" id="c0kihh_14">
+      <p id="c0kihh_17">
+       <span class="emphasis" id="c0kihh_18">
+        source
+       </span>
+       : source-incompatible change stops code that used to compile fine (without errors or warnings) from compiling anymore
+      </p>
+     </li>
+     <li class="list__item" id="c0kihh_15">
+      <p id="c0kihh_19">
+       <span class="emphasis" id="c0kihh_20">
+        binary
+       </span>
+       : two binary artifacts are said to be binary-compatible if interchanging them doesn't lead to loading or linkage errors
+      </p>
+     </li>
+     <li class="list__item" id="c0kihh_16">
+      <p id="c0kihh_21">
+       <span class="emphasis" id="c0kihh_22">
+        behavioral
+       </span>
+       : a change is said to be behavioral-incompatible if the same program demonstrates different behavior before and after applying the change
+      </p>
+     </li>
+    </ul>
+    <p id="c0kihh_13">
+     Remember that those definitions are given only for pure Kotlin. Compatibility of Kotlin code from the other languages perspective (for example, from Java) is out of the scope of this document.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="language-and-stdlib" id="language-and-stdlib">
+     Language and stdlib
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="unexpected-behavior-with-in-infix-operator-and-concurrenthashmap" id="unexpected-behavior-with-in-infix-operator-and-concurrenthashmap">
+      Unexpected behavior with in infix operator and ConcurrentHashMap
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_64">
+      <p id="c0kihh_65">
+       <span class="control" id="c0kihh_71">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-18053" id="c0kihh_72" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-18053
+       </a>
+      </p>
+      <p id="c0kihh_66">
+       <span class="control" id="c0kihh_73">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_67">
+       <span class="control" id="c0kihh_74">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_68">
+       <span class="control" id="c0kihh_75">
+        Short summary
+       </span>
+       : Kotlin 1.4 will outlaw auto operator
+       <code class="code" id="c0kihh_76">
+        contains
+       </code>
+       coming from the implementors of
+       <code class="code" id="c0kihh_77">
+        java.util.Map
+       </code>
+       written in Java
+      </p>
+      <p id="c0kihh_69">
+       <span class="control" id="c0kihh_78">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_70">
+       <li class="list__item" id="c0kihh_79">
+        <p id="c0kihh_81">
+         &lt; 1.4: introduce warning for problematic operators at call-site
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_80">
+        <p id="c0kihh_82">
+         &gt;= 1.4: raise this warning to an error,
+         <code class="code" id="c0kihh_83">
+          -XXLanguage:-ProhibitConcurrentHashMapContains
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-access-to-protected-members-inside-public-inline-members" id="prohibit-access-to-protected-members-inside-public-inline-members">
+      Prohibit access to protected members inside public inline members
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_84">
+      <p id="c0kihh_85">
+       <span class="control" id="c0kihh_91">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-21178" id="c0kihh_92" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-21178
+       </a>
+      </p>
+      <p id="c0kihh_86">
+       <span class="control" id="c0kihh_93">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_87">
+       <span class="control" id="c0kihh_94">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_88">
+       <span class="control" id="c0kihh_95">
+        Short summary
+       </span>
+       : Kotlin 1.4 will prohibit access to protected members from public inline members.
+      </p>
+      <p id="c0kihh_89">
+       <span class="control" id="c0kihh_96">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_90">
+       <li class="list__item" id="c0kihh_97">
+        <p id="c0kihh_99">
+         &lt; 1.4: introduce warning at call-site for problematic cases
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_98">
+        <p id="c0kihh_100">
+         1.4: raise this warning to an error,
+         <code class="code" id="c0kihh_101">
+          -XXLanguage:-ProhibitProtectedCallFromInline
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="contracts-on-calls-with-implicit-receivers" id="contracts-on-calls-with-implicit-receivers">
+      Contracts on calls with implicit receivers
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_102">
+      <p id="c0kihh_103">
+       <span class="control" id="c0kihh_109">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-28672" id="c0kihh_110" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-28672
+       </a>
+      </p>
+      <p id="c0kihh_104">
+       <span class="control" id="c0kihh_111">
+        Component
+       </span>
+       : Core Language
+      </p>
+      <p id="c0kihh_105">
+       <span class="control" id="c0kihh_112">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_106">
+       <span class="control" id="c0kihh_113">
+        Short summary
+       </span>
+       : smart casts from contracts will be available on calls with implicit receivers in 1.4
+      </p>
+      <p id="c0kihh_107">
+       <span class="control" id="c0kihh_114">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_108">
+       <li class="list__item" id="c0kihh_115">
+        <p id="c0kihh_117">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_116">
+        <p id="c0kihh_118">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_119">
+          -XXLanguage:-ContractsOnCallsWithImplicitReceiver
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="inconsistent-behavior-of-floating-point-number-comparisons" id="inconsistent-behavior-of-floating-point-number-comparisons">
+      Inconsistent behavior of floating-point number comparisons
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_120">
+      <p id="c0kihh_121">
+       <span class="control" id="c0kihh_127">
+        Issues
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-22723" id="c0kihh_128" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-22723
+       </a>
+      </p>
+      <p id="c0kihh_122">
+       <span class="control" id="c0kihh_129">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_123">
+       <span class="control" id="c0kihh_130">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_124">
+       <span class="control" id="c0kihh_131">
+        Short summary
+       </span>
+       : since Kotlin 1.4, Kotlin compiler will use IEEE 754 standard to compare floating-point numbers
+      </p>
+      <p id="c0kihh_125">
+       <span class="control" id="c0kihh_132">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_126">
+       <li class="list__item" id="c0kihh_133">
+        <p id="c0kihh_135">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_134">
+        <p id="c0kihh_136">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_137">
+          -XXLanguage:-ProperIeee754Comparisons
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="no-smart-cast-on-the-last-expression-in-a-generic-lambda" id="no-smart-cast-on-the-last-expression-in-a-generic-lambda">
+      No smart cast on the last expression in a generic lambda
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_138">
+      <p id="c0kihh_139">
+       <span class="control" id="c0kihh_145">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-15020" id="c0kihh_146" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-15020
+       </a>
+      </p>
+      <p id="c0kihh_140">
+       <span class="control" id="c0kihh_147">
+        Component
+       </span>
+       : Core Language
+      </p>
+      <p id="c0kihh_141">
+       <span class="control" id="c0kihh_148">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_142">
+       <span class="control" id="c0kihh_149">
+        Short summary
+       </span>
+       : smart casts for last expressions in lambdas will be correctly applied since 1.4
+      </p>
+      <p id="c0kihh_143">
+       <span class="control" id="c0kihh_150">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_144">
+       <li class="list__item" id="c0kihh_151">
+        <p id="c0kihh_153">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_152">
+        <p id="c0kihh_154">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_155">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="do-not-depend-on-the-order-of-lambda-arguments-to-coerce-result-to-unit" id="do-not-depend-on-the-order-of-lambda-arguments-to-coerce-result-to-unit">
+      Do not depend on the order of lambda arguments to coerce result to Unit
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_156">
+      <p id="c0kihh_157">
+       <span class="control" id="c0kihh_163">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-36045" id="c0kihh_164" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-36045
+       </a>
+      </p>
+      <p id="c0kihh_158">
+       <span class="control" id="c0kihh_165">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_159">
+       <span class="control" id="c0kihh_166">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_160">
+       <span class="control" id="c0kihh_167">
+        Short summary
+       </span>
+       : since Kotlin 1.4, lambda arguments will be resolved independently without implicit coercion to
+       <code class="code" id="c0kihh_168">
+        Unit
+       </code>
+      </p>
+      <p id="c0kihh_161">
+       <span class="control" id="c0kihh_169">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_162">
+       <li class="list__item" id="c0kihh_170">
+        <p id="c0kihh_172">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_171">
+        <p id="c0kihh_173">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_174">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="wrong-common-supertype-between-raw-and-integer-literal-type-leads-to-unsound-code" id="wrong-common-supertype-between-raw-and-integer-literal-type-leads-to-unsound-code">
+      Wrong common supertype between raw and integer literal type leads to unsound code
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_175">
+      <p id="c0kihh_176">
+       <span class="control" id="c0kihh_182">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35681" id="c0kihh_183" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35681
+       </a>
+      </p>
+      <p id="c0kihh_177">
+       <span class="control" id="c0kihh_184">
+        Components
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_178">
+       <span class="control" id="c0kihh_185">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_179">
+       <span class="control" id="c0kihh_186">
+        Short summary
+       </span>
+       : since Kotlin 1.4, common supertype between raw
+       <code class="code" id="c0kihh_187">
+        Comparable
+       </code>
+       type and integer literal type will be more specific
+      </p>
+      <p id="c0kihh_180">
+       <span class="control" id="c0kihh_188">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_181">
+       <li class="list__item" id="c0kihh_189">
+        <p id="c0kihh_191">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_190">
+        <p id="c0kihh_192">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_193">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="type-safety-problem-because-several-equal-type-variables-are-instantiated-with-a-different-types" id="type-safety-problem-because-several-equal-type-variables-are-instantiated-with-a-different-types">
+      Type safety problem because several equal type variables are instantiated with a different types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_194">
+      <p id="c0kihh_195">
+       <span class="control" id="c0kihh_201">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35679" id="c0kihh_202" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35679
+       </a>
+      </p>
+      <p id="c0kihh_196">
+       <span class="control" id="c0kihh_203">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_197">
+       <span class="control" id="c0kihh_204">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_198">
+       <span class="control" id="c0kihh_205">
+        Short summary
+       </span>
+       : since Kotlin 1.4, Kotlin compiler will prohibit instantiating equal type variables with different types
+      </p>
+      <p id="c0kihh_199">
+       <span class="control" id="c0kihh_206">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_200">
+       <li class="list__item" id="c0kihh_207">
+        <p id="c0kihh_209">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_208">
+        <p id="c0kihh_210">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_211">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="type-safety-problem-because-of-incorrect-subtyping-for-intersection-types" id="type-safety-problem-because-of-incorrect-subtyping-for-intersection-types">
+      Type safety problem because of incorrect subtyping for intersection types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_212">
+      <p id="c0kihh_213">
+       <span class="control" id="c0kihh_219">
+        Issues
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-22474" id="c0kihh_220" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-22474
+       </a>
+      </p>
+      <p id="c0kihh_214">
+       <span class="control" id="c0kihh_221">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_215">
+       <span class="control" id="c0kihh_222">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_216">
+       <span class="control" id="c0kihh_223">
+        Short summary
+       </span>
+       : in Kotlin 1.4, subtyping for intersection types will be refined to work more correctly
+      </p>
+      <p id="c0kihh_217">
+       <span class="control" id="c0kihh_224">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_218">
+       <li class="list__item" id="c0kihh_225">
+        <p id="c0kihh_227">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_226">
+        <p id="c0kihh_228">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_229">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="no-type-mismatch-with-an-empty-when-expression-inside-lambda" id="no-type-mismatch-with-an-empty-when-expression-inside-lambda">
+      No type mismatch with an empty when expression inside lambda
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_230">
+      <p id="c0kihh_231">
+       <span class="control" id="c0kihh_237">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-17995" id="c0kihh_238" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-17995
+       </a>
+      </p>
+      <p id="c0kihh_232">
+       <span class="control" id="c0kihh_239">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_233">
+       <span class="control" id="c0kihh_240">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_234">
+       <span class="control" id="c0kihh_241">
+        Short summary
+       </span>
+       : since Kotlin 1.4, there will be a type mismatch for empty
+       <code class="code" id="c0kihh_242">
+        when
+       </code>
+       expression if it's used as the last expression in a lambda
+      </p>
+      <p id="c0kihh_235">
+       <span class="control" id="c0kihh_243">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_236">
+       <li class="list__item" id="c0kihh_244">
+        <p id="c0kihh_246">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_245">
+        <p id="c0kihh_247">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_248">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="return-type-any-inferred-for-lambda-with-early-return-with-integer-literal-in-one-of-possible-return-values" id="return-type-any-inferred-for-lambda-with-early-return-with-integer-literal-in-one-of-possible-return-values">
+      Return type Any inferred for lambda with early return with integer literal in one of possible return values
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_249">
+      <p id="c0kihh_250">
+       <span class="control" id="c0kihh_256">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-20226" id="c0kihh_257" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-20226
+       </a>
+      </p>
+      <p id="c0kihh_251">
+       <span class="control" id="c0kihh_258">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_252">
+       <span class="control" id="c0kihh_259">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_253">
+       <span class="control" id="c0kihh_260">
+        Short summary
+       </span>
+       : since Kotlin 1.4, integer type returning from a lambda will be more specific for cases when there is early return
+      </p>
+      <p id="c0kihh_254">
+       <span class="control" id="c0kihh_261">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_255">
+       <li class="list__item" id="c0kihh_262">
+        <p id="c0kihh_264">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_263">
+        <p id="c0kihh_265">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_266">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="proper-capturing-of-star-projections-with-recursive-types" id="proper-capturing-of-star-projections-with-recursive-types">
+      Proper capturing of star projections with recursive types
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_267">
+      <p id="c0kihh_268">
+       <span class="control" id="c0kihh_274">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-33012" id="c0kihh_275" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-33012
+       </a>
+      </p>
+      <p id="c0kihh_269">
+       <span class="control" id="c0kihh_276">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_270">
+       <span class="control" id="c0kihh_277">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_271">
+       <span class="control" id="c0kihh_278">
+        Short summary
+       </span>
+       : since Kotlin 1.4, more candidates will become applicable because capturing for recursive types will work more correctly
+      </p>
+      <p id="c0kihh_272">
+       <span class="control" id="c0kihh_279">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_273">
+       <li class="list__item" id="c0kihh_280">
+        <p id="c0kihh_282">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_281">
+        <p id="c0kihh_283">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_284">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="common-supertype-calculation-with-non-proper-type-and-flexible-one-leads-to-incorrect-results" id="common-supertype-calculation-with-non-proper-type-and-flexible-one-leads-to-incorrect-results">
+      Common supertype calculation with non-proper type and flexible one leads to incorrect results
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_285">
+      <p id="c0kihh_286">
+       <span class="control" id="c0kihh_292">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-37054" id="c0kihh_293" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-37054
+       </a>
+      </p>
+      <p id="c0kihh_287">
+       <span class="control" id="c0kihh_294">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_288">
+       <span class="control" id="c0kihh_295">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_289">
+       <span class="control" id="c0kihh_296">
+        Short summary
+       </span>
+       : since Kotlin 1.4, common supertype between flexible types will be more specific protecting from runtime errors
+      </p>
+      <p id="c0kihh_290">
+       <span class="control" id="c0kihh_297">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_291">
+       <li class="list__item" id="c0kihh_298">
+        <p id="c0kihh_300">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_299">
+        <p id="c0kihh_301">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_302">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="type-safety-problem-because-of-lack-of-captured-conversion-against-nullable-type-argument" id="type-safety-problem-because-of-lack-of-captured-conversion-against-nullable-type-argument">
+      Type safety problem because of lack of captured conversion against nullable type argument
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_303">
+      <p id="c0kihh_304">
+       <span class="control" id="c0kihh_310">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35487" id="c0kihh_311" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35487
+       </a>
+      </p>
+      <p id="c0kihh_305">
+       <span class="control" id="c0kihh_312">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_306">
+       <span class="control" id="c0kihh_313">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_307">
+       <span class="control" id="c0kihh_314">
+        Short summary
+       </span>
+       : since Kotlin 1.4, subtyping between captured and nullable types will be more correct protecting from runtime errors
+      </p>
+      <p id="c0kihh_308">
+       <span class="control" id="c0kihh_315">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_309">
+       <li class="list__item" id="c0kihh_316">
+        <p id="c0kihh_318">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_317">
+        <p id="c0kihh_319">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_320">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="preserve-intersection-type-for-covariant-types-after-unchecked-cast" id="preserve-intersection-type-for-covariant-types-after-unchecked-cast">
+      Preserve intersection type for covariant types after unchecked cast
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_321">
+      <p id="c0kihh_322">
+       <span class="control" id="c0kihh_328">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-37280" id="c0kihh_329" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-37280
+       </a>
+      </p>
+      <p id="c0kihh_323">
+       <span class="control" id="c0kihh_330">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_324">
+       <span class="control" id="c0kihh_331">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_325">
+       <span class="control" id="c0kihh_332">
+        Short summary
+       </span>
+       : since Kotlin 1.4, uchecked casts of covariant types produce the intersection type for smart casts, not the type of the unchecked cast.
+      </p>
+      <p id="c0kihh_326">
+       <span class="control" id="c0kihh_333">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_327">
+       <li class="list__item" id="c0kihh_334">
+        <p id="c0kihh_336">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_335">
+        <p id="c0kihh_337">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_338">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="type-variable-leaks-from-builder-inference-because-of-using-this-expression" id="type-variable-leaks-from-builder-inference-because-of-using-this-expression">
+      Type variable leaks from builder inference because of using this expression
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_339">
+      <p id="c0kihh_340">
+       <span class="control" id="c0kihh_346">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-32126" id="c0kihh_347" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-32126
+       </a>
+      </p>
+      <p id="c0kihh_341">
+       <span class="control" id="c0kihh_348">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_342">
+       <span class="control" id="c0kihh_349">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_343">
+       <span class="control" id="c0kihh_350">
+        Short summary
+       </span>
+       : since Kotlin 1.4, using
+       <code class="code" id="c0kihh_351">
+        this
+       </code>
+       inside builder functions like
+       <code class="code" id="c0kihh_352">
+        sequence {}
+       </code>
+       is prohibited if there are no other proper constraints
+      </p>
+      <p id="c0kihh_344">
+       <span class="control" id="c0kihh_353">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_345">
+       <li class="list__item" id="c0kihh_354">
+        <p id="c0kihh_356">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_355">
+        <p id="c0kihh_357">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_358">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="wrong-overload-resolution-for-contravariant-types-with-nullable-type-arguments" id="wrong-overload-resolution-for-contravariant-types-with-nullable-type-arguments">
+      Wrong overload resolution for contravariant types with nullable type arguments
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_359">
+      <p id="c0kihh_360">
+       <span class="control" id="c0kihh_366">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-31670" id="c0kihh_367" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-31670
+       </a>
+      </p>
+      <p id="c0kihh_361">
+       <span class="control" id="c0kihh_368">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_362">
+       <span class="control" id="c0kihh_369">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_363">
+       <span class="control" id="c0kihh_370">
+        Short summary
+       </span>
+       : since Kotlin 1.4, if two overloads of a function that takes contravariant type arguments differ only by the nullability of the type (such as
+       <code class="code" id="c0kihh_371">
+        In&lt;T&gt;
+       </code>
+       and
+       <code class="code" id="c0kihh_372">
+        In&lt;T?&gt;
+       </code>
+       ), the nullable type is considered more specific.
+      </p>
+      <p id="c0kihh_364">
+       <span class="control" id="c0kihh_373">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_365">
+       <li class="list__item" id="c0kihh_374">
+        <p id="c0kihh_376">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_375">
+        <p id="c0kihh_377">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_378">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="builder-inference-with-non-nested-recursive-constraints" id="builder-inference-with-non-nested-recursive-constraints">
+      Builder inference with non-nested recursive constraints
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_379">
+      <p id="c0kihh_380">
+       <span class="control" id="c0kihh_386">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-34975" id="c0kihh_387" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-34975
+       </a>
+      </p>
+      <p id="c0kihh_381">
+       <span class="control" id="c0kihh_388">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_382">
+       <span class="control" id="c0kihh_389">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_383">
+       <span class="control" id="c0kihh_390">
+        Short summary
+       </span>
+       : since Kotlin 1.4, builder functions such as
+       <code class="code" id="c0kihh_391">
+        sequence {}
+       </code>
+       with type that depends on a recursive constraint inside the passed lambda cause a compiler error.
+      </p>
+      <p id="c0kihh_384">
+       <span class="control" id="c0kihh_392">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_385">
+       <li class="list__item" id="c0kihh_393">
+        <p id="c0kihh_395">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_394">
+        <p id="c0kihh_396">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_397">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="eager-type-variable-fixation-leads-to-a-contradictory-constraint-system" id="eager-type-variable-fixation-leads-to-a-contradictory-constraint-system">
+      Eager type variable fixation leads to a contradictory constraint system
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_398">
+      <p id="c0kihh_399">
+       <span class="control" id="c0kihh_405">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-25175" id="c0kihh_406" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-25175
+       </a>
+      </p>
+      <p id="c0kihh_400">
+       <span class="control" id="c0kihh_407">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_401">
+       <span class="control" id="c0kihh_408">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_402">
+       <span class="control" id="c0kihh_409">
+        Short summary
+       </span>
+       : since Kotlin 1.4, the type inference in certain cases works less eagerly allowing to find the constraint system that is not contradictory.
+      </p>
+      <p id="c0kihh_403">
+       <span class="control" id="c0kihh_410">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_404">
+       <li class="list__item" id="c0kihh_411">
+        <p id="c0kihh_413">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_412">
+        <p id="c0kihh_414">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_415">
+          -XXLanguage:-NewInference
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior. Note that this flag will also disable several new language features.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="prohibit-tailrec-modifier-on-open-functions" id="prohibit-tailrec-modifier-on-open-functions">
+      Prohibit tailrec modifier on open functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_416">
+      <p id="c0kihh_417">
+       <span class="control" id="c0kihh_423">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-18541" id="c0kihh_424" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-18541
+       </a>
+      </p>
+      <p id="c0kihh_418">
+       <span class="control" id="c0kihh_425">
+        Component
+       </span>
+       : Core language
+      </p>
+      <p id="c0kihh_419">
+       <span class="control" id="c0kihh_426">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_420">
+       <span class="control" id="c0kihh_427">
+        Short summary
+       </span>
+       : since Kotlin 1.4, functions can't have
+       <code class="code" id="c0kihh_428">
+        open
+       </code>
+       and
+       <code class="code" id="c0kihh_429">
+        tailrec
+       </code>
+       modifiers at the same time.
+      </p>
+      <p id="c0kihh_421">
+       <span class="control" id="c0kihh_430">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_422">
+       <li class="list__item" id="c0kihh_431">
+        <p id="c0kihh_433">
+         &lt; 1.4: report a warning on functions that have
+         <code class="code" id="c0kihh_434">
+          open
+         </code>
+         and
+         <code class="code" id="c0kihh_435">
+          tailrec
+         </code>
+         modifiers together (error in the progressive mode).
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_432">
+        <p id="c0kihh_436">
+         &gt;= 1.4: raise this warning to an error.
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="the-instance-field-of-a-companion-object-more-visible-than-the-companion-object-class-itself" id="the-instance-field-of-a-companion-object-more-visible-than-the-companion-object-class-itself">
+      The INSTANCE field of a companion object more visible than the companion object class itself
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_437">
+      <p id="c0kihh_438">
+       <span class="control" id="c0kihh_444">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-11567" id="c0kihh_445" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-11567
+       </a>
+      </p>
+      <p id="c0kihh_439">
+       <span class="control" id="c0kihh_446">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_440">
+       <span class="control" id="c0kihh_447">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_441">
+       <span class="control" id="c0kihh_448">
+        Short summary
+       </span>
+       : since Kotlin 1.4, if a companion object is private, then its field
+       <code class="code" id="c0kihh_449">
+        INSTANCE
+       </code>
+       will be also private
+      </p>
+      <p id="c0kihh_442">
+       <span class="control" id="c0kihh_450">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_443">
+       <li class="list__item" id="c0kihh_451">
+        <p id="c0kihh_453">
+         &lt; 1.4: the compiler generates object
+         <code class="code" id="c0kihh_454">
+          INSTANCE
+         </code>
+         with a deprecated flag
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_452">
+        <p id="c0kihh_455">
+         &gt;= 1.4: companion object
+         <code class="code" id="c0kihh_456">
+          INSTANCE
+         </code>
+         field has proper visibility
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="outer-finally-block-inserted-before-return-is-not-excluded-from-the-catch-interval-of-the-inner-try-block-without-finally" id="outer-finally-block-inserted-before-return-is-not-excluded-from-the-catch-interval-of-the-inner-try-block-without-finally">
+      Outer finally block inserted before return is not excluded from the catch interval of the inner try block without finally
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_457">
+      <p id="c0kihh_458">
+       <span class="control" id="c0kihh_464">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-31923" id="c0kihh_465" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-31923
+       </a>
+      </p>
+      <p id="c0kihh_459">
+       <span class="control" id="c0kihh_466">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_460">
+       <span class="control" id="c0kihh_467">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_461">
+       <span class="control" id="c0kihh_468">
+        Short summary
+       </span>
+       : since Kotlin 1.4, the catch interval will be computed properly for nested
+       <code class="code" id="c0kihh_469">
+        try/catch
+       </code>
+       blocks
+      </p>
+      <p id="c0kihh_462">
+       <span class="control" id="c0kihh_470">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_463">
+       <li class="list__item" id="c0kihh_471">
+        <p id="c0kihh_473">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_472">
+        <p id="c0kihh_474">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_475">
+          -XXLanguage:-ProperFinally
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="use-the-boxed-version-of-an-inline-class-in-return-type-position-for-covariant-and-generic-specialized-overrides" id="use-the-boxed-version-of-an-inline-class-in-return-type-position-for-covariant-and-generic-specialized-overrides">
+      Use the boxed version of an inline class in return type position for covariant and generic-specialized overrides
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_476">
+      <p id="c0kihh_477">
+       <span class="control" id="c0kihh_483">
+        Issues
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-30419" id="c0kihh_484" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-30419
+       </a>
+      </p>
+      <p id="c0kihh_478">
+       <span class="control" id="c0kihh_485">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_479">
+       <span class="control" id="c0kihh_486">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_480">
+       <span class="control" id="c0kihh_487">
+        Short summary
+       </span>
+       : since Kotlin 1.4, functions using covariant and generic-specialized overrides will return boxed values of inline classes
+      </p>
+      <p id="c0kihh_481">
+       <span class="control" id="c0kihh_488">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_482">
+       <li class="list__item" id="c0kihh_489">
+        <p id="c0kihh_491">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_490">
+        <p id="c0kihh_492">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="do-not-declare-checked-exceptions-in-jvm-bytecode-when-using-delegation-to-kotlin-interfaces" id="do-not-declare-checked-exceptions-in-jvm-bytecode-when-using-delegation-to-kotlin-interfaces">
+      Do not declare checked exceptions in JVM bytecode when using delegation to Kotlin interfaces
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_493">
+      <p id="c0kihh_494">
+       <span class="control" id="c0kihh_500">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35834" id="c0kihh_501" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35834
+       </a>
+      </p>
+      <p id="c0kihh_495">
+       <span class="control" id="c0kihh_502">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_496">
+       <span class="control" id="c0kihh_503">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_497">
+       <span class="control" id="c0kihh_504">
+        Short summary
+       </span>
+       : Kotlin 1.4 will not generate checked exceptions during interface delegation to Kotlin interfaces
+      </p>
+      <p id="c0kihh_498">
+       <span class="control" id="c0kihh_505">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_499">
+       <li class="list__item" id="c0kihh_506">
+        <p id="c0kihh_508">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_507">
+        <p id="c0kihh_509">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_510">
+          -XXLanguage:-DoNotGenerateThrowsForDelegatedKotlinMembers
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="changed-behavior-of-signature-polymorphic-calls-to-methods-with-a-single-vararg-parameter-to-avoid-wrapping-the-argument-into-another-array" id="changed-behavior-of-signature-polymorphic-calls-to-methods-with-a-single-vararg-parameter-to-avoid-wrapping-the-argument-into-another-array">
+      Changed behavior of signature-polymorphic calls to methods with a single vararg parameter to avoid wrapping the argument into another array
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_511">
+      <p id="c0kihh_512">
+       <span class="control" id="c0kihh_518">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35469" id="c0kihh_519" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35469
+       </a>
+      </p>
+      <p id="c0kihh_513">
+       <span class="control" id="c0kihh_520">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_514">
+       <span class="control" id="c0kihh_521">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_515">
+       <span class="control" id="c0kihh_522">
+        Short summary
+       </span>
+       : Kotlin 1.4 will not wrap the argument into another array on a signature-polymorphic call
+      </p>
+      <p id="c0kihh_516">
+       <span class="control" id="c0kihh_523">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_517">
+       <li class="list__item" id="c0kihh_524">
+        <p id="c0kihh_526">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_525">
+        <p id="c0kihh_527">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="incorrect-generic-signature-in-annotations-when-kclass-is-used-as-a-generic-parameter" id="incorrect-generic-signature-in-annotations-when-kclass-is-used-as-a-generic-parameter">
+      Incorrect generic signature in annotations when KClass is used as a generic parameter
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_528">
+      <p id="c0kihh_529">
+       <span class="control" id="c0kihh_535">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35207" id="c0kihh_536" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35207
+       </a>
+      </p>
+      <p id="c0kihh_530">
+       <span class="control" id="c0kihh_537">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_531">
+       <span class="control" id="c0kihh_538">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_532">
+       <span class="control" id="c0kihh_539">
+        Short summary
+       </span>
+       : Kotlin 1.4 will fix incorrect type mapping in annotations when KClass is used as a generic parameter
+      </p>
+      <p id="c0kihh_533">
+       <span class="control" id="c0kihh_540">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_534">
+       <li class="list__item" id="c0kihh_541">
+        <p id="c0kihh_543">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_542">
+        <p id="c0kihh_544">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="forbid-spread-operator-in-signature-polymorphic-calls" id="forbid-spread-operator-in-signature-polymorphic-calls">
+      Forbid spread operator in signature-polymorphic calls
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_545">
+      <p id="c0kihh_546">
+       <span class="control" id="c0kihh_552">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-35226" id="c0kihh_553" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-35226
+       </a>
+      </p>
+      <p id="c0kihh_547">
+       <span class="control" id="c0kihh_554">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_548">
+       <span class="control" id="c0kihh_555">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_549">
+       <span class="control" id="c0kihh_556">
+        Short summary
+       </span>
+       : Kotlin 1.4 will prohibit the use of spread operator (*) on signature-polymorphic calls
+      </p>
+      <p id="c0kihh_550">
+       <span class="control" id="c0kihh_557">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_551">
+       <li class="list__item" id="c0kihh_558">
+        <p id="c0kihh_560">
+         &lt; 1.4: report a warning on the use of a spread operator in signature-polymorphic calls
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_559">
+        <p id="c0kihh_561">
+         &gt;= 1.5: raise this warning to an error,
+         <code class="code" id="c0kihh_562">
+          -XXLanguage:-ProhibitSpreadOnSignaturePolymorphicCall
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="change-initialization-order-of-default-values-for-tail-recursive-optimized-functions" id="change-initialization-order-of-default-values-for-tail-recursive-optimized-functions">
+      Change initialization order of default values for tail-recursive optimized functions
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_563">
+      <p id="c0kihh_564">
+       <span class="control" id="c0kihh_570">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-31540" id="c0kihh_571" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-31540
+       </a>
+      </p>
+      <p id="c0kihh_565">
+       <span class="control" id="c0kihh_572">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_566">
+       <span class="control" id="c0kihh_573">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_567">
+       <span class="control" id="c0kihh_574">
+        Short summary
+       </span>
+       : Since Kotlin 1.4, the initialization order for tail-recursive functions will be the same as for regular functions
+      </p>
+      <p id="c0kihh_568">
+       <span class="control" id="c0kihh_575">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_569">
+       <li class="list__item" id="c0kihh_576">
+        <p id="c0kihh_578">
+         &lt; 1.4: report a warning at declaration-site for problematic functions
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_577">
+        <p id="c0kihh_579">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_580">
+          -XXLanguage:-ProperComputationOrderOfTailrecDefaultParameters
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="do-not-generate-constantvalue-attribute-for-non-const-vals" id="do-not-generate-constantvalue-attribute-for-non-const-vals">
+      Do not generate ConstantValue attribute for non-const vals
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_581">
+      <p id="c0kihh_582">
+       <span class="control" id="c0kihh_588">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-16615" id="c0kihh_589" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-16615
+       </a>
+      </p>
+      <p id="c0kihh_583">
+       <span class="control" id="c0kihh_590">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_584">
+       <span class="control" id="c0kihh_591">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_585">
+       <span class="control" id="c0kihh_592">
+        Short summary
+       </span>
+       : Since Kotlin 1.4, the compiler will not generate the
+       <code class="code" id="c0kihh_593">
+        ConstantValue
+       </code>
+       attribute for non-
+       <code class="code" id="c0kihh_594">
+        const
+       </code>
+       <code class="code" id="c0kihh_595">
+        val
+       </code>
+       s
+      </p>
+      <p id="c0kihh_586">
+       <span class="control" id="c0kihh_596">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_587">
+       <li class="list__item" id="c0kihh_597">
+        <p id="c0kihh_599">
+         &lt; 1.4: report a warning through an IntelliJ IDEA inspection
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_598">
+        <p id="c0kihh_600">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_601">
+          -XXLanguage:-NoConstantValueAttributeForNonConstVals
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="generated-overloads-for-jvmoverloads-on-open-methods-should-be-final" id="generated-overloads-for-jvmoverloads-on-open-methods-should-be-final">
+      Generated overloads for @JvmOverloads on open methods should be final
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_602">
+      <p id="c0kihh_603">
+       <span class="control" id="c0kihh_609">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-33240" id="c0kihh_610" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-33240
+       </a>
+      </p>
+      <p id="c0kihh_604">
+       <span class="control" id="c0kihh_611">
+        Components
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_605">
+       <span class="control" id="c0kihh_612">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_606">
+       <span class="control" id="c0kihh_613">
+        Short summary
+       </span>
+       : overloads for functions with
+       <code class="code" id="c0kihh_614">
+        @JvmOverloads
+       </code>
+       will be generated as
+       <code class="code" id="c0kihh_615">
+        final
+       </code>
+      </p>
+      <p id="c0kihh_607">
+       <span class="control" id="c0kihh_616">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_608">
+       <li class="list__item" id="c0kihh_617">
+        <p id="c0kihh_619">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_618">
+        <p id="c0kihh_620">
+         &gt;= 1.4: behavior changed,
+         <code class="code" id="c0kihh_621">
+          -XXLanguage:-GenerateJvmOverloadsAsFinal
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="lambdas-returning-kotlin-result-now-return-boxed-value-instead-of-unboxed" id="lambdas-returning-kotlin-result-now-return-boxed-value-instead-of-unboxed">
+      Lambdas returning kotlin.Result now return boxed value instead of unboxed
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_622">
+      <p id="c0kihh_623">
+       <span class="control" id="c0kihh_629">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-39198" id="c0kihh_630" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-39198
+       </a>
+      </p>
+      <p id="c0kihh_624">
+       <span class="control" id="c0kihh_631">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_625">
+       <span class="control" id="c0kihh_632">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_626">
+       <span class="control" id="c0kihh_633">
+        Short summary
+       </span>
+       : since Kotlin 1.4, lambdas returning values of
+       <code class="code" id="c0kihh_634">
+        kotlin.Result
+       </code>
+       type will return boxed value instead of unboxed
+      </p>
+      <p id="c0kihh_627">
+       <span class="control" id="c0kihh_635">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_628">
+       <li class="list__item" id="c0kihh_636">
+        <p id="c0kihh_638">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_637">
+        <p id="c0kihh_639">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="unify-exceptions-from-null-checks" id="unify-exceptions-from-null-checks">
+      Unify exceptions from null checks
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_640">
+      <p id="c0kihh_641">
+       <span class="control" id="c0kihh_647">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-22275" id="c0kihh_648" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-22275
+       </a>
+      </p>
+      <p id="c0kihh_642">
+       <span class="control" id="c0kihh_649">
+        Component
+       </span>
+       : Kotlin/JVM
+      </p>
+      <p id="c0kihh_643">
+       <span class="control" id="c0kihh_650">
+        Incompatible change type
+       </span>
+       : behavior
+      </p>
+      <p id="c0kihh_644">
+       <span class="control" id="c0kihh_651">
+        Short summary
+       </span>
+       : Starting from Kotlin 1.4, all runtime null checks will throw a
+       <code class="code" id="c0kihh_652">
+        java.lang.NullPointerException
+       </code>
+      </p>
+      <p id="c0kihh_645">
+       <span class="control" id="c0kihh_653">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_646">
+       <li class="list__item" id="c0kihh_654">
+        <p id="c0kihh_656">
+         &lt; 1.4: runtime null checks throw different exceptions, such as
+         <code class="code" id="c0kihh_657">
+          KotlinNullPointerException
+         </code>
+         ,
+         <code class="code" id="c0kihh_658">
+          IllegalStateException
+         </code>
+         ,
+         <code class="code" id="c0kihh_659">
+          IllegalArgumentException
+         </code>
+         , and
+         <code class="code" id="c0kihh_660">
+          TypeCastException
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_655">
+        <p id="c0kihh_661">
+         &gt;= 1.4: all runtime null checks throw a
+         <code class="code" id="c0kihh_662">
+          java.lang.NullPointerException
+         </code>
+         .
+         <code class="code" id="c0kihh_663">
+          -Xno-unified-null-checks
+         </code>
+         can be used to temporarily revert to pre-1.4 behavior
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="comparing-floating-point-values-in-array-list-operations-contains-indexof-lastindexof-ieee-754-or-total-order" id="comparing-floating-point-values-in-array-list-operations-contains-indexof-lastindexof-ieee-754-or-total-order">
+      Comparing floating-point values in array/list operations contains, indexOf, lastIndexOf: IEEE 754 or total order
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_664">
+      <p id="c0kihh_665">
+       <span class="control" id="c0kihh_671">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-28753" id="c0kihh_672" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-28753
+       </a>
+      </p>
+      <p id="c0kihh_666">
+       <span class="control" id="c0kihh_673">
+        Component
+       </span>
+       : kotlin-stdlib (JVM)
+      </p>
+      <p id="c0kihh_667">
+       <span class="control" id="c0kihh_674">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_668">
+       <span class="control" id="c0kihh_675">
+        Short summary
+       </span>
+       : the
+       <code class="code" id="c0kihh_676">
+        List
+       </code>
+       implementation returned from
+       <code class="code" id="c0kihh_677">
+        Double/FloatArray.asList()
+       </code>
+       will implement
+       <code class="code" id="c0kihh_678">
+        contains
+       </code>
+       ,
+       <code class="code" id="c0kihh_679">
+        indexOf
+       </code>
+       , and
+       <code class="code" id="c0kihh_680">
+        lastIndexOf
+       </code>
+       , so that they use total order equality
+      </p>
+      <p id="c0kihh_669">
+       <span class="control" id="c0kihh_681">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_670">
+       <li class="list__item" id="c0kihh_682">
+        <p id="c0kihh_684">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_683">
+        <p id="c0kihh_685">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="gradually-change-the-return-type-of-collection-min-and-max-functions-to-non-nullable" id="gradually-change-the-return-type-of-collection-min-and-max-functions-to-non-nullable">
+      Gradually change the return type of collection min and max functions to non-nullable
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_686">
+      <p id="c0kihh_687">
+       <span class="control" id="c0kihh_693">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-38854" id="c0kihh_694" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-38854
+       </a>
+      </p>
+      <p id="c0kihh_688">
+       <span class="control" id="c0kihh_695">
+        Component
+       </span>
+       : kotlin-stdlib (JVM)
+      </p>
+      <p id="c0kihh_689">
+       <span class="control" id="c0kihh_696">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_690">
+       <span class="control" id="c0kihh_697">
+        Short summary
+       </span>
+       : return type of collection
+       <code class="code" id="c0kihh_698">
+        min
+       </code>
+       and
+       <code class="code" id="c0kihh_699">
+        max
+       </code>
+       functions will be changed to non-nullable in 1.6
+      </p>
+      <p id="c0kihh_691">
+       <span class="control" id="c0kihh_700">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_692">
+       <li class="list__item" id="c0kihh_701">
+        <p id="c0kihh_704">
+         1.4: introduce
+         <code class="code" id="c0kihh_705">
+          ...OrNull
+         </code>
+         functions as synonyms and deprecate the affected API (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_702">
+        <p id="c0kihh_706">
+         1.5.x: raise the deprecation level of the affected API to error
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_703">
+        <p id="c0kihh_707">
+         &gt;=1.6: reintroduce the affected API but with non-nullable return type
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="deprecate-appendln-in-favor-of-appendline" id="deprecate-appendln-in-favor-of-appendline">
+      Deprecate appendln in favor of appendLine
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_708">
+      <p id="c0kihh_709">
+       <span class="control" id="c0kihh_715">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-38754" id="c0kihh_716" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-38754
+       </a>
+      </p>
+      <p id="c0kihh_710">
+       <span class="control" id="c0kihh_717">
+        Component
+       </span>
+       : kotlin-stdlib (JVM)
+      </p>
+      <p id="c0kihh_711">
+       <span class="control" id="c0kihh_718">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_712">
+       <span class="control" id="c0kihh_719">
+        Short summary
+       </span>
+       :
+       <code class="code" id="c0kihh_720">
+        StringBuilder.appendln()
+       </code>
+       will be deprecated in favor of
+       <code class="code" id="c0kihh_721">
+        StringBuilder.appendLine()
+       </code>
+      </p>
+      <p id="c0kihh_713">
+       <span class="control" id="c0kihh_722">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_714">
+       <li class="list__item" id="c0kihh_723">
+        <p id="c0kihh_725">
+         1.4: introduce
+         <code class="code" id="c0kihh_726">
+          appendLine
+         </code>
+         function as a replacement for
+         <code class="code" id="c0kihh_727">
+          appendln
+         </code>
+         and deprecate
+         <code class="code" id="c0kihh_728">
+          appendln
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_724">
+        <p id="c0kihh_729">
+         &gt;=1.5: raise the deprecation level to error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="deprecate-conversions-of-floating-point-types-to-short-and-byte" id="deprecate-conversions-of-floating-point-types-to-short-and-byte">
+      Deprecate conversions of floating-point types to Short and Byte
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_730">
+      <p id="c0kihh_731">
+       <span class="control" id="c0kihh_737">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-30360" id="c0kihh_738" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-30360
+       </a>
+      </p>
+      <p id="c0kihh_732">
+       <span class="control" id="c0kihh_739">
+        Component
+       </span>
+       : kotlin-stdlib (JVM)
+      </p>
+      <p id="c0kihh_733">
+       <span class="control" id="c0kihh_740">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_734">
+       <span class="control" id="c0kihh_741">
+        Short summary
+       </span>
+       : since Kotlin 1.4, conversions of floating-point types to
+       <code class="code" id="c0kihh_742">
+        Short
+       </code>
+       and
+       <code class="code" id="c0kihh_743">
+        Byte
+       </code>
+       will be deprecated
+      </p>
+      <p id="c0kihh_735">
+       <span class="control" id="c0kihh_744">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_736">
+       <li class="list__item" id="c0kihh_745">
+        <p id="c0kihh_747">
+         1.4: deprecate
+         <code class="code" id="c0kihh_748">
+          Double.toShort()/toByte()
+         </code>
+         and
+         <code class="code" id="c0kihh_749">
+          Float.toShort()/toByte()
+         </code>
+         and propose replacement
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_746">
+        <p id="c0kihh_750">
+         &gt;=1.5: raise the deprecation level to error
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="fail-fast-in-regex-findall-on-an-invalid-startindex" id="fail-fast-in-regex-findall-on-an-invalid-startindex">
+      Fail fast in Regex.findAll on an invalid startIndex
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_751">
+      <p id="c0kihh_752">
+       <span class="control" id="c0kihh_758">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-28356" id="c0kihh_759" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-28356
+       </a>
+      </p>
+      <p id="c0kihh_753">
+       <span class="control" id="c0kihh_760">
+        Component
+       </span>
+       : kotlin-stdlib
+      </p>
+      <p id="c0kihh_754">
+       <span class="control" id="c0kihh_761">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_755">
+       <span class="control" id="c0kihh_762">
+        Short summary
+       </span>
+       : since Kotlin 1.4,
+       <code class="code" id="c0kihh_763">
+        findAll
+       </code>
+       will be improved to check that
+       <code class="code" id="c0kihh_764">
+        startIndex
+       </code>
+       is in the range of the valid position indices of the input char sequence at the moment of entering
+       <code class="code" id="c0kihh_765">
+        findAll
+       </code>
+       , and throw
+       <code class="code" id="c0kihh_766">
+        IndexOutOfBoundsException
+       </code>
+       if it's not
+      </p>
+      <p id="c0kihh_756">
+       <span class="control" id="c0kihh_767">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_757">
+       <li class="list__item" id="c0kihh_768">
+        <p id="c0kihh_770">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_769">
+        <p id="c0kihh_771">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-deprecated-kotlin-coroutines-experimental" id="remove-deprecated-kotlin-coroutines-experimental">
+      Remove deprecated kotlin.coroutines.experimental
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_772">
+      <p id="c0kihh_773">
+       <span class="control" id="c0kihh_779">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-36083" id="c0kihh_780" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-36083
+       </a>
+      </p>
+      <p id="c0kihh_774">
+       <span class="control" id="c0kihh_781">
+        Component
+       </span>
+       : kotlin-stdlib
+      </p>
+      <p id="c0kihh_775">
+       <span class="control" id="c0kihh_782">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_776">
+       <span class="control" id="c0kihh_783">
+        Short summary
+       </span>
+       : since Kotlin 1.4, the deprecated
+       <code class="code" id="c0kihh_784">
+        kotlin.coroutines.experimental
+       </code>
+       API is removed from stdlib
+      </p>
+      <p id="c0kihh_777">
+       <span class="control" id="c0kihh_785">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_778">
+       <li class="list__item" id="c0kihh_786">
+        <p id="c0kihh_788">
+         &lt; 1.4:
+         <code class="code" id="c0kihh_789">
+          kotlin.coroutines.experimental
+         </code>
+         is deprecated with the
+         <code class="code" id="c0kihh_790">
+          ERROR
+         </code>
+         level
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_787">
+        <p id="c0kihh_791">
+         &gt;= 1.4:
+         <code class="code" id="c0kihh_792">
+          kotlin.coroutines.experimental
+         </code>
+         is removed from stdlib. On the JVM, a separate compatibility artifact is provided (see details in the issue).
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="remove-deprecated-mod-operator" id="remove-deprecated-mod-operator">
+      Remove deprecated mod operator
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_793">
+      <p id="c0kihh_794">
+       <span class="control" id="c0kihh_800">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-26654" id="c0kihh_801" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-26654
+       </a>
+      </p>
+      <p id="c0kihh_795">
+       <span class="control" id="c0kihh_802">
+        Component
+       </span>
+       : kotlin-stdlib
+      </p>
+      <p id="c0kihh_796">
+       <span class="control" id="c0kihh_803">
+        Incompatible change type
+       </span>
+       : source
+      </p>
+      <p id="c0kihh_797">
+       <span class="control" id="c0kihh_804">
+        Short summary
+       </span>
+       : since Kotlin 1.4,
+       <code class="code" id="c0kihh_805">
+        mod
+       </code>
+       operator on numeric types is removed from stdlib
+      </p>
+      <p id="c0kihh_798">
+       <span class="control" id="c0kihh_806">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_799">
+       <li class="list__item" id="c0kihh_807">
+        <p id="c0kihh_809">
+         &lt; 1.4:
+         <code class="code" id="c0kihh_810">
+          mod
+         </code>
+         is deprecated with the
+         <code class="code" id="c0kihh_811">
+          ERROR
+         </code>
+         level
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_808">
+        <p id="c0kihh_812">
+         &gt;= 1.4:
+         <code class="code" id="c0kihh_813">
+          mod
+         </code>
+         is removed from stdlib
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="hide-throwable-addsuppressed-member-and-prefer-extension-instead" id="hide-throwable-addsuppressed-member-and-prefer-extension-instead">
+      Hide Throwable.addSuppressed member and prefer extension instead
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_814">
+      <p id="c0kihh_815">
+       <span class="control" id="c0kihh_821">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-38777" id="c0kihh_822" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-38777
+       </a>
+      </p>
+      <p id="c0kihh_816">
+       <span class="control" id="c0kihh_823">
+        Component
+       </span>
+       : kotlin-stdlib
+      </p>
+      <p id="c0kihh_817">
+       <span class="control" id="c0kihh_824">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_818">
+       <span class="control" id="c0kihh_825">
+        Short summary
+       </span>
+       :
+       <code class="code" id="c0kihh_826">
+        Throwable.addSuppressed()
+       </code>
+       extension function is now preferred over the
+       <code class="code" id="c0kihh_827">
+        Throwable.addSuppressed()
+       </code>
+       member function
+      </p>
+      <p id="c0kihh_819">
+       <span class="control" id="c0kihh_828">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_820">
+       <li class="list__item" id="c0kihh_829">
+        <p id="c0kihh_831">
+         &lt; 1.4: old behavior (see details in the issue)
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_830">
+        <p id="c0kihh_832">
+         &gt;= 1.4: behavior changed
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="capitalize-should-convert-digraphs-to-title-case" id="capitalize-should-convert-digraphs-to-title-case">
+      capitalize should convert digraphs to title case
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_833">
+      <p id="c0kihh_834">
+       <span class="control" id="c0kihh_840">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-38817" id="c0kihh_841" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-38817
+       </a>
+      </p>
+      <p id="c0kihh_835">
+       <span class="control" id="c0kihh_842">
+        Component
+       </span>
+       : kotlin-stdlib
+      </p>
+      <p id="c0kihh_836">
+       <span class="control" id="c0kihh_843">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_837">
+       <span class="control" id="c0kihh_844">
+        Short summary
+       </span>
+       :
+       <code class="code" id="c0kihh_845">
+        String.capitalize()
+       </code>
+       function now capitalizes digraphs from the
+       <a data-external="true" href="https://en.wikipedia.org/wiki/Gaj%27s_Latin_alphabet" id="c0kihh_846" rel="noopener noreferrer" style="color: red;" target="_blank">
+        Serbo-Croatian Gaj's Latin alphabet
+       </a>
+       in the title case (
+       <code class="code" id="c0kihh_847">
+        ǅ
+       </code>
+       instead of
+       <code class="code" id="c0kihh_848">
+        Ǆ
+       </code>
+       )
+      </p>
+      <p id="c0kihh_838">
+       <span class="control" id="c0kihh_849">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_839">
+       <li class="list__item" id="c0kihh_850">
+        <p id="c0kihh_852">
+         &lt; 1.4: digraphs are capitalized in the upper case (
+         <code class="code" id="c0kihh_853">
+          Ǆ
+         </code>
+         )
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_851">
+        <p id="c0kihh_854">
+         &gt;= 1.4: digraphs are capitalized in the title case (
+         <code class="code" id="c0kihh_855">
+          ǅ
+         </code>
+         )
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="tools" id="tools">
+     Tools
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="compiler-arguments-with-delimiter-characters-must-be-passed-in-double-quotes-on-windows" id="compiler-arguments-with-delimiter-characters-must-be-passed-in-double-quotes-on-windows">
+      Compiler arguments with delimiter characters must be passed in double quotes on Windows
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_858">
+      <p id="c0kihh_859">
+       <span class="control" id="c0kihh_865">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-41309" id="c0kihh_866" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-41309
+       </a>
+      </p>
+      <p id="c0kihh_860">
+       <span class="control" id="c0kihh_867">
+        Component
+       </span>
+       : CLI
+      </p>
+      <p id="c0kihh_861">
+       <span class="control" id="c0kihh_868">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_862">
+       <span class="control" id="c0kihh_869">
+        Short summary
+       </span>
+       : on Windows,
+       <code class="code" id="c0kihh_870">
+        kotlinc.bat
+       </code>
+       arguments that contain delimiter characters (whitespace,
+       <code class="code" id="c0kihh_871">
+        =
+       </code>
+       ,
+       <code class="code" id="c0kihh_872">
+        ;
+       </code>
+       ,
+       <code class="code" id="c0kihh_873">
+        ,
+       </code>
+       ) now require double quotes (
+       <code class="code" id="c0kihh_874">
+        "
+       </code>
+       )
+      </p>
+      <p id="c0kihh_863">
+       <span class="control" id="c0kihh_875">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_864">
+       <li class="list__item" id="c0kihh_876">
+        <p id="c0kihh_878">
+         &lt; 1.4: all compiler arguments are passed without quotes
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_877">
+        <p id="c0kihh_879">
+         &gt;= 1.4: compiler arguments that contain delimiter characters (whitespace,
+         <code class="code" id="c0kihh_880">
+          =
+         </code>
+         ,
+         <code class="code" id="c0kihh_881">
+          ;
+         </code>
+         ,
+         <code class="code" id="c0kihh_882">
+          ,
+         </code>
+         ) require double quotes (
+         <code class="code" id="c0kihh_883">
+          "
+         </code>
+         )
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="kapt-names-of-synthetic-annotations-methods-for-properties-have-changed" id="kapt-names-of-synthetic-annotations-methods-for-properties-have-changed">
+      KAPT: Names of synthetic $annotations() methods for properties have changed
+     </h3>
+     <aside class="prompt" data-title="" data-type="tip" id="c0kihh_884">
+      <p id="c0kihh_885">
+       <span class="control" id="c0kihh_891">
+        Issue
+       </span>
+       :
+       <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-36926" id="c0kihh_892" rel="noopener noreferrer" style="color: red;" target="_blank">
+        KT-36926
+       </a>
+      </p>
+      <p id="c0kihh_886">
+       <span class="control" id="c0kihh_893">
+        Component
+       </span>
+       : KAPT
+      </p>
+      <p id="c0kihh_887">
+       <span class="control" id="c0kihh_894">
+        Incompatible change type
+       </span>
+       : behavioral
+      </p>
+      <p id="c0kihh_888">
+       <span class="control" id="c0kihh_895">
+        Short summary
+       </span>
+       : names of synthetic
+       <code class="code" id="c0kihh_896">
+        $annotations()
+       </code>
+       methods generated by KAPT for properties have changed in 1.4
+      </p>
+      <p id="c0kihh_889">
+       <span class="control" id="c0kihh_897">
+        Deprecation cycle
+       </span>
+       :
+      </p>
+      <ul class="list _bullet" id="c0kihh_890">
+       <li class="list__item" id="c0kihh_898">
+        <p id="c0kihh_900">
+         &lt; 1.4: names of synthetic
+         <code class="code" id="c0kihh_901">
+          $annotations()
+         </code>
+         methods for properties follow the template
+         <code class="code" id="c0kihh_902">
+          &lt;propertyName&gt;@annotations()
+         </code>
+        </p>
+       </li>
+       <li class="list__item" id="c0kihh_899">
+        <p id="c0kihh_903">
+         &gt;= 1.4: names of synthetic
+         <code class="code" id="c0kihh_904">
+          $annotations()
+         </code>
+         methods for properties include the
+         <code class="code" id="c0kihh_905">
+          get
+         </code>
+         prefix:
+         <code class="code" id="c0kihh_906">
+          get&lt;PropertyName&gt;@annotations()
+         </code>
+        </p>
+       </li>
+      </ul>
+     </aside>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

@@ -1,0 +1,143 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="sam-with-receiver-plugin" id="sam-with-receiver-plugin.md">
+    SAM-with-receiver compiler plugin
+   </h1>
+   <p id="n2nmmm_2">
+    The
+    <span class="emphasis" id="n2nmmm_9">
+     sam-with-receiver
+    </span>
+    compiler plugin makes the first parameter of the annotated Java "single abstract method" (SAM) interface method a receiver in Kotlin. This conversion only works when the SAM interface is passed as a Kotlin lambda, both for SAM adapters and SAM constructors (see the
+    <a data-tooltip="Kotlin supports SAM conversions for both Java and Kotlin interfaces. This support for Java means that Kotlin function literals can be automatically converted into implementations of Java interfaces with a single non-default method, as long as the parameter types of the interface…" href="java-interop.html#sam-conversions" id="n2nmmm_10" style="color: blue;">
+     SAM conversions documentation
+    </a>
+    for more details).
+   </p>
+   <p id="n2nmmm_3">
+    Here is an example:
+   </p>
+   <div class="code-block" data-lang="java" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    public @interface SamWithReceiver {}
+
+@SamWithReceiver
+public interface TaskRunner {
+    void run(Task task);
+}
+   </div>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    fun test(context: TaskContext) {
+    val runner = TaskRunner {
+        // Here 'this' is an instance of 'Task'
+
+        println("$name is started")
+        context.executeTask(this)
+        println("$name is finished")
+    }
+}
+   </div>
+   <section class="chapter">
+    <h2 data-toc="gradle" id="gradle">
+     Gradle
+    </h2>
+    <p id="n2nmmm_11">
+     The usage is the same to
+     <a data-tooltip="Kotlin has classes and their members final by default, which makes it inconvenient to use frameworks and libraries such as Spring AOP that require classes to be open. The all-open compiler plugin adapts Kotlin to the requirements of those frameworks and makes classes annotated with…" href="all-open-plugin.html" id="n2nmmm_15" style="color: blue;">
+      all-open
+     </a>
+     and
+     <a data-tooltip="The no-arg compiler plugin generates an additional zero-argument constructor for classes with a specific annotation." href="no-arg-plugin.html" id="n2nmmm_16" style="color: blue;">
+      no-arg
+     </a>
+     , except the fact that sam-with-receiver does not have any built-in presets, and you need to specify your own list of special-treated annotations.
+    </p>
+    <div class="tabs" data-anchors="[n2nmmm_17,n2nmmm_18]" data-group="build-script" id="n2nmmm_12">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="n2nmmm_17">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       plugins {
+    kotlin("plugin.sam.with.receiver") version "2.1.20"
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="n2nmmm_18">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       plugins {
+    id "org.jetbrains.kotlin.plugin.sam.with.receiver" version "2.1.20"
+}
+      </div>
+     </div>
+    </div>
+    <p id="n2nmmm_13">
+     Then specify the list of SAM-with-receiver annotations:
+    </p>
+    <div class="code-block" data-lang="groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     samWithReceiver {
+    annotation("com.my.SamWithReceiver")
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="maven" id="maven">
+     Maven
+    </h2>
+    <div class="code-block" data-lang="markup" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     &lt;plugin&gt;
+    &lt;artifactId&gt;kotlin-maven-plugin&lt;/artifactId&gt;
+    &lt;groupId&gt;org.jetbrains.kotlin&lt;/groupId&gt;
+    &lt;version&gt;${kotlin.version}&lt;/version&gt;
+
+    &lt;configuration&gt;
+        &lt;compilerPlugins&gt;
+            &lt;plugin&gt;sam-with-receiver&lt;/plugin&gt;
+        &lt;/compilerPlugins&gt;
+
+        &lt;pluginOptions&gt;
+            &lt;option&gt;
+                sam-with-receiver:annotation=com.my.SamWithReceiver
+            &lt;/option&gt;
+        &lt;/pluginOptions&gt;
+    &lt;/configuration&gt;
+
+    &lt;dependencies&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.jetbrains.kotlin&lt;/groupId&gt;
+            &lt;artifactId&gt;kotlin-maven-sam-with-receiver&lt;/artifactId&gt;
+            &lt;version&gt;${kotlin.version}&lt;/version&gt;
+        &lt;/dependency&gt;
+    &lt;/dependencies&gt;
+&lt;/plugin&gt;
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="command-line-compiler" id="command-line-compiler">
+     Command-line compiler
+    </h2>
+    <p id="n2nmmm_22">
+     Add the plugin JAR file to the compiler plugin classpath and specify the list of sam-with-receiver annotations:
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     -Xplugin=$KOTLIN_HOME/lib/sam-with-receiver-compiler-plugin.jar
+-P plugin:org.jetbrains.kotlin.samWithReceiver:annotation=com.my.SamWithReceiver
+    </div>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

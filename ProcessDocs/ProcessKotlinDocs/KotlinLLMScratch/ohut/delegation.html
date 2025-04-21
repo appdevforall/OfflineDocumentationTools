@@ -1,0 +1,176 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="delegation" id="delegation.md">
+    Delegation
+   </h1>
+   <p id="dftkv2_2">
+    The
+    <a data-external="true" href="https://en.wikipedia.org/wiki/Delegation_pattern" id="dftkv2_7" rel="noopener noreferrer" style="color: red;" target="_blank">
+     Delegation pattern
+    </a>
+    has proven to be a good alternative to implementation inheritance, and Kotlin supports it natively requiring zero boilerplate code.
+   </p>
+   <p id="dftkv2_3">
+    A class
+    <code class="code" id="dftkv2_8">
+     Derived
+    </code>
+    can implement an interface
+    <code class="code" id="dftkv2_9">
+     Base
+    </code>
+    by delegating all of its public members to a specified object:
+   </p>
+   <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    interface Base {
+    fun print()
+}
+
+class BaseImpl(val x: Int) : Base {
+    override fun print() { print(x) }
+}
+
+class Derived(b: Base) : Base by b
+
+fun main() {
+    val base = BaseImpl(10)
+    Derived(base).print()
+}
+   </div>
+   <p id="dftkv2_5">
+    The
+    <code class="code" id="dftkv2_10">
+     by
+    </code>
+    -clause in the supertype list for
+    <code class="code" id="dftkv2_11">
+     Derived
+    </code>
+    indicates that
+    <code class="code" id="dftkv2_12">
+     b
+    </code>
+    will be stored internally in objects of
+    <code class="code" id="dftkv2_13">
+     Derived
+    </code>
+    and the compiler will generate all the methods of
+    <code class="code" id="dftkv2_14">
+     Base
+    </code>
+    that forward to
+    <code class="code" id="dftkv2_15">
+     b
+    </code>
+    .
+   </p>
+   <section class="chapter">
+    <h2 data-toc="overriding-a-member-of-an-interface-implemented-by-delegation" id="overriding-a-member-of-an-interface-implemented-by-delegation">
+     Overriding a member of an interface implemented by delegation
+    </h2>
+    <p id="dftkv2_16">
+     <a data-tooltip="Kotlin requires explicit modifiers for overridable members and overrides:" href="inheritance.html#overriding-methods" id="dftkv2_21" style="color: blue;">
+      Overrides
+     </a>
+     work as you expect: the compiler will use your
+     <code class="code" id="dftkv2_22">
+      override
+     </code>
+     implementations instead of those in the delegate object. If you want to add
+     <code class="code" id="dftkv2_23">
+      override fun printMessage() { print("abc") }
+     </code>
+     to
+     <code class="code" id="dftkv2_24">
+      Derived
+     </code>
+     , the program would print
+     <span class="emphasis" id="dftkv2_25">
+      abc
+     </span>
+     instead of
+     <span class="emphasis" id="dftkv2_26">
+      10
+     </span>
+     when
+     <code class="code" id="dftkv2_27">
+      printMessage
+     </code>
+     is called:
+    </p>
+    <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface Base {
+    fun printMessage()
+    fun printMessageLine()
+}
+
+class BaseImpl(val x: Int) : Base {
+    override fun printMessage() { print(x) }
+    override fun printMessageLine() { println(x) }
+}
+
+class Derived(b: Base) : Base by b {
+    override fun printMessage() { print("abc") }
+}
+
+fun main() {
+    val base = BaseImpl(10)
+    Derived(base).printMessage()
+    Derived(base).printMessageLine()
+}
+    </div>
+    <p id="dftkv2_18">
+     Note, however, that members overridden in this way do not get called from the members of the delegate object, which can only access its own implementations of the interface members:
+    </p>
+    <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     interface Base {
+    val message: String
+    fun print()
+}
+
+class BaseImpl(x: Int) : Base {
+    override val message = "BaseImpl: x = $x"
+    override fun print() { println(message) }
+}
+
+class Derived(b: Base) : Base by b {
+    // This property is not accessed from b's implementation of `print`
+    override val message = "Message of Derived"
+}
+
+fun main() {
+    val b = BaseImpl(10)
+    val derived = Derived(b)
+    derived.print()
+    println(derived.message)
+}
+    </div>
+    <p id="dftkv2_20">
+     Learn more about
+     <a data-tooltip="With some common kinds of properties, even though you can implement them manually every time you need them, it is more helpful to implement them once, add them to a library, and reuse them later. For example:" href="delegated-properties.html" id="dftkv2_28" style="color: blue;">
+      delegated properties
+     </a>
+     .
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

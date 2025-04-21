@@ -1,0 +1,388 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="native-cocoapods-xcode" id="native-cocoapods-xcode.md">
+    Use a Kotlin Gradle project as a CocoaPods dependency
+   </h1>
+   <p id="z6s5ub1_2">
+    To use a Kotlin Multiplatform project with native targets as a CocoaPods dependency,
+    <a data-tooltip="Install the CocoaPods dependency manager using the installation tool of your choice:" href="native-cocoapods.html#set-up-an-environment-to-work-with-cocoapods" id="z6s5ub1_9" style="color: blue;">
+     complete the initial configuration
+    </a>
+    . You can include such a dependency in the Podfile of the Xcode project by its name and path to the project directory containing the generated Podspec.
+   </p>
+   <p id="z6s5ub1_3">
+    This dependency will be automatically built (and rebuilt) along with this project. Such an approach simplifies importing to Xcode by removing a need to write the corresponding Gradle tasks and Xcode build steps manually.
+   </p>
+   <p id="z6s5ub1_4">
+    You can add dependencies between a Kotlin Gradle project and an Xcode project with one or several targets. It's also possible to add dependencies between a Gradle project and multiple Xcode projects. However, in this case, you need to add a dependency by calling
+    <code class="code" id="z6s5ub1_10">
+     pod install
+    </code>
+    manually for each Xcode project. In other cases, it's done automatically.
+   </p>
+   <aside class="prompt" data-title="" data-type="note" id="z6s5ub1_5">
+    <ul class="list _bullet" id="z6s5ub1_11">
+     <li class="list__item" id="z6s5ub1_12">
+      <p id="z6s5ub1_14">
+       To correctly import the dependencies into the Kotlin/Native module, the
+       <code class="code" id="z6s5ub1_15">
+        Podfile
+       </code>
+       must contain either
+       <a data-external="true" href="https://guides.cocoapods.org/syntax/podfile.html#use_modular_headers_bang" id="z6s5ub1_16" rel="noopener noreferrer" style="color: red;" target="_blank">
+        <code class="code" id="z6s5ub1_18">
+         use_modular_headers!
+        </code>
+       </a>
+       or
+       <a data-external="true" href="https://guides.cocoapods.org/syntax/podfile.html#use_frameworks_bang" id="z6s5ub1_17" rel="noopener noreferrer" style="color: red;" target="_blank">
+        <code class="code" id="z6s5ub1_19">
+         use_frameworks!
+        </code>
+       </a>
+       directive.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_13">
+      <p id="z6s5ub1_20">
+       If you don't specify the minimum deployment target version and a dependency Pod requires a higher deployment target, you will get an error.
+      </p>
+     </li>
+    </ul>
+   </aside>
+   <section class="chapter">
+    <h2 data-toc="xcode-project-with-one-target" id="xcode-project-with-one-target">
+     Xcode project with one target
+    </h2>
+    <ol class="list _decimal" id="z6s5ub1_21" type="1">
+     <li class="list__item" id="z6s5ub1_22">
+      <p id="z6s5ub1_30">
+       Create an Xcode project with a
+       <code class="code" id="z6s5ub1_31">
+        Podfile
+       </code>
+       if you haven't done so yet.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_23">
+      <p id="z6s5ub1_32">
+       Make sure to disable
+       <span class="control" id="z6s5ub1_34">
+        User Script Sandboxing
+       </span>
+       under
+       <span class="control" id="z6s5ub1_35">
+        Build Options
+       </span>
+       in the application target:
+      </p>
+      <figure id="z6s5ub1_33">
+       <img alt="Disable sandboxing CocoaPods" height="436" src="images/disable-sandboxing-cocoapods.png" title="Disable sandboxing CocoaPods" width="2116"/>
+      </figure>
+     </li>
+     <li class="list__item" id="z6s5ub1_24">
+      <p id="z6s5ub1_36">
+       Add the path to your Xcode project
+       <code class="code" id="z6s5ub1_37">
+        Podfile
+       </code>
+       with
+       <code class="code" id="z6s5ub1_38">
+        podfile = project.file(..)
+       </code>
+       in the
+       <code class="code" id="z6s5ub1_39">
+        build.gradle(.kts)
+       </code>
+       file of your Kotlin project. This step helps synchronize your Xcode project with Gradle project dependencies by calling
+       <code class="code" id="z6s5ub1_40">
+        pod install
+       </code>
+       for your
+       <code class="code" id="z6s5ub1_41">
+        Podfile
+       </code>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_25">
+      <p id="z6s5ub1_42">
+       Specify the minimum deployment target version for the Pod library.
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    iosArm64()
+
+    cocoapods {
+        version = "2.0"
+        summary = "CocoaPods test library"
+        homepage = "https://github.com/JetBrains/kotlin"
+        ios.deploymentTarget = "16.0"
+
+        pod("SDWebImage") {
+            version = "5.20.0"
+        }
+        podfile = project.file("../ios-app/Podfile")
+    }
+}
+      </div>
+     </li>
+     <li class="list__item" id="z6s5ub1_26">
+      <p id="z6s5ub1_44">
+       Add the name and path of the Gradle project you want to include in the Xcode project to
+       <code class="code" id="z6s5ub1_46">
+        Podfile
+       </code>
+       .
+      </p>
+      <div class="code-block" data-lang="ruby" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       use_frameworks!
+
+platform :ios, '16.0'
+
+target 'ios-app' do
+        pod 'kotlin_library', :path =&gt; '../kotlin-library'
+end
+      </div>
+     </li>
+     <li class="list__item" id="z6s5ub1_27">
+      <p id="z6s5ub1_47">
+       Run
+       <code class="code" id="z6s5ub1_49">
+        pod install
+       </code>
+       in you project directory.
+      </p>
+      <p id="z6s5ub1_48">
+       When you run
+       <code class="code" id="z6s5ub1_50">
+        pod install
+       </code>
+       for the first time, it creates the
+       <code class="code" id="z6s5ub1_51">
+        .xcworkspace
+       </code>
+       file. This file includes your original
+       <code class="code" id="z6s5ub1_52">
+        .xcodeproj
+       </code>
+       and the CocoaPods project.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_28">
+      <p id="z6s5ub1_53">
+       Close your
+       <code class="code" id="z6s5ub1_54">
+        .xcodeproj
+       </code>
+       and open the new
+       <code class="code" id="z6s5ub1_55">
+        .xcworkspace
+       </code>
+       file instead. This way you avoid issues with project dependencies.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_29">
+      <p id="z6s5ub1_56">
+       Run
+       <span class="control" id="z6s5ub1_57">
+        Reload All Gradle Projects
+       </span>
+       in IntelliJ IDEA (or
+       <span class="control" id="z6s5ub1_58">
+        Sync Project with Gradle Files
+       </span>
+       in Android Studio) to re-import the project.
+      </p>
+     </li>
+    </ol>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="xcode-project-with-several-targets" id="xcode-project-with-several-targets">
+     Xcode project with several targets
+    </h2>
+    <ol class="list _decimal" id="z6s5ub1_59" type="1">
+     <li class="list__item" id="z6s5ub1_61">
+      <p id="z6s5ub1_69">
+       Create an Xcode project with a
+       <code class="code" id="z6s5ub1_70">
+        Podfile
+       </code>
+       if you haven't done so yet.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_62">
+      <p id="z6s5ub1_71">
+       Add the path to your Xcode project
+       <code class="code" id="z6s5ub1_72">
+        Podfile
+       </code>
+       with
+       <code class="code" id="z6s5ub1_73">
+        podfile = project.file(..)
+       </code>
+       to
+       <code class="code" id="z6s5ub1_74">
+        build.gradle(.kts)
+       </code>
+       of your Kotlin project. This step helps synchronize your Xcode project with Gradle project dependencies by calling
+       <code class="code" id="z6s5ub1_75">
+        pod install
+       </code>
+       for your
+       <code class="code" id="z6s5ub1_76">
+        Podfile
+       </code>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_63">
+      <p id="z6s5ub1_77">
+       Add dependencies to the Pod libraries you want to use in your project with
+       <code class="code" id="z6s5ub1_78">
+        pod()
+       </code>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_64">
+      <p id="z6s5ub1_79">
+       For each target, specify the minimum deployment target version for the Pod library.
+      </p>
+      <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlin {
+    iosArm64()
+    tvosArm64()
+
+    cocoapods {
+        version = "2.0"
+        summary = "CocoaPods test library"
+        homepage = "https://github.com/JetBrains/kotlin"
+        ios.deploymentTarget = "16.0"
+        tvos.deploymentTarget = "16.0"
+
+        pod("SDWebImage") {
+            version = "5.20.0"
+        }
+        podfile = project.file("../severalTargetsXcodeProject/Podfile") // specify the path to the Podfile
+    }
+}
+      </div>
+     </li>
+     <li class="list__item" id="z6s5ub1_65">
+      <p id="z6s5ub1_81">
+       Add the name and path of the Gradle project you want to include in the Xcode project to the
+       <code class="code" id="z6s5ub1_83">
+        Podfile
+       </code>
+       .
+      </p>
+      <div class="code-block" data-lang="ruby" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       target 'iosApp' do
+  use_frameworks!
+  platform :ios, '16.0'
+  # Pods for iosApp
+  pod 'kotlin_library', :path =&gt; '../kotlin-library'
+end
+
+target 'TVosApp' do
+  use_frameworks!
+  platform :tvos, '16.0'
+
+  # Pods for TVosApp
+  pod 'kotlin_library', :path =&gt; '../kotlin-library'
+end
+      </div>
+     </li>
+     <li class="list__item" id="z6s5ub1_66">
+      <p id="z6s5ub1_84">
+       Run
+       <code class="code" id="z6s5ub1_86">
+        pod install
+       </code>
+       in you project directory.
+      </p>
+      <p id="z6s5ub1_85">
+       When you run
+       <code class="code" id="z6s5ub1_87">
+        pod install
+       </code>
+       for the first time, it creates the
+       <code class="code" id="z6s5ub1_88">
+        .xcworkspace
+       </code>
+       file. This file includes your original
+       <code class="code" id="z6s5ub1_89">
+        .xcodeproj
+       </code>
+       and the CocoaPods project.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_67">
+      <p id="z6s5ub1_90">
+       Close your
+       <code class="code" id="z6s5ub1_91">
+        .xcodeproj
+       </code>
+       and open the new
+       <code class="code" id="z6s5ub1_92">
+        .xcworkspace
+       </code>
+       file instead. This way you avoid issues with project dependencies.
+      </p>
+     </li>
+     <li class="list__item" id="z6s5ub1_68">
+      <p id="z6s5ub1_93">
+       Run
+       <span class="control" id="z6s5ub1_94">
+        Reload All Gradle Projects
+       </span>
+       in IntelliJ IDEA (or
+       <span class="control" id="z6s5ub1_95">
+        Sync Project with Gradle Files
+       </span>
+       in Android Studio) to re-import the project.
+      </p>
+     </li>
+    </ol>
+    <p id="z6s5ub1_60">
+     You can find a sample project
+     <a data-external="true" href="https://github.com/Kotlin/kmm-with-cocoapods-multitarget-xcode-sample" id="z6s5ub1_96" rel="noopener noreferrer" style="color: red;" target="_blank">
+      here
+     </a>
+     .
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="what-s-next" id="what-s-next">
+     What's next
+    </h2>
+    <p id="z6s5ub1_97">
+     See
+     <a data-external="true" href="https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-integrate-in-existing-app.html#connect-the-framework-to-your-ios-project" id="z6s5ub1_98" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Connect the framework to your iOS project
+     </a>
+     to learn how to add a custom build script to build phases in Xcode projects.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

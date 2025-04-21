@@ -1,0 +1,1447 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="whatsnew11" id="whatsnew11.md">
+    What's new in Kotlin 1.1
+   </h1>
+   <p id="z7a4039_2">
+    <span class="emphasis" id="z7a4039_10">
+     Released: 15 February 2016
+    </span>
+   </p>
+   <section class="chapter">
+    <h2 data-toc="table-of-contents" id="table-of-contents">
+     Table of contents
+    </h2>
+    <ul class="list _bullet" id="z7a4039_11">
+     <li class="list__item" id="z7a4039_12">
+      <p id="z7a4039_17">
+       <a data-tooltip="The key new feature in Kotlin 1.1 is coroutines, bringing the support of async/await, yield, and similar programming patterns. The key feature of Kotlin's design is that the implementation of coroutine execution is part of the libraries, not the language, so you aren't bound to any…" href="#coroutines-experimental" id="z7a4039_18" style="color: blue;">
+        Coroutines
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z7a4039_13">
+      <p id="z7a4039_19">
+       <a data-tooltip="A type alias allows you to define an alternative name for an existing type. This is most useful for generic types such as collections, as well as for function types. Here is an example:" href="#other-language-features" id="z7a4039_20" style="color: blue;">
+        Other language features
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z7a4039_14">
+      <p id="z7a4039_21">
+       <a data-tooltip="There is a bunch of new extensions on the String class to convert it to a number without throwing an exception on invalid number: String.toIntOrNull(): Int?, String.toDoubleOrNull(): Double? etc." href="#standard-library" id="z7a4039_22" style="color: blue;">
+        Standard library
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z7a4039_15">
+      <p id="z7a4039_23">
+       <a data-tooltip="Kotlin has now the option of generating Java 8 bytecode (-jvm-target 1.8 command line option or the corresponding options in Ant/Maven/Gradle). For now this doesn't change the semantics of the bytecode (in particular, default methods in interfaces and lambdas are generated exactly…" href="#jvm-backend" id="z7a4039_24" style="color: blue;">
+        JVM backend
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="z7a4039_16">
+      <p id="z7a4039_25">
+       <a data-tooltip="A much larger part of the Kotlin standard library can now be used from code compiled to JavaScript. In particular, key classes such as collections (ArrayList, HashMap etc.), exceptions (IllegalArgumentException etc.) and a few others (StringBuilder, Comparator) are now defined under…" href="#javascript-backend" id="z7a4039_26" style="color: blue;">
+        JavaScript backend
+       </a>
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="javascript" id="javascript">
+     JavaScript
+    </h2>
+    <p id="z7a4039_27">
+     Starting with Kotlin 1.1, the JavaScript target is no longer considered experimental. All language features are supported, and there are many new tools for integration with the frontend development environment. See
+     <a data-tooltip="A much larger part of the Kotlin standard library can now be used from code compiled to JavaScript. In particular, key classes such as collections (ArrayList, HashMap etc.), exceptions (IllegalArgumentException etc.) and a few others (StringBuilder, Comparator) are now defined under…" href="#javascript-backend" id="z7a4039_28" style="color: blue;">
+      below
+     </a>
+     for a more detailed list of changes.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="coroutines-experimental" id="coroutines-experimental">
+     Coroutines (experimental)
+    </h2>
+    <p id="z7a4039_29">
+     The key new feature in Kotlin 1.1 is
+     <span class="emphasis" id="z7a4039_39">
+      coroutines
+     </span>
+     , bringing the support of
+     <code class="code" id="z7a4039_40">
+      async
+     </code>
+     /
+     <code class="code" id="z7a4039_41">
+      await
+     </code>
+     ,
+     <code class="code" id="z7a4039_42">
+      yield
+     </code>
+     , and similar programming patterns. The key feature of Kotlin's design is that the implementation of coroutine execution is part of the libraries, not the language, so you aren't bound to any specific programming paradigm or concurrency library.
+    </p>
+    <p id="z7a4039_30">
+     A coroutine is effectively a light-weight thread that can be suspended and resumed later. Coroutines are supported through
+     <span class="emphasis" id="z7a4039_43">
+      <span id="z7a4039_44">
+       suspending functions
+      </span>
+     </span>
+     : a call to such a function can potentially suspend a coroutine, and to start a new coroutine we usually use an anonymous suspending functions (i.e. suspending lambdas).
+    </p>
+    <p id="z7a4039_31">
+     Let's look at
+     <code class="code" id="z7a4039_45">
+      async
+     </code>
+     /
+     <code class="code" id="z7a4039_46">
+      await
+     </code>
+     which is implemented in an external library,
+     <a data-external="true" href="https://github.com/kotlin/kotlinx.coroutines" id="z7a4039_47" rel="noopener noreferrer" style="color: red;" target="_blank">
+      kotlinx.coroutines
+     </a>
+     :
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     // runs the code in the background thread pool
+fun asyncOverlay() = async(CommonPool) {
+    // start two async operations
+    val original = asyncLoadImage("original")
+    val overlay = asyncLoadImage("overlay")
+    // and then apply overlay to both results
+    applyOverlay(original.await(), overlay.await())
+}
+
+// launches new coroutine in UI context
+launch(UI) {
+    // wait for async overlay to complete
+    val image = asyncOverlay().await()
+    // and then show it in UI
+    showImage(image)
+}
+    </div>
+    <p id="z7a4039_33">
+     Here,
+     <code class="code" id="z7a4039_48">
+      async { ... }
+     </code>
+     starts a coroutine and, when we use
+     <code class="code" id="z7a4039_49">
+      await()
+     </code>
+     , the execution of the coroutine is suspended while the operation being awaited is executed, and is resumed (possibly on a different thread) when the operation being awaited completes.
+    </p>
+    <p id="z7a4039_34">
+     The standard library uses coroutines to support
+     <span class="emphasis" id="z7a4039_50">
+      lazily generated sequences
+     </span>
+     with
+     <code class="code" id="z7a4039_51">
+      yield
+     </code>
+     and
+     <code class="code" id="z7a4039_52">
+      yieldAll
+     </code>
+     functions. In such a sequence, the block of code that returns sequence elements is suspended after each element has been retrieved, and resumed when the next element is requested. Here's an example:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     import kotlin.coroutines.experimental.*
+
+fun main(args: Array&lt;String&gt;) {
+    val seq = buildSequence {
+      for (i in 1..5) {
+          // yield a square of i
+          yield(i * i)
+      }
+      // yield a range
+      yieldAll(26..28)
+    }
+
+    // print the sequence
+    println(seq.toList())
+}
+    </div>
+    <p id="z7a4039_36">
+     Run the code above to see the result. Feel free to edit it and run again!
+    </p>
+    <p id="z7a4039_37">
+     For more information, please refer to the
+     <a data-tooltip="Asynchronous or non-blocking programming is an important part of the development landscape. When creating server-side, desktop, or mobile applications, it's important to provide an experience that is not only fluid from the user's perspective, but also scalable when needed." href="coroutines-overview.html" id="z7a4039_53" style="color: blue;">
+      coroutines documentation
+     </a>
+     and
+     <span id="z7a4039_54">
+      tutorial
+     </span>
+     .
+    </p>
+    <p id="z7a4039_38">
+     Note that coroutines are currently considered an
+     <span class="control" id="z7a4039_55">
+      experimental feature
+     </span>
+     , meaning that the Kotlin team is not committing to supporting the backwards compatibility of this feature after the final 1.1 release.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="other-language-features" id="other-language-features">
+     Other language features
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="type-aliases" id="type-aliases">
+      Type aliases
+     </h3>
+     <p id="z7a4039_69">
+      A type alias allows you to define an alternative name for an existing type. This is most useful for generic types such as collections, as well as for function types. Here is an example:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+typealias OscarWinners = Map&lt;String, String&gt;
+
+fun countLaLaLand(oscarWinners: OscarWinners) =
+        oscarWinners.count { it.value.contains("La La Land") }
+
+// Note that the type names (initial and the type alias) are interchangeable:
+fun checkLaLaLandIsTheBestMovie(oscarWinners: Map&lt;String, String&gt;) =
+        oscarWinners["Best picture"] == "La La Land"
+//sampleEnd
+
+fun oscarWinners(): OscarWinners {
+    return mapOf(
+            "Best song" to "City of Stars (La La Land)",
+            "Best actress" to "Emma Stone (La La Land)",
+            "Best picture" to "Moonlight" /* ... */)
+}
+
+fun main(args: Array&lt;String&gt;) {
+    val oscarWinners = oscarWinners()
+
+    val laLaLandAwards = countLaLaLand(oscarWinners)
+    println("LaLaLandAwards = $laLaLandAwards (in our small example), but actually it's 6.")
+
+    val laLaLandIsTheBestMovie = checkLaLaLandIsTheBestMovie(oscarWinners)
+    println("LaLaLandIsTheBestMovie = $laLaLandIsTheBestMovie")
+}
+     </div>
+     <p id="z7a4039_71">
+      See the
+      <a data-tooltip="Type aliases provide alternative names for existing types. If the type name is too long you can introduce a different shorter name and use the new one instead." href="type-aliases.html" id="z7a4039_72" style="color: blue;">
+       type aliases documentation
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/type-aliases.md" id="z7a4039_73" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="bound-callable-references" id="bound-callable-references">
+      Bound callable references
+     </h3>
+     <p id="z7a4039_74">
+      You can now use the
+      <code class="code" id="z7a4039_77">
+       ::
+      </code>
+      operator to get a
+      <a data-tooltip="When you have a named function declared as below, you can call it directly (isOdd(5)):" href="reflection.html#function-references" id="z7a4039_78" style="color: blue;">
+       member reference
+      </a>
+      pointing to a method or property of a specific object instance. Previously this could only be expressed with a lambda. Here's an example:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+val numberRegex = "\\d+".toRegex()
+val numbers = listOf("abc", "123", "456").filter(numberRegex::matches)
+//sampleEnd
+
+fun main(args: Array&lt;String&gt;) {
+    println("Result is $numbers")
+}
+     </div>
+     <p id="z7a4039_76">
+      Read the
+      <a data-tooltip="Reflection is a set of language and library features that allows you to introspect the structure of your program at runtime. Functions and properties are first-class citizens in Kotlin, and the ability to introspect them (for example, learning the name or the type of a property or…" href="reflection.html" id="z7a4039_79" style="color: blue;">
+       documentation
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/bound-callable-references.md" id="z7a4039_80" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="sealed-and-data-classes" id="sealed-and-data-classes">
+      Sealed and data classes
+     </h3>
+     <p id="z7a4039_81">
+      Kotlin 1.1 removes some of the restrictions on sealed and data classes that were present in Kotlin 1.0. Now you can define subclasses of a top-level sealed class on the top level in the same file, and not just as nested classes of the sealed class. Data classes can now extend other classes. This can be used to define a hierarchy of expression classes nicely and cleanly:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+sealed class Expr
+
+data class Const(val number: Double) : Expr()
+data class Sum(val e1: Expr, val e2: Expr) : Expr()
+object NotANumber : Expr()
+
+fun eval(expr: Expr): Double = when (expr) {
+    is Const -&gt; expr.number
+    is Sum -&gt; eval(expr.e1) + eval(expr.e2)
+    NotANumber -&gt; Double.NaN
+}
+val e = eval(Sum(Const(1.0), Const(2.0)))
+//sampleEnd
+
+fun main(args: Array&lt;String&gt;) {
+    println("e is $e") // 3.0
+}
+     </div>
+     <p id="z7a4039_83">
+      Read the
+      <a data-tooltip="Sealed classes and interfaces provide controlled inheritance of your class hierarchies. All direct subclasses of a sealed class are known at compile time. No other subclasses may appear outside the module and package within which the sealed class is defined. The same logic applies…" href="sealed-classes.html" id="z7a4039_84" style="color: blue;">
+       sealed classes documentation
+      </a>
+      or KEEPs for
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/sealed-class-inheritance.md" id="z7a4039_85" rel="noopener noreferrer" style="color: red;" target="_blank">
+       sealed class
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/data-class-inheritance.md" id="z7a4039_86" rel="noopener noreferrer" style="color: red;" target="_blank">
+       data class
+      </a>
+      for more detail.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="destructuring-in-lambdas" id="destructuring-in-lambdas">
+      Destructuring in lambdas
+     </h3>
+     <p id="z7a4039_87">
+      You can now use the
+      <a data-tooltip="Sometimes it is convenient to destructure an object into a number of variables, for example:" href="destructuring-declarations.html" id="z7a4039_90" style="color: blue;">
+       destructuring declaration
+      </a>
+      syntax to unpack the arguments passed to a lambda. Here's an example:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val map = mapOf(1 to "one", 2 to "two")
+    // before
+    println(map.mapValues { entry -&gt;
+      val (key, value) = entry
+      "$key -&gt; $value!"
+    })
+    // now
+    println(map.mapValues { (key, value) -&gt; "$key -&gt; $value!" })
+//sampleEnd
+}
+     </div>
+     <p id="z7a4039_89">
+      Read the
+      <a data-tooltip="Sometimes it is convenient to destructure an object into a number of variables, for example:" href="destructuring-declarations.html" id="z7a4039_91" style="color: blue;">
+       destructuring declarations documentation
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/destructuring-in-parameters.md" id="z7a4039_92" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="underscores-for-unused-parameters" id="underscores-for-unused-parameters">
+      Underscores for unused parameters
+     </h3>
+     <p id="z7a4039_93">
+      For a lambda with multiple parameters, you can use the
+      <code class="code" id="z7a4039_98">
+       _
+      </code>
+      character to replace the names of the parameters you don't use:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+    val map = mapOf(1 to "one", 2 to "two")
+
+//sampleStart
+    map.forEach { _, value -&gt; println("$value!") }
+//sampleEnd
+}
+     </div>
+     <p id="z7a4039_95">
+      This also works in
+      <a data-tooltip="Sometimes it is convenient to destructure an object into a number of variables, for example:" href="destructuring-declarations.html" id="z7a4039_99" style="color: blue;">
+       destructuring declarations
+      </a>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      data class Result(val value: Any, val status: String)
+
+fun getResult() = Result(42, "ok").also { println("getResult() returns $it") }
+
+fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val (_, status) = getResult()
+//sampleEnd
+    println("status is '$status'")
+}
+     </div>
+     <p id="z7a4039_97">
+      Read the
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/underscore-for-unused-parameters.md" id="z7a4039_100" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="underscores-in-numeric-literals" id="underscores-in-numeric-literals">
+      Underscores in numeric literals
+     </h3>
+     <p id="z7a4039_101">
+      Just as in Java 8, Kotlin now allows to use underscores in numeric literals to separate groups of digits:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+val oneMillion = 1_000_000
+val hexBytes = 0xFF_EC_DE_5E
+val bytes = 0b11010010_01101001_10010100_10010010
+//sampleEnd
+
+fun main(args: Array&lt;String&gt;) {
+    println(oneMillion)
+    println(hexBytes.toString(16))
+    println(bytes.toString(2))
+}
+     </div>
+     <p id="z7a4039_103">
+      Read the
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/underscores-in-numeric-literals.md" id="z7a4039_104" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="shorter-syntax-for-properties" id="shorter-syntax-for-properties">
+      Shorter syntax for properties
+     </h3>
+     <p id="z7a4039_105">
+      For properties with the getter defined as an expression body, the property type can now be omitted:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+    data class Person(val name: String, val age: Int) {
+    val isAdult get() = age &gt;= 20 // Property type inferred to be 'Boolean'
+}
+//sampleEnd
+fun main(args: Array&lt;String&gt;) {
+    val akari = Person("Akari", 26)
+    println("$akari.isAdult = ${akari.isAdult}")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="inline-property-accessors" id="inline-property-accessors">
+      Inline property accessors
+     </h3>
+     <p id="z7a4039_107">
+      You can now mark property accessors with the
+      <code class="code" id="z7a4039_111">
+       inline
+      </code>
+      modifier if the properties don't have a backing field. Such accessors are compiled in the same way as
+      <a data-tooltip="Using higher-order functions imposes certain runtime penalties: each function is an object, and it captures a closure. A closure is a scope of variables that can be accessed in the body of the function. Memory allocations (both for function objects and classes) and virtual calls…" href="inline-functions.html" id="z7a4039_112" style="color: blue;">
+       inline functions
+      </a>
+      .
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+public val &lt;T&gt; List&lt;T&gt;.lastIndex: Int
+    inline get() = this.size - 1
+//sampleEnd
+
+fun main(args: Array&lt;String&gt;) {
+    val list = listOf('a', 'b')
+    // the getter will be inlined
+    println("Last index of $list is ${list.lastIndex}")
+}
+     </div>
+     <p id="z7a4039_109">
+      You can also mark the entire property as
+      <code class="code" id="z7a4039_113">
+       inline
+      </code>
+      - then the modifier is applied to both accessors.
+     </p>
+     <p id="z7a4039_110">
+      Read the
+      <a data-tooltip="The inline modifier can be used on accessors of properties that don't have backing fields. You can annotate individual property accessors:" href="inline-functions.html#inline-properties" id="z7a4039_114" style="color: blue;">
+       inline functions documentation
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/inline-properties.md" id="z7a4039_115" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="local-delegated-properties" id="local-delegated-properties">
+      Local delegated properties
+     </h3>
+     <p id="z7a4039_116">
+      You can now use the
+      <a data-tooltip="With some common kinds of properties, even though you can implement them manually every time you need them, it is more helpful to implement them once, add them to a library, and reuse them later. For example:" href="delegated-properties.html" id="z7a4039_119" style="color: blue;">
+       delegated property
+      </a>
+      syntax with local variables. One possible use is defining a lazily evaluated local variable:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      import java.util.Random
+
+fun needAnswer() = Random().nextBoolean()
+
+fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val answer by lazy {
+        println("Calculating the answer...")
+        42
+    }
+    if (needAnswer()) {                     // returns the random value
+        println("The answer is $answer.")   // answer is calculated at this point
+    }
+    else {
+        println("Sometimes no answer is the answer...")
+    }
+//sampleEnd
+}
+     </div>
+     <p id="z7a4039_118">
+      Read the
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/local-delegated-properties.md" id="z7a4039_120" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="interception-of-delegated-property-binding" id="interception-of-delegated-property-binding">
+      Interception of delegated property binding
+     </h3>
+     <p id="z7a4039_121">
+      For
+      <a data-tooltip="With some common kinds of properties, even though you can implement them manually every time you need them, it is more helpful to implement them once, add them to a library, and reuse them later. For example:" href="delegated-properties.html" id="z7a4039_125" style="color: blue;">
+       delegated properties
+      </a>
+      , it is now possible to intercept delegate to property binding using the
+      <code class="code" id="z7a4039_126">
+       provideDelegate
+      </code>
+      operator. For example, if we want to check the property name before binding, we can write something like this:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class ResourceLoader&lt;T&gt;(id: ResourceID&lt;T&gt;) {
+    operator fun provideDelegate(thisRef: MyUI, prop: KProperty&lt;*&gt;): ReadOnlyProperty&lt;MyUI, T&gt; {
+        checkProperty(thisRef, prop.name)
+        ... // property creation
+    }
+
+    private fun checkProperty(thisRef: MyUI, name: String) { ... }
+}
+
+fun &lt;T&gt; bindResource(id: ResourceID&lt;T&gt;): ResourceLoader&lt;T&gt; { ... }
+
+class MyUI {
+    val image by bindResource(ResourceID.image_id)
+    val text by bindResource(ResourceID.text_id)
+}
+     </div>
+     <p id="z7a4039_123">
+      The
+      <code class="code" id="z7a4039_127">
+       provideDelegate
+      </code>
+      method will be called for each property during the creation of a
+      <code class="code" id="z7a4039_128">
+       MyUI
+      </code>
+      instance, and it can perform the necessary validation right away.
+     </p>
+     <p id="z7a4039_124">
+      Read the
+      <a data-tooltip="With some common kinds of properties, even though you can implement them manually every time you need them, it is more helpful to implement them once, add them to a library, and reuse them later. For example:" href="delegated-properties.html" id="z7a4039_129" style="color: blue;">
+       delegated properties documentation
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="generic-enum-value-access" id="generic-enum-value-access">
+      Generic enum value access
+     </h3>
+     <p id="z7a4039_130">
+      It is now possible to enumerate the values of an enum class in a generic way.
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      //sampleStart
+enum class RGB { RED, GREEN, BLUE }
+
+inline fun &lt;reified T : Enum&lt;T&gt;&gt; printAllValues() {
+    print(enumValues&lt;T&gt;().joinToString { it.name })
+}
+//sampleEnd
+
+fun main(args: Array&lt;String&gt;) {
+    printAllValues&lt;RGB&gt;() // prints RED, GREEN, BLUE
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="scope-control-for-implicit-receivers-in-dsls" id="scope-control-for-implicit-receivers-in-dsls">
+      Scope control for implicit receivers in DSLs
+     </h3>
+     <p id="z7a4039_132">
+      The
+      <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-dsl-marker/index.html" id="z7a4039_137" rel="noopener noreferrer" style="color: red;" target="_blank">
+       <code class="code" id="z7a4039_139">
+        @DslMarker
+       </code>
+      </a>
+      annotation allows to restrict the use of receivers from outer scopes in a DSL context. Consider the canonical
+      <a data-tooltip="By using well-named functions as builders in combination with function literals with receiver it is possible to create type-safe, statically-typed builders in Kotlin." href="type-safe-builders.html" id="z7a4039_138" style="color: blue;">
+       HTML builder example
+      </a>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      table {
+    tr {
+        td { + "Text" }
+    }
+}
+     </div>
+     <p id="z7a4039_134">
+      In Kotlin 1.0, code in the lambda passed to
+      <code class="code" id="z7a4039_140">
+       td
+      </code>
+      has access to three implicit receivers: the one passed to
+      <code class="code" id="z7a4039_141">
+       table
+      </code>
+      , to
+      <code class="code" id="z7a4039_142">
+       tr
+      </code>
+      and to
+      <code class="code" id="z7a4039_143">
+       td
+      </code>
+      . This allows you to call methods that make no sense in the context - for example to call
+      <code class="code" id="z7a4039_144">
+       tr
+      </code>
+      inside
+      <code class="code" id="z7a4039_145">
+       td
+      </code>
+      and thus to put a
+      <code class="code" id="z7a4039_146">
+       &lt;tr&gt;
+      </code>
+      tag in a
+      <code class="code" id="z7a4039_147">
+       &lt;td&gt;
+      </code>
+      .
+     </p>
+     <p id="z7a4039_135">
+      In Kotlin 1.1, you can restrict that, so that only methods defined on the implicit receiver of
+      <code class="code" id="z7a4039_148">
+       td
+      </code>
+      will be available inside the lambda passed to
+      <code class="code" id="z7a4039_149">
+       td
+      </code>
+      . You do that by defining your annotation marked with the
+      <code class="code" id="z7a4039_150">
+       @DslMarker
+      </code>
+      meta-annotation and applying it to the base class of the tag classes.
+     </p>
+     <p id="z7a4039_136">
+      Read the
+      <a data-tooltip="By using well-named functions as builders in combination with function literals with receiver it is possible to create type-safe, statically-typed builders in Kotlin." href="type-safe-builders.html" id="z7a4039_151" style="color: blue;">
+       type safe builders documentation
+      </a>
+      and
+      <a data-external="true" href="https://github.com/Kotlin/KEEP/blob/master/proposals/scope-control-for-implicit-receivers.md" id="z7a4039_152" rel="noopener noreferrer" style="color: red;" target="_blank">
+       KEEP
+      </a>
+      for more details.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="rem-operator" id="rem-operator">
+      rem operator
+     </h3>
+     <p id="z7a4039_153">
+      The
+      <code class="code" id="z7a4039_154">
+       mod
+      </code>
+      operator is now deprecated, and
+      <code class="code" id="z7a4039_155">
+       rem
+      </code>
+      is used instead. See
+      <a data-external="true" href="https://youtrack.jetbrains.com/issue/KT-14650" id="z7a4039_156" rel="noopener noreferrer" style="color: red;" target="_blank">
+       this issue
+      </a>
+      for motivation.
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="standard-library" id="standard-library">
+     Standard library
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="string-to-number-conversions" id="string-to-number-conversions">
+      String to number conversions
+     </h3>
+     <p id="z7a4039_168">
+      There is a bunch of new extensions on the String class to convert it to a number without throwing an exception on invalid number:
+      <code class="code" id="z7a4039_171">
+       String.toIntOrNull(): Int?
+      </code>
+      ,
+      <code class="code" id="z7a4039_172">
+       String.toDoubleOrNull(): Double?
+      </code>
+      etc.
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val port = System.getenv("PORT")?.toIntOrNull() ?: 80
+     </div>
+     <p id="z7a4039_170">
+      Also integer conversion functions, like
+      <code class="code" id="z7a4039_173">
+       Int.toString()
+      </code>
+      ,
+      <code class="code" id="z7a4039_174">
+       String.toInt()
+      </code>
+      ,
+      <code class="code" id="z7a4039_175">
+       String.toIntOrNull()
+      </code>
+      , each got an overload with
+      <code class="code" id="z7a4039_176">
+       radix
+      </code>
+      parameter, which allows to specify the base of conversion (2 to 36).
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="oneach" id="oneach">
+      onEach()
+     </h3>
+     <p id="z7a4039_177">
+      <code class="code" id="z7a4039_179">
+       onEach
+      </code>
+      is a small, but useful extension function for collections and sequences, which allows to perform some action, possibly with side-effects, on each element of the collection/sequence in a chain of operations. On iterables it behaves like
+      <code class="code" id="z7a4039_180">
+       forEach
+      </code>
+      but also returns the iterable instance further. And on sequences it returns a wrapping sequence, which applies the given action lazily as the elements are being iterated.
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      inputDir.walk()
+        .filter { it.isFile &amp;&amp; it.name.endsWith(".txt") }
+        .onEach { println("Moving $it to $outputDir") }
+        .forEach { moveFile(it, File(outputDir, it.toRelativeString(inputDir))) }
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="also-takeif-and-takeunless" id="also-takeif-and-takeunless">
+      also(), takeIf(), and takeUnless()
+     </h3>
+     <p id="z7a4039_181">
+      These are three general-purpose extension functions applicable to any receiver.
+     </p>
+     <p id="z7a4039_182">
+      <code class="code" id="z7a4039_191">
+       also
+      </code>
+      is like
+      <code class="code" id="z7a4039_192">
+       apply
+      </code>
+      : it takes the receiver, does some action on it, and returns that receiver. The difference is that in the block inside
+      <code class="code" id="z7a4039_193">
+       apply
+      </code>
+      the receiver is available as
+      <code class="code" id="z7a4039_194">
+       this
+      </code>
+      , while in the block inside
+      <code class="code" id="z7a4039_195">
+       also
+      </code>
+      it's available as
+      <code class="code" id="z7a4039_196">
+       it
+      </code>
+      (and you can give it another name if you want). This comes handy when you do not want to shadow
+      <code class="code" id="z7a4039_197">
+       this
+      </code>
+      from the outer scope:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class Block {
+    lateinit var content: String
+}
+
+//sampleStart
+fun Block.copy() = Block().also {
+    it.content = this.content
+}
+//sampleEnd
+
+// using 'apply' instead
+fun Block.copy1() = Block().apply {
+    this.content = this@copy1.content
+}
+
+fun main(args: Array&lt;String&gt;) {
+    val block = Block().apply { content = "content" }
+    val copy = block.copy()
+    println("Testing the content was copied:")
+    println(block.content == copy.content)
+}
+     </div>
+     <p id="z7a4039_184">
+      <code class="code" id="z7a4039_198">
+       takeIf
+      </code>
+      is like
+      <code class="code" id="z7a4039_199">
+       filter
+      </code>
+      for a single value. It checks whether the receiver meets the predicate, and returns the receiver, if it does or
+      <code class="code" id="z7a4039_200">
+       null
+      </code>
+      if it doesn't. Combined with an elvis operator (?:) and early returns it allows writing constructs like:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val outDirFile = File(outputDir.path).takeIf { it.exists() } ?: return false
+// do something with existing outDirFile
+     </div>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+    val input = "Kotlin"
+    val keyword = "in"
+
+//sampleStart
+    val index = input.indexOf(keyword).takeIf { it &gt;= 0 } ?: error("keyword not found")
+    // do something with index of keyword in input string, given that it's found
+//sampleEnd
+    
+    println("'$keyword' was found in '$input'")
+    println(input)
+    println(" ".repeat(index) + "^")
+}
+     </div>
+     <p id="z7a4039_187">
+      <code class="code" id="z7a4039_201">
+       takeUnless
+      </code>
+      is the same as
+      <code class="code" id="z7a4039_202">
+       takeIf
+      </code>
+      , but it takes the inverted predicate. It returns the receiver when it
+      <span class="emphasis" id="z7a4039_203">
+       doesn't
+      </span>
+      meet the predicate and
+      <code class="code" id="z7a4039_204">
+       null
+      </code>
+      otherwise. So one of the examples above could be rewritten with
+      <code class="code" id="z7a4039_205">
+       takeUnless
+      </code>
+      as following:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val index = input.indexOf(keyword).takeUnless { it &lt; 0 } ?: error("keyword not found")
+     </div>
+     <p id="z7a4039_189">
+      It is also convenient to use when you have a callable reference instead of the lambda:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      private fun testTakeUnless(string: String) {
+//sampleStart
+    val result = string.takeUnless(String::isEmpty)
+//sampleEnd
+
+    println("string = \"$string\"; result = \"$result\"")
+}
+
+fun main(args: Array&lt;String&gt;) {
+    testTakeUnless("")
+    testTakeUnless("abc")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="groupingby" id="groupingby">
+      groupingBy()
+     </h3>
+     <p id="z7a4039_206">
+      This API can be used to group a collection by key and fold each group simultaneously. For example, it can be used to count the number of words starting with each letter:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+    val words = "one two three four five six seven eight nine ten".split(' ')
+//sampleStart
+    val frequencies = words.groupingBy { it.first() }.eachCount()
+//sampleEnd
+    println("Counting first letters: $frequencies.")
+
+    // The alternative way that uses 'groupBy' and 'mapValues' creates an intermediate map, 
+    // while 'groupingBy' way counts on the fly.
+    val groupBy = words.groupBy { it.first() }.mapValues { (_, list) -&gt; list.size }
+    println("Comparing the result with using 'groupBy': ${groupBy == frequencies}.")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="map-tomap-and-map-tomutablemap" id="map-tomap-and-map-tomutablemap">
+      Map.toMap() and Map.toMutableMap()
+     </h3>
+     <p id="z7a4039_208">
+      These functions can be used for easy copying of maps:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class ImmutablePropertyBag(map: Map&lt;String, Any&gt;) {
+    private val mapCopy = map.toMap()
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="map-minus-key" id="map-minus-key">
+      Map.minus(key)
+     </h3>
+     <p id="z7a4039_210">
+      The operator
+      <code class="code" id="z7a4039_212">
+       plus
+      </code>
+      provides a way to add key-value pair(s) to a read-only map producing a new map, however there was not a simple way to do the opposite: to remove a key from the map you have to resort to less straightforward ways to like
+      <code class="code" id="z7a4039_213">
+       Map.filter()
+      </code>
+      or
+      <code class="code" id="z7a4039_214">
+       Map.filterKeys()
+      </code>
+      . Now the operator
+      <code class="code" id="z7a4039_215">
+       minus
+      </code>
+      fills this gap. There are 4 overloads available: for removing a single key, a collection of keys, a sequence of keys and an array of keys.
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val map = mapOf("key" to 42)
+    val emptyMap = map - "key"
+//sampleEnd
+    
+    println("map: $map")
+    println("emptyMap: $emptyMap")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="minof-and-maxof" id="minof-and-maxof">
+      minOf() and maxOf()
+     </h3>
+     <p id="z7a4039_216">
+      These functions can be used to find the lowest and greatest of two or three given values, where values are primitive numbers or
+      <code class="code" id="z7a4039_218">
+       Comparable
+      </code>
+      objects. There is also an overload of each function that take an additional
+      <code class="code" id="z7a4039_219">
+       Comparator
+      </code>
+      instance if you want to compare objects that are not comparable themselves.
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val list1 = listOf("a", "b")
+    val list2 = listOf("x", "y", "z")
+    val minSize = minOf(list1.size, list2.size)
+    val longestList = maxOf(list1, list2, compareBy { it.size })
+//sampleEnd
+    
+    println("minSize = $minSize")
+    println("longestList = $longestList")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="array-like-list-instantiation-functions" id="array-like-list-instantiation-functions">
+      Array-like List instantiation functions
+     </h3>
+     <p id="z7a4039_220">
+      Similar to the
+      <code class="code" id="z7a4039_222">
+       Array
+      </code>
+      constructor, there are now functions that create
+      <code class="code" id="z7a4039_223">
+       List
+      </code>
+      and
+      <code class="code" id="z7a4039_224">
+       MutableList
+      </code>
+      instances and initialize each element by calling a lambda:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val squares = List(10) { index -&gt; index * index }
+    val mutable = MutableList(10) { 0 }
+//sampleEnd
+
+    println("squares: $squares")
+    println("mutable: $mutable")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="map-getvalue" id="map-getvalue">
+      Map.getValue()
+     </h3>
+     <p id="z7a4039_225">
+      This extension on
+      <code class="code" id="z7a4039_227">
+       Map
+      </code>
+      returns an existing value corresponding to the given key or throws an exception, mentioning which key was not found. If the map was produced with
+      <code class="code" id="z7a4039_228">
+       withDefault
+      </code>
+      , this function will return the default value instead of throwing an exception.
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart    
+    val map = mapOf("key" to 42)
+    // returns non-nullable Int value 42
+    val value: Int = map.getValue("key")
+
+    val mapWithDefault = map.withDefault { k -&gt; k.length }
+    // returns 4
+    val value2 = mapWithDefault.getValue("key2")
+
+    // map.getValue("anotherKey") // &lt;- this will throw NoSuchElementException
+//sampleEnd
+    
+    println("value is $value")
+    println("value2 is $value2")
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="abstract-collections" id="abstract-collections">
+      Abstract collections
+     </h3>
+     <p id="z7a4039_229">
+      These abstract classes can be used as base classes when implementing Kotlin collection classes. For implementing read-only collections there are
+      <code class="code" id="z7a4039_230">
+       AbstractCollection
+      </code>
+      ,
+      <code class="code" id="z7a4039_231">
+       AbstractList
+      </code>
+      ,
+      <code class="code" id="z7a4039_232">
+       AbstractSet
+      </code>
+      and
+      <code class="code" id="z7a4039_233">
+       AbstractMap
+      </code>
+      , and for mutable collections there are
+      <code class="code" id="z7a4039_234">
+       AbstractMutableCollection
+      </code>
+      ,
+      <code class="code" id="z7a4039_235">
+       AbstractMutableList
+      </code>
+      ,
+      <code class="code" id="z7a4039_236">
+       AbstractMutableSet
+      </code>
+      and
+      <code class="code" id="z7a4039_237">
+       AbstractMutableMap
+      </code>
+      . On JVM, these abstract mutable collections inherit most of their functionality from JDK's abstract collections.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="array-manipulation-functions" id="array-manipulation-functions">
+      Array manipulation functions
+     </h3>
+     <p id="z7a4039_238">
+      The standard library now provides a set of functions for element-by-element operations on arrays: comparison (
+      <code class="code" id="z7a4039_240">
+       contentEquals
+      </code>
+      and
+      <code class="code" id="z7a4039_241">
+       contentDeepEquals
+      </code>
+      ), hash code calculation (
+      <code class="code" id="z7a4039_242">
+       contentHashCode
+      </code>
+      and
+      <code class="code" id="z7a4039_243">
+       contentDeepHashCode
+      </code>
+      ), and conversion to a string (
+      <code class="code" id="z7a4039_244">
+       contentToString
+      </code>
+      and
+      <code class="code" id="z7a4039_245">
+       contentDeepToString
+      </code>
+      ). They're supported both for the JVM (where they act as aliases for the corresponding functions in
+      <code class="code" id="z7a4039_246">
+       java.util.Arrays
+      </code>
+      ) and for JS (where the implementation is provided in the Kotlin standard library).
+     </p>
+     <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+//sampleStart
+    val array = arrayOf("a", "b", "c")
+    println(array.toString())  // JVM implementation: type-and-hash gibberish
+    println(array.contentToString())  // nicely formatted as list
+//sampleEnd
+}
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="jvm-backend" id="jvm-backend">
+     JVM Backend
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="java-8-bytecode-support" id="java-8-bytecode-support">
+      Java 8 bytecode support
+     </h3>
+     <p id="z7a4039_254">
+      Kotlin has now the option of generating Java 8 bytecode (
+      <code class="code" id="z7a4039_255">
+       -jvm-target 1.8
+      </code>
+      command line option or the corresponding options in Ant/Maven/Gradle). For now this doesn't change the semantics of the bytecode (in particular, default methods in interfaces and lambdas are generated exactly as in Kotlin 1.0), but we plan to make further use of this later.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="java-8-standard-library-support" id="java-8-standard-library-support">
+      Java 8 standard library support
+     </h3>
+     <p id="z7a4039_256">
+      There are now separate versions of the standard library supporting the new JDK APIs added in Java 7 and 8. If you need access to the new APIs, use
+      <code class="code" id="z7a4039_257">
+       kotlin-stdlib-jre7
+      </code>
+      and
+      <code class="code" id="z7a4039_258">
+       kotlin-stdlib-jre8
+      </code>
+      maven artifacts instead of the standard
+      <code class="code" id="z7a4039_259">
+       kotlin-stdlib
+      </code>
+      . These artifacts are tiny extensions on top of
+      <code class="code" id="z7a4039_260">
+       kotlin-stdlib
+      </code>
+      and they bring it to your project as a transitive dependency.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="parameter-names-in-the-bytecode" id="parameter-names-in-the-bytecode">
+      Parameter names in the bytecode
+     </h3>
+     <p id="z7a4039_261">
+      Kotlin now supports storing parameter names in the bytecode. This can be enabled using the
+      <code class="code" id="z7a4039_262">
+       -java-parameters
+      </code>
+      command line option.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="constant-inlining" id="constant-inlining">
+      Constant inlining
+     </h3>
+     <p id="z7a4039_263">
+      The compiler now inlines values of
+      <code class="code" id="z7a4039_264">
+       const val
+      </code>
+      properties into the locations where they are used.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="mutable-closure-variables" id="mutable-closure-variables">
+      Mutable closure variables
+     </h3>
+     <p id="z7a4039_265">
+      The box classes used for capturing mutable closure variables in lambdas no longer have volatile fields. This change improves performance, but can lead to new race conditions in some rare usage scenarios. If you're affected by this, you need to provide your own synchronization for accessing the variables.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="javax-script-support" id="javax-script-support">
+      javax.script support
+     </h3>
+     <p id="z7a4039_266">
+      Kotlin now integrates with the
+      <a data-external="true" href="https://docs.oracle.com/javase/8/docs/api/javax/script/package-summary.html" id="z7a4039_269" rel="noopener noreferrer" style="color: red;" target="_blank">
+       javax.script API
+      </a>
+      (JSR-223). The API allows to evaluate snippets of code at runtime:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+engine.eval("val x = 3")
+println(engine.eval("x + 2"))  // Prints out 5
+     </div>
+     <p id="z7a4039_268">
+      See
+      <a data-external="true" href="https://github.com/JetBrains/kotlin/tree/1.1.0/libraries/examples/kotlin-jsr223-local-example" id="z7a4039_270" rel="noopener noreferrer" style="color: red;" target="_blank">
+       here
+      </a>
+      for a larger example project using the API.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="kotlin-reflect-full" id="kotlin-reflect-full">
+      kotlin.reflect.full
+     </h3>
+     <p id="z7a4039_271">
+      To
+      <a data-external="true" href="https://blog.jetbrains.com/kotlin/2017/01/kotlin-1-1-whats-coming-in-the-standard-library/" id="z7a4039_272" rel="noopener noreferrer" style="color: red;" target="_blank">
+       prepare for Java 9 support
+      </a>
+      , the extension functions and properties in the
+      <code class="code" id="z7a4039_273">
+       kotlin-reflect.jar
+      </code>
+      library have been moved to the package
+      <code class="code" id="z7a4039_274">
+       kotlin.reflect.full
+      </code>
+      . The names in the old package (
+      <code class="code" id="z7a4039_275">
+       kotlin.reflect
+      </code>
+      ) are deprecated and will be removed in Kotlin 1.2. Note that the core reflection interfaces (such as
+      <code class="code" id="z7a4039_276">
+       KClass
+      </code>
+      ) are part of the Kotlin standard library, not
+      <code class="code" id="z7a4039_277">
+       kotlin-reflect
+      </code>
+      , and are not affected by the move.
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="javascript-backend" id="javascript-backend">
+     JavaScript backend
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="unified-standard-library" id="unified-standard-library">
+      Unified standard library
+     </h3>
+     <p id="z7a4039_282">
+      A much larger part of the Kotlin standard library can now be used from code compiled to JavaScript. In particular, key classes such as collections (
+      <code class="code" id="z7a4039_283">
+       ArrayList
+      </code>
+      ,
+      <code class="code" id="z7a4039_284">
+       HashMap
+      </code>
+      etc.), exceptions (
+      <code class="code" id="z7a4039_285">
+       IllegalArgumentException
+      </code>
+      etc.) and a few others (
+      <code class="code" id="z7a4039_286">
+       StringBuilder
+      </code>
+      ,
+      <code class="code" id="z7a4039_287">
+       Comparator
+      </code>
+      ) are now defined under the
+      <code class="code" id="z7a4039_288">
+       kotlin
+      </code>
+      package. On the JVM, the names are type aliases for the corresponding JDK classes, and on the JS, the classes are implemented in the Kotlin standard library.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="better-code-generation" id="better-code-generation">
+      Better code generation
+     </h3>
+     <p id="z7a4039_289">
+      JavaScript backend now generates more statically checkable code, which is friendlier to JS code processing tools, like minifiers, optimisers, linters, etc.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="the-external-modifier" id="the-external-modifier">
+      The external modifier
+     </h3>
+     <p id="z7a4039_290">
+      If you need to access a class implemented in JavaScript from Kotlin in a typesafe way, you can write a Kotlin declaration using the
+      <code class="code" id="z7a4039_292">
+       external
+      </code>
+      modifier. (In Kotlin 1.0, the
+      <code class="code" id="z7a4039_293">
+       @native
+      </code>
+      annotation was used instead.) Unlike the JVM target, the JS one permits to use external modifier with classes and properties. For example, here's how you can declare the DOM
+      <code class="code" id="z7a4039_294">
+       Node
+      </code>
+      class:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external class Node {
+    val firstChild: Node
+
+    fun appendChild(child: Node): Node
+
+    fun removeChild(child: Node): Node
+
+    // etc
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="improved-import-handling" id="improved-import-handling">
+      Improved import handling
+     </h3>
+     <p id="z7a4039_295">
+      You can now describe declarations which should be imported from JavaScript modules more precisely. If you add the
+      <code class="code" id="z7a4039_301">
+       @JsModule("&lt;module-name&gt;")
+      </code>
+      annotation on an external declaration it will be properly imported to a module system (either CommonJS or AMD) during the compilation. For example, with CommonJS the declaration will be imported via
+      <code class="code" id="z7a4039_302">
+       require(...)
+      </code>
+      function. Additionally, if you want to import a declaration either as a module or as a global JavaScript object, you can use the
+      <code class="code" id="z7a4039_303">
+       @JsNonModule
+      </code>
+      annotation.
+     </p>
+     <p id="z7a4039_296">
+      For example, here's how you can import JQuery into a Kotlin module:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external interface JQuery {
+    fun toggle(duration: Int = definedExternally): JQuery
+    fun click(handler: (Event) -&gt; Unit): JQuery
+}
+
+@JsModule("jquery")
+@JsNonModule
+@JsName("$")
+external fun jquery(selector: String): JQuery
+     </div>
+     <p id="z7a4039_298">
+      In this case, JQuery will be imported as a module named
+      <code class="code" id="z7a4039_304">
+       jquery
+      </code>
+      . Alternatively, it can be used as a $-object, depending on what module system Kotlin compiler is configured to use.
+     </p>
+     <p id="z7a4039_299">
+      You can use these declarations in your application like this:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main(args: Array&lt;String&gt;) {
+    jquery(".toggle-button").click {
+        jquery(".toggle-panel").toggle(300)
+    }
+}
+     </div>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

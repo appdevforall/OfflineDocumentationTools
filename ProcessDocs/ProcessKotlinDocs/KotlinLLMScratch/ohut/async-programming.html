@@ -1,0 +1,365 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="async-programming" id="async-programming.md">
+    Asynchronous programming techniques
+   </h1>
+   <p id="r7ugd8_2">
+    For decades, as developers we are confronted with a problem to solve - how to prevent our applications from blocking. Whether we're developing desktop, mobile, or even server-side applications, we want to avoid having the user wait or what's worse cause bottlenecks that would prevent an application from scaling.
+   </p>
+   <p id="r7ugd8_3">
+    There have been many approaches to solving this problem, including:
+   </p>
+   <ul class="list _bullet" id="r7ugd8_4">
+    <li class="list__item" id="r7ugd8_11">
+     <p id="r7ugd8_16">
+      <a data-tooltip="Threads are by far probably the most well-known approach to avoid applications from blocking." href="#threading" id="r7ugd8_17" style="color: blue;">
+       Threading
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="r7ugd8_12">
+     <p id="r7ugd8_18">
+      <a data-tooltip="With callbacks, the idea is to pass one function as a parameter to another function, and have this one invoked once the process has completed." href="#callbacks" id="r7ugd8_19" style="color: blue;">
+       Callbacks
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="r7ugd8_13">
+     <p id="r7ugd8_20">
+      <a data-tooltip="The idea behind futures or promises (other terms may be used depending on the language or platform), is that when we make a call, we're promised that at some point the call will return a Promise object, which we can then operate on." href="#futures-promises-and-others" id="r7ugd8_21" style="color: blue;">
+       Futures, promises, and others
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="r7ugd8_14">
+     <p id="r7ugd8_22">
+      <a data-tooltip="Reactive Extensions (Rx) were introduced to C# by Erik Meijer. While it was definitely used on the .NET platform it really didn't reach mainstream adoption until Netflix ported it over to Java, naming it RxJava. From then on, numerous ports have been provided for a variety of…" href="#reactive-extensions" id="r7ugd8_23" style="color: blue;">
+       Reactive Extensions
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="r7ugd8_15">
+     <p id="r7ugd8_24">
+      <a data-tooltip="Kotlin's approach to working with asynchronous code is using coroutines, which is the idea of suspendable computations, i.e. the idea that a function can suspend its execution at some point and resume later on." href="#coroutines" id="r7ugd8_25" style="color: blue;">
+       Coroutines
+      </a>
+     </p>
+    </li>
+   </ul>
+   <p id="r7ugd8_5">
+    Before explaining what coroutines are, let's briefly review some of the other solutions.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="threading" id="threading">
+     Threading
+    </h2>
+    <p id="r7ugd8_26">
+     Threads are by far probably the most well-known approach to avoid applications from blocking.
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun postItem(item: Item) {
+    val token = preparePost()
+    val post = submitPost(token, item)
+    processPost(post)
+}
+
+fun preparePost(): Token {
+    // makes a request and consequently blocks the main thread
+    return token
+}
+    </div>
+    <p id="r7ugd8_28">
+     Let's assume in the code above that
+     <code class="code" id="r7ugd8_30">
+      preparePost
+     </code>
+     is a long-running process and consequently would block the user interface. What we can do is launch it in a separate thread. This would then allow us to avoid the UI from blocking. This is a very common technique, but has a series of drawbacks:
+    </p>
+    <ul class="list _bullet" id="r7ugd8_29">
+     <li class="list__item" id="r7ugd8_31">
+      <p id="r7ugd8_35">
+       Threads aren't cheap. Threads require context switches which are costly.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_32">
+      <p id="r7ugd8_36">
+       Threads aren't infinite. The number of threads that can be launched is limited by the underlying operating system. In server-side applications, this could cause a major bottleneck.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_33">
+      <p id="r7ugd8_37">
+       Threads aren't always available. Some platforms, such as JavaScript do not even support threads.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_34">
+      <p id="r7ugd8_38">
+       Threads aren't easy. Debugging threads and avoiding race conditions are common problems we suffer in multi-threaded programming.
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="callbacks" id="callbacks">
+     Callbacks
+    </h2>
+    <p id="r7ugd8_39">
+     With callbacks, the idea is to pass one function as a parameter to another function, and have this one invoked once the process has completed.
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun postItem(item: Item) {
+    preparePostAsync { token -&gt; 
+        submitPostAsync(token, item) { post -&gt; 
+            processPost(post)
+        }
+    }
+}
+
+fun preparePostAsync(callback: (Token) -&gt; Unit) {
+    // make request and return immediately 
+    // arrange callback to be invoked later
+}
+    </div>
+    <p id="r7ugd8_41">
+     This in principle feels like a much more elegant solution, but once again has several issues:
+    </p>
+    <ul class="list _bullet" id="r7ugd8_42">
+     <li class="list__item" id="r7ugd8_44">
+      <p id="r7ugd8_46">
+       Difficulty of nested callbacks. Usually a function that is used as a callback, often ends up needing its own callback. This leads to a series of nested callbacks which lead to incomprehensible code. The pattern is often referred to as callback hell, or the
+       <a data-external="true" href="https://en.wikipedia.org/wiki/Pyramid_of_doom_(programming)" id="r7ugd8_47" rel="noopener noreferrer" style="color: red;" target="_blank">
+        pyramid of doom
+       </a>
+       due to the triangular shape that indentations from these deeply nested callbacks create.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_45">
+      <p id="r7ugd8_48">
+       Error handling is complicated. The nesting model makes error handling and propagation of these somewhat more complicated.
+      </p>
+     </li>
+    </ul>
+    <p id="r7ugd8_43">
+     Callbacks are quite common in event-loop architectures such as JavaScript, but even there, generally people have moved away to using other approaches such as promises or reactive extensions.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="futures-promises-and-others" id="futures-promises-and-others">
+     Futures, promises, and others
+    </h2>
+    <p id="r7ugd8_49">
+     The idea behind futures or promises (other terms may be used depending on the language or platform), is that when we make a call, we're
+     <span class="emphasis" id="r7ugd8_53">
+      promised
+     </span>
+     that at some point the call will return a
+     <code class="code" id="r7ugd8_54">
+      Promise
+     </code>
+     object, which we can then operate on.
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun postItem(item: Item) {
+    preparePostAsync() 
+        .thenCompose { token -&gt; 
+            submitPostAsync(token, item)
+        }
+        .thenAccept { post -&gt; 
+            processPost(post)
+        }
+         
+}
+
+fun preparePostAsync(): Promise&lt;Token&gt; {
+    // makes request and returns a promise that is completed later
+    return promise 
+}
+    </div>
+    <p id="r7ugd8_51">
+     This approach requires a series of changes in how we program, in particular:
+    </p>
+    <ul class="list _bullet" id="r7ugd8_52">
+     <li class="list__item" id="r7ugd8_55">
+      <p id="r7ugd8_59">
+       Different programming model. Similar to callbacks, the programming model moves away from a top-down imperative approach to a compositional model with chained calls. Traditional program structures such as loops, exception handling, etc. usually are no longer valid in this model.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_56">
+      <p id="r7ugd8_60">
+       Different APIs. Usually there's a need to learn a completely new API such as
+       <code class="code" id="r7ugd8_61">
+        thenCompose
+       </code>
+       or
+       <code class="code" id="r7ugd8_62">
+        thenAccept
+       </code>
+       , which can also vary across platforms.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_57">
+      <p id="r7ugd8_63">
+       Specific return type. The return type moves away from the actual data that we need and instead returns a new type
+       <code class="code" id="r7ugd8_64">
+        Promise
+       </code>
+       which has to be introspected.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_58">
+      <p id="r7ugd8_65">
+       Error handling can be complicated. The propagation and chaining of errors aren't always straightforward.
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="reactive-extensions" id="reactive-extensions">
+     Reactive extensions
+    </h2>
+    <p id="r7ugd8_66">
+     Reactive Extensions (Rx) were introduced to C# by
+     <a data-external="true" href="https://en.wikipedia.org/wiki/Erik_Meijer_(computer_scientist)" id="r7ugd8_72" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Erik Meijer
+     </a>
+     . While it was definitely used on the .NET platform it really didn't reach mainstream adoption until Netflix ported it over to Java, naming it RxJava. From then on, numerous ports have been provided for a variety of platforms including JavaScript (RxJS).
+    </p>
+    <p id="r7ugd8_67">
+     The idea behind Rx is to move towards what's called
+     <code class="code" id="r7ugd8_73">
+      observable streams
+     </code>
+     whereby we now think of data as streams (infinite amounts of data) and these streams can be observed. In practical terms, Rx is simply the
+     <a data-external="true" href="https://en.wikipedia.org/wiki/Observer_pattern" id="r7ugd8_74" rel="noopener noreferrer" style="color: red;" target="_blank">
+      Observer Pattern
+     </a>
+     with a series of extensions which allow us to operate on the data.
+    </p>
+    <p id="r7ugd8_68">
+     In approach it's quite similar to Futures, but one can think of a Future as returning a discrete element, whereas Rx returns a stream. However, similar to the previous, it also introduces a complete new way of thinking about our programming model, famously phrased as
+    </p>
+    <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     "everything is a stream, and it's observable"
+    </div>
+    <p id="r7ugd8_70">
+     This implies a different way to approach problems and quite a significant shift from what we're used to when writing synchronous code. One benefit as opposed to Futures is that given it's ported to so many platforms, generally we can find a consistent API experience no matter what we use, be it C#, Java, JavaScript, or any other language where Rx is available.
+    </p>
+    <p id="r7ugd8_71">
+     In addition, Rx does introduce a somewhat nicer approach to error handling.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="coroutines" id="coroutines">
+     Coroutines
+    </h2>
+    <p id="r7ugd8_75">
+     Kotlin's approach to working with asynchronous code is using coroutines, which is the idea of suspendable computations, i.e. the idea that a function can suspend its execution at some point and resume later on.
+    </p>
+    <p id="r7ugd8_76">
+     One of the benefits however of coroutines is that when it comes to the developer, writing non-blocking code is essentially the same as writing blocking code. The programming model in itself doesn't really change.
+    </p>
+    <p id="r7ugd8_77">
+     Take for instance the following code:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun postItem(item: Item) {
+    launch {
+        val token = preparePost()
+        val post = submitPost(token, item)
+        processPost(post)
+    }
+}
+
+suspend fun preparePost(): Token {
+    // makes a request and suspends the coroutine
+    return suspendCoroutine { /* ... */ } 
+}
+    </div>
+    <p id="r7ugd8_79">
+     This code will launch a long-running operation without blocking the main thread. The
+     <code class="code" id="r7ugd8_83">
+      preparePost
+     </code>
+     is what's called a
+     <code class="code" id="r7ugd8_84">
+      suspendable function
+     </code>
+     , thus the keyword
+     <code class="code" id="r7ugd8_85">
+      suspend
+     </code>
+     prefixing it. What this means as stated above, is that the function will execute, pause execution and resume at some point in time.
+    </p>
+    <ul class="list _bullet" id="r7ugd8_80">
+     <li class="list__item" id="r7ugd8_86">
+      <p id="r7ugd8_90">
+       The function signature remains exactly the same. The only difference is
+       <code class="code" id="r7ugd8_91">
+        suspend
+       </code>
+       being added to it. The return type however is the type we want to be returned.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_87">
+      <p id="r7ugd8_92">
+       The code is still written as if we were writing synchronous code, top-down, without the need of any special syntax, beyond the use of a function called
+       <code class="code" id="r7ugd8_93">
+        launch
+       </code>
+       which essentially kicks off the coroutine (covered in other tutorials).
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_88">
+      <p id="r7ugd8_94">
+       The programming model and APIs remain the same. We can continue to use loops, exception handling, etc. and there's no need to learn a complete set of new APIs.
+      </p>
+     </li>
+     <li class="list__item" id="r7ugd8_89">
+      <p id="r7ugd8_95">
+       It is platform independent. Whether we're targeting JVM, JavaScript or any other platform, the code we write is the same. Under the covers the compiler takes care of adapting it to each platform.
+      </p>
+     </li>
+    </ul>
+    <p id="r7ugd8_81">
+     Coroutines are not a new concept, let alone invented by Kotlin. They've been around for decades and are popular in some other programming languages such as Go. What is important to note though is that the way they're implemented in Kotlin, most of the functionality is delegated to libraries. In fact, beyond the
+     <code class="code" id="r7ugd8_96">
+      suspend
+     </code>
+     keyword, no other keywords are added to the language. This is somewhat different from languages such as C# that have
+     <code class="code" id="r7ugd8_97">
+      async
+     </code>
+     and
+     <code class="code" id="r7ugd8_98">
+      await
+     </code>
+     as part of the syntax. With Kotlin, these are just library functions.
+    </p>
+    <p id="r7ugd8_82">
+     For more information, see the
+     <a data-tooltip="Asynchronous or non-blocking programming is an important part of the development landscape. When creating server-side, desktop, or mobile applications, it's important to provide an experience that is not only fluid from the user's perspective, but also scalable when needed." href="coroutines-overview.html" id="r7ugd8_99" style="color: blue;">
+      Coroutines reference
+     </a>
+     .
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

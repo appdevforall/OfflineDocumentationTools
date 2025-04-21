@@ -1,7 +1,7 @@
 from openai import OpenAI
 import time
 key = open("openaikey.txt", "r").read()
-prompt_file = "linkextractargs_prompt.txt"
+prompt_file = "kotlin_full_prompt.txt"
 prompt = open(prompt_file, "r").read()
 
 client = OpenAI(

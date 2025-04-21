@@ -1,0 +1,1040 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="native-definition-file" id="native-definition-file.md">
+    Definition file
+   </h1>
+   <p id="gkiz5y_2">
+    Kotlin/Native enables you to consume C and Objective-C libraries, allowing you to use their functionality in Kotlin. A special tool called cinterop takes a C or an Objective-C library and generates the corresponding Kotlin bindings, so that the library's methods can be used in your Kotlin code as usual.
+   </p>
+   <p id="gkiz5y_3">
+    To generate these bindings, each library needs a definition file, usually with the same name as the library. This is a property file that describes exactly how the library should be consumed. See the full
+    <a data-tooltip="Here's the full list of properties you can use in your definition file to adjust the content of the generated binaries. For more information, see the corresponding sections below." href="#properties" id="gkiz5y_10" style="color: blue;">
+     list of available properties
+    </a>
+    .
+   </p>
+   <p id="gkiz5y_4">
+    Here's a general workflow when working with a project:
+   </p>
+   <ol class="list _decimal" id="gkiz5y_5" type="1">
+    <li class="list__item" id="gkiz5y_11">
+     <p id="gkiz5y_14">
+      Create a
+      <code class="code" id="gkiz5y_15">
+       .def
+      </code>
+      file describing what to include in the bindings.
+     </p>
+    </li>
+    <li class="list__item" id="gkiz5y_12">
+     <p id="gkiz5y_16">
+      Use the generated bindings in your Kotlin code.
+     </p>
+    </li>
+    <li class="list__item" id="gkiz5y_13">
+     <p id="gkiz5y_17">
+      Run the Kotlin/Native compiler to produce the final executable.
+     </p>
+    </li>
+   </ol>
+   <section class="chapter">
+    <h2 data-toc="create-and-configure-a-definition-file" id="create-and-configure-a-definition-file">
+     Create and configure a definition file
+    </h2>
+    <p id="gkiz5y_18">
+     Let's create a definition file and generate bindings for a C library:
+    </p>
+    <ol class="list _decimal" id="gkiz5y_19" type="1">
+     <li class="list__item" id="gkiz5y_22">
+      <p id="gkiz5y_27">
+       In your IDE, select the
+       <code class="code" id="gkiz5y_28">
+        src
+       </code>
+       folder and create a new directory with
+       <span class="control" id="gkiz5y_29">
+        File | New | Directory
+       </span>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_23">
+      <p id="gkiz5y_30">
+       Name the new directory
+       <code class="code" id="gkiz5y_32">
+        nativeInterop/cinterop
+       </code>
+       .
+      </p>
+      <p id="gkiz5y_31">
+       This is the default convention for
+       <code class="code" id="gkiz5y_33">
+        .def
+       </code>
+       file locations, but it can be overridden in the
+       <code class="code" id="gkiz5y_34">
+        build.gradle.kts
+       </code>
+       file if you use a different location.
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_24">
+      <p id="gkiz5y_35">
+       Select the new subfolder and create a
+       <code class="code" id="gkiz5y_36">
+        png.def
+       </code>
+       file with
+       <span class="control" id="gkiz5y_37">
+        File | New | File
+       </span>
+       .
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_25">
+      <p id="gkiz5y_38">
+       Add the necessary properties:
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       headers = png.h
+headerFilter = png.h
+package = png
+
+compilerOpts.linux = -I/usr/include -I/usr/include/x86_64-linux-gnu
+linkerOpts.osx = -L/opt/local/lib -L/usr/local/opt/png/lib -lpng
+linkerOpts.linux = -L/usr/lib/x86_64-linux-gnu -lpng
+      </div>
+      <ul class="list _bullet" id="gkiz5y_40">
+       <li class="list__item" id="gkiz5y_41">
+        <p id="gkiz5y_44">
+         <code class="code" id="gkiz5y_45">
+          headers
+         </code>
+         is the list of header files to generate Kotlin stubs for. You can add multiple files to this entry, separating each with a space. In this case, it's only
+         <code class="code" id="gkiz5y_46">
+          png.h
+         </code>
+         . The referenced files need to be available on the specified path (in this case, it's
+         <code class="code" id="gkiz5y_47">
+          /usr/include/png
+         </code>
+         ).
+        </p>
+       </li>
+       <li class="list__item" id="gkiz5y_42">
+        <p id="gkiz5y_48">
+         <code class="code" id="gkiz5y_50">
+          headerFilter
+         </code>
+         shows what exactly is included. In C, all the headers are also included when one file references another one with the
+         <code class="code" id="gkiz5y_51">
+          #include
+         </code>
+         directive. Sometimes it's not necessary, and you can add this parameter
+         <a data-external="true" href="https://en.wikipedia.org/wiki/Glob_(programming)" id="gkiz5y_52" rel="noopener noreferrer" style="color: red;" target="_blank">
+          using glob patterns
+         </a>
+         to make adjustments.
+        </p>
+        <p id="gkiz5y_49">
+         You can use
+         <code class="code" id="gkiz5y_53">
+          headerFilter
+         </code>
+         if you don't want to fetch external dependencies (such as system
+         <code class="code" id="gkiz5y_54">
+          stdint.h
+         </code>
+         header) into the interop library. Also, it may be useful for library size optimization and fixing potential conflicts between the system and the provided Kotlin/Native compilation environment.
+        </p>
+       </li>
+       <li class="list__item" id="gkiz5y_43">
+        <p id="gkiz5y_55">
+         If the behavior for a certain platform needs to be modified, you can use a format like
+         <code class="code" id="gkiz5y_56">
+          compilerOpts.osx
+         </code>
+         or
+         <code class="code" id="gkiz5y_57">
+          compilerOpts.linux
+         </code>
+         to provide platform-specific values to the options. In this case, they are macOS (the
+         <code class="code" id="gkiz5y_58">
+          .osx
+         </code>
+         suffix) and Linux (the
+         <code class="code" id="gkiz5y_59">
+          .linux
+         </code>
+         suffix). Parameters without a suffix are also possible (for example,
+         <code class="code" id="gkiz5y_60">
+          linkerOpts=
+         </code>
+         ) and applied to all platforms.
+        </p>
+       </li>
+      </ul>
+     </li>
+     <li class="list__item" id="gkiz5y_26">
+      <p id="gkiz5y_61">
+       To generate bindings, synchronize the Gradle files by clicking
+       <span class="control" id="gkiz5y_63">
+        Sync Now
+       </span>
+       in the notification.
+      </p>
+      <figure id="gkiz5y_62">
+       <img alt="Synchronize the Gradle files" height="78" src="images/gradle-sync.png" title="Synchronize the Gradle files" width="1570"/>
+      </figure>
+     </li>
+    </ol>
+    <p id="gkiz5y_20">
+     After the bindings generation, the IDE can use them as a proxy view of the native library.
+    </p>
+    <aside class="prompt" data-title="" data-type="tip" id="gkiz5y_21">
+     <p id="gkiz5y_64">
+      You can also configure bindings generation by using the
+      <a data-tooltip="In addition to the definition file, you can specify what to include in bindings by passing the corresponding properties as options in the cinterop call." href="#generate-bindings-using-command-line" id="gkiz5y_65" style="color: blue;">
+       cinterop tool
+      </a>
+      in the command line.
+     </p>
+    </aside>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="properties" id="properties">
+     Properties
+    </h2>
+    <p id="gkiz5y_66">
+     Here's the full list of properties you can use in your definition file to adjust the content of the generated binaries. For more information, see the corresponding sections below.
+    </p>
+    <div class="table-wrapper">
+     <table class="wide" id="gkiz5y_67">
+      <thead>
+       <tr class="ijRowHead" id="gkiz5y_79">
+        <th id="gkiz5y_99">
+         <p>
+          <span class="control" id="gkiz5y_101">
+           Property
+          </span>
+         </p>
+        </th>
+        <th id="gkiz5y_100">
+         <p>
+          <span class="control" id="gkiz5y_102">
+           Description
+          </span>
+         </p>
+        </th>
+       </tr>
+      </thead>
+      <tbody>
+       <tr id="gkiz5y_80">
+        <td id="gkiz5y_103">
+         <p>
+          <a data-tooltip="If a C library does not have a Clang module and instead consists of a set of headers, use the headers property to specify headers that should be imported:" href="#import-headers" id="gkiz5y_105" style="color: blue;">
+           <code class="code" id="gkiz5y_106">
+            headers
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_104">
+         <p>
+          The list of headers from a library to be included in the bindings.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_81">
+        <td id="gkiz5y_107">
+         <p>
+          <a data-tooltip="If an Objective-C library has a Clang module, use the modules property to specify the module to be imported:" href="#import-modules" id="gkiz5y_109" style="color: blue;">
+           <code class="code" id="gkiz5y_110">
+            modules
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_108">
+         <p>
+          The list of Clang modules from an Objective-C library to be included in the bindings.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_82">
+        <td id="gkiz5y_111">
+         <p>
+          <code class="code" id="gkiz5y_113">
+           language
+          </code>
+         </p>
+        </td>
+        <td id="gkiz5y_112">
+         <p>
+          Specifies the language. C is used by default; change to
+          <code class="code" id="gkiz5y_114">
+           Objective-C
+          </code>
+          if necessary.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_83">
+        <td id="gkiz5y_115">
+         <p>
+          <a data-tooltip="Use the compilerOpts property to pass options to the C compiler, which is used to analyze headers under the hood. To pass options to the linker, which is used to link final executables, use linkerOpts. For example:" href="#pass-compiler-and-linker-options" id="gkiz5y_117" style="color: blue;">
+           <code class="code" id="gkiz5y_118">
+            compilerOpts
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_116">
+         <p>
+          Compiler options that the cinterop tool passes to the C compiler.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_84">
+        <td id="gkiz5y_119">
+         <p>
+          <a data-tooltip="Use the compilerOpts property to pass options to the C compiler, which is used to analyze headers under the hood. To pass options to the linker, which is used to link final executables, use linkerOpts. For example:" href="#pass-compiler-and-linker-options" id="gkiz5y_121" style="color: blue;">
+           <code class="code" id="gkiz5y_122">
+            linkerOpts
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_120">
+         <p>
+          Linker options that the cinterop tool passes to the linker.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_85">
+        <td id="gkiz5y_123">
+         <p>
+          <a data-tooltip="Use the excludedFunctions property to specify a list of the function names that should be ignored. This can be useful if a function declared in the header isn't guaranteed to be callable, and it's difficult or impossible to determine this automatically. You can also use this…" href="#ignore-specific-functions" id="gkiz5y_125" style="color: blue;">
+           <code class="code" id="gkiz5y_126">
+            excludedFunctions
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_124">
+         <p>
+          A space-separated list of function names that should be ignored.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_86">
+        <td id="gkiz5y_127">
+         <p>
+          <code class="code" id="gkiz5y_129">
+           excludedMacros
+          </code>
+         </p>
+        </td>
+        <td id="gkiz5y_128">
+        </td>
+       </tr>
+       <tr id="gkiz5y_87">
+        <td id="gkiz5y_130">
+         <p>
+          <a data-tooltip="This feature is Experimental. It may be dropped or changed at any time. Use it only for evaluation purposes." href="#include-a-static-library" id="gkiz5y_132" style="color: blue;">
+           <code class="code" id="gkiz5y_133">
+            staticLibraries
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_131">
+         <p>
+          <a data-tooltip="Here's a quick guide to these stability levels and their meaning:" href="components-stability.html#stability-levels-explained" id="gkiz5y_134" style="color: blue;">
+           Experimental
+          </a>
+          . Includes a static library into
+          <code class="code" id="gkiz5y_135">
+           .klib
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_88">
+        <td id="gkiz5y_136">
+         <p>
+          <a data-tooltip="This feature is Experimental. It may be dropped or changed at any time. Use it only for evaluation purposes." href="#include-a-static-library" id="gkiz5y_138" style="color: blue;">
+           <code class="code" id="gkiz5y_139">
+            libraryPaths
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_137">
+         <p>
+          <a data-tooltip="Here's a quick guide to these stability levels and their meaning:" href="components-stability.html#stability-levels-explained" id="gkiz5y_140" style="color: blue;">
+           Experimental
+          </a>
+          . A space-separated list of directories where the cinterop tool searches for the library to be included in
+          <code class="code" id="gkiz5y_141">
+           .klib
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_89">
+        <td id="gkiz5y_142">
+         <p>
+          <code class="code" id="gkiz5y_144">
+           packageName
+          </code>
+         </p>
+        </td>
+        <td id="gkiz5y_143">
+         <p>
+          Package prefix for the generated Kotlin API.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_90">
+        <td id="gkiz5y_145">
+         <p>
+          <a data-tooltip="You can filter headers by globs using filter properties from the .def file. To include declarations from headers, use the headerFilter property. If a header matches any of the globs, its declarations are included in the bindings." href="#filter-headers-by-globs" id="gkiz5y_147" style="color: blue;">
+           <code class="code" id="gkiz5y_148">
+            headerFilter
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_146">
+         <p>
+          Filters headers by globs and includes only them when importing a library.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_91">
+        <td id="gkiz5y_149">
+         <p>
+          <a data-tooltip="To exclude specific headers, use the excludeFilter property. It can be helpful to remove redundant or problematic headers and optimize compilation, as declarations from the specified headers are not included in the bindings:" href="#exclude-headers" id="gkiz5y_151" style="color: blue;">
+           <code class="code" id="gkiz5y_152">
+            excludeFilter
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_150">
+         <p>
+          Excludes specific headers when importing a library and takes priority over
+          <code class="code" id="gkiz5y_153">
+           headerFilter
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_92">
+        <td id="gkiz5y_154">
+         <p>
+          <a data-tooltip="Use the strictEnums property to generate enums as Kotlin enums or nonStrictEnums to generate them as integral values. If an enum is not included in either of these lists, it is generated based on heuristics." href="#configure-enums-generation" id="gkiz5y_156" style="color: blue;">
+           <code class="code" id="gkiz5y_157">
+            strictEnums
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_155">
+         <p>
+          A space-separated list of enums that should be generated as
+          <a data-tooltip="The most basic use case for enum classes is the implementation of type-safe enums:" href="enum-classes.html" id="gkiz5y_158" style="color: blue;">
+           Kotlin enums
+          </a>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_93">
+        <td id="gkiz5y_159">
+         <p>
+          <a data-tooltip="Use the strictEnums property to generate enums as Kotlin enums or nonStrictEnums to generate them as integral values. If an enum is not included in either of these lists, it is generated based on heuristics." href="#configure-enums-generation" id="gkiz5y_161" style="color: blue;">
+           <code class="code" id="gkiz5y_162">
+            nonStrictEnums
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_160">
+         <p>
+          A space-separated list of enums that should be generated as integral values.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_94">
+        <td id="gkiz5y_163">
+         <p>
+          <a data-tooltip="Use the noStringConversion property to disable automatic conversion of the const char* function parameters as Kotlin Strings." href="#set-up-string-conversion" id="gkiz5y_165" style="color: blue;">
+           <code class="code" id="gkiz5y_166">
+            noStringConversion
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_164">
+         <p>
+          A space-separated list of functions whose
+          <code class="code" id="gkiz5y_167">
+           const char*
+          </code>
+          parameters should not be auto-converted to Kotlin
+          <code class="code" id="gkiz5y_168">
+           String
+          </code>
+          s.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_95">
+        <td id="gkiz5y_169">
+         <p>
+          <code class="code" id="gkiz5y_171">
+           allowedOverloadsForCFunctions
+          </code>
+         </p>
+        </td>
+        <td id="gkiz5y_170">
+         <p>
+          By default, it's assumed that C functions have unique names. If several functions have the same name, only one is picked. However, you can change this by specifying these functions in
+          <code class="code" id="gkiz5y_172">
+           allowedOverloadsForCFunctions
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_96">
+        <td id="gkiz5y_173">
+         <p>
+          <a data-tooltip="By default, the Kotlin/Native compiler doesn't allow calling a non-designated Objective-C initializer as a super() constructor. This behavior can be inconvenient if the designated Objective-C initializers aren't marked properly in the library. To disable these compiler checks, use…" href="#allow-calling-a-non-designated-initializer" id="gkiz5y_175" style="color: blue;">
+           <code class="code" id="gkiz5y_176">
+            disableDesignatedInitializerChecks
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_174">
+         <p>
+          Disables the compiler check that doesn't allow calling a non-designated Objective-C initializer as a
+          <code class="code" id="gkiz5y_177">
+           super()
+          </code>
+          constructor.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_97">
+        <td id="gkiz5y_178">
+         <p>
+          <a data-tooltip="By default, the program crashes if Objective-C exceptions reach the Objective-C to Kotlin interop boundary and get to the Kotlin code." href="#handle-objective-c-exceptions" id="gkiz5y_180" style="color: blue;">
+           <code class="code" id="gkiz5y_181">
+            foreignExceptionMode
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_179">
+         <p>
+          Wraps exceptions from Objective-C code into Kotlin exceptions with the
+          <code class="code" id="gkiz5y_182">
+           ForeignException
+          </code>
+          type.
+         </p>
+        </td>
+       </tr>
+       <tr id="gkiz5y_98">
+        <td id="gkiz5y_183">
+         <p>
+          <a data-tooltip="Linker errors might occur when a Kotlin library depends on C or Objective-C libraries, for example, using the CocoaPods integration. If dependent libraries aren't installed locally on the machine or configured explicitly in the project build script, the &quot;Framework not…" href="#help-resolve-linker-errors" id="gkiz5y_185" style="color: blue;">
+           <code class="code" id="gkiz5y_186">
+            userSetupHint
+           </code>
+          </a>
+         </p>
+        </td>
+        <td id="gkiz5y_184">
+         <p>
+          Adds a custom message, for example, to help users resolve linker errors.
+         </p>
+        </td>
+       </tr>
+      </tbody>
+     </table>
+    </div>
+    <p id="gkiz5y_68">
+     In addition to the list of properties, you can include
+     <a data-tooltip="Sometimes it is required to add custom C declarations to the library before generating bindings (for example, for macros). Instead of creating an additional header file with these declarations, you can include them directly to the end of the .def file, after a separating line,…" href="#add-custom-declarations" id="gkiz5y_187" style="color: blue;">
+      custom declarations
+     </a>
+     in your definition file.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="import-headers" id="import-headers">
+      Import headers
+     </h3>
+     <p id="gkiz5y_188">
+      If a C library does not have a Clang module and instead consists of a set of headers, use the
+      <code class="code" id="gkiz5y_192">
+       headers
+      </code>
+      property to specify headers that should be imported:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      headers = curl/curl.h
+     </div>
+     <section class="chapter">
+      <h4 data-toc="filter-headers-by-globs" id="filter-headers-by-globs">
+       Filter headers by globs
+      </h4>
+      <p id="gkiz5y_193">
+       You can filter headers by globs using filter properties from the
+       <code class="code" id="gkiz5y_197">
+        .def
+       </code>
+       file. To include declarations from headers, use the
+       <code class="code" id="gkiz5y_198">
+        headerFilter
+       </code>
+       property. If a header matches any of the globs, its declarations are included in the bindings.
+      </p>
+      <p id="gkiz5y_194">
+       The globs are applied to the header paths relative to the appropriate include path elements, for example,
+       <code class="code" id="gkiz5y_199">
+        time.h
+       </code>
+       or
+       <code class="code" id="gkiz5y_200">
+        curl/curl.h
+       </code>
+       . So if the library is usually included with
+       <code class="code" id="gkiz5y_201">
+        #include &lt;SomeLibrary/Header.h&gt;
+       </code>
+       , you can probably filter headers with the following filter:
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       headerFilter = SomeLibrary/**
+      </div>
+      <p id="gkiz5y_196">
+       If
+       <code class="code" id="gkiz5y_202">
+        headerFilter
+       </code>
+       is not provided, all the headers are included. However, we encourage you to use
+       <code class="code" id="gkiz5y_203">
+        headerFilter
+       </code>
+       and specify the glob as precisely as possible. In this case, the generated library contains only the necessary declarations. It can help avoid various issues when upgrading Kotlin or tools in your development environment.
+      </p>
+     </section>
+     <section class="chapter">
+      <h4 data-toc="exclude-headers" id="exclude-headers">
+       Exclude headers
+      </h4>
+      <p id="gkiz5y_204">
+       To exclude specific headers, use the
+       <code class="code" id="gkiz5y_207">
+        excludeFilter
+       </code>
+       property. It can be helpful to remove redundant or problematic headers and optimize compilation, as declarations from the specified headers are not included in the bindings:
+      </p>
+      <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       excludeFilter = SomeLibrary/time.h
+      </div>
+      <aside class="prompt" data-title="" data-type="note" id="gkiz5y_206">
+       <p id="gkiz5y_208">
+        If the same header is both included with
+        <code class="code" id="gkiz5y_209">
+         headerFilter
+        </code>
+        , and excluded with
+        <code class="code" id="gkiz5y_210">
+         excludeFilter
+        </code>
+        , the specified header will not be included in the bindings.
+       </p>
+      </aside>
+     </section>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="import-modules" id="import-modules">
+      Import modules
+     </h3>
+     <p id="gkiz5y_211">
+      If an Objective-C library has a Clang module, use the
+      <code class="code" id="gkiz5y_213">
+       modules
+      </code>
+      property to specify the module to be imported:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      modules = UIKit
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="pass-compiler-and-linker-options" id="pass-compiler-and-linker-options">
+      Pass compiler and linker options
+     </h3>
+     <p id="gkiz5y_214">
+      Use the
+      <code class="code" id="gkiz5y_219">
+       compilerOpts
+      </code>
+      property to pass options to the C compiler, which is used to analyze headers under the hood. To pass options to the linker, which is used to link final executables, use
+      <code class="code" id="gkiz5y_220">
+       linkerOpts
+      </code>
+      . For example:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      compilerOpts = -DFOO=bar
+linkerOpts = -lpng
+     </div>
+     <p id="gkiz5y_216">
+      You can also specify target-specific options that apply only to a certain target:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      compilerOpts = -DBAR=bar
+compilerOpts.linux_x64 = -DFOO=foo1
+compilerOpts.macos_x64 = -DFOO=foo2
+     </div>
+     <p id="gkiz5y_218">
+      With this configuration, headers are analyzed using
+      <code class="code" id="gkiz5y_221">
+       -DBAR=bar -DFOO=foo1
+      </code>
+      on Linux and
+      <code class="code" id="gkiz5y_222">
+       -DBAR=bar -DFOO=foo2
+      </code>
+      on macOS. Note that any definition file option can have both common and platform-specific parts.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="ignore-specific-functions" id="ignore-specific-functions">
+      Ignore specific functions
+     </h3>
+     <p id="gkiz5y_223">
+      Use the
+      <code class="code" id="gkiz5y_224">
+       excludedFunctions
+      </code>
+      property to specify a list of the function names that should be ignored. This can be useful if a function declared in the header isn't guaranteed to be callable, and it's difficult or impossible to determine this automatically. You can also use this property to work around a bug in the interop itself.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="include-a-static-library" id="include-a-static-library">
+      Include a static library
+     </h3>
+     <aside class="prompt" data-title="" data-type="warning" id="gkiz5y_225">
+      <p id="gkiz5y_230">
+       This feature is
+       <a data-tooltip="Here's a quick guide to these stability levels and their meaning:" href="components-stability.html#stability-levels-explained" id="gkiz5y_231" style="color: blue;">
+        Experimental
+       </a>
+       . It may be dropped or changed at any time. Use it only for evaluation purposes.
+      </p>
+     </aside>
+     <p id="gkiz5y_226">
+      Sometimes it's more convenient to ship a static library with your product, rather than assume it is available within the user's environment. To include a static library into
+      <code class="code" id="gkiz5y_232">
+       .klib
+      </code>
+      , use
+      <code class="code" id="gkiz5y_233">
+       staticLibrary
+      </code>
+      and
+      <code class="code" id="gkiz5y_234">
+       libraryPaths
+      </code>
+      properties:
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      headers = foo.h
+staticLibraries = libfoo.a
+libraryPaths = /opt/local/lib /usr/local/opt/curl/lib
+     </div>
+     <p id="gkiz5y_228">
+      When given the above snippet, the cinterop tool searches
+      <code class="code" id="gkiz5y_235">
+       libfoo.a
+      </code>
+      in
+      <code class="code" id="gkiz5y_236">
+       /opt/local/lib
+      </code>
+      and
+      <code class="code" id="gkiz5y_237">
+       /usr/local/opt/curl/lib
+      </code>
+      , and if found, includes the library binary in the
+      <code class="code" id="gkiz5y_238">
+       klib
+      </code>
+      .
+     </p>
+     <p id="gkiz5y_229">
+      When using a
+      <code class="code" id="gkiz5y_239">
+       klib
+      </code>
+      like this in your program, the library is linked automatically.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="configure-enums-generation" id="configure-enums-generation">
+      Configure enums generation
+     </h3>
+     <p id="gkiz5y_240">
+      Use the
+      <code class="code" id="gkiz5y_241">
+       strictEnums
+      </code>
+      property to generate enums as Kotlin enums or
+      <code class="code" id="gkiz5y_242">
+       nonStrictEnums
+      </code>
+      to generate them as integral values. If an enum is not included in either of these lists, it is generated based on heuristics.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="set-up-string-conversion" id="set-up-string-conversion">
+      Set up string conversion
+     </h3>
+     <p id="gkiz5y_243">
+      Use the
+      <code class="code" id="gkiz5y_244">
+       noStringConversion
+      </code>
+      property to disable automatic conversion of the
+      <code class="code" id="gkiz5y_245">
+       const char*
+      </code>
+      function parameters as Kotlin
+      <code class="code" id="gkiz5y_246">
+       String
+      </code>
+      s.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="allow-calling-a-non-designated-initializer" id="allow-calling-a-non-designated-initializer">
+      Allow calling a non-designated initializer
+     </h3>
+     <p id="gkiz5y_247">
+      By default, the Kotlin/Native compiler doesn't allow calling a non-designated Objective-C initializer as a
+      <code class="code" id="gkiz5y_248">
+       super()
+      </code>
+      constructor. This behavior can be inconvenient if the designated Objective-C initializers aren't marked properly in the library. To disable these compiler checks, use the
+      <code class="code" id="gkiz5y_249">
+       disableDesignatedInitializerChecks
+      </code>
+      property.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="handle-objective-c-exceptions" id="handle-objective-c-exceptions">
+      Handle Objective-C exceptions
+     </h3>
+     <p id="gkiz5y_250">
+      By default, the program crashes if Objective-C exceptions reach the Objective-C to Kotlin interop boundary and get to the Kotlin code.
+     </p>
+     <p id="gkiz5y_251">
+      To propagate Objective-C exceptions to Kotlin, enable wrapping with the
+      <code class="code" id="gkiz5y_253">
+       foreignExceptionMode = objc-wrap
+      </code>
+      property. In this case, Objective-C exceptions are translated into Kotlin exceptions that get the
+      <code class="code" id="gkiz5y_254">
+       ForeignException
+      </code>
+      type.
+     </p>
+     <section class="chapter">
+      <h4 data-toc="help-resolve-linker-errors" id="help-resolve-linker-errors">
+       Help resolve linker errors
+      </h4>
+      <p id="gkiz5y_255">
+       Linker errors might occur when a Kotlin library depends on C or Objective-C libraries, for example, using the
+       <a data-tooltip="You have a mono repository setup with an iOS project that uses CocoaPods." href="native-cocoapods.html" id="gkiz5y_257" style="color: blue;">
+        CocoaPods integration
+       </a>
+       . If dependent libraries aren't installed locally on the machine or configured explicitly in the project build script, the "Framework not found" error occurs.
+      </p>
+      <p id="gkiz5y_256">
+       If you're a library author, you can help your users resolve linker errors with custom messages. To do that, add a
+       <code class="code" id="gkiz5y_258">
+        userSetupHint=message
+       </code>
+       property to your
+       <code class="code" id="gkiz5y_259">
+        .def
+       </code>
+       file or pass the
+       <code class="code" id="gkiz5y_260">
+        -Xuser-setup-hint
+       </code>
+       compiler option to
+       <code class="code" id="gkiz5y_261">
+        cinterop
+       </code>
+       .
+      </p>
+     </section>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="add-custom-declarations" id="add-custom-declarations">
+      Add custom declarations
+     </h3>
+     <p id="gkiz5y_262">
+      Sometimes it is required to add custom C declarations to the library before generating bindings (for example, for
+      <a data-tooltip="Every C macro that expands to a constant is represented as a Kotlin property." href="native-c-interop.html#macros" id="gkiz5y_265" style="color: blue;">
+       macros
+      </a>
+      ). Instead of creating an additional header file with these declarations, you can include them directly to the end of the
+      <code class="code" id="gkiz5y_266">
+       .def
+      </code>
+      file, after a separating line, containing only the separator sequence
+      <code class="code" id="gkiz5y_267">
+       ---
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      headers = errno.h
+---
+
+static inline int getErrno() {
+    return errno;
+}
+     </div>
+     <p id="gkiz5y_264">
+      Note that this part of the
+      <code class="code" id="gkiz5y_268">
+       .def
+      </code>
+      file is treated as part of the header file, so functions with the body should be declared as
+      <code class="code" id="gkiz5y_269">
+       static
+      </code>
+      . The declarations are parsed after including the files from the
+      <code class="code" id="gkiz5y_270">
+       headers
+      </code>
+      list.
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="generate-bindings-using-command-line" id="generate-bindings-using-command-line">
+     Generate bindings using command line
+    </h2>
+    <p id="gkiz5y_271">
+     In addition to the definition file, you can specify what to include in bindings by passing the corresponding properties as options in the
+     <code class="code" id="gkiz5y_276">
+      cinterop
+     </code>
+     call.
+    </p>
+    <p id="gkiz5y_272">
+     Here's an example of the command that produces a
+     <code class="code" id="gkiz5y_277">
+      png.klib
+     </code>
+     compiled library:
+    </p>
+    <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     cinterop -def png.def -compiler-option -I/usr/local/include -o png
+    </div>
+    <p id="gkiz5y_274">
+     Note that the generated bindings are generally platform-specific, so if you are developing for multiple targets, the bindings need to be regenerated.
+    </p>
+    <ul class="list _bullet" id="gkiz5y_275">
+     <li class="list__item" id="gkiz5y_278">
+      <p id="gkiz5y_281">
+       For host libraries that are not included in the sysroot search paths, headers may be needed.
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_279">
+      <p id="gkiz5y_282">
+       For a typical UNIX library with a configuration script, the
+       <code class="code" id="gkiz5y_283">
+        compilerOpts
+       </code>
+       will likely contain the output of a configuration script with the
+       <code class="code" id="gkiz5y_284">
+        --cflags
+       </code>
+       option (maybe without exact paths).
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_280">
+      <p id="gkiz5y_285">
+       The output of a configuration script with
+       <code class="code" id="gkiz5y_286">
+        --libs
+       </code>
+       can be passed to the
+       <code class="code" id="gkiz5y_287">
+        linkerOpts
+       </code>
+       property.
+      </p>
+     </li>
+    </ul>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="what-s-next" id="what-s-next">
+     What's next
+    </h2>
+    <ul class="list _bullet" id="gkiz5y_288">
+     <li class="list__item" id="gkiz5y_289">
+      <p id="gkiz5y_291">
+       <a data-tooltip="All the supported C types have corresponding representations in Kotlin:" href="native-c-interop.html#bindings" id="gkiz5y_292" style="color: blue;">
+        Bindings for C-interoperability
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="gkiz5y_290">
+      <p id="gkiz5y_293">
+       <a data-tooltip="The Objective-C libraries import is Experimental. All Kotlin declarations generated by the cinterop tool from Objective-C libraries should have the @ExperimentalForeignApi annotation." href="native-objc-interop.html" id="gkiz5y_294" style="color: blue;">
+        Interoperability with Swift/Objective-C
+       </a>
+      </p>
+     </li>
+    </ul>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

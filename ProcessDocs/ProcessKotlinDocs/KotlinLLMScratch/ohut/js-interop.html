@@ -1,0 +1,518 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="js-interop" id="js-interop.md">
+    Use JavaScript code from Kotlin
+   </h1>
+   <p id="z735e7h_2">
+    Kotlin was first designed for easy interoperation with the Java platform: it sees Java classes as Kotlin classes, and Java sees Kotlin classes as Java classes.
+   </p>
+   <p id="z735e7h_3">
+    However, JavaScript is a dynamically typed language, which means it does not check types at compile time. You can freely talk to JavaScript from Kotlin via
+    <a data-tooltip="The dynamic type is not supported in code targeting the JVM." href="dynamic-type.html" id="z735e7h_7" style="color: blue;">
+     dynamic
+    </a>
+    types. If you want to use the full power of the Kotlin type system, you can create external declarations for JavaScript libraries which will be understood by the Kotlin compiler and the surrounding tooling.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="inline-javascript" id="inline-javascript">
+     Inline JavaScript
+    </h2>
+    <p id="z735e7h_8">
+     You can inline JavaScript code into your Kotlin code using the
+     <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.js/js.html" id="z735e7h_14" rel="noopener noreferrer" style="color: red;" target="_blank">
+      <code class="code" id="z735e7h_15">
+       js()
+      </code>
+     </a>
+     function. For example:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun jsTypeOf(o: Any): String {
+    return js("typeof o")
+}
+    </div>
+    <p id="z735e7h_10">
+     Because the parameter of
+     <code class="code" id="z735e7h_16">
+      js
+     </code>
+     is parsed at compile time and translated to JavaScript code "as-is", it is required to be a string constant. So, the following code is incorrect:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun jsTypeOf(o: Any): String {
+    return js(getTypeof() + " o") // error reported here
+}
+
+fun getTypeof() = "typeof"
+    </div>
+    <aside class="prompt" data-title="" data-type="note" id="z735e7h_12">
+     <p id="z735e7h_17">
+      As the JavaScript code is parsed by the Kotlin compiler, not all ECMAScript features might be supported. In this case, you can encounter compilation errors.
+     </p>
+    </aside>
+    <p id="z735e7h_13">
+     Note that invoking
+     <code class="code" id="z735e7h_18">
+      js()
+     </code>
+     returns a result of type
+     <a data-tooltip="The dynamic type is not supported in code targeting the JVM." href="dynamic-type.html" id="z735e7h_19" style="color: blue;">
+      <code class="code" id="z735e7h_20">
+       dynamic
+      </code>
+     </a>
+     , which provides no type safety at compile time.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="external-modifier" id="external-modifier">
+     external modifier
+    </h2>
+    <p id="z735e7h_21">
+     To tell Kotlin that a certain declaration is written in pure JavaScript, you should mark it with the
+     <code class="code" id="z735e7h_30">
+      external
+     </code>
+     modifier. When the compiler sees such a declaration, it assumes that the implementation for the corresponding class, function or property is provided externally (by the developer or via an
+     <a data-tooltip="In the JavaScript world, the most common way to manage dependencies is npm. It offers the biggest public repository of JavaScript modules." href="js-project-setup.html#npm-dependencies" id="z735e7h_31" style="color: blue;">
+      npm dependency
+     </a>
+     ), and therefore does not try to generate any JavaScript code from the declaration. This is also why
+     <code class="code" id="z735e7h_32">
+      external
+     </code>
+     declarations can't have a body. For example:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     external fun alert(message: Any?): Unit
+
+external class Node {
+    val firstChild: Node
+
+    fun append(child: Node): Node
+
+    fun removeChild(child: Node): Node
+
+    // etc
+}
+
+external val window: Window
+    </div>
+    <p id="z735e7h_23">
+     Note that the
+     <code class="code" id="z735e7h_33">
+      external
+     </code>
+     modifier is inherited by nested declarations. This is why in the example
+     <code class="code" id="z735e7h_34">
+      Node
+     </code>
+     class, there is no
+     <code class="code" id="z735e7h_35">
+      external
+     </code>
+     modifier before member functions and properties.
+    </p>
+    <p id="z735e7h_24">
+     The
+     <code class="code" id="z735e7h_36">
+      external
+     </code>
+     modifier is only allowed on package-level declarations. You can't declare an
+     <code class="code" id="z735e7h_37">
+      external
+     </code>
+     member of a non-
+     <code class="code" id="z735e7h_38">
+      external
+     </code>
+     class.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="declare-static-members-of-a-class" id="declare-static-members-of-a-class">
+      Declare (static) members of a class
+     </h3>
+     <p id="z735e7h_39">
+      In JavaScript you can define members either on a prototype or a class itself:
+     </p>
+     <div class="code-block" data-lang="javascript" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      function MyClass() { ... }
+MyClass.sharedMember = function() { /* implementation */ };
+MyClass.prototype.ownMember = function() { /* implementation */ };
+     </div>
+     <p id="z735e7h_41">
+      There is no such syntax in Kotlin. However, in Kotlin we have
+      <a data-tooltip="Companion objects allow you to define class-level functions and properties. This makes it easy to create factory methods, hold constants, and access shared utilities." href="object-declarations.html#companion-objects" id="z735e7h_43" style="color: blue;">
+       <code class="code" id="z735e7h_46">
+        companion
+       </code>
+      </a>
+      objects. Kotlin treats companion objects of
+      <code class="code" id="z735e7h_44">
+       external
+      </code>
+      classes in a special way: instead of expecting an object, it assumes members of companion objects to be members of the class itself.
+      <code class="code" id="z735e7h_45">
+       MyClass
+      </code>
+      from the example above can be described as follows:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external class MyClass {
+    companion object {
+        fun sharedMember()
+    }
+
+    fun ownMember()
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="declare-optional-parameters" id="declare-optional-parameters">
+      Declare optional parameters
+     </h3>
+     <p id="z735e7h_47">
+      If you are writing an external declaration for a JavaScript function which has an optional parameter, use
+      <code class="code" id="z735e7h_50">
+       definedExternally
+      </code>
+      . This delegates the generation of the default values to the JavaScript function itself:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external fun myFunWithOptionalArgs(
+    x: Int,
+    y: String = definedExternally,
+    z: String = definedExternally
+)
+     </div>
+     <p id="z735e7h_49">
+      With this external declaration, you can call
+      <code class="code" id="z735e7h_51">
+       myFunWithOptionalArgs
+      </code>
+      with one required argument and two optional arguments, where the default values are calculated by the JavaScript implementation of
+      <code class="code" id="z735e7h_52">
+       myFunWithOptionalArgs
+      </code>
+      .
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="extend-javascript-classes" id="extend-javascript-classes">
+      Extend JavaScript classes
+     </h3>
+     <p id="z735e7h_53">
+      You can easily extend JavaScript classes as if they were Kotlin classes. Just define an
+      <code class="code" id="z735e7h_57">
+       external open
+      </code>
+      class and extend it by a non-
+      <code class="code" id="z735e7h_58">
+       external
+      </code>
+      class. For example:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      open external class Foo {
+    open fun run()
+    fun stop()
+}
+
+class Bar : Foo() {
+    override fun run() {
+        window.alert("Running!")
+    }
+
+    fun restart() {
+        window.alert("Restarting")
+    }
+}
+     </div>
+     <p id="z735e7h_55">
+      There are some limitations:
+     </p>
+     <ul class="list _bullet" id="z735e7h_56">
+      <li class="list__item" id="z735e7h_59">
+       <p id="z735e7h_62">
+        When a function of an external base class is overloaded by signature, you can't override it in a derived class.
+       </p>
+      </li>
+      <li class="list__item" id="z735e7h_60">
+       <p id="z735e7h_63">
+        You can't override a function with default arguments.
+       </p>
+      </li>
+      <li class="list__item" id="z735e7h_61">
+       <p id="z735e7h_64">
+        Non-external classes can't be extended by external classes.
+       </p>
+      </li>
+     </ul>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="external-interfaces" id="external-interfaces">
+      external interfaces
+     </h3>
+     <p id="z735e7h_65">
+      JavaScript does not have the concept of interfaces. When a function expects its parameter to support two methods
+      <code class="code" id="z735e7h_72">
+       foo
+      </code>
+      and
+      <code class="code" id="z735e7h_73">
+       bar
+      </code>
+      , you would just pass in an object that actually has these methods.
+     </p>
+     <p id="z735e7h_66">
+      You can use interfaces to express this concept in statically typed Kotlin:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external interface HasFooAndBar {
+    fun foo()
+
+    fun bar()
+}
+
+external fun myFunction(p: HasFooAndBar)
+     </div>
+     <p id="z735e7h_68">
+      A typical use case for external interfaces is to describe settings objects. For example:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      external interface JQueryAjaxSettings {
+    var async: Boolean
+
+    var cache: Boolean
+
+    var complete: (JQueryXHR, String) -&gt; Unit
+
+    // etc
+}
+
+fun JQueryAjaxSettings(): JQueryAjaxSettings = js("{}")
+
+external class JQuery {
+    companion object {
+        fun get(settings: JQueryAjaxSettings): JQueryXHR
+    }
+}
+
+fun sendQuery() {
+    JQuery.get(JQueryAjaxSettings().apply {
+        complete = { (xhr, data) -&gt;
+            window.alert("Request complete")
+        }
+    })
+}
+     </div>
+     <p id="z735e7h_70">
+      External interfaces have some restrictions:
+     </p>
+     <ul class="list _bullet" id="z735e7h_71">
+      <li class="list__item" id="z735e7h_74">
+       <p id="z735e7h_78">
+        They can't be used on the right-hand side of
+        <code class="code" id="z735e7h_79">
+         is
+        </code>
+        checks.
+       </p>
+      </li>
+      <li class="list__item" id="z735e7h_75">
+       <p id="z735e7h_80">
+        They can't be passed as reified type arguments.
+       </p>
+      </li>
+      <li class="list__item" id="z735e7h_76">
+       <p id="z735e7h_81">
+        They can't be used in class literal expressions (such as
+        <code class="code" id="z735e7h_82">
+         I::class
+        </code>
+        ).
+       </p>
+      </li>
+      <li class="list__item" id="z735e7h_77">
+       <p id="z735e7h_83">
+        <code class="code" id="z735e7h_85">
+         as
+        </code>
+        casts to external interfaces always succeed. Casting to external interfaces produces the "Unchecked cast to external interface" compile time warning. The warning can be suppressed with the
+        <code class="code" id="z735e7h_86">
+         @Suppress("UNCHECKED_CAST_TO_EXTERNAL_INTERFACE")
+        </code>
+        annotation.
+       </p>
+       <p id="z735e7h_84">
+        IntelliJ IDEA can also automatically generate the
+        <code class="code" id="z735e7h_87">
+         @Suppress
+        </code>
+        annotation. Open the intentions menu via the light bulb icon or Alt-Enter, and click the small arrow next to the "Unchecked cast to external interface" inspection. Here, you can select the suppression scope, and your IDE will add the annotation to your file accordingly.
+       </p>
+      </li>
+     </ul>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="casts" id="casts">
+      Casts
+     </h3>
+     <p id="z735e7h_88">
+      In addition to the
+      <a data-tooltip="To explicitly cast an object to a non-nullable type, use the unsafe cast operator as:" href="typecasts.html#unsafe-cast-operator" id="z735e7h_92" style="color: blue;">
+       "unsafe" cast operator
+      </a>
+      <code class="code" id="z735e7h_93">
+       as
+      </code>
+      , which throws a
+      <code class="code" id="z735e7h_94">
+       ClassCastException
+      </code>
+      in case a cast is not possible, Kotlin/JS also provides
+      <a data-external="true" href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.js/unsafe-cast.html" id="z735e7h_95" rel="noopener noreferrer" style="color: red;" target="_blank">
+       <code class="code" id="z735e7h_98">
+        unsafeCast&lt;T&gt;()
+       </code>
+      </a>
+      . When using
+      <code class="code" id="z735e7h_96">
+       unsafeCast
+      </code>
+      ,
+      <span class="emphasis" id="z735e7h_97">
+       no type checking is done at all
+      </span>
+      during runtime. For example, consider the following two methods:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun usingUnsafeCast(s: Any) = s.unsafeCast&lt;String&gt;()
+fun usingAsOperator(s: Any) = s as String
+     </div>
+     <p id="z735e7h_90">
+      They will be compiled accordingly:
+     </p>
+     <div class="code-block" data-lang="javascript" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      function usingUnsafeCast(s) {
+    return s;
+}
+
+function usingAsOperator(s) {
+    var tmp$;
+    return typeof (tmp$ = s) === 'string' ? tmp$ : throwCCE();
+}
+     </div>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="equality" id="equality">
+     Equality
+    </h2>
+    <p id="z735e7h_99">
+     Kotlin/JS has particular semantics for equality checks compared to other platforms.
+    </p>
+    <p id="z735e7h_100">
+     In Kotlin/JS, the Kotlin
+     <a data-tooltip="Referential equality verifies the memory addresses of two objects to determine if they are the same instance." href="equality.html#referential-equality" id="z735e7h_106" style="color: blue;">
+      referential equality
+     </a>
+     operator (
+     <code class="code" id="z735e7h_107">
+      ===
+     </code>
+     ) always translates to the JavaScript
+     <a data-external="true" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Strict_equality" id="z735e7h_108" rel="noopener noreferrer" style="color: red;" target="_blank">
+      strict equality
+     </a>
+     operator (
+     <code class="code" id="z735e7h_109">
+      ===
+     </code>
+     ).
+    </p>
+    <p id="z735e7h_101">
+     The JavaScript
+     <code class="code" id="z735e7h_110">
+      ===
+     </code>
+     operator checks not only that two values are equal but also that the types of these two values are equal:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun main() {
+   val name = "kotlin"
+   val value1 = name.substring(0, 1)
+   val value2 = name.substring(0, 1)
+
+   println(if (value1 === value2) "yes" else "no")
+   // Prints 'yes' on Kotlin/JS
+   // Prints 'no' on other platforms
+}
+    </div>
+    <p id="z735e7h_103">
+     Also, in Kotlin/JS, the
+     <a data-tooltip="See how Kotlin types are mapped to JavaScript ones:" href="js-to-kotlin-interop.html#kotlin-types-in-javascript" id="z735e7h_111" style="color: blue;">
+      <code class="code" id="z735e7h_113">
+       Byte
+      </code>
+      ,
+      <code class="code" id="z735e7h_114">
+       Short
+      </code>
+      ,
+      <code class="code" id="z735e7h_115">
+       Int
+      </code>
+      ,
+      <code class="code" id="z735e7h_116">
+       Float
+      </code>
+      , and
+      <code class="code" id="z735e7h_117">
+       Double
+      </code>
+     </a>
+     numeric types are all represented with the
+     <code class="code" id="z735e7h_112">
+      Number
+     </code>
+     JavaScript type in runtime. Therefore, the values of these five types are indistinguishable:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun main() {
+   println(1.0 as Any === 1 as Any)
+   // Prints 'true' on Kotlin/JS
+   // Prints 'false' on other platforms
+}
+    </div>
+    <aside class="prompt" data-title="" data-type="tip" id="z735e7h_105">
+     <p id="z735e7h_118">
+      For more information about equality in Kotlin, see the
+      <a data-tooltip="In Kotlin, there are two types of equality:" href="equality.html" id="z735e7h_119" style="color: blue;">
+       Equality
+      </a>
+      documentation.
+     </p>
+    </aside>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

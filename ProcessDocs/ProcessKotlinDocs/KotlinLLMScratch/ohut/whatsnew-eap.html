@@ -1,0 +1,614 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="whatsnew-eap" id="whatsnew-eap.md">
+    What's new in Kotlin 2.2.0-Beta1
+   </h1>
+   <p id="z2kmmni_2">
+    <span class="emphasis" id="z2kmmni_11">
+     <a data-tooltip="Released: April 15, 2025" href="eap.html#build-details" id="z2kmmni_12" style="color: blue;">
+      Released: April 15, 2025
+     </a>
+    </span>
+   </p>
+   <aside class="prompt" data-title="" data-type="note" id="z2kmmni_3">
+    <p id="z2kmmni_13">
+     This document doesn't cover all of the features of the Early Access Preview (EAP) release, but it highlights some major improvements.
+    </p>
+    <p id="z2kmmni_14">
+     See the full list of changes in the
+     <a data-external="true" href="https://github.com/JetBrains/kotlin/releases/tag/v2.2.0-Beta1" id="z2kmmni_15" rel="noopener noreferrer" style="color: red;" target="_blank">
+      GitHub changelog
+     </a>
+     .
+    </p>
+   </aside>
+   <p id="z2kmmni_4">
+    The Kotlin 2.2.0-Beta1 release is out! Here are some details of this EAP release:
+   </p>
+   <ul class="list _bullet" id="z2kmmni_5">
+    <li class="list__item" id="z2kmmni_16">
+     <p id="z2kmmni_19">
+      <a data-tooltip="Kotlin 2.2.0-Beta1 introduces a new compiler option, -Xwarning-level. It's designed to provide a unified way of managing compiler warnings in Kotlin projects." href="#kotlin-compiler-unified-management-of-compiler-warnings" id="z2kmmni_20" style="color: blue;">
+       Kotlin compiler: unified management of compiler warnings
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="z2kmmni_17">
+     <p id="z2kmmni_21">
+      <a data-tooltip="Starting from Kotlin 2.2.0-Beta1, functions declared in interfaces are compiled to JVM default methods unless configured otherwise. This change affects how Kotlin's interface functions with implementations are compiled to bytecode. This behavior is controlled by the new stable…" href="#kotlin-jvm-changes-to-default-method-generation-for-interface-functions" id="z2kmmni_22" style="color: blue;">
+       Kotlin/JVM: changes to default method generation for interface functions
+      </a>
+     </p>
+    </li>
+    <li class="list__item" id="z2kmmni_18">
+     <p id="z2kmmni_23">
+      <a data-tooltip="Previously, the Kotlin Gradle Plugin (KGP) reported diagnostics—such as warnings and errors—only as plain text output to the console or logs." href="#integration-of-problems-api-within-kgp-diagnostics" id="z2kmmni_24" style="color: blue;">
+       Gradle: integration of Problems API within KGP diagnostics
+      </a>
+      and
+      <a data-tooltip="The Kotlin Gradle Plugin (KGP) diagnostics reported issues using fixed severity levels, meaning Gradle's --warning-mode command-line option had no effect on how KGP displayed errors." href="#kgp-compatibility-with-warning-mode" id="z2kmmni_25" style="color: blue;">
+       KGP compatibility with '--warning-mode'
+      </a>
+     </p>
+    </li>
+   </ul>
+   <section class="chapter">
+    <h2 data-toc="ide-support" id="ide-support">
+     IDE support
+    </h2>
+    <p id="z2kmmni_26">
+     The Kotlin plugins that support 2.2.0-Beta1 are bundled in the latest IntelliJ IDEA and Android Studio. You don't need to update the Kotlin plugin in your IDE. All you need to do is to
+     <a data-tooltip="No preview versions are currently available" href="configure-build-for-eap.html" id="z2kmmni_28" style="color: blue;">
+      change the Kotlin version
+     </a>
+     to 2.2.0-Beta1 in your build scripts.
+    </p>
+    <p id="z2kmmni_27">
+     See
+     <a data-tooltip="To upgrade your project to a new release, you need to update your build script file. For example, to update to Kotlin 2.1.20, change the version of the Kotlin Gradle plugin in your build.gradle(.kts) file:" href="releases.html#update-to-a-new-kotlin-version" id="z2kmmni_29" style="color: blue;">
+      Update to a new release
+     </a>
+     for details.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-label-id="experimental-general" data-toc="kotlin-compiler-unified-management-of-compiler-warnings" id="kotlin-compiler-unified-management-of-compiler-warnings">
+     Kotlin compiler: unified management of compiler warnings
+    </h2>
+    <p id="z2kmmni_31">
+     Kotlin 2.2.0-Beta1 introduces a new compiler option,
+     <code class="code" id="z2kmmni_37">
+      -Xwarning-level
+     </code>
+     . It's designed to provide a unified way of managing compiler warnings in Kotlin projects.
+    </p>
+    <p id="z2kmmni_32">
+     Previously, you could only apply general module-wide rules, like disabling all warnings with
+     <code class="code" id="z2kmmni_38">
+      -nowarn
+     </code>
+     , turning all warnings to compilation errors with
+     <code class="code" id="z2kmmni_39">
+      -Werror
+     </code>
+     , or enabling additional compiler checks with
+     <code class="code" id="z2kmmni_40">
+      -Wextra
+     </code>
+     . The only option to adjust them for specific warnings was the
+     <code class="code" id="z2kmmni_41">
+      -Xsuppress-warning
+     </code>
+     option.
+    </p>
+    <p id="z2kmmni_33">
+     With the new solution, you can override general rules and exclude specific diagnostics in a consistent way.
+    </p>
+    <section class="chapter">
+     <h3 data-toc="how-to-apply" id="how-to-apply">
+      How to apply
+     </h3>
+     <p id="z2kmmni_42">
+      The new compiler option has the following syntax:
+     </p>
+     <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      -Xwarning-level=DIAGNOSTIC_NAME:(error|warning|disabled)
+     </div>
+     <ul class="list _bullet" id="z2kmmni_44">
+      <li class="list__item" id="z2kmmni_46">
+       <p id="z2kmmni_49">
+        <code class="code" id="z2kmmni_50">
+         error
+        </code>
+        : raises the specified warning to an error.
+       </p>
+      </li>
+      <li class="list__item" id="z2kmmni_47">
+       <p id="z2kmmni_51">
+        <code class="code" id="z2kmmni_52">
+         warning
+        </code>
+        : emits a warning, and is enabled by default.
+       </p>
+      </li>
+      <li class="list__item" id="z2kmmni_48">
+       <p id="z2kmmni_53">
+        <code class="code" id="z2kmmni_54">
+         disabled
+        </code>
+        : completely suppresses the specified warning module-wide.
+       </p>
+      </li>
+     </ul>
+     <p id="z2kmmni_45">
+      Keep in mind that you can only configure the severity level of
+      <span class="emphasis" id="z2kmmni_55">
+       warnings
+      </span>
+      with the new compiler option.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="use-cases" id="use-cases">
+      Use cases
+     </h3>
+     <p id="z2kmmni_56">
+      With the new solution, you can better fine-tune warning reporting in your project by combining general rules with specific ones. Choose your use case:
+     </p>
+     <section class="chapter">
+      <h4 data-toc="suppress-warnings" id="suppress-warnings">
+       Suppress warnings
+      </h4>
+      <div class="table-wrapper">
+       <table class="wide" id="z2kmmni_61">
+        <thead>
+         <tr class="ijRowHead" id="z2kmmni_62">
+          <th id="z2kmmni_66">
+           <p>
+            Command
+           </p>
+          </th>
+          <th id="z2kmmni_67">
+           <p>
+            Description
+           </p>
+          </th>
+         </tr>
+        </thead>
+        <tbody>
+         <tr id="z2kmmni_63">
+          <td id="z2kmmni_68">
+           <p>
+            <a data-tooltip="Suppress the compiler from displaying warnings during compilation." href="compiler-reference.html#nowarn" id="z2kmmni_70" style="color: blue;">
+             <code class="code" id="z2kmmni_71">
+              -nowarn
+             </code>
+            </a>
+           </p>
+          </td>
+          <td id="z2kmmni_69">
+           <p>
+            Suppresses all warnings during compilation.
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_64">
+          <td id="z2kmmni_72">
+           <p>
+            <code class="code" id="z2kmmni_74">
+             -Xwarning-level=DIAGNOSTIC_NAME:disabled
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_73">
+           <p>
+            Suppresses only specified warnings. Works the same as
+            <a data-tooltip="Suppresses specific warnings globally across the whole project, for example:" href="compiler-reference.html#xsuppress-warning" id="z2kmmni_75" style="color: blue;">
+             <code class="code" id="z2kmmni_76">
+              -Xsuppress-warning
+             </code>
+            </a>
+            .
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_65">
+          <td id="z2kmmni_77">
+           <p>
+            <code class="code" id="z2kmmni_79">
+             -nowarn -Xwarning-level=DIAGNOSTIC_NAME:warning
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_78">
+           <p>
+            Suppresses all warnings except for the specified ones.
+           </p>
+          </td>
+         </tr>
+        </tbody>
+       </table>
+      </div>
+     </section>
+     <section class="chapter">
+      <h4 data-toc="raise-warnings-to-errors" id="raise-warnings-to-errors">
+       Raise warnings to errors
+      </h4>
+      <div class="table-wrapper">
+       <table class="wide" id="z2kmmni_80">
+        <thead>
+         <tr class="ijRowHead" id="z2kmmni_81">
+          <th id="z2kmmni_85">
+           <p>
+            Command
+           </p>
+          </th>
+          <th id="z2kmmni_86">
+           <p>
+            Description
+           </p>
+          </th>
+         </tr>
+        </thead>
+        <tbody>
+         <tr id="z2kmmni_82">
+          <td id="z2kmmni_87">
+           <p>
+            <a data-tooltip="Turn any warnings into a compilation error." href="compiler-reference.html#werror" id="z2kmmni_89" style="color: blue;">
+             <code class="code" id="z2kmmni_90">
+              -Werror
+             </code>
+            </a>
+           </p>
+          </td>
+          <td id="z2kmmni_88">
+           <p>
+            Raises all warnings to compilation errors.
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_83">
+          <td id="z2kmmni_91">
+           <p>
+            <code class="code" id="z2kmmni_93">
+             -Xwarning-level=DIAGNOSTIC_NAME:error
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_92">
+           <p>
+            Raises only specified warnings to errors.
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_84">
+          <td id="z2kmmni_94">
+           <p>
+            <code class="code" id="z2kmmni_96">
+             -Werror -Xwarning-level=DIAGNOSTIC_NAME:warning
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_95">
+           <p>
+            Raises all warnings to errors except for the specified ones.
+           </p>
+          </td>
+         </tr>
+        </tbody>
+       </table>
+      </div>
+     </section>
+     <section class="chapter">
+      <h4 data-toc="enable-additional-compiler-warnings" id="enable-additional-compiler-warnings">
+       Enable additional compiler warnings
+      </h4>
+      <div class="table-wrapper">
+       <table class="wide" id="z2kmmni_97">
+        <thead>
+         <tr class="ijRowHead" id="z2kmmni_98">
+          <th id="z2kmmni_102">
+           <p>
+            Command
+           </p>
+          </th>
+          <th id="z2kmmni_103">
+           <p>
+            Description
+           </p>
+          </th>
+         </tr>
+        </thead>
+        <tbody>
+         <tr id="z2kmmni_99">
+          <td id="z2kmmni_104">
+           <p>
+            <a data-tooltip="Enable additional declaration, expression, and type compiler checks that emit warnings if true." href="compiler-reference.html#wextra" id="z2kmmni_106" style="color: blue;">
+             <code class="code" id="z2kmmni_107">
+              -Wextra
+             </code>
+            </a>
+           </p>
+          </td>
+          <td id="z2kmmni_105">
+           <p>
+            Enables all additional declaration, expression, and type compiler checks that emit warnings if true.
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_100">
+          <td id="z2kmmni_108">
+           <p>
+            <code class="code" id="z2kmmni_110">
+             -Xwarning-level=DIAGNOSTIC_NAME:warning
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_109">
+           <p>
+            Enables only specified additional compiler checks.
+           </p>
+          </td>
+         </tr>
+         <tr id="z2kmmni_101">
+          <td id="z2kmmni_111">
+           <p>
+            <code class="code" id="z2kmmni_113">
+             -Wextra -Xwarning-level=DIAGNOSTIC_NAME:disabled
+            </code>
+           </p>
+          </td>
+          <td id="z2kmmni_112">
+           <p>
+            Enables all additional checks except for the specified ones.
+           </p>
+          </td>
+         </tr>
+        </tbody>
+       </table>
+      </div>
+     </section>
+     <section class="chapter">
+      <h4 data-toc="warning-lists" id="warning-lists">
+       Warning lists
+      </h4>
+      <p id="z2kmmni_114">
+       In case you have many warnings you want to exclude from general rules, you can list them in a separate file through
+       <a data-tooltip="Read the compiler options from the given file. Such a file can contain compiler options with values and paths to the source files. Options and paths should be separated by whitespaces. For example:" href="compiler-reference.html#argfile" id="z2kmmni_115" style="color: blue;">
+        <code class="code" id="z2kmmni_116">
+         @argfile
+        </code>
+       </a>
+       .
+      </p>
+     </section>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="leave-feedback" id="leave-feedback">
+      Leave feedback
+     </h3>
+     <p id="z2kmmni_117">
+      The new compiler option is still
+      <a data-tooltip="Here's a quick guide to these stability levels and their meaning:" href="components-stability.html#stability-levels-explained" id="z2kmmni_118" style="color: blue;">
+       Experimental
+      </a>
+      . Please report any problems to our issue tracker,
+      <a data-external="true" href="https://kotl.in/issue" id="z2kmmni_119" rel="noopener noreferrer" style="color: red;" target="_blank">
+       YouTrack
+      </a>
+      .
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="kotlin-jvm-changes-to-default-method-generation-for-interface-functions" id="kotlin-jvm-changes-to-default-method-generation-for-interface-functions">
+     Kotlin/JVM: changes to default method generation for interface functions
+    </h2>
+    <p id="z2kmmni_120">
+     Starting from Kotlin 2.2.0-Beta1, functions declared in interfaces are compiled to JVM default methods unless configured otherwise. This change affects how Kotlin's interface functions with implementations are compiled to bytecode. This behavior is controlled by the new stable compiler option
+     <code class="code" id="z2kmmni_125">
+      -jvm-default
+     </code>
+     , replacing the deprecated
+     <code class="code" id="z2kmmni_126">
+      -Xjvm-default
+     </code>
+     option.
+    </p>
+    <p id="z2kmmni_121">
+     You can control the behavior of the
+     <code class="code" id="z2kmmni_127">
+      -jvm-default
+     </code>
+     option using the following values:
+    </p>
+    <ul class="list _bullet" id="z2kmmni_122">
+     <li class="list__item" id="z2kmmni_128">
+      <p id="z2kmmni_131">
+       <code class="code" id="z2kmmni_132">
+        enable
+       </code>
+       (default): generates default implementations in interfaces and includes bridge functions in subclasses and
+       <code class="code" id="z2kmmni_133">
+        DefaultImpls
+       </code>
+       classes. Use this mode to maintain binary compatibility with older Kotlin versions.
+      </p>
+     </li>
+     <li class="list__item" id="z2kmmni_129">
+      <p id="z2kmmni_134">
+       <code class="code" id="z2kmmni_135">
+        no-compatibility
+       </code>
+       : generates only default implementations in interfaces. This mode skips compatibility bridges and
+       <code class="code" id="z2kmmni_136">
+        DefaultImpls
+       </code>
+       classes, making it suitable for new code.
+      </p>
+     </li>
+     <li class="list__item" id="z2kmmni_130">
+      <p id="z2kmmni_137">
+       <code class="code" id="z2kmmni_138">
+        disable
+       </code>
+       : disables default implementations in interfaces. Only bridge functions and
+       <code class="code" id="z2kmmni_139">
+        DefaultImpls
+       </code>
+       classes are generated, matching the behavior before Kotlin 2.2.0-Beta1.
+      </p>
+     </li>
+    </ul>
+    <p id="z2kmmni_123">
+     To configure the
+     <code class="code" id="z2kmmni_140">
+      -jvm-default
+     </code>
+     compiler option, set the
+     <code class="code" id="z2kmmni_141">
+      jvmDefault
+     </code>
+     property in your Gradle Kotlin DSL:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     kotlin {
+    compilerOptions {
+        jvmDefault = JvmDefaultMode.NO_COMPATIBILITY
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="gradle" id="gradle">
+     Gradle
+    </h2>
+    <section class="chapter">
+     <h3 data-toc="integration-of-problems-api-within-kgp-diagnostics" id="integration-of-problems-api-within-kgp-diagnostics">
+      Integration of Problems API within KGP diagnostics
+     </h3>
+     <p id="z2kmmni_144">
+      Previously, the Kotlin Gradle Plugin (KGP) reported diagnostics—such as warnings and errors—only as plain text output to the console or logs.
+     </p>
+     <p id="z2kmmni_145">
+      Starting with 2.2.0-Beta1, KGP introduces an additional reporting mechanism: it now uses
+      <a data-external="true" href="https://docs.gradle.org/current/kotlin-dsl/gradle/org.gradle.api.problems/index.html" id="z2kmmni_148" rel="noopener noreferrer" style="color: red;" target="_blank">
+       Gradle's Problems API
+      </a>
+      , a standardized way to report rich, structured problem information during the build process.
+     </p>
+     <p id="z2kmmni_146">
+      KGP diagnostics are now easier to read and more consistently displayed across different interfaces like the Gradle CLI and IntelliJ IDEA.
+     </p>
+     <p id="z2kmmni_147">
+      This integration is enabled by default, starting with Gradle 8.6 or later. As the API is still evolving, use the most recent Gradle version to benefit from the latest improvements.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="kgp-compatibility-with-warning-mode" id="kgp-compatibility-with-warning-mode">
+      KGP compatibility with '--warning-mode'
+     </h3>
+     <p id="z2kmmni_149">
+      The Kotlin Gradle Plugin (KGP) diagnostics reported issues using fixed severity levels, meaning Gradle's
+      <a data-external="true" href="https://docs.gradle.org/current/userguide/command_line_interface.html#sec:command_line_warnings" id="z2kmmni_155" rel="noopener noreferrer" style="color: red;" target="_blank">
+       <code class="code" id="z2kmmni_156">
+        --warning-mode
+       </code>
+       command-line option
+      </a>
+      had no effect on how KGP displayed errors.
+     </p>
+     <p id="z2kmmni_150">
+      Now, KGP diagnostics are compatible with the
+      <code class="code" id="z2kmmni_157">
+       --warning-mode
+      </code>
+      option, providing more flexibility. For example, you can convert all warnings into errors or disable warnings entirely.
+     </p>
+     <p id="z2kmmni_151">
+      With this change, KGP diagnostics adjust the output based on the selected warning mode:
+     </p>
+     <ul class="list _bullet" id="z2kmmni_152">
+      <li class="list__item" id="z2kmmni_158">
+       <p id="z2kmmni_160">
+        When you set
+        <code class="code" id="z2kmmni_161">
+         --warning-mode=fail
+        </code>
+        , diagnostics with
+        <code class="code" id="z2kmmni_162">
+         Severity.Warning
+        </code>
+        are now elevated to
+        <code class="code" id="z2kmmni_163">
+         Severity.Error
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="z2kmmni_159">
+       <p id="z2kmmni_164">
+        When you set
+        <code class="code" id="z2kmmni_165">
+         --warning-mode=none
+        </code>
+        , diagnostics with
+        <code class="code" id="z2kmmni_166">
+         Severity.Warning
+        </code>
+        are not logged.
+       </p>
+      </li>
+     </ul>
+     <p id="z2kmmni_153">
+      This behavior is enabled by default starting with 2.2.0-Beta1.
+     </p>
+     <p id="z2kmmni_154">
+      To ignore the
+      <code class="code" id="z2kmmni_167">
+       --warning-mode
+      </code>
+      option, set
+      <code class="code" id="z2kmmni_168">
+       kotlin.internal.diagnostics.ignoreWarningMode=true
+      </code>
+      in your Gradle properties.
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="how-to-update-to-kotlin-kotlineapversion" id="how-to-update-to-kotlin-kotlineapversion">
+     How to update to Kotlin 2.2.0-Beta1
+    </h2>
+    <p id="z2kmmni_169">
+     Starting from IntelliJ IDEA 2023.3 and Android Studio Iguana (2023.2.1) Canary 15, the Kotlin plugin is distributed as a bundled plugin included in your IDE. This means that you can't install the plugin from JetBrains Marketplace anymore. The bundled plugin supports upcoming Kotlin EAP releases.
+    </p>
+    <p id="z2kmmni_170">
+     To update to the new Kotlin EAP version,
+     <a data-tooltip="In the plugins block within build.gradle(.kts), change the KOTLIN-EAP-VERSION to the actual EAP version, such as 2.2.0-Beta1. Available EAP versions are listed here." href="configure-build-for-eap.html#adjust-the-kotlin-version" id="z2kmmni_171" style="color: blue;">
+      change the Kotlin version
+     </a>
+     to 2.2.0-Beta1 in your build scripts.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

@@ -1,0 +1,706 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="multiplatform-native-artifacts" id="multiplatform-native-artifacts.md">
+    Build final native binaries (Experimental DSL)
+   </h1>
+   <aside class="prompt" data-title="" data-type="warning" id="-vvb9gm_3">
+    <p id="-vvb9gm_10">
+     The new DSL described below is
+     <a data-tooltip="The Kotlin language and toolset are divided into many components such as the compilers for the JVM, JS and Native targets, the Standard Library, various accompanying tools and so on. Many of these components were officially released as Stable, which means that they were evolved in a…" href="components-stability.html" id="-vvb9gm_12" style="color: blue;">
+      Experimental
+     </a>
+     . It may be changed at any time. We encourage you to use it for evaluation purposes.
+    </p>
+    <p id="-vvb9gm_11">
+     If the new DSL doesn't work for you, see
+     <a data-tooltip="By default, a Kotlin/Native target is compiled down to a *.klib library artifact, which can be consumed by Kotlin/Native itself as a dependency but cannot be executed or used as a native library." href="multiplatform-build-native-binaries.html" id="-vvb9gm_13" style="color: blue;">
+      the previous approach
+     </a>
+     to building native binaries.
+    </p>
+   </aside>
+   <p id="-vvb9gm_4">
+    <a data-tooltip="For native targets, the following specific blocks are available:" href="multiplatform-dsl-reference.html#native-targets" id="-vvb9gm_14" style="color: blue;">
+     Kotlin/Native targets
+    </a>
+    are compiled to the
+    <code class="code" id="-vvb9gm_15">
+     *.klib
+    </code>
+    library artifacts, which can be consumed by Kotlin/Native itself as a dependency but cannot be used as a native library.
+   </p>
+   <p id="-vvb9gm_5">
+    To declare final native binaries, use the new binaries format with the
+    <code class="code" id="-vvb9gm_16">
+     kotlinArtifacts
+    </code>
+    DSL. It represents a collection of native binaries built for this target in addition to the default
+    <code class="code" id="-vvb9gm_17">
+     *.klib
+    </code>
+    artifact and provides a set of methods for declaring and configuring them.
+   </p>
+   <aside class="prompt" data-title="" data-type="note" id="-vvb9gm_6">
+    <p id="-vvb9gm_18">
+     The
+     <code class="code" id="-vvb9gm_19">
+      kotlin-multiplatform
+     </code>
+     plugin doesn't create any production binaries by default. The only binary available by default is a debug test executable that lets you run unit tests from the
+     <code class="code" id="-vvb9gm_20">
+      test
+     </code>
+     compilation.
+    </p>
+   </aside>
+   <p id="-vvb9gm_7">
+    Kotlin artifact DSL can help you to solve a common issue: when you need to access multiple Kotlin modules from your app. Since the usage of several Kotlin/Native artifacts is limited, you can export multiple Kotlin modules into a single artifact with new DSL.
+   </p>
+   <section class="chapter">
+    <h2 data-toc="declare-binaries" id="declare-binaries">
+     Declare binaries
+    </h2>
+    <p id="-vvb9gm_21">
+     <code class="code" id="-vvb9gm_32">
+      kotlinArtifacts {}
+     </code>
+     is the top-level block for artifact configuration in the Gradle build script. Use the following kinds of binaries to declare elements of the
+     <code class="code" id="-vvb9gm_33">
+      kotlinArtifacts {}
+     </code>
+     DSL:
+    </p>
+    <div class="table-wrapper">
+     <table class="wide" id="-vvb9gm_22">
+      <thead>
+       <tr class="ijRowHead" id="-vvb9gm_34">
+        <th id="-vvb9gm_40">
+         <p>
+          Factory method
+         </p>
+        </th>
+        <th id="-vvb9gm_41">
+         <p>
+          Binary kind
+         </p>
+        </th>
+        <th id="-vvb9gm_42">
+         <p>
+          Available for
+         </p>
+        </th>
+       </tr>
+      </thead>
+      <tbody>
+       <tr id="-vvb9gm_35">
+        <td id="-vvb9gm_43">
+         <p>
+          <code class="code" id="-vvb9gm_46">
+           sharedLib
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_44">
+         <p>
+          <a data-tooltip="Use the -produce dynamic compiler option or binaries.sharedLib() in your Gradle build file:" href="native-faq.html#how-do-i-create-a-shared-library" id="-vvb9gm_47" style="color: blue;">
+           Shared native library
+          </a>
+         </p>
+        </td>
+        <td id="-vvb9gm_45">
+         <p>
+          All native targets, except for
+          <code class="code" id="-vvb9gm_48">
+           WebAssembly
+          </code>
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_36">
+        <td id="-vvb9gm_49">
+         <p>
+          <code class="code" id="-vvb9gm_52">
+           staticLib
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_50">
+         <p>
+          <a data-tooltip="Use the -produce static compiler option or binaries.staticLib() in your Gradle build file:" href="native-faq.html#how-do-i-create-a-static-library-or-an-object-file" id="-vvb9gm_53" style="color: blue;">
+           Static native library
+          </a>
+         </p>
+        </td>
+        <td id="-vvb9gm_51">
+         <p>
+          All native targets, except for
+          <code class="code" id="-vvb9gm_54">
+           WebAssembly
+          </code>
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_37">
+        <td id="-vvb9gm_55">
+         <p>
+          <code class="code" id="-vvb9gm_58">
+           framework
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_56">
+         <p>
+          Objective-C framework
+         </p>
+        </td>
+        <td id="-vvb9gm_57">
+         <p>
+          macOS, iOS, watchOS, and tvOS targets only
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_38">
+        <td id="-vvb9gm_59">
+         <p>
+          <code class="code" id="-vvb9gm_62">
+           fatFramework
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_60">
+         <p>
+          Universal fat framework
+         </p>
+        </td>
+        <td id="-vvb9gm_61">
+         <p>
+          macOS, iOS, watchOS, and tvOS targets only
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_39">
+        <td id="-vvb9gm_63">
+         <p>
+          <code class="code" id="-vvb9gm_66">
+           XCFramework
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_64">
+         <p>
+          XCFramework framework
+         </p>
+        </td>
+        <td id="-vvb9gm_65">
+         <p>
+          macOS, iOS, watchOS, and tvOS targets only
+         </p>
+        </td>
+       </tr>
+      </tbody>
+     </table>
+    </div>
+    <p id="-vvb9gm_23">
+     Inside the
+     <code class="code" id="-vvb9gm_67">
+      kotlinArtifacts
+     </code>
+     element, you can write the following blocks:
+    </p>
+    <ul class="list _bullet" id="-vvb9gm_24">
+     <li class="list__item" id="-vvb9gm_68">
+      <p id="-vvb9gm_72">
+       <a data-tooltip='The registered Gradle task is assembleMyslibSharedLibrary that assembles all types of registered "myslib" into a dynamic library.' href="#library" id="-vvb9gm_73" style="color: blue;">
+        Native.Library
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-vvb9gm_69">
+      <p id="-vvb9gm_74">
+       <a data-tooltip='The registered Gradle task is assembleMyframeFramework that assembles all types of registered "myframe" framework.' href="#framework" id="-vvb9gm_75" style="color: blue;">
+        Native.Framework
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-vvb9gm_70">
+      <p id="-vvb9gm_76">
+       <a data-tooltip="By default, an Objective-C framework produced by Kotlin/Native supports only one platform. However, you can merge such frameworks into a single universal (fat) binary. This especially makes sense for 32-bit and 64-bit iOS frameworks. In this case, you can use the resulting universal…" href="#fat-frameworks" id="-vvb9gm_77" style="color: blue;">
+        Native.FatFramework
+       </a>
+      </p>
+     </li>
+     <li class="list__item" id="-vvb9gm_71">
+      <p id="-vvb9gm_78">
+       <a data-tooltip="All Kotlin Multiplatform projects can use XCFrameworks as an output to gather logic for all the target platforms and architectures in a single bundle. Unlike universal (fat) frameworks, you don't need to remove all unnecessary architectures before publishing the application to the…" href="#xcframeworks" id="-vvb9gm_79" style="color: blue;">
+        Native.XCFramework
+       </a>
+      </p>
+     </li>
+    </ul>
+    <p id="-vvb9gm_25">
+     The simplest version requires the
+     <code class="code" id="-vvb9gm_80">
+      target
+     </code>
+     (or
+     <code class="code" id="-vvb9gm_81">
+      targets
+     </code>
+     ) parameter for the selected build type. Currently, two build types are available:
+    </p>
+    <ul class="list _bullet" id="-vvb9gm_26">
+     <li class="list__item" id="-vvb9gm_82">
+      <p id="-vvb9gm_84">
+       <code class="code" id="-vvb9gm_85">
+        DEBUG
+       </code>
+       – produces a non-optimized binary with debug information
+      </p>
+     </li>
+     <li class="list__item" id="-vvb9gm_83">
+      <p id="-vvb9gm_86">
+       <code class="code" id="-vvb9gm_87">
+        RELEASE
+       </code>
+       – produces an optimized binary without debug information
+      </p>
+     </li>
+    </ul>
+    <p id="-vvb9gm_27">
+     In the
+     <code class="code" id="-vvb9gm_88">
+      modes
+     </code>
+     parameter, you can specify build types for which you want to create binaries. The default value includes both
+     <code class="code" id="-vvb9gm_89">
+      DEBUG
+     </code>
+     and
+     <code class="code" id="-vvb9gm_90">
+      RELEASE
+     </code>
+     executable binaries:
+    </p>
+    <div class="tabs" data-anchors="[-vvb9gm_91,-vvb9gm_92]" data-group="build-script" id="-vvb9gm_28">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_91">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlinArtifacts {
+    Native.Library {
+        target = iosX64 // Define your target instead
+        modes(DEBUG, RELEASE)
+        // Binary configuration
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_92">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlinArtifacts {
+    it.native.Library {
+        target = iosX64 // Define your target instead
+        modes(DEBUG, RELEASE)
+        // Binary configuration
+    }
+}
+      </div>
+     </div>
+    </div>
+    <p id="-vvb9gm_29">
+     You can also declare binaries with custom names:
+    </p>
+    <div class="tabs" data-anchors="[-vvb9gm_95,-vvb9gm_96]" data-group="build-script" id="-vvb9gm_30">
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_95">
+      <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlinArtifacts {
+    Native.Library("mylib") {
+        // Binary configuration
+    }
+}
+      </div>
+     </div>
+     <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_96">
+      <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+       kotlinArtifacts {
+    it.native.Library("mylib") {
+        // Binary configuration
+    }
+}
+      </div>
+     </div>
+    </div>
+    <p id="-vvb9gm_31">
+     The argument sets a name prefix, which is the default name for the binary file. For example, for Windows the code produces the
+     <code class="code" id="-vvb9gm_99">
+      mylib.dll
+     </code>
+     file.
+    </p>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="configure-binaries" id="configure-binaries">
+     Configure binaries
+    </h2>
+    <p id="-vvb9gm_100">
+     For the binary configuration, the following common parameters are available:
+    </p>
+    <div class="table-wrapper">
+     <table class="wide" id="-vvb9gm_101">
+      <thead>
+       <tr class="ijRowHead" id="-vvb9gm_105">
+        <th id="-vvb9gm_112">
+         <p>
+          <span class="control" id="-vvb9gm_114">
+           Name
+          </span>
+         </p>
+        </th>
+        <th id="-vvb9gm_113">
+         <p>
+          <span class="control" id="-vvb9gm_115">
+           Description
+          </span>
+         </p>
+        </th>
+       </tr>
+      </thead>
+      <tbody>
+       <tr id="-vvb9gm_106">
+        <td id="-vvb9gm_116">
+         <p>
+          <code class="code" id="-vvb9gm_118">
+           isStatic
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_117">
+         <p>
+          Optional linking type that defines the library type. By default, it's
+          <code class="code" id="-vvb9gm_119">
+           false
+          </code>
+          and the library is dynamic.
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_107">
+        <td id="-vvb9gm_120">
+         <p>
+          <code class="code" id="-vvb9gm_122">
+           modes
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_121">
+         <p>
+          Optional build types,
+          <code class="code" id="-vvb9gm_123">
+           DEBUG
+          </code>
+          and
+          <code class="code" id="-vvb9gm_124">
+           RELEASE
+          </code>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_108">
+        <td id="-vvb9gm_125">
+         <p>
+          <code class="code" id="-vvb9gm_127">
+           kotlinOptions
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_126">
+         <p>
+          Optional compiler options applied to the compilation. See the list of available
+          <a data-tooltip="Each release of Kotlin includes compilers for the supported targets: JVM, JavaScript, and native binaries for supported platforms." href="gradle-compiler-options.html" id="-vvb9gm_128" style="color: blue;">
+           compiler options
+          </a>
+          .
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_109">
+        <td id="-vvb9gm_129">
+         <p>
+          <code class="code" id="-vvb9gm_131">
+           addModule
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_130">
+         <p>
+          In addition to the current module, you can add other modules to the resulting artifact.
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_110">
+        <td id="-vvb9gm_132">
+         <p>
+          <code class="code" id="-vvb9gm_134">
+           setModules
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_133">
+         <p>
+          You can override the list of all modules that will be added to the resulting artifact.
+         </p>
+        </td>
+       </tr>
+       <tr id="-vvb9gm_111">
+        <td id="-vvb9gm_135">
+         <p>
+          <code class="code" id="-vvb9gm_137">
+           target
+          </code>
+         </p>
+        </td>
+        <td id="-vvb9gm_136">
+         <p>
+          Declares a particular target of a project. The names of available targets are listed in the
+          <a data-tooltip="A target is a part of the build responsible for compiling, testing, and packaging a piece of software aimed at one of the supported platforms. Kotlin provides targets for each platform, so you can instruct Kotlin to compile code for that specific target. Learn more about setting up…" href="multiplatform-dsl-reference.html#targets" id="-vvb9gm_138" style="color: blue;">
+           Targets
+          </a>
+          section.
+         </p>
+        </td>
+       </tr>
+      </tbody>
+     </table>
+    </div>
+    <section class="chapter">
+     <h3 data-toc="libraries-and-frameworks" id="libraries-and-frameworks">
+      Libraries and frameworks
+     </h3>
+     <p id="-vvb9gm_139">
+      When building an Objective-C framework or a native library (shared or static), you may need to pack not just the classes of the current project but also the classes of any other multiplatform module into a single entity and export all these modules to it.
+     </p>
+     <section class="chapter">
+      <h4 data-toc="library" id="library">
+       Library
+      </h4>
+      <div class="tabs" data-anchors="[-vvb9gm_144,-vvb9gm_145]" data-group="build-script" id="-vvb9gm_142">
+       <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_144">
+        <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         kotlinArtifacts {
+    Native.Library("myslib") {
+        target = linuxX64
+        isStatic = false
+        modes(DEBUG)
+        addModule(project(":lib"))
+        kotlinOptions {
+            verbose = false
+            freeCompilerArgs += "-Xmen=pool"
+        }
+    }
+}
+        </div>
+       </div>
+       <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_145">
+        <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         kotlinArtifacts {
+    it.native.Library("myslib") {
+        target = linuxX64
+        it.static = false
+        modes(DEBUG)
+        addModule(project(":lib"))
+        kotlinOptions {
+            verbose = false
+            freeCompilerArgs += "-Xmen=pool"
+        }
+    }
+}
+        </div>
+       </div>
+      </div>
+      <p id="-vvb9gm_143">
+       The registered Gradle task is
+       <code class="code" id="-vvb9gm_148">
+        assembleMyslibSharedLibrary
+       </code>
+       that assembles all types of registered "myslib" into a dynamic library.
+      </p>
+     </section>
+     <section class="chapter">
+      <h4 data-toc="framework" id="framework">
+       Framework
+      </h4>
+      <div class="tabs" data-anchors="[-vvb9gm_152,-vvb9gm_153]" data-group="build-script" id="-vvb9gm_149">
+       <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_152">
+        <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         kotlinArtifacts {
+    Native.Framework("myframe") {
+        modes(DEBUG, RELEASE)
+        target = iosArm64
+        isStatic = false
+        kotlinOptions {
+            verbose = false
+        }
+    }
+}
+        </div>
+       </div>
+       <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_153">
+        <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+         kotlinArtifacts {
+    it.native.Framework("myframe") {
+        modes(DEBUG, RELEASE)
+        target = iosArm64
+        it.static = false
+        kotlinOptions {
+            verbose = false
+        }
+    }
+}
+        </div>
+       </div>
+      </div>
+      <p id="-vvb9gm_150">
+       The registered Gradle task is
+       <code class="code" id="-vvb9gm_156">
+        assembleMyframeFramework
+       </code>
+       that assembles all types of registered "myframe" framework.
+      </p>
+      <aside class="prompt" data-title="" data-type="tip" id="-vvb9gm_151">
+       <p id="-vvb9gm_157">
+        If for some reason the new DSL doesn't work for you, try
+        <a data-tooltip="When building an Objective-C framework or a native library (shared or static), you may need to pack not just the classes of the current project, but also the classes of its dependencies. Specify which dependencies to export to a binary using the export method." href="multiplatform-build-native-binaries.html#export-dependencies-to-binaries" id="-vvb9gm_158" style="color: blue;">
+         the previous approach
+        </a>
+        to export dependencies to binaries.
+       </p>
+      </aside>
+     </section>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="fat-frameworks" id="fat-frameworks">
+      Fat frameworks
+     </h3>
+     <p id="-vvb9gm_159">
+      By default, an Objective-C framework produced by Kotlin/Native supports only one platform. However, you can merge such frameworks into a single universal (fat) binary. This especially makes sense for 32-bit and 64-bit iOS frameworks. In this case, you can use the resulting universal framework on both 32-bit and 64-bit devices.
+     </p>
+     <div class="tabs" data-anchors="[-vvb9gm_163,-vvb9gm_164]" data-group="build-script" id="-vvb9gm_160">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_163">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlinArtifacts {
+    Native.FatFramework("myfatframe") {
+        targets(iosX32, iosX64)
+        kotlinOptions {
+            suppressWarnings = false
+        }
+    }
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_164">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlinArtifacts {
+    it.native.FatFramework("myfatframe") {
+        targets(iosX32, iosX64)
+        kotlinOptions {
+            suppressWarnings = false
+        }
+    }
+}
+       </div>
+      </div>
+     </div>
+     <p id="-vvb9gm_161">
+      The registered Gradle task is
+      <code class="code" id="-vvb9gm_167">
+       assembleMyfatframeFatFramework
+      </code>
+      that assembles all types of registered "myfatframe" fat framework.
+     </p>
+     <aside class="prompt" data-title="" data-type="tip" id="-vvb9gm_162">
+      <p id="-vvb9gm_168">
+       If for some reason the new DSL doesn't work for you, try
+       <a data-tooltip="By default, an Objective-C framework produced by Kotlin/Native supports only one platform. However, you can merge such frameworks into a single universal (fat) binary using the lipo tool. This operation especially makes sense for 32-bit and 64-bit iOS frameworks. In this case, you…" href="multiplatform-build-native-binaries.html#build-universal-frameworks" id="-vvb9gm_169" style="color: blue;">
+        the previous approach
+       </a>
+       to build fat frameworks.
+      </p>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="xcframeworks" id="xcframeworks">
+      XCFrameworks
+     </h3>
+     <p id="-vvb9gm_170">
+      All Kotlin Multiplatform projects can use XCFrameworks as an output to gather logic for all the target platforms and architectures in a single bundle. Unlike
+      <a data-tooltip="By default, an Objective-C framework produced by Kotlin/Native supports only one platform. However, you can merge such frameworks into a single universal (fat) binary. This especially makes sense for 32-bit and 64-bit iOS frameworks. In this case, you can use the resulting universal…" href="#fat-frameworks" id="-vvb9gm_174" style="color: blue;">
+       universal (fat) frameworks
+      </a>
+      , you don't need to remove all unnecessary architectures before publishing the application to the App Store.
+     </p>
+     <div class="tabs" data-anchors="[-vvb9gm_175,-vvb9gm_176]" data-group="build-script" id="-vvb9gm_171">
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="kotlin" data-title="Kotlin" id="-vvb9gm_175">
+       <div class="code-block" data-lang="kotlin" data-title="Kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlinArtifacts {
+    Native.XCFramework("sdk") {
+        targets(iosX64, iosArm64, iosSimulatorArm64)
+        setModules(
+            project(":shared"),
+            project(":lib")
+        )
+    }
+}
+       </div>
+      </div>
+      <div class="tabs__content" data-gtm="tab" data-sync-tabs="groovy" data-title="Groovy" id="-vvb9gm_176">
+       <div class="code-block" data-lang="groovy" data-title="Groovy" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+        kotlinArtifacts {
+    it.native.XCFramework("sdk") {
+        targets(iosX64, iosArm64, iosSimulatorArm64)
+        setModules(
+            project(":shared"), 
+            project(":lib")
+        )
+    }
+}
+       </div>
+      </div>
+     </div>
+     <p id="-vvb9gm_172">
+      The registered Gradle task is
+      <code class="code" id="-vvb9gm_179">
+       assembleSdkXCFramework
+      </code>
+      that assembles all types of registered "sdk" XCFrameworks.
+     </p>
+     <aside class="prompt" data-title="" data-type="tip" id="-vvb9gm_173">
+      <p id="-vvb9gm_180">
+       If for some reason the new DSL doesn't work for you, try
+       <a data-tooltip="All Kotlin Multiplatform projects can use XCFrameworks as an output to gather logic for all the target platforms and architectures in a single bundle. Unlike universal (fat) frameworks, you don't need to remove all unnecessary architectures before publishing the application to the…" href="multiplatform-build-native-binaries.html#build-xcframeworks" id="-vvb9gm_181" style="color: blue;">
+        the previous approach
+       </a>
+       to build XCFrameworks.
+      </p>
+     </aside>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

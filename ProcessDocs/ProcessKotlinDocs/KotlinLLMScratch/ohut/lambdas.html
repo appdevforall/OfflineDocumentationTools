@@ -1,0 +1,890 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="lambdas" id="lambdas.md">
+    Higher-order functions and lambdas
+   </h1>
+   <p id="-q7f6co_2">
+    Kotlin functions are
+    <a data-external="true" href="https://en.wikipedia.org/wiki/First-class_function" id="-q7f6co_7" rel="noopener noreferrer" style="color: red;" target="_blank">
+     first-class
+    </a>
+    , which means they can be stored in variables and data structures, and can be passed as arguments to and returned from other
+    <a data-tooltip="A higher-order function is a function that takes functions as parameters, or returns a function." href="#higher-order-functions" id="-q7f6co_8" style="color: blue;">
+     higher-order functions
+    </a>
+    . You can perform any operations on functions that are possible for other non-function values.
+   </p>
+   <p id="-q7f6co_3">
+    To facilitate this, Kotlin, as a statically typed programming language, uses a family of
+    <a data-tooltip="Kotlin uses function types, such as (Int) -&gt; String, for declarations that deal with functions: val onClick: () -&gt; Unit = ...." href="#function-types" id="-q7f6co_9" style="color: blue;">
+     function types
+    </a>
+    to represent functions, and provides a set of specialized language constructs, such as
+    <a data-tooltip="Lambda expressions and anonymous functions are function literals. Function literals are functions that are not declared but are passed immediately as an expression. Consider the following example:" href="#lambda-expressions-and-anonymous-functions" id="-q7f6co_10" style="color: blue;">
+     lambda expressions
+    </a>
+    .
+   </p>
+   <section class="chapter">
+    <h2 data-toc="higher-order-functions" id="higher-order-functions">
+     Higher-order functions
+    </h2>
+    <p id="-q7f6co_11">
+     A higher-order function is a function that takes functions as parameters, or returns a function.
+    </p>
+    <p id="-q7f6co_12">
+     A good example of a higher-order function is the
+     <a data-external="true" href="https://en.wikipedia.org/wiki/Fold_(higher-order_function)" id="-q7f6co_17" rel="noopener noreferrer" style="color: red;" target="_blank">
+      functional programming idiom
+      <code class="code" id="-q7f6co_18">
+       fold
+      </code>
+     </a>
+     for collections. It takes an initial accumulator value and a combining function and builds its return value by consecutively combining the current accumulator value with each collection element, replacing the accumulator value each time:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun &lt;T, R&gt; Collection&lt;T&gt;.fold(
+    initial: R, 
+    combine: (acc: R, nextElement: T) -&gt; R
+): R {
+    var accumulator: R = initial
+    for (element: T in this) {
+        accumulator = combine(accumulator, element)
+    }
+    return accumulator
+}
+    </div>
+    <p id="-q7f6co_14">
+     In the code above, the
+     <code class="code" id="-q7f6co_19">
+      combine
+     </code>
+     parameter has the
+     <a data-tooltip="Kotlin uses function types, such as (Int) -&gt; String, for declarations that deal with functions: val onClick: () -&gt; Unit = ...." href="#function-types" id="-q7f6co_20" style="color: blue;">
+      function type
+     </a>
+     <code class="code" id="-q7f6co_21">
+      (R, T) -&gt; R
+     </code>
+     , so it accepts a function that takes two arguments of types
+     <code class="code" id="-q7f6co_22">
+      R
+     </code>
+     and
+     <code class="code" id="-q7f6co_23">
+      T
+     </code>
+     and returns a value of type
+     <code class="code" id="-q7f6co_24">
+      R
+     </code>
+     . It is
+     <a data-tooltip="A value of a function type can be invoked by using its invoke(...) operator: f.invoke(x) or just f(x)." href="#invoking-a-function-type-instance" id="-q7f6co_25" style="color: blue;">
+      invoked
+     </a>
+     inside the
+     <code class="code" id="-q7f6co_26">
+      for
+     </code>
+     loop, and the return value is then assigned to
+     <code class="code" id="-q7f6co_27">
+      accumulator
+     </code>
+     .
+    </p>
+    <p id="-q7f6co_15">
+     To call
+     <code class="code" id="-q7f6co_28">
+      fold
+     </code>
+     , you need to pass an
+     <a data-tooltip="There are several ways to obtain an instance of a function type:" href="#instantiating-a-function-type" id="-q7f6co_29" style="color: blue;">
+      instance of the function type
+     </a>
+     to it as an argument, and lambda expressions (
+     <a data-tooltip="Lambda expressions and anonymous functions are function literals. Function literals are functions that are not declared but are passed immediately as an expression. Consider the following example:" href="#lambda-expressions-and-anonymous-functions" id="-q7f6co_30" style="color: blue;">
+      described in more detail below
+     </a>
+     ) are widely used for this purpose at higher-order function call sites:
+    </p>
+    <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun main() {
+    //sampleStart
+    val items = listOf(1, 2, 3, 4, 5)
+    
+    // Lambdas are code blocks enclosed in curly braces.
+    items.fold(0, { 
+        // When a lambda has parameters, they go first, followed by '-&gt;'
+        acc: Int, i: Int -&gt; 
+        print("acc = $acc, i = $i, ") 
+        val result = acc + i
+        println("result = $result")
+        // The last expression in a lambda is considered the return value:
+        result
+    })
+    
+    // Parameter types in a lambda are optional if they can be inferred:
+    val joinedToString = items.fold("Elements:", { acc, i -&gt; acc + " " + i })
+    
+    // Function references can also be used for higher-order function calls:
+    val product = items.fold(1, Int::times)
+    //sampleEnd
+    println("joinedToString = $joinedToString")
+    println("product = $product")
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="function-types" id="function-types">
+     Function types
+    </h2>
+    <p id="-q7f6co_31">
+     Kotlin uses function types, such as
+     <code class="code" id="-q7f6co_43">
+      (Int) -&gt; String
+     </code>
+     , for declarations that deal with functions:
+     <code class="code" id="-q7f6co_44">
+      val onClick: () -&gt; Unit = ...
+     </code>
+     .
+    </p>
+    <p id="-q7f6co_32">
+     These types have a special notation that corresponds to the signatures of the functions - their parameters and return values:
+    </p>
+    <ul class="list _bullet" id="-q7f6co_33">
+     <li class="list__item" id="-q7f6co_45">
+      <p id="-q7f6co_48">
+       All function types have a parenthesized list of parameter types and a return type:
+       <code class="code" id="-q7f6co_49">
+        (A, B) -&gt; C
+       </code>
+       denotes a type that represents functions that take two arguments of types
+       <code class="code" id="-q7f6co_50">
+        A
+       </code>
+       and
+       <code class="code" id="-q7f6co_51">
+        B
+       </code>
+       and return a value of type
+       <code class="code" id="-q7f6co_52">
+        C
+       </code>
+       . The list of parameter types may be empty, as in
+       <code class="code" id="-q7f6co_53">
+        () -&gt; A
+       </code>
+       . The
+       <a data-tooltip="If a function does not return a useful value, its return type is Unit. Unit is a type with only one value - Unit. This value does not have to be returned explicitly:" href="functions.html#unit-returning-functions" id="-q7f6co_54" style="color: blue;">
+        <code class="code" id="-q7f6co_55">
+         Unit
+        </code>
+        return type
+       </a>
+       cannot be omitted.
+      </p>
+     </li>
+     <li class="list__item" id="-q7f6co_46">
+      <p id="-q7f6co_56">
+       Function types can optionally have an additional
+       <span class="emphasis" id="-q7f6co_57">
+        receiver
+       </span>
+       type, which is specified before the dot in the notation: the type
+       <code class="code" id="-q7f6co_58">
+        A.(B) -&gt; C
+       </code>
+       represents functions that can be called on a receiver object
+       <code class="code" id="-q7f6co_59">
+        A
+       </code>
+       with a parameter
+       <code class="code" id="-q7f6co_60">
+        B
+       </code>
+       and return a value
+       <code class="code" id="-q7f6co_61">
+        C
+       </code>
+       .
+       <a data-tooltip="Function types with receiver, such as A.(B) -&gt; C, can be instantiated with a special form of function literals – function literals with receiver." href="#function-literals-with-receiver" id="-q7f6co_62" style="color: blue;">
+        Function literals with receiver
+       </a>
+       are often used along with these types.
+      </p>
+     </li>
+     <li class="list__item" id="-q7f6co_47">
+      <p id="-q7f6co_63">
+       <span id="-q7f6co_64">
+        Suspending functions
+       </span>
+       belong to a special kind of function type that have a
+       <span class="emphasis" id="-q7f6co_65">
+        suspend
+       </span>
+       modifier in their notation, such as
+       <code class="code" id="-q7f6co_66">
+        suspend () -&gt; Unit
+       </code>
+       or
+       <code class="code" id="-q7f6co_67">
+        suspend A.(B) -&gt; C
+       </code>
+       .
+      </p>
+     </li>
+    </ul>
+    <p id="-q7f6co_34">
+     The function type notation can optionally include names for the function parameters:
+     <code class="code" id="-q7f6co_68">
+      (x: Int, y: Int) -&gt; Point
+     </code>
+     . These names can be used for documenting the meaning of the parameters.
+    </p>
+    <p id="-q7f6co_35">
+     To specify that a function type is
+     <a data-tooltip="In Kotlin, the type system distinguishes between types that can hold null (nullable types) and those that cannot (non-nullable types). For example, a regular variable of type String cannot hold null:" href="null-safety.html#nullable-types-and-non-nullable-types" id="-q7f6co_69" style="color: blue;">
+      nullable
+     </a>
+     , use parentheses as follows:
+     <code class="code" id="-q7f6co_70">
+      ((Int, Int) -&gt; Int)?
+     </code>
+     .
+    </p>
+    <p id="-q7f6co_36">
+     Function types can also be combined using parentheses:
+     <code class="code" id="-q7f6co_71">
+      (Int) -&gt; ((Int) -&gt; Unit)
+     </code>
+     .
+    </p>
+    <aside class="prompt" data-title="" data-type="note" id="-q7f6co_37">
+     <p id="-q7f6co_72">
+      The arrow notation is right-associative,
+      <code class="code" id="-q7f6co_73">
+       (Int) -&gt; (Int) -&gt; Unit
+      </code>
+      is equivalent to the previous example, but not to
+      <code class="code" id="-q7f6co_74">
+       ((Int) -&gt; (Int)) -&gt; Unit
+      </code>
+      .
+     </p>
+    </aside>
+    <p id="-q7f6co_38">
+     You can also give a function type an alternative name by using
+     <a data-tooltip="Type aliases provide alternative names for existing types. If the type name is too long you can introduce a different shorter name and use the new one instead." href="type-aliases.html" id="-q7f6co_75" style="color: blue;">
+      a type alias
+     </a>
+     :
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     typealias ClickHandler = (Button, ClickEvent) -&gt; Unit
+    </div>
+    <section class="chapter">
+     <h3 data-toc="instantiating-a-function-type" id="instantiating-a-function-type">
+      Instantiating a function type
+     </h3>
+     <p id="-q7f6co_76">
+      There are several ways to obtain an instance of a function type:
+     </p>
+     <ul class="list _bullet" id="-q7f6co_77">
+      <li class="list__item" id="-q7f6co_84">
+       <p id="-q7f6co_87">
+        Use a code block within a function literal, in one of the following forms:
+       </p>
+       <ul class="list _bullet" id="-q7f6co_88">
+        <li class="list__item" id="-q7f6co_90">
+         <p id="-q7f6co_92">
+          a
+          <a data-tooltip="Lambda expressions and anonymous functions are function literals. Function literals are functions that are not declared but are passed immediately as an expression. Consider the following example:" href="#lambda-expressions-and-anonymous-functions" id="-q7f6co_93" style="color: blue;">
+           lambda expression
+          </a>
+          :
+          <code class="code" id="-q7f6co_94">
+           { a, b -&gt; a + b }
+          </code>
+          ,
+         </p>
+        </li>
+        <li class="list__item" id="-q7f6co_91">
+         <p id="-q7f6co_95">
+          an
+          <a data-tooltip="The lambda expression syntax above is missing one thing – the ability to specify the function's return type. In most cases, this is unnecessary because the return type can be inferred automatically. However, if you do need to specify it explicitly, you can use an alternative syntax:…" href="#anonymous-functions" id="-q7f6co_96" style="color: blue;">
+           anonymous function
+          </a>
+          :
+          <code class="code" id="-q7f6co_97">
+           fun(s: String): Int { return s.toIntOrNull() ?: 0 }
+          </code>
+         </p>
+        </li>
+       </ul>
+       <p id="-q7f6co_89">
+        <a data-tooltip="Function types with receiver, such as A.(B) -&gt; C, can be instantiated with a special form of function literals – function literals with receiver." href="#function-literals-with-receiver" id="-q7f6co_98" style="color: blue;">
+         Function literals with receiver
+        </a>
+        can be used as values of function types with receiver.
+       </p>
+      </li>
+      <li class="list__item" id="-q7f6co_85">
+       <p id="-q7f6co_99">
+        Use a callable reference to an existing declaration:
+       </p>
+       <ul class="list _bullet" id="-q7f6co_100">
+        <li class="list__item" id="-q7f6co_102">
+         <p id="-q7f6co_105">
+          a top-level, local, member, or extension
+          <a data-tooltip="When you have a named function declared as below, you can call it directly (isOdd(5)):" href="reflection.html#function-references" id="-q7f6co_106" style="color: blue;">
+           function
+          </a>
+          :
+          <code class="code" id="-q7f6co_107">
+           ::isOdd
+          </code>
+          ,
+          <code class="code" id="-q7f6co_108">
+           String::toInt
+          </code>
+          ,
+         </p>
+        </li>
+        <li class="list__item" id="-q7f6co_103">
+         <p id="-q7f6co_109">
+          a top-level, member, or extension
+          <a data-tooltip="To access properties as first-class objects in Kotlin, use the :: operator:" href="reflection.html#property-references" id="-q7f6co_110" style="color: blue;">
+           property
+          </a>
+          :
+          <code class="code" id="-q7f6co_111">
+           List&lt;Int&gt;::size
+          </code>
+          ,
+         </p>
+        </li>
+        <li class="list__item" id="-q7f6co_104">
+         <p id="-q7f6co_112">
+          a
+          <a data-tooltip="Constructors can be referenced just like methods and properties. You can use them wherever the program expects a function type object that takes the same parameters as the constructor and returns an object of the appropriate type. Constructors are referenced by using the :: operator…" href="reflection.html#constructor-references" id="-q7f6co_113" style="color: blue;">
+           constructor
+          </a>
+          :
+          <code class="code" id="-q7f6co_114">
+           ::Regex
+          </code>
+         </p>
+        </li>
+       </ul>
+       <p id="-q7f6co_101">
+        These include
+        <a data-tooltip="You can refer to an instance method of a particular object:" href="reflection.html#bound-function-and-property-references" id="-q7f6co_115" style="color: blue;">
+         bound callable references
+        </a>
+        that point to a member of a particular instance:
+        <code class="code" id="-q7f6co_116">
+         foo::toString
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="-q7f6co_86">
+       <p id="-q7f6co_117">
+        Use instances of a custom class that implements a function type as an interface:
+       </p>
+      </li>
+     </ul>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class IntTransformer: (Int) -&gt; Int {
+    override operator fun invoke(x: Int): Int = TODO()
+}
+
+val intFunction: (Int) -&gt; Int = IntTransformer()
+     </div>
+     <p id="-q7f6co_79">
+      The compiler can infer the function types for variables if there is enough information:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val a = { i: Int -&gt; i + 1 } // The inferred type is (Int) -&gt; Int
+     </div>
+     <p id="-q7f6co_81">
+      <span class="emphasis" id="-q7f6co_118">
+       Non-literal
+      </span>
+      values of function types with and without a receiver are interchangeable, so the receiver can stand in for the first parameter, and vice versa. For instance, a value of type
+      <code class="code" id="-q7f6co_119">
+       (A, B) -&gt; C
+      </code>
+      can be passed or assigned where a value of type
+      <code class="code" id="-q7f6co_120">
+       A.(B) -&gt; C
+      </code>
+      is expected, and the other way around:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main() {
+    //sampleStart
+    val repeatFun: String.(Int) -&gt; String = { times -&gt; this.repeat(times) }
+    val twoParameters: (String, Int) -&gt; String = repeatFun // OK
+    
+    fun runTransformation(f: (String, Int) -&gt; String): String {
+        return f("hello", 3)
+    }
+    val result = runTransformation(repeatFun) // OK
+    //sampleEnd
+    println("result = $result")
+}
+     </div>
+     <aside class="prompt" data-title="" data-type="note" id="-q7f6co_83">
+      <p id="-q7f6co_121">
+       A function type with no receiver is inferred by default, even if a variable is initialized with a reference to an extension function. To alter that, specify the variable type explicitly.
+      </p>
+     </aside>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="invoking-a-function-type-instance" id="invoking-a-function-type-instance">
+      Invoking a function type instance
+     </h3>
+     <p id="-q7f6co_122">
+      A value of a function type can be invoked by using its
+      <a data-tooltip="Parentheses are translated to calls to invoke with appropriate number of arguments." href="operator-overloading.html#invoke-operator" id="-q7f6co_126" style="color: blue;">
+       <code class="code" id="-q7f6co_129">
+        invoke(...)
+       </code>
+       operator
+      </a>
+      :
+      <code class="code" id="-q7f6co_127">
+       f.invoke(x)
+      </code>
+      or just
+      <code class="code" id="-q7f6co_128">
+       f(x)
+      </code>
+      .
+     </p>
+     <p id="-q7f6co_123">
+      If the value has a receiver type, the receiver object should be passed as the first argument. Another way to invoke a value of a function type with receiver is to prepend it with the receiver object, as if the value were an
+      <a data-tooltip="Kotlin provides the ability to extend a class or an interface with new functionality without having to inherit from the class or use design patterns such as Decorator. This is done via special declarations called extensions." href="extensions.html" id="-q7f6co_130" style="color: blue;">
+       extension function
+      </a>
+      :
+      <code class="code" id="-q7f6co_131">
+       1.foo(2)
+      </code>
+      .
+     </p>
+     <p id="-q7f6co_124">
+      Example:
+     </p>
+     <div class="code-block" data-lang="kotlin" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun main() {
+    //sampleStart
+    val stringPlus: (String, String) -&gt; String = String::plus
+    val intPlus: Int.(Int) -&gt; Int = Int::plus
+    
+    println(stringPlus.invoke("&lt;-", "-&gt;"))
+    println(stringPlus("Hello, ", "world!"))
+    
+    println(intPlus.invoke(1, 1))
+    println(intPlus(1, 2))
+    println(2.intPlus(3)) // extension-like call
+    //sampleEnd
+}
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="inline-functions" id="inline-functions">
+      Inline functions
+     </h3>
+     <p id="-q7f6co_132">
+      Sometimes it is beneficial to use
+      <a data-tooltip="Using higher-order functions imposes certain runtime penalties: each function is an object, and it captures a closure. A closure is a scope of variables that can be accessed in the body of the function. Memory allocations (both for function objects and classes) and virtual calls…" href="inline-functions.html" id="-q7f6co_133" style="color: blue;">
+       inline functions
+      </a>
+      , which provide flexible control flow, for higher-order functions.
+     </p>
+    </section>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="lambda-expressions-and-anonymous-functions" id="lambda-expressions-and-anonymous-functions">
+     Lambda expressions and anonymous functions
+    </h2>
+    <p id="-q7f6co_134">
+     Lambda expressions and anonymous functions are
+     <span class="emphasis" id="-q7f6co_147">
+      function literals
+     </span>
+     . Function literals are functions that are not declared but are passed immediately as an expression. Consider the following example:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     max(strings, { a, b -&gt; a.length &lt; b.length })
+    </div>
+    <p id="-q7f6co_136">
+     The function
+     <code class="code" id="-q7f6co_148">
+      max
+     </code>
+     is a higher-order function, as it takes a function value as its second argument. This second argument is an expression that is itself a function, called a function literal, which is equivalent to the following named function:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun compare(a: String, b: String): Boolean = a.length &lt; b.length
+    </div>
+    <section class="chapter">
+     <h3 data-toc="lambda-expression-syntax" id="lambda-expression-syntax">
+      Lambda expression syntax
+     </h3>
+     <p id="-q7f6co_149">
+      The full syntactic form of lambda expressions is as follows:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val sum: (Int, Int) -&gt; Int = { x: Int, y: Int -&gt; x + y }
+     </div>
+     <ul class="list _bullet" id="-q7f6co_151">
+      <li class="list__item" id="-q7f6co_154">
+       <p id="-q7f6co_158">
+        A lambda expression is always surrounded by curly braces.
+       </p>
+      </li>
+      <li class="list__item" id="-q7f6co_155">
+       <p id="-q7f6co_159">
+        Parameter declarations in the full syntactic form go inside curly braces and have optional type annotations.
+       </p>
+      </li>
+      <li class="list__item" id="-q7f6co_156">
+       <p id="-q7f6co_160">
+        The body goes after the
+        <code class="code" id="-q7f6co_161">
+         -&gt;
+        </code>
+        .
+       </p>
+      </li>
+      <li class="list__item" id="-q7f6co_157">
+       <p id="-q7f6co_162">
+        If the inferred return type of the lambda is not
+        <code class="code" id="-q7f6co_163">
+         Unit
+        </code>
+        , the last (or possibly single) expression inside the lambda body is treated as the return value.
+       </p>
+      </li>
+     </ul>
+     <p id="-q7f6co_152">
+      If you leave all the optional annotations out, what's left looks like this:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val sum = { x: Int, y: Int -&gt; x + y }
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="passing-trailing-lambdas" id="passing-trailing-lambdas">
+      Passing trailing lambdas
+     </h3>
+     <p id="-q7f6co_164">
+      According to Kotlin convention, if the last parameter of a function is a function, then a lambda expression passed as the corresponding argument can be placed outside the parentheses:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val product = items.fold(1) { acc, e -&gt; acc * e }
+     </div>
+     <p id="-q7f6co_166">
+      Such syntax is also known as
+      <span class="emphasis" id="-q7f6co_169">
+       trailing lambda
+      </span>
+      .
+     </p>
+     <p id="-q7f6co_167">
+      If the lambda is the only argument in that call, the parentheses can be omitted entirely:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      run { println("...") }
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="it-implicit-name-of-a-single-parameter" id="it-implicit-name-of-a-single-parameter">
+      it: implicit name of a single parameter
+     </h3>
+     <p id="-q7f6co_170">
+      It's very common for a lambda expression to have only one parameter.
+     </p>
+     <p id="-q7f6co_171">
+      If the compiler can parse the signature without any parameters, the parameter does not need to be declared and
+      <code class="code" id="-q7f6co_173">
+       -&gt;
+      </code>
+      can be omitted. The parameter will be implicitly declared under the name
+      <code class="code" id="-q7f6co_174">
+       it
+      </code>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      ints.filter { it &gt; 0 } // this literal is of type '(it: Int) -&gt; Boolean'
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="returning-a-value-from-a-lambda-expression" id="returning-a-value-from-a-lambda-expression">
+      Returning a value from a lambda expression
+     </h3>
+     <p id="-q7f6co_175">
+      You can explicitly return a value from the lambda using the
+      <a data-tooltip="In Kotlin, functions can be nested using function literals, local functions, and object expressions. A qualified return allows you to return from an outer function." href="returns.html#return-to-labels" id="-q7f6co_180" style="color: blue;">
+       qualified return
+      </a>
+      syntax. Otherwise, the value of the last expression is implicitly returned.
+     </p>
+     <p id="-q7f6co_176">
+      Therefore, the two following snippets are equivalent:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      ints.filter {
+    val shouldFilter = it &gt; 0
+    shouldFilter
+}
+
+ints.filter {
+    val shouldFilter = it &gt; 0
+    return@filter shouldFilter
+}
+     </div>
+     <p id="-q7f6co_178">
+      This convention, along with
+      <a data-tooltip="According to Kotlin convention, if the last parameter of a function is a function, then a lambda expression passed as the corresponding argument can be placed outside the parentheses:" href="#passing-trailing-lambdas" id="-q7f6co_181" style="color: blue;">
+       passing a lambda expression outside of parentheses
+      </a>
+      , allows for
+      <a data-external="true" href="https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/" id="-q7f6co_182" rel="noopener noreferrer" style="color: red;" target="_blank">
+       LINQ-style
+      </a>
+      code:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      strings.filter { it.length == 5 }.sortedBy { it }.map { it.uppercase() }
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="underscore-for-unused-variables" id="underscore-for-unused-variables">
+      Underscore for unused variables
+     </h3>
+     <p id="-q7f6co_183">
+      If the lambda parameter is unused, you can place an underscore instead of its name:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      map.forEach { (_, value) -&gt; println("$value!") }
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="destructuring-in-lambdas" id="destructuring-in-lambdas">
+      Destructuring in lambdas
+     </h3>
+     <p id="-q7f6co_185">
+      Destructuring in lambdas is described as a part of
+      <a data-tooltip="You can use the destructuring declarations syntax for lambda parameters. If a lambda has a parameter of the Pair type (or Map.Entry, or any other type that has the appropriate componentN functions), you can introduce several new parameters instead of one by putting them in…" href="destructuring-declarations.html#destructuring-in-lambdas" id="-q7f6co_186" style="color: blue;">
+       destructuring declarations
+      </a>
+      .
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="anonymous-functions" id="anonymous-functions">
+      Anonymous functions
+     </h3>
+     <p id="-q7f6co_187">
+      The lambda expression syntax above is missing one thing – the ability to specify the function's return type. In most cases, this is unnecessary because the return type can be inferred automatically. However, if you do need to specify it explicitly, you can use an alternative syntax: an
+      <span class="emphasis" id="-q7f6co_196">
+       anonymous function
+      </span>
+      .
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun(x: Int, y: Int): Int = x + y
+     </div>
+     <p id="-q7f6co_189">
+      An anonymous function looks very much like a regular function declaration, except its name is omitted. Its body can be either an expression (as shown above) or a block:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      fun(x: Int, y: Int): Int {
+    return x + y
+}
+     </div>
+     <p id="-q7f6co_191">
+      The parameters and the return type are specified in the same way as for regular functions, except the parameter types can be omitted if they can be inferred from the context:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      ints.filter(fun(item) = item &gt; 0)
+     </div>
+     <p id="-q7f6co_193">
+      The return type inference for anonymous functions works just like for normal functions: the return type is inferred automatically for anonymous functions with an expression body, but it has to be specified explicitly (or is assumed to be
+      <code class="code" id="-q7f6co_197">
+       Unit
+      </code>
+      ) for anonymous functions with a block body.
+     </p>
+     <aside class="prompt" data-title="" data-type="note" id="-q7f6co_194">
+      <p id="-q7f6co_198">
+       When passing anonymous functions as parameters, place them inside the parentheses. The shorthand syntax that allows you to leave the function outside the parentheses works only for lambda expressions.
+      </p>
+     </aside>
+     <p id="-q7f6co_195">
+      Another difference between lambda expressions and anonymous functions is the behavior of
+      <a data-tooltip="In Kotlin, you can only use a normal, unqualified return to exit a named function or an anonymous function. To exit a lambda, use a label. A bare return is forbidden inside a lambda because a lambda cannot make the enclosing function return:" href="inline-functions.html#returns" id="-q7f6co_199" style="color: blue;">
+       non-local returns
+      </a>
+      . A
+      <code class="code" id="-q7f6co_200">
+       return
+      </code>
+      statement without a label always returns from the function declared with the
+      <code class="code" id="-q7f6co_201">
+       fun
+      </code>
+      keyword. This means that a
+      <code class="code" id="-q7f6co_202">
+       return
+      </code>
+      inside a lambda expression will return from the enclosing function, whereas a
+      <code class="code" id="-q7f6co_203">
+       return
+      </code>
+      inside an anonymous function will return from the anonymous function itself.
+     </p>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="closures" id="closures">
+      Closures
+     </h3>
+     <p id="-q7f6co_204">
+      A lambda expression or anonymous function (as well as a
+      <a data-tooltip="Kotlin supports local functions, which are functions inside other functions:" href="functions.html#local-functions" id="-q7f6co_206" style="color: blue;">
+       local function
+      </a>
+      and an
+      <a data-tooltip="Object expressions declare a class and create an instance of that class, but without naming either of them. These classes are useful for one-time use. They can either be created from scratch, inherit from existing classes, or implement interfaces. Instances of these classes are also…" href="object-declarations.html#object-expressions" id="-q7f6co_207" style="color: blue;">
+       object expression
+      </a>
+      ) can access its
+      <span class="emphasis" id="-q7f6co_208">
+       closure
+      </span>
+      , which includes the variables declared in the outer scope. The variables captured in the closure can be modified in the lambda:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      var sum = 0
+ints.filter { it &gt; 0 }.forEach {
+    sum += it
+}
+print(sum)
+     </div>
+    </section>
+    <section class="chapter">
+     <h3 data-toc="function-literals-with-receiver" id="function-literals-with-receiver">
+      Function literals with receiver
+     </h3>
+     <p id="-q7f6co_209">
+      <a data-tooltip="Kotlin uses function types, such as (Int) -&gt; String, for declarations that deal with functions: val onClick: () -&gt; Unit = ...." href="#function-types" id="-q7f6co_219" style="color: blue;">
+       Function types
+      </a>
+      with receiver, such as
+      <code class="code" id="-q7f6co_220">
+       A.(B) -&gt; C
+      </code>
+      , can be instantiated with a special form of function literals – function literals with receiver.
+     </p>
+     <p id="-q7f6co_210">
+      As mentioned above, Kotlin provides the ability
+      <a data-tooltip="A value of a function type can be invoked by using its invoke(...) operator: f.invoke(x) or just f(x)." href="#invoking-a-function-type-instance" id="-q7f6co_221" style="color: blue;">
+       to call an instance
+      </a>
+      of a function type with receiver while providing the
+      <span class="emphasis" id="-q7f6co_222">
+       receiver object
+      </span>
+      .
+     </p>
+     <p id="-q7f6co_211">
+      Inside the body of the function literal, the receiver object passed to a call becomes an
+      <span class="emphasis" id="-q7f6co_223">
+       implicit
+      </span>
+      <code class="code" id="-q7f6co_224">
+       this
+      </code>
+      , so that you can access the members of that receiver object without any additional qualifiers, or access the receiver object using a
+      <a data-tooltip="To denote the current receiver, you use this expressions:" href="this-expressions.html" id="-q7f6co_225" style="color: blue;">
+       <code class="code" id="-q7f6co_226">
+        this
+       </code>
+       expression
+      </a>
+      .
+     </p>
+     <p id="-q7f6co_212">
+      This behavior is similar to that of
+      <a data-tooltip="Kotlin provides the ability to extend a class or an interface with new functionality without having to inherit from the class or use design patterns such as Decorator. This is done via special declarations called extensions." href="extensions.html" id="-q7f6co_227" style="color: blue;">
+       extension functions
+      </a>
+      , which also allow you to access the members of the receiver object inside the function body.
+     </p>
+     <p id="-q7f6co_213">
+      Here is an example of a function literal with receiver along with its type, where
+      <code class="code" id="-q7f6co_228">
+       plus
+      </code>
+      is called on the receiver object:
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val sum: Int.(Int) -&gt; Int = { other -&gt; plus(other) }
+     </div>
+     <p id="-q7f6co_215">
+      The anonymous function syntax allows you to specify the receiver type of a function literal directly. This can be useful if you need to declare a variable of a function type with receiver, and then to use it later.
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      val sum = fun Int.(other: Int): Int = this + other
+     </div>
+     <p id="-q7f6co_217">
+      Lambda expressions can be used as function literals with receiver when the receiver type can be inferred from the context. One of the most important examples of their usage is
+      <a data-tooltip="By using well-named functions as builders in combination with function literals with receiver it is possible to create type-safe, statically-typed builders in Kotlin." href="type-safe-builders.html" id="-q7f6co_229" style="color: blue;">
+       type-safe builders
+      </a>
+      :
+     </p>
+     <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+      class HTML {
+    fun body() { ... }
+}
+
+fun html(init: HTML.() -&gt; Unit): HTML {
+    val html = HTML()  // create the receiver object
+    html.init()        // pass the receiver object to the lambda
+    return html
+}
+
+html {       // lambda with receiver begins here
+    body()   // calling a method on the receiver object
+}
+     </div>
+    </section>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

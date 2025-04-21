@@ -1,0 +1,76 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="ksp-examples" id="ksp-examples.md">
+    KSP examples
+   </h1>
+   <section class="chapter">
+    <h2 data-toc="get-all-member-functions" id="get-all-member-functions">
+     Get all member functions
+    </h2>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun KSClassDeclaration.getDeclaredFunctions(): Sequence&lt;KSFunctionDeclaration&gt; =
+    declarations.filterIsInstance&lt;KSFunctionDeclaration&gt;()
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="check-whether-a-class-or-function-is-local" id="check-whether-a-class-or-function-is-local">
+     Check whether a class or function is local
+    </h2>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun KSDeclaration.isLocal(): Boolean =
+    parentDeclaration != null &amp;&amp; parentDeclaration !is KSClassDeclaration
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to" id="find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to">
+     Find the actual class or interface declaration that the type alias points to
+    </h2>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun KSTypeAlias.findActualType(): KSClassDeclaration {
+    val resolvedType = this.type.resolve().declaration
+    return if (resolvedType is KSTypeAlias) {
+        resolvedType.findActualType()
+    } else {
+        resolvedType as KSClassDeclaration
+    }
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="collect-suppressed-names-in-a-file-annotation" id="collect-suppressed-names-in-a-file-annotation">
+     Collect suppressed names in a file annotation
+    </h2>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     // @file:kotlin.Suppress("Example1", "Example2")
+fun KSFile.suppressedNames(): Sequence&lt;String&gt; = annotations
+    .filter {
+        it.shortName.asString() == "Suppress" &amp;&amp;
+        it.annotationType.resolve().declaration.qualifiedName?.asString() == "kotlin.Suppress"
+    }.flatMap {
+        it.arguments.flatMap {
+            (it.value as Array&lt;String&gt;).toList()
+        }
+    }
+    </div>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

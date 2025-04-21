@@ -1,0 +1,116 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="ksp-command-line" id="ksp-command-line.md">
+    Running KSP from command line
+   </h1>
+   <p id="z6l1evf_2">
+    KSP is a Kotlin compiler plugin and needs to run with Kotlin compiler. Download and extract them.
+   </p>
+   <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    #!/bin/bash
+
+# Kotlin compiler
+wget https://github.com/JetBrains/kotlin/releases/download/v2.1.20/kotlin-compiler-2.1.20.zip
+unzip kotlin-compiler-2.1.20.zip
+
+# KSP
+wget https://github.com/google/ksp/releases/download/2.1.20-1.0.32/artifacts.zip
+unzip artifacts.zip
+   </div>
+   <p id="z6l1evf_4">
+    To run KSP with
+    <code class="code" id="z6l1evf_11">
+     kotlinc
+    </code>
+    , pass the
+    <code class="code" id="z6l1evf_12">
+     -Xplugin
+    </code>
+    option to
+    <code class="code" id="z6l1evf_13">
+     kotlinc
+    </code>
+    .
+   </p>
+   <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    -Xplugin=/path/to/symbol-processing-cmdline-2.1.20-1.0.32.jar
+   </div>
+   <p id="z6l1evf_6">
+    This is different from the
+    <code class="code" id="z6l1evf_14">
+     symbol-processing-2.1.20-1.0.32.jar
+    </code>
+    , which is designed to be used with
+    <code class="code" id="z6l1evf_15">
+     kotlin-compiler-embeddable
+    </code>
+    when running with Gradle. The command line
+    <code class="code" id="z6l1evf_16">
+     kotlinc
+    </code>
+    needs
+    <code class="code" id="z6l1evf_17">
+     symbol-processing-cmdline-2.1.20-1.0.32.jar
+    </code>
+    .
+   </p>
+   <p id="z6l1evf_7">
+    You'll also need the API jar.
+   </p>
+   <div class="code-block" data-lang="none" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    -Xplugin=/path/to/symbol-processing-api-2.1.20-1.0.32.jar
+   </div>
+   <p id="z6l1evf_9">
+    See the complete example:
+   </p>
+   <div class="code-block" data-lang="bash" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    #!/bin/bash
+
+KSP_PLUGIN_ID=com.google.devtools.ksp.symbol-processing
+KSP_PLUGIN_OPT=plugin:$KSP_PLUGIN_ID
+
+KSP_PLUGIN_JAR=./com/google/devtools/ksp/symbol-processing-cmdline/2.1.20-1.0.32/symbol-processing-cmdline-2.1.20-1.0.32.jar
+KSP_API_JAR=./com/google/devtools/ksp/symbol-processing-api/2.1.20-1.0.32/symbol-processing-api-2.1.20-1.0.32.jar
+KOTLINC=./kotlinc/bin/kotlinc
+
+AP=/path/to/your-processor.jar
+
+mkdir out
+$KOTLINC \
+        -Xplugin=$KSP_PLUGIN_JAR \
+        -Xplugin=$KSP_API_JAR \
+        -Xallow-no-source-files \
+        -P $KSP_PLUGIN_OPT:apclasspath=$AP \
+        -P $KSP_PLUGIN_OPT:projectBaseDir=. \
+        -P $KSP_PLUGIN_OPT:classOutputDir=./out \
+        -P $KSP_PLUGIN_OPT:javaOutputDir=./out \
+        -P $KSP_PLUGIN_OPT:kotlinOutputDir=./out \
+        -P $KSP_PLUGIN_OPT:resourceOutputDir=./out \
+        -P $KSP_PLUGIN_OPT:kspOutputDir=./out \
+        -P $KSP_PLUGIN_OPT:cachesDir=./out \
+        -P $KSP_PLUGIN_OPT:incremental=false \
+        -P $KSP_PLUGIN_OPT:apoption=key1=value1 \
+        -P $KSP_PLUGIN_OPT:apoption=key2=value2 \
+        $*
+   </div>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>

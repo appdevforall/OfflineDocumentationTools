@@ -1,0 +1,332 @@
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   Kotlin Documentation
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <div style="text-align: center; margin-bottom: 1em;">
+   <a href="toc.html" style="font-size: 24px; text-decoration: none;">
+    Menu
+   </a>
+  </div>
+  <article class="article" data-shortcut-switcher="inactive">
+   <h1 data-toc="data-classes" id="data-classes.md">
+    Data classes
+   </h1>
+   <p id="-ebs93x_2">
+    Data classes in Kotlin are primarily used to hold data. For each data class, the compiler automatically generates additional member functions that allow you to print an instance to readable output, compare instances, copy instances, and more. Data classes are marked with
+    <code class="code" id="-ebs93x_16">
+     data
+    </code>
+    :
+   </p>
+   <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+    data class User(val name: String, val age: Int)
+   </div>
+   <p id="-ebs93x_4">
+    The compiler automatically derives the following members from all properties declared in the primary constructor:
+   </p>
+   <ul class="list _bullet" id="-ebs93x_5">
+    <li class="list__item" id="-ebs93x_17">
+     <p id="-ebs93x_21">
+      <code class="code" id="-ebs93x_22">
+       equals()
+      </code>
+      /
+      <code class="code" id="-ebs93x_23">
+       hashCode()
+      </code>
+      pair.
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_18">
+     <p id="-ebs93x_24">
+      <code class="code" id="-ebs93x_25">
+       toString()
+      </code>
+      of the form
+      <code class="code" id="-ebs93x_26">
+       "User(name=John, age=42)"
+      </code>
+      .
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_19">
+     <p id="-ebs93x_27">
+      <a data-tooltip="Sometimes it is convenient to destructure an object into a number of variables, for example:" href="destructuring-declarations.html" id="-ebs93x_28" style="color: blue;">
+       <code class="code" id="-ebs93x_29">
+        componentN()
+       </code>
+       functions
+      </a>
+      corresponding to the properties in their order of declaration.
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_20">
+     <p id="-ebs93x_30">
+      <code class="code" id="-ebs93x_31">
+       copy()
+      </code>
+      function (see below).
+     </p>
+    </li>
+   </ul>
+   <p id="-ebs93x_6">
+    To ensure consistency and meaningful behavior of the generated code, data classes have to fulfill the following requirements:
+   </p>
+   <ul class="list _bullet" id="-ebs93x_7">
+    <li class="list__item" id="-ebs93x_32">
+     <p id="-ebs93x_35">
+      The primary constructor must have at least one parameter.
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_33">
+     <p id="-ebs93x_36">
+      All primary constructor parameters must be marked as
+      <code class="code" id="-ebs93x_37">
+       val
+      </code>
+      or
+      <code class="code" id="-ebs93x_38">
+       var
+      </code>
+      .
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_34">
+     <p id="-ebs93x_39">
+      Data classes can't be abstract, open, sealed, or inner.
+     </p>
+    </li>
+   </ul>
+   <p id="-ebs93x_8">
+    Additionally, the generation of data class members follows these rules with regard to the members' inheritance:
+   </p>
+   <ul class="list _bullet" id="-ebs93x_9">
+    <li class="list__item" id="-ebs93x_40">
+     <p id="-ebs93x_43">
+      If there are explicit implementations of
+      <code class="code" id="-ebs93x_44">
+       equals()
+      </code>
+      ,
+      <code class="code" id="-ebs93x_45">
+       hashCode()
+      </code>
+      , or
+      <code class="code" id="-ebs93x_46">
+       toString()
+      </code>
+      in the data class body or
+      <code class="code" id="-ebs93x_47">
+       final
+      </code>
+      implementations in a superclass, then these functions are not generated, and the existing implementations are used.
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_41">
+     <p id="-ebs93x_48">
+      If a supertype has
+      <code class="code" id="-ebs93x_49">
+       componentN()
+      </code>
+      functions that are
+      <code class="code" id="-ebs93x_50">
+       open
+      </code>
+      and return compatible types, the corresponding functions are generated for the data class and override those of the supertype. If the functions of the supertype cannot be overridden due to incompatible signatures or due to their being final, an error is reported.
+     </p>
+    </li>
+    <li class="list__item" id="-ebs93x_42">
+     <p id="-ebs93x_51">
+      Providing explicit implementations for the
+      <code class="code" id="-ebs93x_52">
+       componentN()
+      </code>
+      and
+      <code class="code" id="-ebs93x_53">
+       copy()
+      </code>
+      functions is not allowed.
+     </p>
+    </li>
+   </ul>
+   <p id="-ebs93x_10">
+    Data classes may extend other classes (see
+    <a data-tooltip="Sealed classes and interfaces provide controlled inheritance of your class hierarchies. All direct subclasses of a sealed class are known at compile time. No other subclasses may appear outside the module and package within which the sealed class is defined. The same logic applies…" href="sealed-classes.html" id="-ebs93x_54" style="color: blue;">
+     Sealed classes
+    </a>
+    for examples).
+   </p>
+   <aside class="prompt" data-title="" data-type="note" id="-ebs93x_11">
+    <p id="-ebs93x_55">
+     On the JVM, if the generated class needs to have a parameterless constructor, default values for the properties have to be specified (see
+     <a data-tooltip="A class in Kotlin has a primary constructor and possibly one or more secondary constructors. The primary constructor is declared in the class header, and it goes after the class name and optional type parameters." href="classes.html#constructors" id="-ebs93x_57" style="color: blue;">
+      Constructors
+     </a>
+     ):
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     data class User(val name: String = "", val age: Int = 0)
+    </div>
+   </aside>
+   <section class="chapter">
+    <h2 data-toc="properties-declared-in-the-class-body" id="properties-declared-in-the-class-body">
+     Properties declared in the class body
+    </h2>
+    <p id="-ebs93x_58">
+     The compiler only uses the properties defined inside the primary constructor for the automatically generated functions. To exclude a property from the generated implementations, declare it inside the class body:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     data class Person(val name: String) {
+    var age: Int = 0
+}
+    </div>
+    <p id="-ebs93x_60">
+     In the example below, only the
+     <code class="code" id="-ebs93x_62">
+      name
+     </code>
+     property is used by default inside the
+     <code class="code" id="-ebs93x_63">
+      toString()
+     </code>
+     ,
+     <code class="code" id="-ebs93x_64">
+      equals()
+     </code>
+     ,
+     <code class="code" id="-ebs93x_65">
+      hashCode()
+     </code>
+     , and
+     <code class="code" id="-ebs93x_66">
+      copy()
+     </code>
+     implementations, and there is only one component function,
+     <code class="code" id="-ebs93x_67">
+      component1()
+     </code>
+     . The
+     <code class="code" id="-ebs93x_68">
+      age
+     </code>
+     property is declared inside the class body and is excluded. Therefore, two
+     <code class="code" id="-ebs93x_69">
+      Person
+     </code>
+     objects with the same
+     <code class="code" id="-ebs93x_70">
+      name
+     </code>
+     but different
+     <code class="code" id="-ebs93x_71">
+      age
+     </code>
+     values are considered equal since
+     <code class="code" id="-ebs93x_72">
+      equals()
+     </code>
+     only evaluates properties from the primary constructor:
+    </p>
+    <div class="code-block" data-lang="kotlin" data-min-compiler-version="1.3" data-runnable="true" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     data class Person(val name: String) {
+    var age: Int = 0
+}
+fun main() {
+//sampleStart
+    val person1 = Person("John")
+    val person2 = Person("John")
+    person1.age = 10
+    person2.age = 20
+
+    println("person1 == person2: ${person1 == person2}")
+    // person1 == person2: true
+  
+    println("person1 with age ${person1.age}: ${person1}")
+    // person1 with age 10: Person(name=John)
+  
+    println("person2 with age ${person2.age}: ${person2}")
+    // person2 with age 20: Person(name=John)
+//sampleEnd
+}
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="copying" id="copying">
+     Copying
+    </h2>
+    <p id="-ebs93x_73">
+     Use the
+     <code class="code" id="-ebs93x_77">
+      copy()
+     </code>
+     function to copy an object, allowing you to alter
+     <span class="emphasis" id="-ebs93x_78">
+      some
+     </span>
+     of its properties while keeping the rest unchanged. The implementation of this function for the
+     <code class="code" id="-ebs93x_79">
+      User
+     </code>
+     class above would be as follows:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     fun copy(name: String = this.name, age: Int = this.age) = User(name, age)
+    </div>
+    <p id="-ebs93x_75">
+     You can then write the following:
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val jack = User(name = "Jack", age = 1)
+val olderJack = jack.copy(age = 2)
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="data-classes-and-destructuring-declarations" id="data-classes-and-destructuring-declarations">
+     Data classes and destructuring declarations
+    </h2>
+    <p id="-ebs93x_80">
+     <span class="emphasis" id="-ebs93x_82">
+      Component functions
+     </span>
+     generated for data classes make it possible to use them in
+     <a data-tooltip="Sometimes it is convenient to destructure an object into a number of variables, for example:" href="destructuring-declarations.html" id="-ebs93x_83" style="color: blue;">
+      destructuring declarations
+     </a>
+     :
+    </p>
+    <div class="code-block" data-lang="kotlin" style="font-family: monospace; background: #f4f4f4; padding: 10px; overflow-x: auto; margin: 1em 0; display: block;">
+     val jane = User("Jane", 35)
+val (name, age) = jane
+println("$name, $age years of age") 
+// Jane, 35 years of age
+    </div>
+   </section>
+   <section class="chapter">
+    <h2 data-toc="standard-data-classes" id="standard-data-classes">
+     Standard data classes
+    </h2>
+    <p id="-ebs93x_84">
+     The standard library provides the
+     <code class="code" id="-ebs93x_85">
+      Pair
+     </code>
+     and
+     <code class="code" id="-ebs93x_86">
+      Triple
+     </code>
+     classes. In most cases, though, named data classes are a better design choice because they make the code easier to read by providing meaningful names for the properties.
+    </p>
+   </section>
+   <div class="last-modified">
+    19 April 2025
+   </div>
+   <div data-feedback-placeholder="true">
+   </div>
+  </article>
+ </body>
+</html>
