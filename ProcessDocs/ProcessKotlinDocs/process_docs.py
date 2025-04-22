@@ -66,6 +66,7 @@ def process_html_file(input_filepath, output_filepath, menu_filename, stylesheet
         article = soup.find("article")
         if not article:
             logging.info("No <article> element found in %s; skipping.", os.path.basename(input_filepath))
+            shutil.copy(input_filepath, output_filepath)
             return False
 
         # Process links: style external links red, local links blue.
@@ -271,6 +272,10 @@ def main():
             logging.info("No images directory found in input; skipping images copy.")
 
         logging.info("Processing complete.")
+
+        # Copy over Writerside artifcat PNGs
+        shutil.copy(os.path.join(args.input_dir, "writerside_32.png"), os.path.join(args.output_dir, "writerside_32.png"))
+        shutil.copy(os.path.join(args.input_dir, "writerside_64.png"), os.path.join(args.output_dir, "writerside_64.png"))
 
     except Exception as e:
         # Log full traceback if there's any exception.
