@@ -49,16 +49,6 @@ def main():
                         required=True)
     parser.add_argument('--input-json', help='Comma-separated list of tooltip JSON files to include in JSON output.',
                         required=True)
-    parser.add_argument('--input-csvs', help='Comma-separated list of tooltip CSV files to convert to JSON and include in JSON output..',
-                        required=True)
-    # Check if the correct number of arguments is provided
-    if len(sys.argv) != 2:
-        print("Usage: csv_to_json.py <file_path>")
-        sys.exit(1)
-
-    csv_file_path = sys.argv[1]
-    json_file_path = 'CoGoTooltips_internal.json'  # Replace with your desired output JSON file path
-
     csv_to_json(csv_file_path, json_file_path)
 
     print(f"Converted '{csv_file_path}' to '{json_file_path}'")
