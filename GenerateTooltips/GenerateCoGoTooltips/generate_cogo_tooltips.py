@@ -47,7 +47,9 @@ def main():
         description='Generates tooltips for Code On The Go from the Java API documentation.')
     parser.add_argument('--out-file', help='Path to root directory of the Java API documentation.',
                         required=True)
-    parser.add_argument('--input-json-files', help='Path to output log file.',
+    parser.add_argument('--input-json', help='Comma-separated list of tooltip JSON files to include in JSON output.',
+                        required=True)
+    parser.add_argument('--input-csvs', help='Comma-separated list of tooltip CSV files to convert to JSON and include in JSON output..',
                         required=True)
     # Check if the correct number of arguments is provided
     if len(sys.argv) != 2:
