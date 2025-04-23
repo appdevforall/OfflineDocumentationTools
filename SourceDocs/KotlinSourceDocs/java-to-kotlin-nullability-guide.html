@@ -1,0 +1,148 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-23T13:00:00.652735831"><title>Nullability in Java and Kotlin | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"support-for-nullable-types","level":0,"title":"Support for nullable types","anchor":"#support-for-nullable-types"},{"id":"platform-types","level":0,"title":"Platform types","anchor":"#platform-types"},{"id":"support-for-definitely-non-nullable-types","level":0,"title":"Support for definitely non-nullable types","anchor":"#support-for-definitely-non-nullable-types"},{"id":"checking-the-result-of-a-function-call","level":0,"title":"Checking the result of a function call","anchor":"#checking-the-result-of-a-function-call"},{"id":"default-values-instead-of-null","level":0,"title":"Default values instead of null","anchor":"#default-values-instead-of-null"},{"id":"functions-returning-a-value-or-null","level":0,"title":"Functions returning a value or null","anchor":"#functions-returning-a-value-or-null"},{"id":"aggregate-operations","level":0,"title":"Aggregate operations","anchor":"#aggregate-operations"},{"id":"casting-types-safely","level":0,"title":"Casting types safely","anchor":"#casting-types-safely"},{"id":"what-s-next","level":0,"title":"What\u0027s next?","anchor":"#what-s-next"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Nullability in Java and Kotlin | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/java-to-kotlin-nullability-guide.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Nullability in Java and Kotlin | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/java-to-kotlin-nullability-guide.html#webpage",
+    "url": "writerside-documentation/java-to-kotlin-nullability-guide.html",
+    "name": "Nullability in Java and Kotlin | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="java-to-kotlin-nullability-guide" data-main-title="Nullability in Java and Kotlin" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Platforms///JVM///Java to Kotlin migration guides"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="java-to-kotlin-nullability-guide" id="java-to-kotlin-nullability-guide.md">Nullability in Java and Kotlin</h1><p id="tbmet4_3"><span class="emphasis" id="tbmet4_16">Nullability</span> is the ability of a variable to hold a <code class="code" id="tbmet4_17">null</code> value. When a variable contains <code class="code" id="tbmet4_18">null</code>, an attempt to dereference the variable leads to a <code class="code" id="tbmet4_19">NullPointerException</code>. There are many ways to write code in order to minimize the probability of receiving null pointer exceptions.</p><p id="tbmet4_4">This guide covers differences between Java's and Kotlin's approaches to handling possibly nullable variables. It will help you migrate from Java to Kotlin and write your code in authentic Kotlin style.</p><p id="tbmet4_5">The first part of this guide covers the most important difference &ndash; support for nullable types in Kotlin and how Kotlin processes <a href="#platform-types" id="tbmet4_20" data-tooltip="In Java, you can use annotations showing whether a variable can or cannot be null. Such annotations aren't part of the standard library, but you can add them separately. For example, you can use the JetBrains annotations @Nullable and @NotNull (from the org.jetbrains.annotations…">types from Java code</a>. The second part, starting from <a href="#checking-the-result-of-a-function-call" id="tbmet4_21" data-tooltip="One of the most common situations where you need to check for null is when you obtain a result from a function call.">Checking the result of a function call</a>, examines several specific cases to explain certain differences.</p><p id="tbmet4_6"><a href="null-safety.html" id="tbmet4_22" data-tooltip="Null safety is a Kotlin feature designed to significantly reduce the risk of null references, also known as The Billion-Dollar Mistake.">Learn more about null safety in Kotlin</a>.</p><section class="chapter"><h2 id="support-for-nullable-types" data-toc="support-for-nullable-types">Support for nullable types</h2><p id="tbmet4_23">The most important difference between Kotlin's and Java's type systems is Kotlin's explicit support for <a href="null-safety.html" id="tbmet4_40" data-tooltip="Null safety is a Kotlin feature designed to significantly reduce the risk of null references, also known as The Billion-Dollar Mistake.">nullable types</a>. It is a way to indicate which variables can possibly hold a <code class="code" id="tbmet4_41">null</code> value. If a variable can be <code class="code" id="tbmet4_42">null</code>, it's not safe to call a method on the variable because this can cause a <code class="code" id="tbmet4_43">NullPointerException</code>. Kotlin prohibits such calls at compile time and thereby prevents lots of possible exceptions. At runtime, objects of nullable types and objects of non-nullable types are treated the same: A nullable type isn't a wrapper for a non-nullable type. All checks are performed at compile time. That means there's almost no runtime overhead for working with nullable types in Kotlin.</p><aside class="prompt" data-type="note" data-title="" id="tbmet4_24"><p id="tbmet4_44">We say &quot;almost&quot; because, even though <a href="https://en.wikipedia.org/wiki/Intrinsic_function" id="tbmet4_45" data-external="true" rel="noopener noreferrer" target="_blank">intrinsic</a> checks <span class="emphasis" id="tbmet4_46">are</span> generated, their overhead is minimal.</p></aside><p id="tbmet4_25">In Java, if you don't write null checks, methods may throw a <code class="code" id="tbmet4_47">NullPointerException</code>:</p><div class="code-block" data-lang="java" id="get-length-of-null-java">
+// Java
+int stringLength(String a) {
+    return a.length();
+}
+
+void main() {
+    stringLength(null); // Throws a `NullPointerException`
+}
+</div><p id="tbmet4_27">This call will have the following output:</p><div class="code-block" data-lang="java">
+java.lang.NullPointerException: Cannot invoke &quot;String.length()&quot; because &quot;a&quot; is null
+    at test.java.Nullability.stringLength(Nullability.java:8)
+    at test.java.Nullability.main(Nullability.java:12)
+    at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+    at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+</div><p id="tbmet4_29">In Kotlin, all regular types are non-nullable by default unless you explicitly mark them as nullable. If you don't expect <code class="code" id="tbmet4_48">a</code> to be <code class="code" id="tbmet4_49">null</code>, declare the <code class="code" id="tbmet4_50">stringLength()</code> function as follows:</p><div class="code-block" data-lang="kotlin" id="get-length-kotlin">
+// Kotlin
+fun stringLength(a: String) = a.length
+</div><p id="tbmet4_31">The parameter <code class="code" id="tbmet4_51">a</code> has the <code class="code" id="tbmet4_52">String</code> type, which in Kotlin means it must always contain a <code class="code" id="tbmet4_53">String</code> instance and it cannot contain <code class="code" id="tbmet4_54">null</code>. Nullable types in Kotlin are marked with a question mark <code class="code" id="tbmet4_55">?</code>, for example, <code class="code" id="tbmet4_56">String?</code>. The situation with a <code class="code" id="tbmet4_57">NullPointerException</code> at runtime is impossible if <code class="code" id="tbmet4_58">a</code> is <code class="code" id="tbmet4_59">String</code> because the compiler enforces the rule that all arguments of <code class="code" id="tbmet4_60">stringLength()</code> not be <code class="code" id="tbmet4_61">null</code>.</p><p id="tbmet4_32">An attempt to pass a <code class="code" id="tbmet4_62">null</code> value to the <code class="code" id="tbmet4_63">stringLength(a: String)</code> function will result in a compile-time error, &quot;Null can not be a value of a non-null type String&quot;:</p><figure id="tbmet4_33"><img alt="Passing null to a non-nullable function error" src="images/passing-null-to-function.png" title="Passing null to a non-nullable function error" width="700" height="186"></figure><p id="tbmet4_34">If you want to use this function with any arguments, including <code class="code" id="tbmet4_64">null</code>, use a question mark after the argument type <code class="code" id="tbmet4_65">String?</code> and check inside the function body to ensure that the value of the argument is not <code class="code" id="tbmet4_66">null</code>:</p><div class="code-block" data-lang="kotlin" id="get-length-of-null-kotlin">
+// Kotlin
+fun stringLength(a: String?): Int = if (a != null) a.length else 0
+</div><p id="tbmet4_36">After the check is passed successfully, the compiler treats the variable as if it were of the non-nullable type <code class="code" id="tbmet4_67">String</code> in the scope where the compiler performs the check.</p><p id="tbmet4_37">If you don't perform this check, the code will fail to compile with the following message: &quot;Only <a href="null-safety.html#safe-call-operator" id="tbmet4_68" data-tooltip="The safe call operator ?. allows you to handle nullability safely in a shorter form. Instead of throwing an NPE, if the object is null, the ?. operator simply returns null:">safe (?.)</a> or <a href="null-safety.html#not-null-assertion-operator" id="tbmet4_69" data-tooltip="The not-null assertion operator !! converts any value to a non-nullable type.">non-nullable asserted (!!.) calls</a> are allowed on a <a href="extensions.html#nullable-receiver" id="tbmet4_70" data-tooltip="Note that extensions can be defined with a nullable receiver type. These extensions can be called on an object variable even if its value is null. If the receiver is null, then this is also null. So when defining an extension with a nullable receiver type, we recommend performing a…">nullable receiver</a> of type String?&quot;.</p><p id="tbmet4_38">You can write the same shorter &ndash; use the <a href="idioms.html#if-not-null-shorthand" id="tbmet4_71" data-tooltip="val files = File(&quot;Test&quot;).listFiles() println(files?.size) // size is printed if files is not null">safe-call operator ?. (If-not-null shorthand)</a>, which allows you to combine a null check and a method call into a single operation:</p><div class="code-block" data-lang="kotlin" id="get-length-of-null-shorter-kotlin">
+// Kotlin
+fun stringLength(a: String?): Int = a?.length ?: 0
+</div></section><section class="chapter"><h2 id="platform-types" data-toc="platform-types">Platform types</h2><p id="tbmet4_72">In Java, you can use annotations showing whether a variable can or cannot be <code class="code" id="tbmet4_76">null</code>. Such annotations aren't part of the standard library, but you can add them separately. For example, you can use the JetBrains annotations <code class="code" id="tbmet4_77">@Nullable</code> and <code class="code" id="tbmet4_78">@NotNull</code> (from the <code class="code" id="tbmet4_79">org.jetbrains.annotations</code> package) or annotations from Eclipse (<code class="code" id="tbmet4_80">org.eclipse.jdt.annotation</code>). Kotlin can recognize such annotations when you're <a href="java-interop.html#nullability-annotations" id="tbmet4_81" data-tooltip="Java types that have nullability annotations are represented not as platform types, but as actual nullable or non-nullable Kotlin types. The compiler supports several flavors of nullability annotations, including:">calling Java code from Kotlin code</a> and will treat types according to their annotations.</p><p id="tbmet4_73">If your Java code doesn't have these annotations, then Kotlin will treat Java types as <span class="emphasis" id="tbmet4_82">platform types</span>. But since Kotlin doesn't have nullability information for such types, its compiler will allow all operations on them. You will need to decide whether to perform null checks, because:</p><ul class="list _bullet" id="tbmet4_74"><li class="list__item" id="tbmet4_83"><p id="tbmet4_85">Just as in Java, you'll get a <code class="code" id="tbmet4_86">NullPointerException</code> if you try to perform an operation on <code class="code" id="tbmet4_87">null</code>.</p></li><li class="list__item" id="tbmet4_84"><p id="tbmet4_88">The compiler won't highlight any redundant null checks, which it normally does when you perform a null-safe operation on a value of a non-nullable type.</p></li></ul><p id="tbmet4_75">Learn more about <a href="java-interop.html#null-safety-and-platform-types" id="tbmet4_89" data-tooltip="Any reference in Java may be null, which makes Kotlin's requirements of strict null-safety impractical for objects coming from Java. Types of Java declarations are treated in Kotlin in a specific manner and called platform types. Null-checks are relaxed for such types, so that…">calling Java from Kotlin in regard to null-safety and platform types</a>.</p></section><section class="chapter"><h2 id="support-for-definitely-non-nullable-types" data-toc="support-for-definitely-non-nullable-types">Support for definitely non-nullable types</h2><p id="tbmet4_90">In Kotlin, if you want to override a Java method that contains <code class="code" id="tbmet4_96">@NotNull</code> as an argument, you need Kotlin's definitely non-nullable types.</p><p id="tbmet4_91">For example, consider this <code class="code" id="tbmet4_97">load()</code> method in Java:</p><div class="code-block" data-lang="java">
+import org.jetbrains.annotations.*;
+
+public interface Game&lt;T&gt; {
+  public T save(T x) {}
+  @NotNull
+  public T load(@NotNull T x) {}
+}
+</div><p id="tbmet4_93">To override the <code class="code" id="tbmet4_98">load()</code> method in Kotlin successfully, you need <code class="code" id="tbmet4_99">T1</code> to be declared as definitely non-nullable (<code class="code" id="tbmet4_100">T1 &amp; Any</code>):</p><div class="code-block" data-lang="kotlin">
+interface ArcadeGame&lt;T1&gt; : Game&lt;T1&gt; {
+  override fun save(x: T1): T1
+  // T1 is definitely non-nullable
+  override fun load(x: T1 &amp; Any): T1 &amp; Any
+}
+</div><p id="tbmet4_95">Learn more about generic types that are <a href="generics.html#definitely-non-nullable-types" id="tbmet4_101" data-tooltip="To make interoperability with generic Java classes and interfaces easier, Kotlin supports declaring a generic type parameter as definitely non-nullable.">definitely non-nullable</a>.</p></section><section class="chapter"><h2 id="checking-the-result-of-a-function-call" data-toc="checking-the-result-of-a-function-call">Checking the result of a function call</h2><p id="tbmet4_102">One of the most common situations where you need to check for <code class="code" id="tbmet4_114">null</code> is when you obtain a result from a function call.</p><p id="tbmet4_103">In the following example, there are two classes, <code class="code" id="tbmet4_115">Order</code> and <code class="code" id="tbmet4_116">Customer</code>. <code class="code" id="tbmet4_117">Order</code> has a reference to an instance of <code class="code" id="tbmet4_118">Customer</code>. The <code class="code" id="tbmet4_119">findOrder()</code> function returns an instance of the <code class="code" id="tbmet4_120">Order</code> class, or <code class="code" id="tbmet4_121">null</code> if it can't find the order. The objective is to process the customer instance of the retrieved order.</p><p id="tbmet4_104">Here are the classes in Java:</p><div class="code-block" data-lang="java">
+//Java
+record Order (Customer customer) {}
+
+record Customer (String name) {}
+</div><p id="tbmet4_106">In Java, call the function and do an if-not-null check on the result to proceed with the dereferencing of the required property:</p><div class="code-block" data-lang="java" id="process-customer-if-not-null-java">
+// Java
+Order order = findOrder();
+
+if (order != null) {
+    processCustomer(order.getCustomer());
+}
+</div><p id="tbmet4_108">Converting the Java code above to Kotlin code directly results in the following:</p><div class="code-block" data-lang="kotlin" id="process-customer-if-not-null-kotlin">
+// Kotlin
+data class Order(val customer: Customer)
+
+data class Customer(val name: String)
+
+val order = findOrder()
+
+// Direct conversion
+if (order != null){
+    processCustomer(order.customer)
+}
+</div><p id="tbmet4_110">Use the <a href="idioms.html#if-not-null-shorthand" id="tbmet4_122" data-tooltip="val files = File(&quot;Test&quot;).listFiles() println(files?.size) // size is printed if files is not null">safe-call operator <code class="code" id="tbmet4_125">?.</code> (If-not-null shorthand)</a> in combination with any of the <a href="scope-functions.html" id="tbmet4_123" data-tooltip="The Kotlin standard library contains several functions whose sole purpose is to execute a block of code within the context of an object. When you call such a function on an object with a lambda expression provided, it forms a temporary scope. In this scope, you can access the object…">scope functions</a> from the standard library. The <code class="code" id="tbmet4_124">let</code> function is usually used for this:</p><div class="code-block" data-lang="kotlin" id="process-customer-with-let-kotlin">
+// Kotlin
+val order = findOrder()
+
+order?.let {
+    processCustomer(it.customer)
+}
+</div><p id="tbmet4_112">Here is a shorter version of the same:</p><div class="code-block" data-lang="kotlin" id="process-customer-with-let-short-kotlin">
+// Kotlin
+findOrder()?.customer?.let(::processCustomer)
+</div></section><section class="chapter"><h2 id="default-values-instead-of-null" data-toc="default-values-instead-of-null">Default values instead of null</h2><p id="tbmet4_126">Checking for <code class="code" id="tbmet4_131">null</code> is often used in combination with <a href="functions.html#default-arguments" id="tbmet4_132" data-tooltip="Function parameters can have default values, which are used when you skip the corresponding argument. This reduces the number of overloads:">setting the default value</a> in case the null check is successful.</p><p id="tbmet4_127">The Java code with a null check:</p><div class="code-block" data-lang="java" id="default-value-instead-of-null-java">
+// Java
+Order order = findOrder();
+if (order == null) {
+    order = new Order(new Customer(&quot;Antonio&quot;))
+}
+</div><p id="tbmet4_129">To express the same in Kotlin, use the <a href="null-safety.html#elvis-operator" id="tbmet4_133" data-tooltip="When working with nullable types, you can check for null and provide an alternative value. For example, if b is not null, access b.length. Otherwise, return an alternative value:">Elvis operator (If-not-null-else shorthand)</a>:</p><div class="code-block" data-lang="kotlin" id="default-value-instead-of-null-kotlin">
+// Kotlin
+val order = findOrder() ?: Order(Customer(&quot;Antonio&quot;))
+</div></section><section class="chapter"><h2 id="functions-returning-a-value-or-null" data-toc="functions-returning-a-value-or-null">Functions returning a value or null</h2><p id="tbmet4_134">In Java, you need to be careful when working with list elements. You should always check whether an element exists at an index before you attempt to use the element:</p><div class="code-block" data-lang="java" id="functions-returning-null-java">
+// Java
+var numbers = new ArrayList&lt;Integer&gt;();
+numbers.add(1);
+numbers.add(2);
+
+System.out.println(numbers.get(0));
+//numbers.get(5) // Exception!
+</div><p id="tbmet4_136">The Kotlin standard library often provides functions whose names indicate whether they can possibly return a <code class="code" id="tbmet4_138">null</code> value. This is especially common in the collections API:</p><div class="code-block" data-lang="kotlin" data-runnable="true" id="functions-returning-null-kotlin">
+fun main() {
+//sampleStart
+    // Kotlin
+    // The same code as in Java:
+    val numbers = listOf(1, 2)
+    
+    println(numbers[0])  // Can throw IndexOutOfBoundsException if the collection is empty
+    //numbers.get(5)     // Exception!
+
+    // More abilities:
+    println(numbers.firstOrNull())
+    println(numbers.getOrNull(5)) // null
+//sampleEnd
+}
+</div></section><section class="chapter"><h2 id="aggregate-operations" data-toc="aggregate-operations">Aggregate operations</h2><p id="tbmet4_139">When you need to get the biggest element or <code class="code" id="tbmet4_144">null</code> if there are no elements, in Java you would use the <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/package-summary.html" id="tbmet4_145" data-external="true" rel="noopener noreferrer" target="_blank">Stream API</a>:</p><div class="code-block" data-lang="java" id="aggregate-functions-java">
+// Java
+var numbers = new ArrayList&lt;Integer&gt;();
+var max = numbers.stream().max(Comparator.naturalOrder()).orElse(null);
+System.out.println(&quot;Max: &quot; + max);
+</div><p id="tbmet4_141">In Kotlin, use <a href="collection-aggregate.html" id="tbmet4_146" data-tooltip="Kotlin collections contain functions for commonly used aggregate operations – operations that return a single value based on the collection content. Most of them are well known and work the same way as they do in other languages:">aggregate operations</a>:</p><div class="code-block" data-lang="kotlin" id="aggregate-functions-kotlin">
+// Kotlin
+val numbers = listOf&lt;Int&gt;()
+println(&quot;Max: ${numbers.maxOrNull()}&quot;)
+</div><p id="tbmet4_143">Learn more about <a href="java-to-kotlin-collections-guide.html" id="tbmet4_147" data-tooltip="Collections are groups of a variable number of items (possibly zero) that are significant to the problem being solved and are commonly operated on. This guide explains and compares collection concepts and operations in Java and Kotlin. It will help you migrate from Java to Kotlin…">collections in Java and Kotlin</a>.</p></section><section class="chapter"><h2 id="casting-types-safely" data-toc="casting-types-safely">Casting types safely</h2><p id="tbmet4_148">When you need to safely cast a type, in Java you would use the <code class="code" id="tbmet4_153">instanceof</code> operator and then check how well it worked:</p><div class="code-block" data-lang="java" id="casting-types-java">
+// Java
+int getStringLength(Object y) {
+    return y instanceof String x ? x.length() : -1;
+}
+
+void main() {
+    System.out.println(getStringLength(1)); // Prints `-1`
+}
+</div><p id="tbmet4_150">To avoid exceptions in Kotlin, use the <a href="typecasts.html#safe-nullable-cast-operator" id="tbmet4_154" data-tooltip="To avoid exceptions, use the safe cast operator as?, which returns null on failure.">safe cast operator</a> <code class="code" id="tbmet4_155">as?</code>, which returns <code class="code" id="tbmet4_156">null</code> on failure:</p><div class="code-block" data-lang="kotlin" data-runnable="true" id="casting-types-kotlin">
+// Kotlin
+fun main() {
+    println(getStringLength(1)) // Prints `-1`
+}
+
+fun getStringLength(y: Any): Int {
+    val x: String? = y as? String // null
+    return x?.length ?: -1 // Returns -1 because `x` is null
+}
+</div><aside class="prompt" data-type="note" data-title="" id="tbmet4_152"><p id="tbmet4_157">In the Java example above, the function <code class="code" id="tbmet4_158">getStringLength()</code> returns a result of the primitive type <code class="code" id="tbmet4_159">int</code>. To make it return <code class="code" id="tbmet4_160">null</code>, you can use the <a href="https://docs.oracle.com/javase/tutorial/java/data/autoboxing.html" id="tbmet4_161" data-external="true" rel="noopener noreferrer" target="_blank"><span class="emphasis" id="tbmet4_163">boxed</span> type</a> <code class="code" id="tbmet4_162">Integer</code>. However, it's more resource-efficient to make such functions return a negative value and then check the value &ndash; you would do the check anyway, but no additional boxing is performed this way.</p></aside></section><section class="chapter"><h2 id="what-s-next" data-toc="what-s-next">What's next?</h2><ul class="list _bullet" id="tbmet4_164"><li class="list__item" id="tbmet4_166"><p id="tbmet4_169">Browse other <a href="idioms.html" id="tbmet4_170" data-tooltip="A collection of random and frequently used idioms in Kotlin. If you have a favorite idiom, contribute it by sending a pull request.">Kotlin idioms</a>.</p></li><li class="list__item" id="tbmet4_167"><p id="tbmet4_171">Learn how to convert existing Java code to Kotlin with the <a href="mixing-java-kotlin-intellij.html#converting-an-existing-java-file-to-kotlin-with-j2k" id="tbmet4_172" data-tooltip="The Kotlin plugin also bundles a Java to Kotlin converter (J2K) that automatically converts Java files to Kotlin. To use J2K on a file, click Convert Java File to Kotlin File in its context menu or in the Code menu of IntelliJ IDEA.">Java-to-Kotlin (J2K) converter</a>.</p></li><li class="list__item" id="tbmet4_168"><p id="tbmet4_173">Check out other migration guides:</p><ul class="list _bullet" id="tbmet4_174"><li class="list__item" id="tbmet4_175"><p id="tbmet4_177"><a href="java-to-kotlin-idioms-strings.html" id="tbmet4_178" data-tooltip="This guide contains examples of how to perform typical tasks with strings in Java and Kotlin. It will help you migrate from Java to Kotlin and write your code in the authentically Kotlin way.">Strings in Java and Kotlin</a></p></li><li class="list__item" id="tbmet4_176"><p id="tbmet4_179"><a href="java-to-kotlin-collections-guide.html" id="tbmet4_180" data-tooltip="Collections are groups of a variable number of items (possibly zero) that are significant to the problem being solved and are commonly operated on. This guide explains and compares collection concepts and operations in Java and Kotlin. It will help you migrate from Java to Kotlin…">Collections in Java and Kotlin</a></p></li></ul></li></ul><p id="tbmet4_165">If you have a favorite idiom, feel free to share it with us by sending a pull request!</p></section><div class="last-modified">21 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="java-to-kotlin-collections-guide.html" class="navigation-links__prev">Collections in Java and Kotlin</a><a href="standard-input.html" class="navigation-links__next">Standard input</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

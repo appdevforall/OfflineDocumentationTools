@@ -1,0 +1,131 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-23T13:00:00.426701481"><title>Swift package export setup | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"set-up-remote-integration","level":0,"title":"Set up remote integration","anchor":"#set-up-remote-integration"},{"id":"project-configuration-options","level":1,"title":"Project configuration options","anchor":"#project-configuration-options"},{"id":"configure-your-multiplatform-project","level":1,"title":"Configure your multiplatform project","anchor":"#configure-your-multiplatform-project"},{"id":"prepare-the-xcframework-and-the-swift-package-manifest","level":1,"title":"Prepare the XCFramework and the Swift package manifest","anchor":"#prepare-the-xcframework-and-the-swift-package-manifest"},{"id":"add-the-package-dependency","level":1,"title":"Add the package dependency","anchor":"#add-the-package-dependency"},{"id":"check-your-setup","level":1,"title":"Check your setup","anchor":"#check-your-setup"},{"id":"exporting-multiple-modules-as-an-xcframework","level":0,"title":"Exporting multiple modules as an XCFramework","anchor":"#exporting-multiple-modules-as-an-xcframework"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Swift package export setup | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/native-spm.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Swift package export setup | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/native-spm.html#webpage",
+    "url": "writerside-documentation/native-spm.html",
+    "name": "Swift package export setup | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="native-spm" data-main-title="Swift package export setup" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Multiplatform development///Set up iOS integration"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="native-spm" id="native-spm.md">Swift package export setup</h1><div class="micro-format" data-content="{&quot;microFormat&quot;:[&quot;\u003cp id\u003d\&quot;z3e327f_180\&quot;\u003eThis is a remote integration method. It can work for you if:\u003c/p\u003e&quot;,&quot;\u003cbr\u003e&quot;,&quot;\u003cul class\u003d\&quot;list _bullet\&quot; id\u003d\&quot;z3e327f_9\&quot;\u003e\u003cli class\u003d\&quot;list__item\&quot; id\u003d\&quot;z3e327f_11\&quot;\u003e\u003cp id\u003d\&quot;z3e327f_14\&quot;\u003eYou want to separate the codebase of your final application from the common codebase.\u003c/p\u003e\u003c/li\u003e\u003cli class\u003d\&quot;list__item\&quot; id\u003d\&quot;z3e327f_12\&quot;\u003e\u003cp id\u003d\&quot;z3e327f_15\&quot;\u003eYou\u0027ve already set up a Kotlin Multiplatform project targeting iOS on your local machine.\u003c/p\u003e\u003c/li\u003e\u003cli class\u003d\&quot;list__item\&quot; id\u003d\&quot;z3e327f_13\&quot;\u003e\u003cp id\u003d\&quot;z3e327f_16\&quot;\u003eYou use the Swift package manager for handling dependencies in your iOS project. \u003cbr\u003e\u003c/p\u003e\u003c/li\u003e\u003c/ul\u003e&quot;,&quot;\u003cp id\u003d\&quot;z3e327f_10\&quot;\u003e\u003ca href\u003d\&quot;multiplatform-ios-integration-overview.html\&quot; id\u003d\&quot;z3e327f_18\&quot; data-tooltip\u003d\&quot;You can integrate a Kotlin Multiplatform shared module into your iOS app. For that, you generate an iOS framework from the shared module and then add it as a dependency to the iOS project:\&quot;\u003eChoose the integration method that suits you best\u003c/a\u003e\u003c/p\u003e&quot;]}"></div><p id="z3e327f_3">You can set up the Kotlin/Native output for an Apple target to be consumed as a Swift package manager (SPM) dependency.</p><p id="z3e327f_4">Consider a Kotlin Multiplatform project that has an iOS target. You may want to make this iOS binary available as a dependency to iOS developers working on native Swift projects. Using Kotlin Multiplatform tooling, you can provide an artifact that would seamlessly integrate with their Xcode projects.</p><p id="z3e327f_5">This tutorial shows how to do this by building <a href="multiplatform-build-native-binaries.html#build-xcframeworks" id="z3e327f_19" data-tooltip="All Kotlin Multiplatform projects can use XCFrameworks as an output to gather logic for all the target platforms and architectures in a single bundle. Unlike universal (fat) frameworks, you don't need to remove all unnecessary architectures before publishing the application to the…">XCFrameworks</a> with the Kotlin Gradle plugin.</p><section class="chapter"><h2 id="set-up-remote-integration" data-toc="set-up-remote-integration">Set up remote integration</h2><p id="z3e327f_20">To make your framework consumable, you'll need to upload two files:</p><ul class="list _bullet" id="z3e327f_21"><li class="list__item" id="z3e327f_27"><p id="z3e327f_29">A ZIP archive with the XCFramework. You'll need to upload it to a convenient file storage with direct access (for example, creating a GitHub release with the archive attached, using Amazon S3 or Maven). Choose the option that is easiest to integrate into your workflow.</p></li><li class="list__item" id="z3e327f_28"><p id="z3e327f_30">The <code class="code" id="z3e327f_31">Package.swift</code> file describing the package. You'll need to push it to a separate Git repository.</p></li></ul><section class="chapter"><div class="collapse"><div class="collapse__title"><h3 id="project-configuration-options" data-toc="project-configuration-options">Project configuration options</h3></div><div class="collapse__content"><p id="z3e327f_32">In this tutorial, you'll store your XCFramework as a binary in your preferred file storage, and the <code class="code" id="z3e327f_35">Package.swift</code> file in a separate Git repository.</p><p id="z3e327f_33">However, you can configure your project differently. Consider the following options for organizing Git repositories:</p><ul class="list _bullet" id="z3e327f_34"><li class="list__item" id="z3e327f_36"><p id="z3e327f_39">Store the <code class="code" id="z3e327f_40">Package.swift</code> file and the code that should be packaged into an XCFramework in separate Git repositories. This allows versioning the Swift manifest separately from the project the file describes. This is the recommended approach: it allows scaling and is generally easier to maintain.</p></li><li class="list__item" id="z3e327f_37"><p id="z3e327f_41">Put the <code class="code" id="z3e327f_42">Package.swift</code> file next to your Kotlin Multiplatform code. This is a more straightforward approach, but keep in mind that, in this case, the Swift package and the code will use the same versioning. SPM uses Git tags for versioning packages, which can conflict with tags used for your project.</p></li><li class="list__item" id="z3e327f_38"><p id="z3e327f_43">Store the <code class="code" id="z3e327f_45">Package.swift</code> file within the consumer project's repository. This helps to avoid versioning and maintenance issues. However, this approach can cause problems with multi-repository SPM setups of the consumer project and further automation:</p><ul class="list _bullet" id="z3e327f_44"><li class="list__item" id="z3e327f_46"><p id="z3e327f_48">In a multi-package project, only one consumer package can depend on the external module (to avoid dependency conflicts within the project). So, all the logic that depends on your Kotlin Multiplatform module should be encapsulated in a particular consumer package.</p></li><li class="list__item" id="z3e327f_47"><p id="z3e327f_49">If you publish the Kotlin Multiplatform project using an automated CI process, this process would need to include publishing the updated <code class="code" id="z3e327f_50">Package.swift</code> file to the consumer repository. This may lead to conflicting updates of the consumer repository and so such a phase in CI can be difficult to maintain.</p></li></ul></li></ul></div></div></section><section class="chapter"><h3 id="configure-your-multiplatform-project" data-toc="configure-your-multiplatform-project">Configure your multiplatform project</h3><p id="z3e327f_51">In the following example, the shared code of a Kotlin Multiplatform project is stored locally in the <code class="code" id="z3e327f_54">shared</code> module. If your project is structured differently, substitute &quot;shared&quot; in code and path examples with your module's name.</p><p id="z3e327f_52">To set up the publishing of an XCFramework:</p><ol class="list _decimal" id="z3e327f_53" type="1"><li class="list__item" id="z3e327f_55"><p id="z3e327f_57">Update your <code class="code" id="z3e327f_59">shared/build.gradle.kts</code> configuration file with the <code class="code" id="z3e327f_60">XCFramework</code> call in the iOS targets list:</p><div class="code-block" data-lang="kotlin">
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
+
+kotlin {
+    // Other Kotlin Multiplatform targets
+    // ...
+    // Name of the module to be imported in the consumer project
+    val xcframeworkName = &quot;Shared&quot;
+    val xcf = XCFramework(xcframeworkName)
+
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64(),
+    ).forEach { 
+        it.binaries.framework {
+            baseName = xcframeworkName
+
+            // Specify CFBundleIdentifier to uniquely identify the framework
+            binaryOption(&quot;bundleId&quot;, &quot;org.example.${xcframeworkName}&quot;)
+            xcf.add(this)
+            isStatic = true
+        }
+    }
+    //...
+}
+</div></li><li class="list__item" id="z3e327f_56"><p id="z3e327f_61">Run the Gradle task to create the framework:</p><div class="code-block" data-lang="bash">
+./gradlew :shared:assembleSharedXCFramework
+</div><p id="z3e327f_63">The resulting framework will be created as the <code class="code" id="z3e327f_66">shared/build/XCFrameworks/release/Shared.xcframework</code> folder in your project directory.</p><aside class="prompt" data-type="tip" data-title="" id="z3e327f_64"><p id="z3e327f_67">In case you work with a Compose Multiplatform project, use the following Gradle task:</p><div class="code-block" data-lang="bash">
+./gradlew :composeApp:assembleSharedXCFramework
+</div><p id="z3e327f_69">You can then find the resulting framework in the <code class="code" id="z3e327f_70">composeApp/build/XCFrameworks/release/Shared.xcframework</code> folder.</p></aside><p id="z3e327f_65"></p></li></ol></section><section class="chapter"><h3 id="prepare-the-xcframework-and-the-swift-package-manifest" data-toc="prepare-the-xcframework-and-the-swift-package-manifest">Prepare the XCFramework and the Swift package manifest</h3><ol class="list _decimal" id="z3e327f_71" type="1"><li class="list__item" id="z3e327f_72"><p id="z3e327f_79">Compress the <code class="code" id="z3e327f_81">Shared.xcframework</code> folder in a ZIP file and calculate the checksum for the resulting archive, for example:</p><p id="z3e327f_80"><code class="code" id="z3e327f_82">swift package compute-checksum Shared.xcframework.zip</code></p></li><li class="list__item" id="z3e327f_73"><p id="z3e327f_83">Upload the ZIP file to the file storage of your choice. The file should be accessible by a direct link. For example, here's how you can do it using releases in GitHub:</p><dl id="z3e327f_84" data-style="title-top"><dt id="z3e327f_85" data-expandable="true" data-expanded="false">Upload to a GitHub release</dt><dd><ol class="list _decimal" id="z3e327f_86" type="1"><li class="list__item" id="z3e327f_87"><p>Go to <a href="https://github.com" id="z3e327f_94" data-external="true" rel="noopener noreferrer" target="_blank">GitHub</a> and log in to your account.</p></li><li class="list__item" id="z3e327f_88"><p>Navigate to the repository where you want to create a release.</p></li><li class="list__item" id="z3e327f_89"><p>In the <b id="z3e327f_95">Releases</b> section on the right, click the <b id="z3e327f_96">Create a new release</b> link.</p></li><li class="list__item" id="z3e327f_90"><p>Fill in the release information, add or create a new tag, specify the release title and write a description.</p></li><li class="list__item" id="z3e327f_91"><p id="z3e327f_97">Upload the ZIP file with the XCFramework through the <b id="z3e327f_99">Attach binaries by dropping them here or selecting them</b> field at the bottom:</p><figure id="z3e327f_98"><img alt="Fill in the release information" src="images/github-release-description.png" title="Fill in the release information" width="700" height="572"></figure></li><li class="list__item" id="z3e327f_92"><p>Click <b id="z3e327f_100">Publish release</b>.</p></li><li class="list__item" id="z3e327f_93"><p id="z3e327f_101">Under the <b id="z3e327f_103">Assets</b> section of the release, right-click on the ZIP file and select <b id="z3e327f_104">Copy link address</b> or a similar option in your browser:</p><figure id="z3e327f_102"><img alt="Copy the link to the uploaded file" src="images/github-release-link.png" title="Copy the link to the uploaded file" width="500" height="282"></figure></li></ol></dd></dl></li><li class="list__item" id="z3e327f_74"><p id="z3e327f_105">[Recommended] Check that the link works and that the file can be downloaded. In the terminal, run the following command:</p><div class="code-block" data-lang="none">
+curl &lt;downloadable link to the uploaded XCFramework ZIP file&gt;
+</div></li><li class="list__item" id="z3e327f_75"><p id="z3e327f_107">Choose any directory and locally create a <code class="code" id="z3e327f_109">Package.swift</code> file with the following code:</p><div class="code-block" data-lang="swift">
+// swift-tools-version:5.3
+import PackageDescription
+
+let package = Package(
+   name: &quot;Shared&quot;,
+   platforms: [
+     .iOS(.v14),
+   ],
+   products: [
+      .library(name: &quot;Shared&quot;, targets: [&quot;Shared&quot;])
+   ],
+   targets: [
+      .binaryTarget(
+         name: &quot;Shared&quot;,
+         url: &quot;&lt;link to the uploaded XCFramework ZIP file&gt;&quot;,
+         checksum:&quot;&lt;checksum calculated for the ZIP file&gt;&quot;)
+   ]
+)
+</div></li><li class="list__item" id="z3e327f_76"><p id="z3e327f_110">In the <code class="code" id="z3e327f_111">url</code> field, specify the link to your ZIP archive with the XCFramework.</p></li><li class="list__item" id="z3e327f_77"><p id="z3e327f_112">[Recommended] To validate the resulting manifest, you can run the following shell command in the directory with the <code class="code" id="z3e327f_115">Package.swift</code> file:</p><div class="code-block" data-lang="bash">
+swift package reset &amp;&amp; swift package show-dependencies --format json
+</div><p id="z3e327f_114">The output will describe any errors found or show the successful download and parsing result if the manifest is correct.</p></li><li class="list__item" id="z3e327f_78"><p id="z3e327f_116">Push the <code class="code" id="z3e327f_117">Package.swift</code> file to your remote repository. Make sure to create and push a Git tag with the semantic version of the package.</p></li></ol></section><section class="chapter"><h3 id="add-the-package-dependency" data-toc="add-the-package-dependency">Add the package dependency</h3><p id="z3e327f_118">Now that both files are accessible, you can add the dependency on the package you created to an existing client iOS project or create a new project. To add the package dependency:</p><ol class="list _decimal" id="z3e327f_119" type="1"><li class="list__item" id="z3e327f_120"><p id="z3e327f_123">In Xcode, choose <span class="control" id="z3e327f_124">File | Add Package Dependencies</span>.</p></li><li class="list__item" id="z3e327f_121"><p id="z3e327f_125">In the search field, enter the URL of the Git repository with the <code class="code" id="z3e327f_127">Package.swift</code> file inside:</p><figure id="z3e327f_126"><img alt="Specify repo with the package file" src="images/native-spm-url.png" title="Specify repo with the package file" width="2146" height="1190"></figure></li><li class="list__item" id="z3e327f_122"><p id="z3e327f_128">Press the <span class="control" id="z3e327f_131">Add package</span> button, then select products and corresponding targets for the package.</p><aside class="prompt" data-type="tip" data-title="" id="z3e327f_129"><p id="z3e327f_132">If you're making a Swift package, the dialog will be different. In this case, press the <span class="control" id="z3e327f_133">Copy package</span> button. This will put a <code class="code" id="z3e327f_134">.package</code> line in your clipboard. Paste this line into the <a href="https://developer.apple.com/documentation/packagedescription/package/dependency" id="z3e327f_135" data-external="true" rel="noopener noreferrer" target="_blank">Package.Dependency</a> block of your own <code class="code" id="z3e327f_136">Package.swift</code> file, and add the necessary product to the appropriate <code class="code" id="z3e327f_137">Target.Dependency</code> block.</p></aside><p id="z3e327f_130"></p></li></ol></section><section class="chapter"><h3 id="check-your-setup" data-toc="check-your-setup">Check your setup</h3><p id="z3e327f_138">To check that everything is set up correctly, test the import in Xcode:</p><ol class="list _decimal" id="z3e327f_139" type="1"><li class="list__item" id="z3e327f_140"><p id="z3e327f_143">In your project, navigate to your UI view file, for example, <code class="code" id="z3e327f_144">ContentView.swift</code>.</p></li><li class="list__item" id="z3e327f_141"><p id="z3e327f_145">Replace the code with the following snippet:</p><div class="code-block" data-lang="swift">
+import SwiftUI
+import Shared
+
+struct ContentView: View {
+    var body: some View {
+        VStack {
+            Image(systemName: &quot;globe&quot;)
+                .imageScale(.large)
+                .foregroundStyle(.tint)
+            Text(&quot;Hello, world! \(Shared.Platform_iosKt.getPlatform().name)&quot;)
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    ContentView()
+}
+</div><p id="z3e327f_147">Here, you import the <code class="code" id="z3e327f_148">Shared</code> XCFramework and then use it to obtain the platform name in the <code class="code" id="z3e327f_149">Text</code> field.</p></li><li class="list__item" id="z3e327f_142"><p id="z3e327f_150">Ensure that the preview is updated with the new text.</p></li></ol></section></section><section class="chapter"><h2 id="exporting-multiple-modules-as-an-xcframework" data-toc="exporting-multiple-modules-as-an-xcframework">Exporting multiple modules as an XCFramework</h2><p id="z3e327f_151">To make code from several Kotlin Multiplatform modules available as an iOS binary, combine these modules in a single umbrella module. Then, build and export the XCFramework of this umbrella module.</p><p id="z3e327f_152">For example, you have a <code class="code" id="z3e327f_155">network</code> and a <code class="code" id="z3e327f_156">database</code> module, which you combine in an <code class="code" id="z3e327f_157">together</code> module:</p><ol class="list _decimal" id="z3e327f_153" type="1"><li class="list__item" id="z3e327f_158"><p id="z3e327f_163">In the <code class="code" id="z3e327f_165">together/build.gradle.kts</code> file, specify dependencies and the framework configuration:</p><div class="code-block" data-lang="kotlin">
+kotlin {
+    val frameworkName = &quot;together&quot;
+    val xcf = XCFramework(frameworkName)
+
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget -&gt;
+        // Same as in the example above,
+        // with added export calls for dependencies
+        iosTarget.binaries.framework {
+            export(projects.network)
+            export(projects.database)
+
+            baseName = frameworkName
+            xcf.add(this)
+        }
+    }
+
+    // Dependencies set as &quot;api&quot; (as opposed to &quot;implementation&quot;) to export underlying modules
+    sourceSets {
+        commonMain.dependencies {
+            api(projects.network)
+            api(projects.database)
+        }
+    }
+}
+</div></li><li class="list__item" id="z3e327f_159"><p id="z3e327f_166">Each of the included modules should have its iOS targets configured, for example:</p><div class="code-block" data-lang="kotlin">
+kotlin {
+    androidTarget {
+        //...
+    }
+
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
+
+    //...
+}
+</div></li><li class="list__item" id="z3e327f_160"><p id="z3e327f_168">Create an empty Kotlin file inside the <code class="code" id="z3e327f_169">together</code> folder, for example, <code class="code" id="z3e327f_170">together/src/commonMain/kotlin/Together.kt</code>. This is a workaround, as the Gradle script currently cannot assemble a framework if the exported module does not contain any source code.</p></li><li class="list__item" id="z3e327f_161"><p id="z3e327f_171">Run the Gradle task that assembles the framework:</p><div class="code-block" data-lang="bash">
+./gradlew :together:assembleTogetherReleaseXCFramework
+</div></li><li class="list__item" id="z3e327f_162"><p id="z3e327f_173">Follow the steps from the <a href="#prepare-the-xcframework-and-the-swift-package-manifest" id="z3e327f_174" data-tooltip="Compress the Shared.xcframework folder in a ZIP file and calculate the checksum for the resulting archive, for example:">previous section</a> to prepare <code class="code" id="z3e327f_175">together.xcframework</code>: archive it, calculate the checksum, upload the archived XCFramework to the file storage, create and push a <code class="code" id="z3e327f_176">Package.swift</code> file.</p></li></ol><p id="z3e327f_154">Now, you can import the dependency into an Xcode project. After adding the <code class="code" id="z3e327f_177">import together</code> directive, you should have classes from both the <code class="code" id="z3e327f_178">network</code> and <code class="code" id="z3e327f_179">database</code> modules available for import in Swift code.</p></section><div class="last-modified">21 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="multiplatform-direct-integration.html" class="navigation-links__prev">Direct integration</a><a href="native-cocoapods.html" class="navigation-links__next">CocoaPods overview and setup</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

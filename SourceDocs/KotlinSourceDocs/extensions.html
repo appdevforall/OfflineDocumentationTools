@@ -1,0 +1,171 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-23T13:00:01.208264068"><title>Extensions | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"extension-functions","level":0,"title":"Extension functions","anchor":"#extension-functions"},{"id":"extensions-are-resolved-statically","level":0,"title":"Extensions are resolved statically","anchor":"#extensions-are-resolved-statically"},{"id":"nullable-receiver","level":0,"title":"Nullable receiver","anchor":"#nullable-receiver"},{"id":"extension-properties","level":0,"title":"Extension properties","anchor":"#extension-properties"},{"id":"companion-object-extensions","level":0,"title":"Companion object extensions","anchor":"#companion-object-extensions"},{"id":"scope-of-extensions","level":0,"title":"Scope of extensions","anchor":"#scope-of-extensions"},{"id":"declaring-extensions-as-members","level":0,"title":"Declaring extensions as members","anchor":"#declaring-extensions-as-members"},{"id":"note-on-visibility","level":0,"title":"Note on visibility","anchor":"#note-on-visibility"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Extensions | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/extensions.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Extensions | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/extensions.html#webpage",
+    "url": "writerside-documentation/extensions.html",
+    "name": "Extensions | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="extensions" data-main-title="Extensions" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Concepts///Classes and objects"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="extensions" id="extensions.md">Extensions</h1><p id="-35h1m7_2">Kotlin provides the ability to extend a class or an interface with new functionality without having to inherit from the class or use design patterns such as <span class="emphasis" id="-35h1m7_12">Decorator</span>. This is done via special declarations called <span class="emphasis" id="-35h1m7_13">extensions</span>.</p><p id="-35h1m7_3">For example, you can write new functions for a class or an interface from a third-party library that you can't modify. Such functions can be called in the usual way, as if they were methods of the original class. This mechanism is called an <span class="emphasis" id="-35h1m7_14">extension function</span>. There are also <span class="emphasis" id="-35h1m7_15">extension properties</span> that let you define new properties for existing classes.</p><section class="chapter"><h2 id="extension-functions" data-toc="extension-functions">Extension functions</h2><p id="-35h1m7_16">To declare an extension function, prefix its name with a <span class="emphasis" id="-35h1m7_23">receiver type</span>, which refers to the type being extended. The following adds a <code class="code" id="-35h1m7_24">swap</code> function to <code class="code" id="-35h1m7_25">MutableList&lt;Int&gt;</code>:</p><div class="code-block" data-lang="kotlin">
+fun MutableList&lt;Int&gt;.swap(index1: Int, index2: Int) {
+    val tmp = this[index1] // 'this' corresponds to the list
+    this[index1] = this[index2]
+    this[index2] = tmp
+}
+</div><p id="-35h1m7_18">The <code class="code" id="-35h1m7_26">this</code> keyword inside an extension function corresponds to the receiver object (the one that is passed before the dot). Now, you can call such a function on any <code class="code" id="-35h1m7_27">MutableList&lt;Int&gt;</code>:</p><div class="code-block" data-lang="kotlin">
+val list = mutableListOf(1, 2, 3)
+list.swap(0, 2) // 'this' inside 'swap()' will hold the value of 'list'
+</div><p id="-35h1m7_20">This function makes sense for any <code class="code" id="-35h1m7_28">MutableList&lt;T&gt;</code>, and you can make it generic:</p><div class="code-block" data-lang="kotlin">
+fun &lt;T&gt; MutableList&lt;T&gt;.swap(index1: Int, index2: Int) {
+    val tmp = this[index1] // 'this' corresponds to the list
+    this[index1] = this[index2]
+    this[index2] = tmp
+}
+</div><p id="-35h1m7_22">You need to declare the generic type parameter before the function name to make it available in the receiver type expression. For more information about generics, see <a href="generics.html" id="-35h1m7_29" data-tooltip="Classes in Kotlin can have type parameters, just like in Java:">generic functions</a>.</p></section><section class="chapter"><h2 id="extensions-are-resolved-statically" data-toc="extensions-are-resolved-statically">Extensions are resolved <span class="emphasis" id="-35h1m7_40">statically</span></h2><p id="-35h1m7_31">Extensions do not actually modify the classes they extend. By defining an extension, you are not inserting new members into a class, only making new functions callable with the dot-notation on variables of this type.</p><p id="-35h1m7_32">Extension functions are dispatched <span class="emphasis" id="-35h1m7_41">statically</span>. So which extension function is called is already known at compile time based on the receiver type. For example:</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+fun main() {
+//sampleStart
+    open class Shape
+    class Rectangle: Shape()
+    
+    fun Shape.getName() = &quot;Shape&quot;
+    fun Rectangle.getName() = &quot;Rectangle&quot;
+    
+    fun printClassName(s: Shape) {
+        println(s.getName())
+    }
+    
+    printClassName(Rectangle())
+//sampleEnd
+}
+</div><p id="-35h1m7_34">This example prints <span class="emphasis" id="-35h1m7_42">Shape</span>, because the extension function called depends only on the declared type of the parameter <code class="code" id="-35h1m7_43">s</code>, which is the <code class="code" id="-35h1m7_44">Shape</code> class.</p><p id="-35h1m7_35">If a class has a member function, and an extension function is defined which has the same receiver type, the same name, and is applicable to given arguments, the <span class="emphasis" id="-35h1m7_45">member always wins</span>. For example:</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+fun main() {
+//sampleStart
+    class Example {
+        fun printFunctionType() { println(&quot;Class method&quot;) }
+    }
+    
+    fun Example.printFunctionType() { println(&quot;Extension function&quot;) }
+    
+    Example().printFunctionType()
+//sampleEnd
+}
+</div><p id="-35h1m7_37">This code prints <span class="emphasis" id="-35h1m7_46">Class method</span>.</p><p id="-35h1m7_38">However, it's perfectly OK for extension functions to overload member functions that have the same name but a different signature:</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+fun main() {
+//sampleStart
+    class Example {
+        fun printFunctionType() { println(&quot;Class method&quot;) }
+    }
+    
+    fun Example.printFunctionType(i: Int) { println(&quot;Extension function #$i&quot;) }
+    
+    Example().printFunctionType(1)
+//sampleEnd
+}
+</div></section><section class="chapter"><h2 id="nullable-receiver" data-toc="nullable-receiver">Nullable receiver</h2><p id="-35h1m7_47">Note that extensions can be defined with a nullable receiver type. These extensions can be called on an object variable even if its value is null. If the receiver is <code class="code" id="-35h1m7_50">null</code>, then <code class="code" id="-35h1m7_51">this</code> is also <code class="code" id="-35h1m7_52">null</code>. So when defining an extension with a nullable receiver type, we recommend performing a <code class="code" id="-35h1m7_53">this == null</code> check inside the function body to avoid compiler errors.</p><p id="-35h1m7_48">You can call <code class="code" id="-35h1m7_54">toString()</code> in Kotlin without checking for <code class="code" id="-35h1m7_55">null</code>, as the check already happens inside the extension function:</p><div class="code-block" data-lang="kotlin">
+fun Any?.toString(): String {
+    if (this == null) return &quot;null&quot;
+    // After the null check, 'this' is autocast to a non-nullable type, so the toString() below
+    // resolves to the member function of the Any class
+    return toString()
+}
+</div></section><section class="chapter"><h2 id="extension-properties" data-toc="extension-properties">Extension properties</h2><p id="-35h1m7_56">Kotlin supports extension properties much like it supports functions:</p><div class="code-block" data-lang="kotlin">
+val &lt;T&gt; List&lt;T&gt;.lastIndex: Int
+    get() = size - 1
+</div><aside class="prompt" data-type="note" data-title="" id="-35h1m7_58"><p id="-35h1m7_61">Since extensions do not actually insert members into classes, there's no efficient way for an extension property to have a <a href="properties.html#backing-fields" id="-35h1m7_62" data-tooltip="In Kotlin, a field is only used as a part of a property to hold its value in memory. Fields cannot be declared directly. However, when a property needs a backing field, Kotlin provides it automatically. This backing field can be referenced in the accessors using the field identifier:">backing field</a>. This is why <span class="emphasis" id="-35h1m7_63">initializers are not allowed for extension properties</span>. Their behavior can only be defined by explicitly providing getters/setters.</p></aside><p id="-35h1m7_59">Example:</p><div class="code-block" data-lang="kotlin">
+val House.number = 1 // error: initializers are not allowed for extension properties
+</div></section><section class="chapter"><h2 id="companion-object-extensions" data-toc="companion-object-extensions">Companion object extensions</h2><p id="-35h1m7_64">If a class has a <a href="object-declarations.html#companion-objects" id="-35h1m7_66" data-tooltip="Companion objects allow you to define class-level functions and properties. This makes it easy to create factory methods, hold constants, and access shared utilities.">companion object</a> defined, you can also define extension functions and properties for the companion object. Just like regular members of the companion object, they can be called using only the class name as the qualifier:</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+class MyClass {
+    companion object { }  // will be called &quot;Companion&quot;
+}
+
+fun MyClass.Companion.printCompanion() { println(&quot;companion&quot;) }
+
+fun main() {
+    MyClass.printCompanion()
+}
+</div></section><section class="chapter"><h2 id="scope-of-extensions" data-toc="scope-of-extensions">Scope of extensions</h2><p id="-35h1m7_67">In most cases, you define extensions on the top level, directly under packages:</p><div class="code-block" data-lang="kotlin">
+package org.example.declarations
+
+fun List&lt;String&gt;.getLongestString() { /*...*/}
+</div><p id="-35h1m7_69">To use an extension outside its declaring package, import it at the call site:</p><div class="code-block" data-lang="kotlin">
+package org.example.usage
+
+import org.example.declarations.getLongestString
+
+fun main() {
+    val list = listOf(&quot;red&quot;, &quot;green&quot;, &quot;blue&quot;)
+    list.getLongestString()
+}
+</div><p id="-35h1m7_71">See <a href="packages.html#imports" id="-35h1m7_72" data-tooltip="Apart from the default imports, each file may contain its own import directives.">Imports</a> for more information.</p></section><section class="chapter"><h2 id="declaring-extensions-as-members" data-toc="declaring-extensions-as-members">Declaring extensions as members</h2><p id="-35h1m7_73">You can declare extensions for one class inside another class. Inside such an extension, there are multiple <span class="emphasis" id="-35h1m7_79">implicit receivers</span> - objects whose members can be accessed without a qualifier. An instance of a class in which the extension is declared is called a <span class="emphasis" id="-35h1m7_80">dispatch receiver</span>, and an instance of the receiver type of the extension method is called an <span class="emphasis" id="-35h1m7_81">extension receiver</span>.</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+class Host(val hostname: String) {
+    fun printHostname() { print(hostname) }
+}
+
+class Connection(val host: Host, val port: Int) {
+    fun printPort() { print(port) }
+
+    fun Host.printConnectionString() {
+        printHostname()   // calls Host.printHostname()
+        print(&quot;:&quot;)
+        printPort()   // calls Connection.printPort()
+    }
+
+    fun connect() {
+        /*...*/
+        host.printConnectionString()   // calls the extension function
+    }
+}
+
+fun main() {
+    Connection(Host(&quot;kotl.in&quot;), 443).connect()
+    //Host(&quot;kotl.in&quot;).printConnectionString()  // error, the extension function is unavailable outside Connection
+}
+</div><p id="-35h1m7_75">In the event of a name conflict between the members of a dispatch receiver and an extension receiver, the extension receiver takes precedence. To refer to the member of the dispatch receiver, you can use the <a href="this-expressions.html#qualified-this" id="-35h1m7_82" data-tooltip="To access this from an outer scope (a class, extension function, or labeled function literal with receiver) you write this@label, where @label is a label on the scope this is meant to be from:">qualified <code class="code" id="-35h1m7_83">this</code> syntax</a>.</p><div class="code-block" data-lang="kotlin">
+class Connection {
+    fun Host.getConnectionString() {
+        toString()         // calls Host.toString()
+        this@Connection.toString()  // calls Connection.toString()
+    }
+}
+</div><p id="-35h1m7_77">Extensions declared as members can be declared as <code class="code" id="-35h1m7_84">open</code> and overridden in subclasses. This means that the dispatch of such functions is virtual with regard to the dispatch receiver type, but static with regard to the extension receiver type.</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.3">
+open class Base { }
+
+class Derived : Base() { }
+
+open class BaseCaller {
+    open fun Base.printFunctionInfo() {
+        println(&quot;Base extension function in BaseCaller&quot;)
+    }
+
+    open fun Derived.printFunctionInfo() {
+        println(&quot;Derived extension function in BaseCaller&quot;)
+    }
+
+    fun call(b: Base) {
+        b.printFunctionInfo()   // call the extension function
+    }
+}
+
+class DerivedCaller: BaseCaller() {
+    override fun Base.printFunctionInfo() {
+        println(&quot;Base extension function in DerivedCaller&quot;)
+    }
+
+    override fun Derived.printFunctionInfo() {
+        println(&quot;Derived extension function in DerivedCaller&quot;)
+    }
+}
+
+fun main() {
+    BaseCaller().call(Base())   // &quot;Base extension function in BaseCaller&quot;
+    DerivedCaller().call(Base())  // &quot;Base extension function in DerivedCaller&quot; - dispatch receiver is resolved virtually
+    DerivedCaller().call(Derived())  // &quot;Base extension function in DerivedCaller&quot; - extension receiver is resolved statically
+}
+</div></section><section class="chapter"><h2 id="note-on-visibility" data-toc="note-on-visibility">Note on visibility</h2><p id="-35h1m7_85">Extensions utilize the same <a href="visibility-modifiers.html" id="-35h1m7_87" data-tooltip="Classes, objects, interfaces, constructors, and functions, as well as properties and their setters, can have visibility modifiers. Getters always have the same visibility as their properties.">visibility modifiers</a> as regular functions declared in the same scope would. For example:</p><ul class="list _bullet" id="-35h1m7_86"><li class="list__item" id="-35h1m7_88"><p id="-35h1m7_90">An extension declared at the top level of a file has access to the other <code class="code" id="-35h1m7_91">private</code> top-level declarations in the same file.</p></li><li class="list__item" id="-35h1m7_89"><p id="-35h1m7_92">If an extension is declared outside its receiver type, it cannot access the receiver's <code class="code" id="-35h1m7_93">private</code> or <code class="code" id="-35h1m7_94">protected</code> members.</p></li></ul></section><div class="last-modified">21 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="visibility-modifiers.html" class="navigation-links__prev">Visibility modifiers</a><a href="data-classes.html" class="navigation-links__next">Data classes</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

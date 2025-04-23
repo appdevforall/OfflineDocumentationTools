@@ -1,0 +1,42 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-23T13:00:00.788445489"><title>KSP examples | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"get-all-member-functions","level":0,"title":"Get all member functions","anchor":"#get-all-member-functions"},{"id":"check-whether-a-class-or-function-is-local","level":0,"title":"Check whether a class or function is local","anchor":"#check-whether-a-class-or-function-is-local"},{"id":"find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to","level":0,"title":"Find the actual class or interface declaration that the type alias points to","anchor":"#find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to"},{"id":"collect-suppressed-names-in-a-file-annotation","level":0,"title":"Collect suppressed names in a file annotation","anchor":"#collect-suppressed-names-in-a-file-annotation"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="KSP examples | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/ksp-examples.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="KSP examples | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/ksp-examples.html#webpage",
+    "url": "writerside-documentation/ksp-examples.html",
+    "name": "KSP examples | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="ksp-examples" data-main-title="KSP examples" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Compiler and plugins///Kotlin Symbol Processing API"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="ksp-examples" id="ksp-examples.md">KSP examples</h1><section class="chapter"><h2 id="get-all-member-functions" data-toc="get-all-member-functions">Get all member functions</h2><div class="code-block" data-lang="kotlin">
+fun KSClassDeclaration.getDeclaredFunctions(): Sequence&lt;KSFunctionDeclaration&gt; =
+    declarations.filterIsInstance&lt;KSFunctionDeclaration&gt;()
+</div></section><section class="chapter"><h2 id="check-whether-a-class-or-function-is-local" data-toc="check-whether-a-class-or-function-is-local">Check whether a class or function is local</h2><div class="code-block" data-lang="kotlin">
+fun KSDeclaration.isLocal(): Boolean =
+    parentDeclaration != null &amp;&amp; parentDeclaration !is KSClassDeclaration
+</div></section><section class="chapter"><h2 id="find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to" data-toc="find-the-actual-class-or-interface-declaration-that-the-type-alias-points-to">Find the actual class or interface declaration that the type alias points to</h2><div class="code-block" data-lang="kotlin">
+fun KSTypeAlias.findActualType(): KSClassDeclaration {
+    val resolvedType = this.type.resolve().declaration
+    return if (resolvedType is KSTypeAlias) {
+        resolvedType.findActualType()
+    } else {
+        resolvedType as KSClassDeclaration
+    }
+}
+</div></section><section class="chapter"><h2 id="collect-suppressed-names-in-a-file-annotation" data-toc="collect-suppressed-names-in-a-file-annotation">Collect suppressed names in a file annotation</h2><div class="code-block" data-lang="kotlin">
+// @file:kotlin.Suppress(&quot;Example1&quot;, &quot;Example2&quot;)
+fun KSFile.suppressedNames(): Sequence&lt;String&gt; = annotations
+    .filter {
+        it.shortName.asString() == &quot;Suppress&quot; &amp;&amp;
+        it.annotationType.resolve().declaration.qualifiedName?.asString() == &quot;kotlin.Suppress&quot;
+    }.flatMap {
+        it.arguments.flatMap {
+            (it.value as Array&lt;String&gt;).toList()
+        }
+    }
+</div></section><div class="last-modified">21 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="ksp-why-ksp.html" class="navigation-links__prev">Why KSP</a><a href="ksp-additional-details.html" class="navigation-links__next">How KSP models Kotlin code</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>
