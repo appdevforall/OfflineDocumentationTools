@@ -34,25 +34,9 @@ jobs:
         id: get_tag_name
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_tag_name.outputs.TAG_NAME }}
-          release_name: Documentation ${{ steps.get_tag_name.outputs.TAG_NAME }}
-          body: |
-            Latest processed Kotlin documentation.
-            # You can add more detailed release notes here
-          draft: false
-          prerelease: false
-
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          files: kotlin_docs.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: kotlin_docs.zip # Ensure this path is correct
-          asset_name: documentation-${{ steps.get_tag_name.outputs.TAG_NAME }}.pdf
-          asset_content_type: application/zip
