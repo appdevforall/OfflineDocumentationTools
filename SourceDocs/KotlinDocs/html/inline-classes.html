@@ -1,0 +1,155 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:08.087155938"><title>Inline value classes | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"members","level":0,"title":"Members","anchor":"#members"},{"id":"inheritance","level":0,"title":"Inheritance","anchor":"#inheritance"},{"id":"representation","level":0,"title":"Representation","anchor":"#representation"},{"id":"mangling","level":1,"title":"Mangling","anchor":"#mangling"},{"id":"calling-from-java-code","level":1,"title":"Calling from Java code","anchor":"#calling-from-java-code"},{"id":"inline-classes-vs-type-aliases","level":0,"title":"Inline classes vs type aliases","anchor":"#inline-classes-vs-type-aliases"},{"id":"inline-classes-and-delegation","level":0,"title":"Inline classes and delegation","anchor":"#inline-classes-and-delegation"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Inline value classes | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/inline-classes.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Inline value classes | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/inline-classes.html#webpage",
+    "url": "writerside-documentation/inline-classes.html",
+    "name": "Inline value classes | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="inline-classes" data-main-title="Inline value classes" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Concepts///Classes and objects"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="inline-classes" id="inline-classes.md">Inline value classes</h1><p id="-8xtju4_2">Sometimes it is useful to wrap a value in a class to create a more domain-specific type. However, it introduces runtime overhead due to additional heap allocations. Moreover, if the wrapped type is primitive, the performance hit is significant, because primitive types are usually heavily optimized by the runtime, while their wrappers don't get any special treatment.</p><p id="-8xtju4_3">To solve such issues, Kotlin introduces a special kind of class called an <span class="emphasis" id="-8xtju4_16">inline class</span>. Inline classes are a subset of <a href="https://github.com/Kotlin/KEEP/blob/master/notes/value-classes.md" id="-8xtju4_17" data-external="true" rel="noopener noreferrer" target="_blank">value-based classes</a>. They don't have an identity and can only hold values.</p><p id="-8xtju4_4">To declare an inline class, use the <code class="code" id="-8xtju4_18">value</code> modifier before the name of the class:</p><div class="code-block" data-lang="kotlin">
+value class Password(private val s: String)
+</div><p id="-8xtju4_6">To declare an inline class for the JVM backend, use the <code class="code" id="-8xtju4_19">value</code> modifier along with the <code class="code" id="-8xtju4_20">@JvmInline</code> annotation before the class declaration:</p><div class="code-block" data-lang="kotlin">
+// For JVM backends
+@JvmInline
+value class Password(private val s: String)
+</div><p id="-8xtju4_8">An inline class must have a single property initialized in the primary constructor. At runtime, instances of the inline class will be represented using this single property (see details about runtime representation <a href="#representation" id="-8xtju4_21" data-tooltip="In generated code, the Kotlin compiler keeps a wrapper for each inline class. Inline class instances can be represented at runtime either as wrappers or as the underlying type. This is similar to how Int can be represented either as a primitive int or as the wrapper Integer.">below</a>):</p><div class="code-block" data-lang="kotlin">
+// No actual instantiation of class 'Password' happens
+// At runtime 'securePassword' contains just 'String'
+val securePassword = Password(&quot;Don't try this in production&quot;) 
+</div><p id="-8xtju4_10">This is the main feature of inline classes, which inspired the name <span class="emphasis" id="-8xtju4_22">inline</span>: data of the class is <span class="emphasis" id="-8xtju4_23">inlined</span> into its usages (similar to how content of <a href="inline-functions.html" id="-8xtju4_24" data-tooltip="Using higher-order functions imposes certain runtime penalties: each function is an object, and it captures a closure. A closure is a scope of variables that can be accessed in the body of the function. Memory allocations (both for function objects and classes) and virtual calls…">inline functions</a> is inlined to call sites).</p><section class="chapter"><h2 id="members" data-toc="members">Members</h2><p id="-8xtju4_25">Inline classes support some functionality of regular classes. In particular, they are allowed to declare properties and functions, have an <code class="code" id="-8xtju4_28">init</code> block and <a href="classes.html#secondary-constructors" id="-8xtju4_29" data-tooltip="A class can also declare secondary constructors, which are prefixed with constructor:">secondary constructors</a>:</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.9">
+@JvmInline
+value class Person(private val fullName: String) {
+    init {
+        require(fullName.isNotEmpty()) {
+            &quot;Full name shouldn't be empty&quot;
+        }
+    }
+
+    constructor(firstName: String, lastName: String) : this(&quot;$firstName $lastName&quot;) {
+        require(lastName.isNotBlank()) {
+            &quot;Last name shouldn't be empty&quot;
+        }
+    }
+
+    val length: Int
+        get() = fullName.length
+
+    fun greet() {
+        println(&quot;Hello, $fullName&quot;)
+    }
+}
+
+fun main() {
+    val name1 = Person(&quot;Kotlin&quot;, &quot;Mascot&quot;)
+    val name2 = Person(&quot;Kodee&quot;)
+    name1.greet() // the `greet()` function is called as a static method
+    println(name2.length) // property getter is called as a static method
+}
+</div><p id="-8xtju4_27">Inline class properties cannot have <a href="properties.html#backing-fields" id="-8xtju4_30" data-tooltip="In Kotlin, a field is only used as a part of a property to hold its value in memory. Fields cannot be declared directly. However, when a property needs a backing field, Kotlin provides it automatically. This backing field can be referenced in the accessors using the field identifier:">backing fields</a>. They can only have simple computable properties (no <code class="code" id="-8xtju4_31">lateinit</code> /delegated properties).</p></section><section class="chapter"><h2 id="inheritance" data-toc="inheritance">Inheritance</h2><p id="-8xtju4_32">Inline classes are allowed to inherit from interfaces:</p><div class="code-block" data-lang="kotlin">
+interface Printable {
+    fun prettyPrint(): String
+}
+
+@JvmInline
+value class Name(val s: String) : Printable {
+    override fun prettyPrint(): String = &quot;Let's $s!&quot;
+}
+
+fun main() {
+    val name = Name(&quot;Kotlin&quot;)
+    println(name.prettyPrint()) // Still called as a static method
+}
+</div><p id="-8xtju4_34">It is forbidden for inline classes to participate in a class hierarchy. This means that inline classes cannot extend other classes and are always <code class="code" id="-8xtju4_35">final</code>.</p></section><section class="chapter"><h2 id="representation" data-toc="representation">Representation</h2><p id="-8xtju4_36">In generated code, the Kotlin compiler keeps a <span class="emphasis" id="-8xtju4_44">wrapper</span> for each inline class. Inline class instances can be represented at runtime either as wrappers or as the underlying type. This is similar to how <code class="code" id="-8xtju4_45">Int</code> can be <a href="numbers.html#boxing-and-caching-numbers-on-the-java-virtual-machine" id="-8xtju4_46" data-tooltip="The way the JVM stores numbers can make your code behave counterintuitively because of the cache used by default for small (byte-sized) numbers.">represented</a> either as a primitive <code class="code" id="-8xtju4_47">int</code> or as the wrapper <code class="code" id="-8xtju4_48">Integer</code>.</p><p id="-8xtju4_37">The Kotlin compiler will prefer using underlying types instead of wrappers to produce the most performant and optimized code. However, sometimes it is necessary to keep wrappers around. As a rule of thumb, inline classes are boxed whenever they are used as another type.</p><div class="code-block" data-lang="kotlin">
+interface I
+
+@JvmInline
+value class Foo(val i: Int) : I
+
+fun asInline(f: Foo) {}
+fun &lt;T&gt; asGeneric(x: T) {}
+fun asInterface(i: I) {}
+fun asNullable(i: Foo?) {}
+
+fun &lt;T&gt; id(x: T): T = x
+
+fun main() {
+    val f = Foo(42) 
+    
+    asInline(f)    // unboxed: used as Foo itself
+    asGeneric(f)   // boxed: used as generic type T
+    asInterface(f) // boxed: used as type I
+    asNullable(f)  // boxed: used as Foo?, which is different from Foo
+    
+    // below, 'f' first is boxed (while being passed to 'id') and then unboxed (when returned from 'id') 
+    // In the end, 'c' contains unboxed representation (just '42'), as 'f' 
+    val c = id(f)  
+}
+</div><p id="-8xtju4_39">Because inline classes may be represented both as the underlying value and as a wrapper, <a href="equality.html#referential-equality" id="-8xtju4_49" data-tooltip="Referential equality verifies the memory addresses of two objects to determine if they are the same instance.">referential equality</a> is pointless for them and is therefore prohibited.</p><p id="-8xtju4_40">Inline classes can also have a generic type parameter as the underlying type. In this case, the compiler maps it to <code class="code" id="-8xtju4_50">Any?</code> or, generally, to the upper bound of the type parameter.</p><div class="code-block" data-lang="kotlin">
+@JvmInline
+value class UserId&lt;T&gt;(val value: T)
+
+fun compute(s: UserId&lt;String&gt;) {} // compiler generates fun compute-&lt;hashcode&gt;(s: Any?)
+</div><section class="chapter"><h3 id="mangling" data-toc="mangling">Mangling</h3><p id="-8xtju4_51">Since inline classes are compiled to their underlying type, it may lead to various obscure errors, for example unexpected platform signature clashes:</p><div class="code-block" data-lang="kotlin">
+@JvmInline
+value class UInt(val x: Int)
+
+// Represented as 'public final void compute(int x)' on the JVM
+fun compute(x: Int) { }
+
+// Also represented as 'public final void compute(int x)' on the JVM!
+fun compute(x: UInt) { }
+</div><p id="-8xtju4_53">To mitigate such issues, functions using inline classes are <span class="emphasis" id="-8xtju4_54">mangled</span> by adding some stable hashcode to the function name. Therefore, <code class="code" id="-8xtju4_55">fun compute(x: UInt)</code> will be represented as <code class="code" id="-8xtju4_56">public final void compute-&lt;hashcode&gt;(int x)</code>, which solves the clash problem.</p></section><section class="chapter"><h3 id="calling-from-java-code" data-toc="calling-from-java-code">Calling from Java code</h3><p id="-8xtju4_57">You can call functions that accept inline classes from Java code. To do so, you should manually disable mangling: add the <code class="code" id="-8xtju4_59">@JvmName</code> annotation before the function declaration:</p><div class="code-block" data-lang="kotlin">
+@JvmInline
+value class UInt(val x: Int)
+
+fun compute(x: Int) { }
+
+@JvmName(&quot;computeUInt&quot;)
+fun compute(x: UInt) { }
+</div></section></section><section class="chapter"><h2 id="inline-classes-vs-type-aliases" data-toc="inline-classes-vs-type-aliases">Inline classes vs type aliases</h2><p id="-8xtju4_60">At first sight, inline classes seem very similar to <a href="type-aliases.html" id="-8xtju4_64" data-tooltip="Type aliases provide alternative names for existing types. If the type name is too long you can introduce a different shorter name and use the new one instead.">type aliases</a>. Indeed, both seem to introduce a new type and both will be represented as the underlying type at runtime.</p><p id="-8xtju4_61">However, the crucial difference is that type aliases are <span class="emphasis" id="-8xtju4_65">assignment-compatible</span> with their underlying type (and with other type aliases with the same underlying type), while inline classes are not.</p><p id="-8xtju4_62">In other words, inline classes introduce a truly <span class="emphasis" id="-8xtju4_66">new</span> type, contrary to type aliases which only introduce an alternative name (alias) for an existing type:</p><div class="code-block" data-lang="kotlin">
+typealias NameTypeAlias = String
+
+@JvmInline
+value class NameInlineClass(val s: String)
+
+fun acceptString(s: String) {}
+fun acceptNameTypeAlias(n: NameTypeAlias) {}
+fun acceptNameInlineClass(p: NameInlineClass) {}
+
+fun main() {
+    val nameAlias: NameTypeAlias = &quot;&quot;
+    val nameInlineClass: NameInlineClass = NameInlineClass(&quot;&quot;)
+    val string: String = &quot;&quot;
+
+    acceptString(nameAlias) // OK: pass alias instead of underlying type
+    acceptString(nameInlineClass) // Not OK: can't pass inline class instead of underlying type
+
+    // And vice versa:
+    acceptNameTypeAlias(string) // OK: pass underlying type instead of alias
+    acceptNameInlineClass(string) // Not OK: can't pass underlying type instead of inline class
+}
+</div></section><section class="chapter"><h2 id="inline-classes-and-delegation" data-toc="inline-classes-and-delegation">Inline classes and delegation</h2><p id="-8xtju4_67">Implementation by delegation to inlined value of inlined class is allowed with interfaces:</p><div class="code-block" data-lang="kotlin">
+interface MyInterface {
+    fun bar()
+    fun foo() = &quot;foo&quot;
+}
+
+@JvmInline
+value class MyInterfaceWrapper(val myInterface: MyInterface) : MyInterface by myInterface
+
+fun main() {
+    val my = MyInterfaceWrapper(object : MyInterface {
+        override fun bar() {
+            // body
+        }
+    })
+    println(my.foo()) // prints &quot;foo&quot;
+}
+</div></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="enum-classes.html" class="navigation-links__prev">Enum classes</a><a href="object-declarations.html" class="navigation-links__next">Object declarations and expressions</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

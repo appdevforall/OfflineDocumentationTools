@@ -1,0 +1,276 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:08.518271167"><title>Calling Kotlin from Java | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"properties","level":0,"title":"Properties","anchor":"#properties"},{"id":"package-level-functions","level":0,"title":"Package-level functions","anchor":"#package-level-functions"},{"id":"instance-fields","level":0,"title":"Instance fields","anchor":"#instance-fields"},{"id":"static-fields","level":0,"title":"Static fields","anchor":"#static-fields"},{"id":"static-methods","level":0,"title":"Static methods","anchor":"#static-methods"},{"id":"default-methods-in-interfaces","level":0,"title":"Default methods in interfaces","anchor":"#default-methods-in-interfaces"},{"id":"compatibility-modes-for-default-methods","level":1,"title":"Compatibility modes for default methods","anchor":"#compatibility-modes-for-default-methods"},{"id":"visibility","level":0,"title":"Visibility","anchor":"#visibility"},{"id":"kclass","level":0,"title":"KClass","anchor":"#kclass"},{"id":"handling-signature-clashes-with-jvmname","level":0,"title":"Handling signature clashes with @JvmName","anchor":"#handling-signature-clashes-with-jvmname"},{"id":"overloads-generation","level":0,"title":"Overloads generation","anchor":"#overloads-generation"},{"id":"checked-exceptions","level":0,"title":"Checked exceptions","anchor":"#checked-exceptions"},{"id":"null-safety","level":0,"title":"Null-safety","anchor":"#null-safety"},{"id":"variant-generics","level":0,"title":"Variant generics","anchor":"#variant-generics"},{"id":"translation-of-type-nothing","level":1,"title":"Translation of type Nothing","anchor":"#translation-of-type-nothing"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Calling Kotlin from Java | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/java-to-kotlin-interop.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Calling Kotlin from Java | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/java-to-kotlin-interop.html#webpage",
+    "url": "writerside-documentation/java-to-kotlin-interop.html",
+    "name": "Calling Kotlin from Java | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="java-to-kotlin-interop" data-main-title="Calling Kotlin from Java" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Platforms///JVM"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="java-to-kotlin-interop" id="java-to-kotlin-interop.md">Calling Kotlin from Java</h1><p id="z6o3e26_2">Kotlin code can be easily called from Java. For example, instances of a Kotlin class can be seamlessly created and operated in Java methods. However, there are certain differences between Java and Kotlin that require attention when integrating Kotlin code into Java. On this page, we'll describe the ways to tailor the interop of your Kotlin code with its Java clients.</p><section class="chapter"><h2 id="properties" data-toc="properties">Properties</h2><p id="z6o3e26_16">A Kotlin property is compiled to the following Java elements:</p><ul class="list _bullet" id="z6o3e26_17"><li class="list__item" id="z6o3e26_21"><p id="z6o3e26_24">a getter method, with the name calculated by prepending the <code class="code" id="z6o3e26_25">get</code> prefix</p></li><li class="list__item" id="z6o3e26_22"><p id="z6o3e26_26">a setter method, with the name calculated by prepending the <code class="code" id="z6o3e26_27">set</code> prefix (only for <code class="code" id="z6o3e26_28">var</code> properties)</p></li><li class="list__item" id="z6o3e26_23"><p id="z6o3e26_29">a private field, with the same name as the property name (only for properties with backing fields)</p></li></ul><p id="z6o3e26_18">For example, <code class="code" id="z6o3e26_30">var firstName: String</code> compiles to the following Java declarations:</p><div class="code-block" data-lang="java">
+private String firstName;
+
+public String getFirstName() {
+    return firstName;
+}
+
+public void setFirstName(String firstName) {
+    this.firstName = firstName;
+}
+</div><p id="z6o3e26_20">If the name of the property starts with <code class="code" id="z6o3e26_31">is</code>, a different name mapping rule is used: the name of the getter will be the same as the property name, and the name of the setter will be obtained by replacing <code class="code" id="z6o3e26_32">is</code> with <code class="code" id="z6o3e26_33">set</code>. For example, for a property <code class="code" id="z6o3e26_34">isOpen</code>, the getter will be called <code class="code" id="z6o3e26_35">isOpen()</code> and the setter will be called <code class="code" id="z6o3e26_36">setOpen()</code>. This rule applies for properties of any type, not just <code class="code" id="z6o3e26_37">Boolean</code>.</p></section><section class="chapter"><h2 id="package-level-functions" data-toc="package-level-functions">Package-level functions</h2><p id="z6o3e26_38">All the functions and properties declared in a file <code class="code" id="z6o3e26_48">app.kt</code> inside a package <code class="code" id="z6o3e26_49">org.example</code>, including extension functions, are compiled into static methods of a Java class named <code class="code" id="z6o3e26_50">org.example.AppKt</code>.</p><div class="code-block" data-lang="kotlin">
+// app.kt
+package org.example
+
+class Util
+
+fun getTime() { /*...*/ }
+
+</div><div class="code-block" data-lang="java">
+// Java
+new org.example.Util();
+org.example.AppKt.getTime();
+</div><p id="z6o3e26_41">To set a custom name to the generated Java class, use the <code class="code" id="z6o3e26_51">@JvmName</code> annotation:</p><div class="code-block" data-lang="kotlin">
+@file:JvmName(&quot;DemoUtils&quot;)
+
+package org.example
+
+class Util
+
+fun getTime() { /*...*/ }
+
+</div><div class="code-block" data-lang="java">
+// Java
+new org.example.Util();
+org.example.DemoUtils.getTime();
+</div><p id="z6o3e26_44">Having multiple files with the same generated Java class name (the same package and the same name or the same <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-name/index.html" id="z6o3e26_52" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_54">@JvmName</code></a> annotation) is normally an error. However, the compiler can generate a single Java facade class which has the specified name and contains all the declarations from all the files which have that name. To enable the generation of such a facade, use the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-multifile-class/index.html" id="z6o3e26_53" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_55">@JvmMultifileClass</code></a> annotation in all such files.</p><div class="code-block" data-lang="kotlin">
+// oldutils.kt
+@file:JvmName(&quot;Utils&quot;)
+@file:JvmMultifileClass
+
+package org.example
+
+fun getTime() { /*...*/ }
+</div><div class="code-block" data-lang="kotlin">
+// newutils.kt
+@file:JvmName(&quot;Utils&quot;)
+@file:JvmMultifileClass
+
+package org.example
+
+fun getDate() { /*...*/ }
+</div><div class="code-block" data-lang="java">
+// Java
+org.example.Utils.getTime();
+org.example.Utils.getDate();
+</div></section><section class="chapter"><h2 id="instance-fields" data-toc="instance-fields">Instance fields</h2><p id="z6o3e26_56">If you need to expose a Kotlin property as a field in Java, annotate it with the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-field/index.html" id="z6o3e26_61" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_63">@JvmField</code></a> annotation. The field will have the same visibility as the underlying property. You can annotate a property with <code class="code" id="z6o3e26_62">@JvmField</code> if it:</p><ul class="list _bullet" id="z6o3e26_57"><li class="list__item" id="z6o3e26_64"><p id="z6o3e26_68">has a backing field</p></li><li class="list__item" id="z6o3e26_65"><p id="z6o3e26_69">is not private</p></li><li class="list__item" id="z6o3e26_66"><p id="z6o3e26_70">does not have <code class="code" id="z6o3e26_71">open</code>, <code class="code" id="z6o3e26_72">override</code> or <code class="code" id="z6o3e26_73">const</code> modifiers</p></li><li class="list__item" id="z6o3e26_67"><p id="z6o3e26_74">is not a delegated property</p></li></ul><div class="code-block" data-lang="kotlin">
+class User(id: String) {
+    @JvmField val ID = id
+}
+</div><div class="code-block" data-lang="java">
+
+// Java
+class JavaClient {
+    public String getID(User user) {
+        return user.ID;
+    }
+}
+</div><p id="z6o3e26_60"><a href="properties.html#late-initialized-properties-and-variables" id="z6o3e26_75" data-tooltip="Normally, properties declared as having a non-nullable type must be initialized in the constructor. However, it is often the case that doing so is not convenient. For example, properties can be initialized through dependency injection, or in the setup method of a unit test. In these…">Late-Initialized</a> properties are also exposed as fields. The visibility of the field will be the same as the visibility of <code class="code" id="z6o3e26_76">lateinit</code> property setter.</p></section><section class="chapter"><h2 id="static-fields" data-toc="static-fields">Static fields</h2><p id="z6o3e26_77">Kotlin properties declared in a named object or a companion object will have static backing fields either in that named object or in the class containing the companion object.</p><p id="z6o3e26_78">Usually these fields are private but they can be exposed in one of the following ways:</p><ul class="list _bullet" id="z6o3e26_79"><li class="list__item" id="z6o3e26_90"><p id="z6o3e26_93"><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-field/index.html" id="z6o3e26_94" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_95">@JvmField</code></a> annotation</p></li><li class="list__item" id="z6o3e26_91"><p id="z6o3e26_96"><code class="code" id="z6o3e26_97">lateinit</code> modifier</p></li><li class="list__item" id="z6o3e26_92"><p id="z6o3e26_98"><code class="code" id="z6o3e26_99">const</code> modifier</p></li></ul><p id="z6o3e26_80">Annotating such a property with <code class="code" id="z6o3e26_100">@JvmField</code> makes it a static field with the same visibility as the property itself.</p><div class="code-block" data-lang="kotlin">
+class Key(val value: Int) {
+    companion object {
+        @JvmField
+        val COMPARATOR: Comparator&lt;Key&gt; = compareBy&lt;Key&gt; { it.value }
+    }
+}
+</div><div class="code-block" data-lang="java">
+// Java
+Key.COMPARATOR.compare(key1, key2);
+// public static final field in Key class
+</div><p id="z6o3e26_83">A <a href="properties.html#late-initialized-properties-and-variables" id="z6o3e26_101" data-tooltip="Normally, properties declared as having a non-nullable type must be initialized in the constructor. However, it is often the case that doing so is not convenient. For example, properties can be initialized through dependency injection, or in the setup method of a unit test. In these…">late-initialized</a> property in an object or a companion object has a static backing field with the same visibility as the property setter.</p><div class="code-block" data-lang="kotlin">
+object Singleton {
+    lateinit var provider: Provider
+}
+</div><div class="code-block" data-lang="java">
+
+// Java
+Singleton.provider = new Provider();
+// public static non-final field in Singleton class
+</div><p id="z6o3e26_86">Properties declared as <code class="code" id="z6o3e26_102">const</code> (in classes as well as at the top level) are turned into static fields in Java:</p><div class="code-block" data-lang="kotlin">
+// file example.kt
+
+object Obj {
+    const val CONST = 1
+}
+
+class C {
+    companion object {
+        const val VERSION = 9
+    }
+}
+
+const val MAX = 239
+</div><p id="z6o3e26_88">In Java:</p><div class="code-block" data-lang="java">
+
+int constant = Obj.CONST;
+int max = ExampleKt.MAX;
+int version = C.VERSION;
+</div></section><section class="chapter"><h2 id="static-methods" data-toc="static-methods">Static methods</h2><p id="z6o3e26_103">As mentioned above, Kotlin represents package-level functions as static methods. Kotlin can also generate static methods for functions defined in named objects or companion objects if you annotate those functions as <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-static/index.html" id="z6o3e26_114" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_115">@JvmStatic</code></a>. If you use this annotation, the compiler will generate both a static method in the enclosing class of the object and an instance method in the object itself. For example:</p><div class="code-block" data-lang="kotlin">
+class C {
+    companion object {
+        @JvmStatic fun callStatic() {}
+        fun callNonStatic() {}
+    }
+}
+</div><p id="z6o3e26_105">Now, <code class="code" id="z6o3e26_116">callStatic()</code> is static in Java while <code class="code" id="z6o3e26_117">callNonStatic()</code> is not:</p><div class="code-block" data-lang="java">
+
+C.callStatic(); // works fine
+C.callNonStatic(); // error: not a static method
+C.Companion.callStatic(); // instance method remains
+C.Companion.callNonStatic(); // the only way it works
+</div><p id="z6o3e26_107">Same for named objects:</p><div class="code-block" data-lang="kotlin">
+object Obj {
+    @JvmStatic fun callStatic() {}
+    fun callNonStatic() {}
+}
+</div><p id="z6o3e26_109">In Java:</p><div class="code-block" data-lang="java">
+
+Obj.callStatic(); // works fine
+Obj.callNonStatic(); // error
+Obj.INSTANCE.callNonStatic(); // works, a call through the singleton instance
+Obj.INSTANCE.callStatic(); // works too
+</div><p id="z6o3e26_111">Starting from Kotlin 1.3, <code class="code" id="z6o3e26_118">@JvmStatic</code> applies to functions defined in companion objects of interfaces as well. Such functions compile to static methods in interfaces. Note that static method in interfaces were introduced in Java 1.8, so be sure to use the corresponding targets.</p><div class="code-block" data-lang="kotlin">
+interface ChatBot {
+    companion object {
+        @JvmStatic fun greet(username: String) {
+            println(&quot;Hello, $username&quot;)
+        }
+    }
+}
+</div><p id="z6o3e26_113"><code class="code" id="z6o3e26_119">@JvmStatic</code> annotation can also be applied on a property of an object or a companion object making its getter and setter methods static members in that object or the class containing the companion object.</p></section><section class="chapter"><h2 id="default-methods-in-interfaces" data-toc="default-methods-in-interfaces">Default methods in interfaces</h2><aside class="prompt" data-type="note" data-title="" id="z6o3e26_120"><p id="z6o3e26_131">Default methods are available only for targets JVM 1.8 and above.</p></aside><p id="z6o3e26_121">Starting from JDK 1.8, interfaces in Java can contain <a href="https://docs.oracle.com/javase/tutorial/java/IandI/defaultmethods.html" id="z6o3e26_132" data-external="true" rel="noopener noreferrer" target="_blank">default methods</a>. To make all non-abstract members of Kotlin interfaces default for the Java classes implementing them, compile the Kotlin code with the <code class="code" id="z6o3e26_133">-Xjvm-default=all</code> compiler option.</p><p id="z6o3e26_122">Here is an example of a Kotlin interface with a default method:</p><div class="code-block" data-lang="kotlin">
+// compile with -Xjvm-default=all
+
+interface Robot {
+    fun move() { println(&quot;~walking~&quot;) }  // will be default in the Java interface
+    fun speak(): Unit
+}
+</div><p id="z6o3e26_124">The default implementation is available for Java classes implementing the interface.</p><div class="code-block" data-lang="java">
+//Java implementation
+public class C3PO implements Robot {
+    // move() implementation from Robot is available implicitly
+    @Override
+    public void speak() {
+        System.out.println(&quot;I beg your pardon, sir&quot;);
+    }
+}
+</div><div class="code-block" data-lang="java">
+C3PO c3po = new C3PO();
+c3po.move(); // default implementation from the Robot interface
+c3po.speak();
+</div><p id="z6o3e26_127">Implementations of the interface can override default methods.</p><div class="code-block" data-lang="java">
+//Java
+public class BB8 implements Robot {
+    //own implementation of the default method
+    @Override
+    public void move() {
+        System.out.println(&quot;~rolling~&quot;);
+    }
+
+    @Override
+    public void speak() {
+        System.out.println(&quot;Beep-beep&quot;);
+    }
+}
+</div><aside class="prompt" data-type="note" data-title="" id="z6o3e26_129"><p id="z6o3e26_134">Prior to Kotlin 1.4, to generate default methods, you could use the <code class="code" id="z6o3e26_135">@JvmDefault</code> annotation on these methods. Compiling with <code class="code" id="z6o3e26_136">-Xjvm-default=all</code> in 1.4+ generally works as if you annotated all non-abstract methods of interfaces with <code class="code" id="z6o3e26_137">@JvmDefault</code>and compiled with <code class="code" id="z6o3e26_138">-Xjvm-default=enable</code>. However, there are cases when their behavior differs. Detailed information about the changes in default methods generation in Kotlin 1.4 is provided in <a href="https://blog.jetbrains.com/kotlin/2020/07/kotlin-1-4-m3-generating-default-methods-in-interfaces/" id="z6o3e26_139" data-external="true" rel="noopener noreferrer" target="_blank">this post</a> on the Kotlin blog.</p></aside><section class="chapter"><h3 id="compatibility-modes-for-default-methods" data-toc="compatibility-modes-for-default-methods">Compatibility modes for default methods</h3><p id="z6o3e26_140">If there are clients that use your Kotlin interfaces compiled without the <code class="code" id="z6o3e26_146">-Xjvm-default=all</code> option, then they may be binary-incompatible with the code compiled with this option. To avoid breaking the compatibility with such clients, use the <code class="code" id="z6o3e26_147">-Xjvm-default=all</code> mode and mark interfaces with the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-default-with-compatibility/" id="z6o3e26_148" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_149">@JvmDefaultWithCompatibility</code></a> annotation. This allows you to add this annotation to all interfaces in the public API once, and you won't need to use any annotations for new non-public code.</p><aside class="prompt" data-type="note" data-title="" id="z6o3e26_141"><p id="z6o3e26_150">Starting from Kotlin 1.6.20, you can compile modules in the default mode (the <code class="code" id="z6o3e26_151">-Xjvm-default=disable</code> compiler option) against modules compiled with the <code class="code" id="z6o3e26_152">-Xjvm-default=all</code> or <code class="code" id="z6o3e26_153">-Xjvm-default=all-compatibility</code> modes.</p></aside><p id="z6o3e26_142">Learn more about compatibility modes:</p><section class="chapter"><div class="collapse"><div class="collapse__title"><h4 id="disable" data-toc="disable">disable</h4></div><div class="collapse__content"><p id="z6o3e26_154">Default behavior. Do not generate JVM default methods and prohibit <code class="code" id="z6o3e26_155">@JvmDefault</code> annotation usage.</p></div></div></section><section class="chapter"><div class="collapse"><div class="collapse__title"><h4 id="all" data-toc="all">all</h4></div><div class="collapse__content"><p id="z6o3e26_156">Generate JVM default methods for all interface declarations with bodies in the module. Do not generate <a href="https://blog.jetbrains.com/kotlin/2020/07/kotlin-1-4-m3-generating-default-methods-in-interfaces/" id="z6o3e26_160" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_162">DefaultImpls</code></a> stubs for interface declarations with bodies, which are generated by default in the <code class="code" id="z6o3e26_161">disable</code> mode.</p><p id="z6o3e26_157">If interface inherits a method with body from an interface compiled in the <code class="code" id="z6o3e26_163">disable</code> mode and doesn't override it, then a <code class="code" id="z6o3e26_164">DefaultImpls</code> stub will be generated for it.</p><p id="z6o3e26_158"><span class="control" id="z6o3e26_165">Breaks binary compatibility</span> if some client code relies on the presence of <code class="code" id="z6o3e26_166">DefaultImpls</code> classes.</p><aside class="prompt" data-type="note" data-title="" id="z6o3e26_159"><p id="z6o3e26_167">If interface delegation is used, all interface methods are delegated. The only exception are methods annotated with the deprecated <code class="code" id="z6o3e26_168">@JvmDefault</code> annotation.</p></aside></div></div></section><section class="chapter"><div class="collapse"><div class="collapse__title"><h4 id="all-compatibility" data-toc="all-compatibility">all-compatibility</h4></div><div class="collapse__content"><p id="z6o3e26_169">In addition to the <code class="code" id="z6o3e26_173">all</code> mode, generate compatibility stubs in the <a href="https://blog.jetbrains.com/kotlin/2020/07/kotlin-1-4-m3-generating-default-methods-in-interfaces/" id="z6o3e26_174" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_177">DefaultImpls</code></a> classes. Compatibility stubs could be useful for library and runtime authors to keep backward binary compatibility for existing clients compiled against previous library versions. <code class="code" id="z6o3e26_175">all</code> and <code class="code" id="z6o3e26_176">all-compatibility</code> modes are changing the library ABI surface that clients will use after the recompilation of the library. In that sense, clients might be incompatible with previous library versions. This usually means that you need a proper library versioning, for example, major version increase in SemVer.</p><p id="z6o3e26_170">The compiler generates all the members of <code class="code" id="z6o3e26_178">DefaultImpls</code> with the <code class="code" id="z6o3e26_179">@Deprecated</code> annotation: you shouldn't use these members in Java code, because the compiler generates them only for compatibility purposes.</p><p id="z6o3e26_171">In case of inheritance from a Kotlin interface compiled in <code class="code" id="z6o3e26_180">all</code> or <code class="code" id="z6o3e26_181">all-compatibility</code> modes, <code class="code" id="z6o3e26_182">DefaultImpls</code> compatibility stubs will invoke the default method of the interface with standard JVM runtime resolution semantics.</p><p id="z6o3e26_172">Perform additional compatibility checks for classes inheriting generic interfaces where in some cases additional implicit method with specialized signatures was generated in the <code class="code" id="z6o3e26_183">disable</code> mode: unlike in the <code class="code" id="z6o3e26_184">disable</code> mode, the compiler will report an error if you don't override such method explicitly and don't annotate the class with <code class="code" id="z6o3e26_185">@JvmDefaultWithoutCompatibility</code> (see <a href="https://youtrack.jetbrains.com/issue/KT-39603" id="z6o3e26_186" data-external="true" rel="noopener noreferrer" target="_blank">this YouTrack issue</a> for more details).</p></div></div></section></section></section><section class="chapter"><h2 id="visibility" data-toc="visibility">Visibility</h2><p id="z6o3e26_187">The Kotlin visibility modifiers map to Java in the following way:</p><ul class="list _bullet" id="z6o3e26_188"><li class="list__item" id="z6o3e26_189"><p id="z6o3e26_194"><code class="code" id="z6o3e26_195">private</code> members are compiled to <code class="code" id="z6o3e26_196">private</code> members</p></li><li class="list__item" id="z6o3e26_190"><p id="z6o3e26_197"><code class="code" id="z6o3e26_198">private</code> top-level declarations are compiled to <code class="code" id="z6o3e26_199">private</code> top-level declarations. Package-private accessors are also included, if accessed from within a class.</p></li><li class="list__item" id="z6o3e26_191"><p id="z6o3e26_200"><code class="code" id="z6o3e26_201">protected</code> remains <code class="code" id="z6o3e26_202">protected</code> (note that Java allows accessing protected members from other classes in the same package and Kotlin doesn't, so Java classes will have broader access to the code)</p></li><li class="list__item" id="z6o3e26_192"><p id="z6o3e26_203"><code class="code" id="z6o3e26_204">internal</code> declarations become <code class="code" id="z6o3e26_205">public</code> in Java. Members of <code class="code" id="z6o3e26_206">internal</code> classes go through name mangling, to make it harder to accidentally use them from Java and to allow overloading for members with the same signature that don't see each other according to Kotlin rules</p></li><li class="list__item" id="z6o3e26_193"><p id="z6o3e26_207"><code class="code" id="z6o3e26_208">public</code> remains <code class="code" id="z6o3e26_209">public</code></p></li></ul></section><section class="chapter"><h2 id="kclass" data-toc="kclass">KClass</h2><p id="z6o3e26_210">Sometimes you need to call a Kotlin method with a parameter of type <code class="code" id="z6o3e26_212">KClass</code>. There is no automatic conversion from <code class="code" id="z6o3e26_213">Class</code> to <code class="code" id="z6o3e26_214">KClass</code>, so you have to do it manually by invoking the equivalent of the <code class="code" id="z6o3e26_215">Class&lt;T&gt;.kotlin</code> extension property:</p><div class="code-block" data-lang="kotlin">
+kotlin.jvm.JvmClassMappingKt.getKotlinClass(MainView.class)
+</div></section><section class="chapter"><h2 id="handling-signature-clashes-with-jvmname" data-toc="handling-signature-clashes-with-jvmname">Handling signature clashes with @JvmName</h2><p id="z6o3e26_216">Sometimes we have a named function in Kotlin, for which we need a different JVM name in the bytecode. The most prominent example happens due to <span class="emphasis" id="z6o3e26_225">type erasure</span>:</p><div class="code-block" data-lang="kotlin">
+fun List&lt;String&gt;.filterValid(): List&lt;String&gt;
+fun List&lt;Int&gt;.filterValid(): List&lt;Int&gt;
+</div><p id="z6o3e26_218">These two functions can not be defined side-by-side, because their JVM signatures are the same: <code class="code" id="z6o3e26_226">filterValid(Ljava/util/List;)Ljava/util/List;</code>. If we really want them to have the same name in Kotlin, we can annotate one (or both) of them with <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-name/index.html" id="z6o3e26_227" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_228">@JvmName</code></a> and specify a different name as an argument:</p><div class="code-block" data-lang="kotlin">
+fun List&lt;String&gt;.filterValid(): List&lt;String&gt;
+
+@JvmName(&quot;filterValidInt&quot;)
+fun List&lt;Int&gt;.filterValid(): List&lt;Int&gt;
+</div><p id="z6o3e26_220">From Kotlin they will be accessible by the same name <code class="code" id="z6o3e26_229">filterValid</code>, but from Java it will be <code class="code" id="z6o3e26_230">filterValid</code> and <code class="code" id="z6o3e26_231">filterValidInt</code>.</p><p id="z6o3e26_221">The same trick applies when we need to have a property <code class="code" id="z6o3e26_232">x</code> alongside with a function <code class="code" id="z6o3e26_233">getX()</code>:</p><div class="code-block" data-lang="kotlin">
+val x: Int
+    @JvmName(&quot;getX_prop&quot;)
+    get() = 15
+
+fun getX() = 10
+</div><p id="z6o3e26_223">To change the names of generated accessor methods for properties without explicitly implemented getters and setters, you can use <code class="code" id="z6o3e26_234">@get:JvmName</code> and <code class="code" id="z6o3e26_235">@set:JvmName</code>:</p><div class="code-block" data-lang="kotlin">
+@get:JvmName(&quot;x&quot;)
+@set:JvmName(&quot;changeX&quot;)
+var x: Int = 23
+</div></section><section class="chapter"><h2 id="overloads-generation" data-toc="overloads-generation">Overloads generation</h2><p id="z6o3e26_236">Normally, if you write a Kotlin function with default parameter values, it will be visible in Java only as a full signature, with all parameters present. If you wish to expose multiple overloads to Java callers, you can use the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.jvm/-jvm-overloads/index.html" id="z6o3e26_242" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_243">@JvmOverloads</code></a> annotation.</p><p id="z6o3e26_237">The annotation also works for constructors, static methods, and so on. It can't be used on abstract methods, including methods defined in interfaces.</p><div class="code-block" data-lang="kotlin">
+class Circle @JvmOverloads constructor(centerX: Int, centerY: Int, radius: Double = 1.0) {
+    @JvmOverloads fun draw(label: String, lineWidth: Int = 1, color: String = &quot;red&quot;) { /*...*/ }
+}
+</div><p id="z6o3e26_239">For every parameter with a default value, this will generate one additional overload, which has this parameter and all parameters to the right of it in the parameter list removed. In this example, the following will be generated:</p><div class="code-block" data-lang="java">
+// Constructors:
+Circle(int centerX, int centerY, double radius)
+Circle(int centerX, int centerY)
+
+// Methods
+void draw(String label, int lineWidth, String color) { }
+void draw(String label, int lineWidth) { }
+void draw(String label) { }
+</div><p id="z6o3e26_241">Note that, as described in <a href="classes.html#secondary-constructors" id="z6o3e26_244" data-tooltip="A class can also declare secondary constructors, which are prefixed with constructor:">Secondary constructors</a>, if a class has default values for all constructor parameters, a public constructor with no arguments will be generated for it. This works even if the <code class="code" id="z6o3e26_245">@JvmOverloads</code> annotation is not specified.</p></section><section class="chapter"><h2 id="checked-exceptions" data-toc="checked-exceptions">Checked exceptions</h2><p id="z6o3e26_246">Kotlin does not have checked exceptions. So, normally the Java signatures of Kotlin functions do not declare exceptions thrown. Thus, if you have a function in Kotlin like this:</p><div class="code-block" data-lang="kotlin">
+// example.kt
+package demo
+
+fun writeToFile() {
+    /*...*/
+    throw IOException()
+}
+</div><p id="z6o3e26_248">And you want to call it from Java and catch the exception:</p><div class="code-block" data-lang="java">
+
+// Java
+try {
+    demo.Example.writeToFile();
+} catch (IOException e) { 
+    // error: writeToFile() does not declare IOException in the throws list
+    // ...
+}
+</div><p id="z6o3e26_250">You get an error message from the Java compiler, because <code class="code" id="z6o3e26_252">writeToFile()</code> does not declare <code class="code" id="z6o3e26_253">IOException</code>. To work around this problem, use the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-throws/index.html" id="z6o3e26_254" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="z6o3e26_255">@Throws</code></a> annotation in Kotlin:</p><div class="code-block" data-lang="kotlin">
+@Throws(IOException::class)
+fun writeToFile() {
+    /*...*/
+    throw IOException()
+}
+</div></section><section class="chapter"><h2 id="null-safety" data-toc="null-safety">Null-safety</h2><p id="z6o3e26_256">When calling Kotlin functions from Java, nobody prevents us from passing <code class="code" id="z6o3e26_257">null</code> as a non-nullable parameter. That's why Kotlin generates runtime checks for all public functions that expect non-nulls. This way we get a <code class="code" id="z6o3e26_258">NullPointerException</code> in the Java code immediately.</p></section><section class="chapter"><h2 id="variant-generics" data-toc="variant-generics">Variant generics</h2><p id="z6o3e26_259">When Kotlin classes make use of <a href="generics.html#declaration-site-variance" id="z6o3e26_275" data-tooltip="Let's suppose that there is a generic interface Source&lt;T&gt; that does not have any methods that take T as a parameter, only methods that return T:">declaration-site variance</a>, there are two options of how their usages are seen from the Java code. For example, imagine you have the following class and two functions that use it:</p><div class="code-block" data-lang="kotlin">
+class Box&lt;out T&gt;(val value: T)
+
+interface Base
+class Derived : Base
+
+fun boxDerived(value: Derived): Box&lt;Derived&gt; = Box(value)
+fun unboxBase(box: Box&lt;Base&gt;): Base = box.value
+</div><p id="z6o3e26_261">A naive way of translating these functions into Java would be this:</p><div class="code-block" data-lang="java">
+Box&lt;Derived&gt; boxDerived(Derived value) { ... }
+Base unboxBase(Box&lt;Base&gt; box) { ... }
+</div><p id="z6o3e26_263">The problem is that in Kotlin you can write <code class="code" id="z6o3e26_276">unboxBase(boxDerived(Derived()))</code> but in Java that would be impossible because in Java the class <code class="code" id="z6o3e26_277">Box</code> is <span class="emphasis" id="z6o3e26_278">invariant</span> in its parameter <code class="code" id="z6o3e26_279">T</code>, and thus <code class="code" id="z6o3e26_280">Box&lt;Derived&gt;</code> is not a subtype of <code class="code" id="z6o3e26_281">Box&lt;Base&gt;</code>. To make this work in Java, you would have to define <code class="code" id="z6o3e26_282">unboxBase</code> as follows:</p><div class="code-block" data-lang="java">
+Base unboxBase(Box&lt;? extends Base&gt; box) { ... }  
+</div><p id="z6o3e26_265">This declaration uses Java's <span class="emphasis" id="z6o3e26_283">wildcards types</span> (<code class="code" id="z6o3e26_284">? extends Base</code>) to emulate declaration-site variance through use-site variance, because it is all Java has.</p><p id="z6o3e26_266">To make Kotlin APIs work in Java, the compiler generates <code class="code" id="z6o3e26_285">Box&lt;Super&gt;</code> as <code class="code" id="z6o3e26_286">Box&lt;? extends Super&gt;</code> for covariantly defined <code class="code" id="z6o3e26_287">Box</code> (or <code class="code" id="z6o3e26_288">Foo&lt;? super Bar&gt;</code> for contravariantly defined <code class="code" id="z6o3e26_289">Foo</code>) when it appears <span class="emphasis" id="z6o3e26_290">as a parameter</span>. When it's a return value, wildcards are not generated, because otherwise Java clients will have to deal with them (and it's against the common Java coding style). Therefore, the functions from our example are actually translated as follows:</p><div class="code-block" data-lang="java">
+
+// return type - no wildcards
+Box&lt;Derived&gt; boxDerived(Derived value) { ... }
+ 
+// parameter - wildcards 
+Base unboxBase(Box&lt;? extends Base&gt; box) { ... }
+</div><aside class="prompt" data-type="note" data-title="" id="z6o3e26_268"><p id="z6o3e26_291">When the argument type is final, there's usually no point in generating the wildcard, so <code class="code" id="z6o3e26_292">Box&lt;String&gt;</code> is always <code class="code" id="z6o3e26_293">Box&lt;String&gt;</code>, no matter what position it takes.</p></aside><p id="z6o3e26_269">If you need wildcards where they are not generated by default, use the <code class="code" id="z6o3e26_294">@JvmWildcard</code> annotation:</p><div class="code-block" data-lang="kotlin">
+fun boxDerived(value: Derived): Box&lt;@JvmWildcard Derived&gt; = Box(value)
+// is translated to 
+// Box&lt;? extends Derived&gt; boxDerived(Derived value) { ... }
+</div><p id="z6o3e26_271">In the opposite case, if you don't need wildcards where they are generated, use <code class="code" id="z6o3e26_295">@JvmSuppressWildcards</code>:</p><div class="code-block" data-lang="kotlin">
+fun unboxBase(box: Box&lt;@JvmSuppressWildcards Base&gt;): Base = box.value
+// is translated to 
+// Base unboxBase(Box&lt;Base&gt; box) { ... }
+</div><aside class="prompt" data-type="note" data-title="" id="z6o3e26_273"><p id="z6o3e26_296"><code class="code" id="z6o3e26_297">@JvmSuppressWildcards</code> can be used not only on individual type arguments, but on entire declarations, such as functions or classes, causing all wildcards inside them to be suppressed.</p></aside><section class="chapter"><h3 id="translation-of-type-nothing" data-toc="translation-of-type-nothing">Translation of type Nothing</h3><p id="z6o3e26_298">The type <a href="exceptions.html#the-nothing-type" id="z6o3e26_300" data-tooltip="In Kotlin, every expression has a type. The type of the expression throw IllegalArgumentException() is Nothing, a built-in type that is a subtype of all other types, also known as the bottom type. This means Nothing can be used as a return type or generic type where any other type…"><code class="code" id="z6o3e26_305">Nothing</code></a> is special, because it has no natural counterpart in Java. Indeed, every Java reference type, including <code class="code" id="z6o3e26_301">java.lang.Void</code>, accepts <code class="code" id="z6o3e26_302">null</code> as a value, and <code class="code" id="z6o3e26_303">Nothing</code> doesn't accept even that. So, this type cannot be accurately represented in the Java world. This is why Kotlin generates a raw type where an argument of type <code class="code" id="z6o3e26_304">Nothing</code> is used:</p><div class="code-block" data-lang="kotlin">
+fun emptyList(): List&lt;Nothing&gt; = listOf()
+// is translated to
+// List emptyList() { ... }
+</div></section></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="java-interop.html" class="navigation-links__prev">Calling Java from Kotlin</a><a href="jvm-get-started-spring-boot.html" class="navigation-links__next">Get started with Spring Boot and Kotlin</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

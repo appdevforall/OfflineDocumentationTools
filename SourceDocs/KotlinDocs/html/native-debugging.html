@@ -1,0 +1,156 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:08.382802574"><title>Debugging Kotlin/Native | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"produce-binaries-with-debug-info-with-kotlin-native-compiler","level":0,"title":"Produce binaries with debug info with Kotlin/Native compiler","anchor":"#produce-binaries-with-debug-info-with-kotlin-native-compiler"},{"id":"breakpoints","level":0,"title":"Breakpoints","anchor":"#breakpoints"},{"id":"lldb","level":1,"title":"lldb","anchor":"#lldb"},{"id":"gdb","level":1,"title":"gdb","anchor":"#gdb"},{"id":"stepping","level":0,"title":"Stepping","anchor":"#stepping"},{"id":"variable-inspection","level":0,"title":"Variable inspection","anchor":"#variable-inspection"},{"id":"known-issues","level":0,"title":"Known issues","anchor":"#known-issues"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Debugging Kotlin/Native | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/native-debugging.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Debugging Kotlin/Native | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/native-debugging.html#webpage",
+    "url": "writerside-documentation/native-debugging.html",
+    "name": "Debugging Kotlin/Native | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="native-debugging" data-main-title="Debugging Kotlin/Native" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Platforms///Native"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="native-debugging" id="native-debugging.md">Debugging Kotlin/Native</h1><p id="-1cnfxu_2">Currently, the Kotlin/Native compiler produces debug info compatible with the DWARF 2 specification, so modern debugger tools can perform the following operations:</p><ul class="list _bullet" id="-1cnfxu_3"><li class="list__item" id="-1cnfxu_10"><p id="-1cnfxu_14">breakpoints</p></li><li class="list__item" id="-1cnfxu_11"><p id="-1cnfxu_15">stepping</p></li><li class="list__item" id="-1cnfxu_12"><p id="-1cnfxu_16">inspection of type information</p></li><li class="list__item" id="-1cnfxu_13"><p id="-1cnfxu_17">variable inspection</p></li></ul><aside class="prompt" data-type="note" data-title="" id="-1cnfxu_4"><p id="-1cnfxu_18">Supporting the DWARF 2 specification means that the debugger tool recognizes Kotlin as C89, because before the DWARF 5 specification, there is no identifier for the Kotlin language type in specification.</p></aside><section class="chapter"><h2 id="produce-binaries-with-debug-info-with-kotlin-native-compiler" data-toc="produce-binaries-with-debug-info-with-kotlin-native-compiler">Produce binaries with debug info with Kotlin/Native compiler</h2><p id="-1cnfxu_19">To produce binaries with the Kotlin/Native compiler, use the <code class="code" id="-1cnfxu_21">-g</code> option on the command line.</p><div class="code-block" data-lang="bash">
+0:b-debugger-fixes:minamoto@unit-703(0)# cat - &gt; hello.kt
+fun main(args: Array&lt;String&gt;) {
+  println(&quot;Hello world&quot;)
+  println(&quot;I need your clothes, your boots and your motocycle&quot;)
+}
+0:b-debugger-fixes:minamoto@unit-703(0)# dist/bin/konanc -g hello.kt -o terminator
+KtFile: hello.kt
+0:b-debugger-fixes:minamoto@unit-703(0)# lldb terminator.kexe
+(lldb) target create &quot;terminator.kexe&quot;
+Current executable set to 'terminator.kexe' (x86_64).
+(lldb) b kfun:main(kotlin.Array&lt;kotlin.String&gt;)
+Breakpoint 1: where = terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 4 at hello.kt:2, address = 0x00000001000012e4
+(lldb) r
+Process 28473 launched: '/Users/minamoto/ws/.git-trees/debugger-fixes/terminator.kexe' (x86_64)
+Process 28473 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x00000001000012e4 terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) at hello.kt:2
+   1    fun main(args: Array&lt;String&gt;) {
+-&gt; 2      println(&quot;Hello world&quot;)
+   3      println(&quot;I need your clothes, your boots and your motocycle&quot;)
+   4    }
+(lldb) n
+Hello world
+Process 28473 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step over
+    frame #0: 0x00000001000012f0 terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) at hello.kt:3
+   1    fun main(args: Array&lt;String&gt;) {
+   2      println(&quot;Hello world&quot;)
+-&gt; 3      println(&quot;I need your clothes, your boots and your motocycle&quot;)
+   4    }
+(lldb)
+</div></section><section class="chapter"><h2 id="breakpoints" data-toc="breakpoints">Breakpoints</h2><p id="-1cnfxu_22">Modern debuggers provide several ways to set a breakpoint, see below for a tool-by-tool breakdown:</p><section class="chapter"><h3 id="lldb" data-toc="lldb">lldb</h3><ul class="list _bullet" id="-1cnfxu_25"><li class="list__item" id="-1cnfxu_28"><p id="-1cnfxu_29">by name</p><div class="code-block" data-lang="bash">
+(lldb) b -n kfun:main(kotlin.Array&lt;kotlin.String&gt;)
+Breakpoint 4: where = terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 4 at hello.kt:2, address = 0x00000001000012e4
+</div></li></ul><p id="-1cnfxu_26"><span class="emphasis" id="-1cnfxu_31"><code class="code" id="-1cnfxu_32">-n</code> is optional, this flag is applied by default</span></p><ul class="list _bullet" id="-1cnfxu_27"><li class="list__item" id="-1cnfxu_33"><p id="-1cnfxu_36">by location (filename, line number)</p><div class="code-block" data-lang="bash">
+(lldb) b -f hello.kt -l 1
+Breakpoint 1: where = terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 4 at hello.kt:2, address = 0x00000001000012e4
+</div></li><li class="list__item" id="-1cnfxu_34"><p id="-1cnfxu_38">by address</p><div class="code-block" data-lang="bash">
+(lldb) b -a 0x00000001000012e4
+Breakpoint 2: address = 0x00000001000012e4
+</div></li><li class="list__item" id="-1cnfxu_35"><p id="-1cnfxu_40">by regex, you might find it useful for debugging generated artifacts, like lambda etc. (where used <code class="code" id="-1cnfxu_42">#</code> symbol in name).</p><div class="code-block" data-lang="bash">
+3: regex = 'main\(', locations = 1
+  3.1: where = terminator.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 4 at hello.kt:2, address = terminator.kexe[0x00000001000012e4], unresolved, hit count = 0
+</div></li></ul></section><section class="chapter"><h3 id="gdb" data-toc="gdb">gdb</h3><ul class="list _bullet" id="-1cnfxu_43"><li class="list__item" id="-1cnfxu_44"><p id="-1cnfxu_48">by regex</p><div class="code-block" data-lang="bash">
+(gdb) rbreak main(
+Breakpoint 1 at 0x1000109b4
+struct ktype:kotlin.Unit &amp;kfun:main(kotlin.Array&lt;kotlin.String&gt;);
+</div></li><li class="list__item" id="-1cnfxu_45"><p id="-1cnfxu_50">by name <span class="control" id="-1cnfxu_52">unusable</span>, because <code class="code" id="-1cnfxu_53">:</code> is a separator for the breakpoint by location</p><div class="code-block" data-lang="bash">
+(gdb) b kfun:main(kotlin.Array&lt;kotlin.String&gt;)
+No source file named kfun.
+Make breakpoint pending on future shared library load? (y or [n]) y
+Breakpoint 1 (kfun:main(kotlin.Array&lt;kotlin.String&gt;)) pending
+</div></li><li class="list__item" id="-1cnfxu_46"><p id="-1cnfxu_54">by location</p><div class="code-block" data-lang="bash">
+(gdb) b hello.kt:1
+Breakpoint 2 at 0x100001704: file /Users/minamoto/ws/.git-trees/hello.kt, line 1.
+</div></li><li class="list__item" id="-1cnfxu_47"><p id="-1cnfxu_56">by address</p><div class="code-block" data-lang="bash">
+(gdb) b *0x100001704
+Note: breakpoint 2 also set at pc 0x100001704.
+Breakpoint 3 at 0x100001704: file /Users/minamoto/ws/.git-trees/hello.kt, line 2.
+</div></li></ul></section></section><section class="chapter"><h2 id="stepping" data-toc="stepping">Stepping</h2><p id="-1cnfxu_58">Stepping functions works mostly the same way as for C/C++ programs.</p></section><section class="chapter"><h2 id="variable-inspection" data-toc="variable-inspection">Variable inspection</h2><p id="-1cnfxu_59">Variable inspections for <code class="code" id="-1cnfxu_63">var</code> variables works out of the box for primitive types. For non-primitive types there are custom pretty printers for lldb in <code class="code" id="-1cnfxu_64">konan_lldb.py</code>:</p><div class="code-block" data-lang="bash">
+λ cat main.kt | nl
+     1  fun main(args: Array&lt;String&gt;) {
+     2      var x = 1
+     3      var y = 2
+     4      var p = Point(x, y)
+     5      println(&quot;p = $p&quot;)
+     6  }
+       
+     7  data class Point(val x: Int, val y: Int)
+
+λ lldb ./program.kexe -o 'b main.kt:5' -o
+(lldb) target create &quot;./program.kexe&quot;
+Current executable set to './program.kexe' (x86_64).
+(lldb) b main.kt:5
+Breakpoint 1: where = program.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 289 at main.kt:5, address = 0x000000000040af11
+(lldb) r
+Process 4985 stopped
+* thread #1, name = 'program.kexe', stop reason = breakpoint 1.1
+    frame #0: program.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) at main.kt:5
+   2        var x = 1
+   3        var y = 2
+   4        var p = Point(x, y)
+-&gt; 5        println(&quot;p = $p&quot;)
+   6    }
+   7   
+   8    data class Point(val x: Int, val y: Int)
+
+Process 4985 launched: './program.kexe' (x86_64)
+(lldb) fr var
+(int) x = 1
+(int) y = 2
+(ObjHeader *) p = 0x00000000007643d8
+(lldb) command script import dist/tools/konan_lldb.py
+(lldb) fr var
+(int) x = 1
+(int) y = 2
+(ObjHeader *) p = [x: ..., y: ...]
+(lldb) p p
+(ObjHeader *) $2 = [x: ..., y: ...]
+(lldb) script lldb.frame.FindVariable(&quot;p&quot;).GetChildMemberWithName(&quot;x&quot;).Dereference().GetValue()
+'1'
+(lldb) 
+</div><p id="-1cnfxu_61">Getting representation of the object variable (var) could also be done using the built-in runtime function <code class="code" id="-1cnfxu_65">Konan_DebugPrint</code> (this approach also works for gdb, using a module of command syntax):</p><div class="code-block" data-lang="bash">
+0:b-debugger-fixes:minamoto@unit-703(0)# cat ../debugger-plugin/1.kt | nl -p
+     1  fun foo(a:String, b:Int) = a + b
+     2  fun one() = 1
+     3  fun main(arg:Array&lt;String&gt;) {
+     4    var a_variable = foo(&quot;(a_variable) one is &quot;, 1)
+     5    var b_variable = foo(&quot;(b_variable) two is &quot;, 2)
+     6    var c_variable = foo(&quot;(c_variable) two is &quot;, 3)
+     7    var d_variable = foo(&quot;(d_variable) two is &quot;, 4)
+     8    println(a_variable)
+     9    println(b_variable)
+    10    println(c_variable)
+    11    println(d_variable)
+    12  }
+0:b-debugger-fixes:minamoto@unit-703(0)# lldb ./program.kexe -o 'b -f 1.kt -l 9' -o r
+(lldb) target create &quot;./program.kexe&quot;
+Current executable set to './program.kexe' (x86_64).
+(lldb) b -f 1.kt -l 9
+Breakpoint 1: where = program.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) + 463 at 1.kt:9, address = 0x0000000100000dbf
+(lldb) r
+(a_variable) one is 1
+Process 80496 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x0000000100000dbf program.kexe`kfun:main(kotlin.Array&lt;kotlin.String&gt;) at 1.kt:9
+   6      var c_variable = foo(&quot;(c_variable) two is &quot;, 3)
+   7      var d_variable = foo(&quot;(d_variable) two is &quot;, 4)
+   8      println(a_variable)
+-&gt; 9      println(b_variable)
+   10     println(c_variable)
+   11     println(d_variable)
+   12   }
+
+Process 80496 launched: './program.kexe' (x86_64)
+(lldb) expression -- (int32_t)Konan_DebugPrint(a_variable)
+(a_variable) one is 1(int32_t) $0 = 0
+(lldb)
+
+</div></section><section class="chapter"><h2 id="known-issues" data-toc="known-issues">Known issues</h2><ul class="list _bullet" id="-1cnfxu_66"><li class="list__item" id="-1cnfxu_67"><p id="-1cnfxu_68">performance of Python bindings.</p></li></ul></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="native-migration-guide.html" class="navigation-links__prev">Migrate to the new memory manager</a><a href="native-ios-symbolication.html" class="navigation-links__next">Symbolicating iOS crash reports</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

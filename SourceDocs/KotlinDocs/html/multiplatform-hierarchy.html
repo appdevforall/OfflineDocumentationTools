@@ -1,0 +1,148 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:09.38347062"><title>Hierarchical project structure | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"default-hierarchy-template","level":0,"title":"Default hierarchy template","anchor":"#default-hierarchy-template"},{"id":"additional-configuration","level":1,"title":"Additional configuration","anchor":"#additional-configuration"},{"id":"manual-configuration","level":0,"title":"Manual configuration","anchor":"#manual-configuration"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Hierarchical project structure | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/multiplatform-hierarchy.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Hierarchical project structure | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/multiplatform-hierarchy.html#webpage",
+    "url": "writerside-documentation/multiplatform-hierarchy.html",
+    "name": "Hierarchical project structure | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="multiplatform-hierarchy" data-main-title="Hierarchical project structure" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Multiplatform development///Share code"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="multiplatform-hierarchy" id="multiplatform-hierarchy.md">Hierarchical project structure</h1><p id="r5xweo_2">Kotlin Multiplatform projects support hierarchical source set structures. This means you can arrange a hierarchy of intermediate source sets for sharing the common code among some, but not all, <a href="multiplatform-dsl-reference.html#targets" id="r5xweo_8" data-tooltip="A target is a part of the build responsible for compiling, testing, and packaging a piece of software aimed at one of the supported platforms. Kotlin provides targets for each platform, so you can instruct Kotlin to compile code for that specific target. Learn more about setting up…">supported targets</a>. Using intermediate source sets helps you to:</p><ul class="list _bullet" id="r5xweo_3"><li class="list__item" id="r5xweo_9"><p id="r5xweo_12">Provide a specific API for some targets. For example, a library can add native-specific APIs in an intermediate source set for Kotlin/Native targets but not for Kotlin/JVM ones.</p></li><li class="list__item" id="r5xweo_10"><p id="r5xweo_13">Consume a specific API for some targets. For example, you can benefit from a rich API that the Kotlin Multiplatform library provides for some targets that form an intermediate source set.</p></li><li class="list__item" id="r5xweo_11"><p id="r5xweo_14">Use platform-dependent libraries in your project. For example, you can access iOS-specific dependencies from the intermediate iOS source set.</p></li></ul><p id="r5xweo_4">The Kotlin toolchain ensures that each source set has access only to the API that is available for all targets to which that source set compiles. This prevents cases like using a Windows-specific API and then compiling it to macOS, resulting in linkage errors or undefined behavior at runtime.</p><p id="r5xweo_5">The recommended way to set up the source set hierarchy is to use the <a href="#default-hierarchy-template" id="r5xweo_15" data-tooltip="The Kotlin Gradle plugin has a built-in default hierarchy template. It contains predefined intermediate source sets for some popular use cases. The plugin sets up those source sets automatically based on the targets specified in your project.">default hierarchy template</a>. The template covers the most popular cases. If you have a more advanced project, you can <a href="#manual-configuration" id="r5xweo_16" data-tooltip="You can manually introduce an intermediate source in the source set structure. It will hold the shared code for several targets.">configure it manually</a>. This is a more low-level approach: it's more flexible but requires more effort and knowledge.</p><section class="chapter"><h2 id="default-hierarchy-template" data-toc="default-hierarchy-template">Default hierarchy template</h2><p id="r5xweo_17">The Kotlin Gradle plugin has a built-in default <a href="#see-the-full-hierarchy-template" id="r5xweo_29" data-tooltip="When you declare the targets to which your project compiles, the plugin picks the shared source sets based on the specified targets from the template and creates them in your project.">hierarchy template</a>. It contains predefined intermediate source sets for some popular use cases. The plugin sets up those source sets automatically based on the targets specified in your project.</p><p id="r5xweo_18">Consider the following <code class="code" id="r5xweo_30">build.gradle(.kts)</code> file in the project's module that contains shared code:</p><div class="tabs" id="r5xweo_19" data-group="build-script" data-anchors="[r5xweo_31,r5xweo_32]"><div class="tabs__content" data-gtm="tab" id="r5xweo_31" data-sync-tabs="kotlin" data-title="Kotlin"><div class="code-block" data-lang="kotlin" data-title="Kotlin">
+kotlin {
+    androidTarget()
+    iosArm64()
+    iosSimulatorArm64()
+}
+</div></div><div class="tabs__content" data-gtm="tab" id="r5xweo_32" data-sync-tabs="groovy" data-title="Groovy"><div class="code-block" data-lang="groovy" data-title="Groovy">
+kotlin {
+    androidTarget()
+    iosArm64()
+    iosSimulatorArm64()
+}
+</div></div></div><p id="r5xweo_20">When you declare the targets <code class="code" id="r5xweo_35">androidTarget</code>, <code class="code" id="r5xweo_36">iosArm64</code>, and <code class="code" id="r5xweo_37">iosSimulatorArm64</code> in your code, the Kotlin Gradle plugin finds suitable shared source sets from the template and creates them for you. The resulting hierarchy looks like this:</p><figure id="r5xweo_21"><img alt="An example of using the default hierarchy template" src="images/default-hierarchy-example.svg" title="An example of using the default hierarchy template" width="706" height="454"></figure><p id="r5xweo_22">Colored source sets are actually created and present in the project, while gray ones from the default template are ignored. The Kotlin Gradle plugin hasn't created the <code class="code" id="r5xweo_38">watchos</code> source set, for example, because there are no watchOS targets in the project.</p><p id="r5xweo_23">If you add a watchOS target, like <code class="code" id="r5xweo_39">watchosArm64</code>, the <code class="code" id="r5xweo_40">watchos</code> source set is created, and the code from the <code class="code" id="r5xweo_41">apple</code>, <code class="code" id="r5xweo_42">native</code>, and <code class="code" id="r5xweo_43">common</code> source sets is compiled to <code class="code" id="r5xweo_44">watchosArm64</code> as well.</p><p id="r5xweo_24">The Kotlin Gradle plugin provides both type-safe and static accessors for all of the source sets from the default hierarchy template, so you can reference them without <code class="code" id="r5xweo_45">by getting</code> or <code class="code" id="r5xweo_46">by creating</code> constructs compared to the <a href="#manual-configuration" id="r5xweo_47" data-tooltip="You can manually introduce an intermediate source in the source set structure. It will hold the shared code for several targets.">manual configuration</a>.</p><p id="r5xweo_25">If you try to access the source set in the shared module's <code class="code" id="r5xweo_48">build.gradle(.kts)</code> file without declaring the corresponding target first, you'll see a warning:</p><div class="tabs" id="r5xweo_26" data-group="build-script" data-anchors="[r5xweo_49,r5xweo_50]"><div class="tabs__content" data-gtm="tab" id="r5xweo_49" data-sync-tabs="kotlin" data-title="Kotlin"><div class="code-block" data-lang="kotlin" data-title="Kotlin">
+kotlin {
+    androidTarget()
+    iosArm64()
+    iosSimulatorArm64()
+
+    sourceSets {
+        iosMain.dependencies {
+            implementation(&quot;org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1&quot;)
+        }
+        // Warning: accessing source set without declaring the target
+        linuxX64Main { }
+    }
+}
+</div></div><div class="tabs__content" data-gtm="tab" id="r5xweo_50" data-sync-tabs="groovy" data-title="Groovy"><div class="code-block" data-lang="groovy" data-title="Groovy">
+kotlin {
+    androidTarget()
+    iosArm64()
+    iosSimulatorArm64()
+
+    sourceSets {
+        iosMain {
+            dependencies {
+                implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1'
+            }
+        }
+        // Warning: accessing source set without declaring the target
+        linuxX64Main { }
+    }
+}
+</div></div></div><aside class="prompt" data-type="note" data-title="" id="r5xweo_27"><p id="r5xweo_53">In this example, the <code class="code" id="r5xweo_54">apple</code> and <code class="code" id="r5xweo_55">native</code> source sets compile only to the <code class="code" id="r5xweo_56">iosArm64</code> and <code class="code" id="r5xweo_57">iosSimulatorArm64</code> targets. Despite their names, they have access to the full iOS API. This can be counter-intuitive for source sets like <code class="code" id="r5xweo_58">native</code>, as you might expect that only APIs available on all native targets are accessible in this source set. This behavior may change in the future.</p></aside><section class="chapter"><h3 id="additional-configuration" data-toc="additional-configuration">Additional configuration</h3><p id="r5xweo_59">You might need to make adjustments to the default hierarchy template. If you have previously introduced intermediate sources <a href="#manual-configuration" id="r5xweo_67" data-tooltip="You can manually introduce an intermediate source in the source set structure. It will hold the shared code for several targets.">manually</a> with <code class="code" id="r5xweo_68">dependsOn</code> calls, it cancels the use of the default hierarchy template and leads to this warning:</p><div class="code-block" data-lang="none">
+The Default Kotlin Hierarchy Template was not applied to '&lt;project-name&gt;':
+Explicit .dependsOn() edges were configured for the following source sets:
+[&lt;... names of the source sets with manually configured dependsOn-edges...&gt;]
+
+Consider removing dependsOn-calls or disabling the default template by adding
+    'kotlin.mpp.applyDefaultHierarchyTemplate=false'
+to your gradle.properties
+
+Learn more about hierarchy templates: https://kotl.in/hierarchy-template
+</div><p id="r5xweo_61">To solve this issue, configure your project by doing one of the following:</p><ul class="list _bullet" id="r5xweo_62"><li class="list__item" id="r5xweo_69"><p id="r5xweo_72"><a href="#replacing-a-manual-configuration" id="r5xweo_73" data-tooltip="Case. All of your intermediate source sets are currently covered by the default hierarchy template.">Replace your manual configuration with the default hierarchy template</a></p></li><li class="list__item" id="r5xweo_70"><p id="r5xweo_74"><a href="#creating-additional-source-sets" id="r5xweo_75" data-tooltip="Case. You want to add source sets that the default hierarchy template doesn't provide yet, for example, one between a macOS and a JVM target.">Create additional source sets in the default hierarchy template</a></p></li><li class="list__item" id="r5xweo_71"><p id="r5xweo_76"><a href="#modifying-source-sets" id="r5xweo_77" data-tooltip="Case. You already have the source sets with the exact same names as those generated by the template, but shared among different sets of targets in your project. For example, a nativeMain source set is shared only among the desktop-specific targets: linuxX64, mingwX64, and macosX64.">Modify the source sets created by the default hierarchy template</a></p></li></ul><section class="chapter"><h4 id="replacing-a-manual-configuration" data-toc="replacing-a-manual-configuration">Replacing a manual configuration</h4><p id="r5xweo_78"><span class="control" id="r5xweo_80">Case</span>. All of your intermediate source sets are currently covered by the default hierarchy template.</p><p id="r5xweo_79"><span class="control" id="r5xweo_81">Solution</span>. In the shared module's <code class="code" id="r5xweo_82">build.gradle(.kts)</code> file, remove all manual <code class="code" id="r5xweo_83">dependsOn()</code> calls and source sets with <code class="code" id="r5xweo_84">by creating</code> constructions. To check the list of all default source sets, see the <a href="#see-the-full-hierarchy-template" id="r5xweo_85" data-tooltip="When you declare the targets to which your project compiles, the plugin picks the shared source sets based on the specified targets from the template and creates them in your project.">full hierarchy template</a>.</p></section><section class="chapter"><h4 id="creating-additional-source-sets" data-toc="creating-additional-source-sets">Creating additional source sets</h4><p id="r5xweo_86"><span class="control" id="r5xweo_89">Case</span>. You want to add source sets that the default hierarchy template doesn't provide yet, for example, one between a macOS and a JVM target.</p><p id="r5xweo_87"><span class="control" id="r5xweo_90">Solution</span>:</p><ol class="list _decimal" id="r5xweo_88" type="1"><li class="list__item" id="r5xweo_91"><p id="r5xweo_93">In the shared module's <code class="code" id="r5xweo_94">build.gradle(.kts)</code> file, reapply the template by explicitly calling <code class="code" id="r5xweo_95">applyDefaultHierarchyTemplate()</code>.</p></li><li class="list__item" id="r5xweo_92"><p id="r5xweo_96">Configure additional source sets <a href="#manual-configuration" id="r5xweo_98" data-tooltip="You can manually introduce an intermediate source in the source set structure. It will hold the shared code for several targets.">manually</a> using <code class="code" id="r5xweo_99">dependsOn()</code>:</p><div class="tabs" id="r5xweo_97" data-group="build-script" data-anchors="[r5xweo_100,r5xweo_101]"><div class="tabs__content" data-gtm="tab" id="r5xweo_100" data-sync-tabs="kotlin" data-title="Kotlin"><div class="code-block" data-lang="kotlin" data-title="Kotlin">
+kotlin {
+    jvm()
+    macosArm64()
+    iosArm64()
+    iosSimulatorArm64()
+
+    // Apply the default hierarchy again. It'll create, for example, the iosMain source set:
+    applyDefaultHierarchyTemplate()
+
+    sourceSets {
+        // Create an additional jvmAndMacos source set:
+        val jvmAndMacos by creating {
+            dependsOn(commonMain.get())
+        }
+
+        macosArm64Main.get().dependsOn(jvmAndMacos)
+        jvmMain.get().dependsOn(jvmAndMacos)
+    }
+}
+</div></div><div class="tabs__content" data-gtm="tab" id="r5xweo_101" data-sync-tabs="groovy" data-title="Groovy"><div class="code-block" data-lang="groovy" data-title="Groovy">
+kotlin {
+    jvm()
+    macosArm64()
+    iosArm64()
+    iosSimulatorArm64()
+
+    // Apply the default hierarchy again. It'll create, for example, the iosMain source set:
+    applyDefaultHierarchyTemplate()
+
+    sourceSets {
+        // Create an additional jvmAndMacos source set:
+        jvmAndMacos {
+            dependsOn(commonMain.get())
+        }
+        macosArm64Main {
+            dependsOn(jvmAndMacos.get())
+        }
+        jvmMain {
+            dependsOn(jvmAndMacos.get())
+        }
+    } 
+}
+</div></div></div></li></ol></section><section class="chapter"><h4 id="modifying-source-sets" data-toc="modifying-source-sets">Modifying source sets</h4><p id="r5xweo_104"><span class="control" id="r5xweo_109">Case</span>. You already have the source sets with the exact same names as those generated by the template, but shared among different sets of targets in your project. For example, a <code class="code" id="r5xweo_110">nativeMain</code> source set is shared only among the desktop-specific targets: <code class="code" id="r5xweo_111">linuxX64</code>, <code class="code" id="r5xweo_112">mingwX64</code>, and <code class="code" id="r5xweo_113">macosX64</code>.</p><p id="r5xweo_105"><span class="control" id="r5xweo_114">Solution</span>. There's currently no way to modify the default <code class="code" id="r5xweo_115">dependsOn</code> relations among the template's source sets. It's also important that the implementation and the meaning of source sets, for example, <code class="code" id="r5xweo_116">nativeMain</code>, are the same in all projects.</p><p id="r5xweo_106">However, you still can do one of the following:</p><ul class="list _bullet" id="r5xweo_107"><li class="list__item" id="r5xweo_117"><p id="r5xweo_119">Find different source sets for your purposes, either in the default hierarchy template or ones that have been manually created.</p></li><li class="list__item" id="r5xweo_118"><p id="r5xweo_120">Opt out of the template completely by adding <code class="code" id="r5xweo_121">kotlin.mpp.applyDefaultHierarchyTemplate=false</code> to your <code class="code" id="r5xweo_122">gradle.properties</code> file and manually configure all source sets.</p></li></ul><aside class="prompt" data-type="tip" data-title="" id="r5xweo_108"><p id="r5xweo_123">We're currently working on an API to create your own hierarchy templates. This will be useful for projects whose hierarchy configurations differ significantly from the default template.</p><p id="r5xweo_124">This API is not ready yet, but if you're eager to try it, look into the <code class="code" id="r5xweo_125">applyHierarchyTemplate {}</code> block and the declaration of <code class="code" id="r5xweo_126">KotlinHierarchyTemplate.default</code> as an example. Keep in mind that this API is still in development. It might not be tested and can change in further releases.</p></aside></section><section class="chapter"><div class="collapse"><div class="collapse__title"><h4 id="see-the-full-hierarchy-template" data-toc="see-the-full-hierarchy-template">See the full hierarchy template</h4></div><div class="collapse__content"><p id="r5xweo_127">When you declare the targets to which your project compiles, the plugin picks the shared source sets based on the specified targets from the template and creates them in your project.</p><figure id="r5xweo_128"><img alt="Default hierarchy template" src="images/full-template-hierarchy.svg" title="Default hierarchy template" width="706" height="757"></figure><aside class="prompt" data-type="tip" data-title="" id="r5xweo_129"><p id="r5xweo_130">This example only shows the production part of the project, omitting the <code class="code" id="r5xweo_131">Main</code> suffix (for example, using <code class="code" id="r5xweo_132">common</code> instead of <code class="code" id="r5xweo_133">commonMain</code>). However, everything is the same for <code class="code" id="r5xweo_134">*Test</code> sources as well.</p></aside></div></div></section></section></section><section class="chapter"><h2 id="manual-configuration" data-toc="manual-configuration">Manual configuration</h2><p id="r5xweo_135">You can manually introduce an intermediate source in the source set structure. It will hold the shared code for several targets.</p><p id="r5xweo_136">For example, here's what to do if you want to share code among native Linux, Windows, and macOS targets (<code class="code" id="r5xweo_145">linuxX64</code>, <code class="code" id="r5xweo_146">mingwX64</code>, and <code class="code" id="r5xweo_147">macosX64</code>):</p><ol class="list _decimal" id="r5xweo_137" type="1"><li class="list__item" id="r5xweo_148"><p id="r5xweo_150">In the shared module's <code class="code" id="r5xweo_151">build.gradle(.kts)</code> file, add the intermediate source set <code class="code" id="r5xweo_152">desktopMain</code>, which holds the shared logic for these targets.</p></li><li class="list__item" id="r5xweo_149"><p id="r5xweo_153">Using the <code class="code" id="r5xweo_155">dependsOn</code> relation, set up the source set hierarchy. Connect <code class="code" id="r5xweo_156">commonMain</code> with <code class="code" id="r5xweo_157">desktopMain</code> and then <code class="code" id="r5xweo_158">desktopMain</code> with each of the target source sets:</p><div class="tabs" id="r5xweo_154" data-group="build-script" data-anchors="[r5xweo_159,r5xweo_160]"><div class="tabs__content" data-gtm="tab" id="r5xweo_159" data-sync-tabs="kotlin" data-title="Kotlin"><div class="code-block" data-lang="kotlin" data-title="Kotlin">
+kotlin {
+    linuxX64()
+    mingwX64()
+    macosX64()
+
+    sourceSets {
+        val desktopMain by creating {
+            dependsOn(commonMain.get())
+        }
+
+        linuxX64Main.get().dependsOn(desktopMain)
+        mingwX64Main.get().dependsOn(desktopMain)
+        macosX64Main.get().dependsOn(desktopMain)
+    }
+}
+</div></div><div class="tabs__content" data-gtm="tab" id="r5xweo_160" data-sync-tabs="groovy" data-title="Groovy"><div class="code-block" data-lang="groovy" data-title="Groovy">
+kotlin {
+    linuxX64()
+    mingwX64()
+    macosX64()
+
+    sourceSets {
+        desktopMain {
+            dependsOn(commonMain.get())
+        }
+        linuxX64Main {
+            dependsOn(desktopMain)
+        }
+        mingwX64Main {
+            dependsOn(desktopMain)
+        }
+        macosX64Main {
+            dependsOn(desktopMain)
+        }
+    }
+}
+</div></div></div></li></ol><p id="r5xweo_138">The resulting hierarchical structure will look like this:</p><figure id="r5xweo_139"><img alt="Manually configured hierarchical structure" src="images/manual-hierarchical-structure.svg" title="Manually configured hierarchical structure" width="706" height="349"></figure><p id="r5xweo_140">You can have a shared source set for the following combinations of targets:</p><ul class="list _bullet" id="r5xweo_141"><li class="list__item" id="r5xweo_163"><p id="r5xweo_168">JVM or Android + JS + Native</p></li><li class="list__item" id="r5xweo_164"><p id="r5xweo_169">JVM or Android + Native</p></li><li class="list__item" id="r5xweo_165"><p id="r5xweo_170">JS + Native</p></li><li class="list__item" id="r5xweo_166"><p id="r5xweo_171">JVM or Android + JS</p></li><li class="list__item" id="r5xweo_167"><p id="r5xweo_172">Native</p></li></ul><p id="r5xweo_142">Kotlin doesn't currently support sharing a source set for these combinations:</p><ul class="list _bullet" id="r5xweo_143"><li class="list__item" id="r5xweo_173"><p id="r5xweo_176">Several JVM targets</p></li><li class="list__item" id="r5xweo_174"><p id="r5xweo_177">JVM + Android targets</p></li><li class="list__item" id="r5xweo_175"><p id="r5xweo_178">Several JS targets</p></li></ul><p id="r5xweo_144">If you need to access platform-specific APIs from a shared native source set, IntelliJ IDEA will help you detect common declarations that you can use in the shared native code. For other cases, use the Kotlin mechanism of <a href="multiplatform-expect-actual.html" id="r5xweo_179" data-tooltip="Expected and actual declarations allow you to access platform-specific APIs from Kotlin Multiplatform modules. You can provide platform-agnostic APIs in the common code.">expected and actual declarations</a>.</p></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="multiplatform-expect-actual.html" class="navigation-links__prev">Expected and actual declarations</a><a href="multiplatform-add-dependencies.html" class="navigation-links__next">Adding dependencies on multiplatform libraries</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

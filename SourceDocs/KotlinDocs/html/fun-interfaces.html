@@ -1,0 +1,67 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:08.504882316"><title>Functional (SAM) interfaces | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"sam-conversions","level":0,"title":"SAM conversions","anchor":"#sam-conversions"},{"id":"migration-from-an-interface-with-constructor-function-to-a-functional-interface","level":0,"title":"Migration from an interface with constructor function to a functional interface","anchor":"#migration-from-an-interface-with-constructor-function-to-a-functional-interface"},{"id":"functional-interfaces-vs-type-aliases","level":0,"title":"Functional interfaces vs. type aliases","anchor":"#functional-interfaces-vs-type-aliases"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Functional (SAM) interfaces | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/fun-interfaces.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Functional (SAM) interfaces | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/fun-interfaces.html#webpage",
+    "url": "writerside-documentation/fun-interfaces.html",
+    "name": "Functional (SAM) interfaces | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="fun-interfaces" data-main-title="Functional (SAM) interfaces" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Concepts///Classes and objects"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="fun-interfaces" id="fun-interfaces.md">Functional (SAM) interfaces</h1><p id="p635zy_2">An interface with only one abstract member function is called a <span class="emphasis" id="p635zy_8">functional interface</span>, or a <span class="emphasis" id="p635zy_9">Single Abstract Method (SAM) interface</span>. The functional interface can have several non-abstract member functions but only one abstract member function.</p><p id="p635zy_3">To declare a functional interface in Kotlin, use the <code class="code" id="p635zy_10">fun</code> modifier.</p><div class="code-block" data-lang="kotlin">
+fun interface KRunnable {
+   fun invoke()
+}
+</div><section class="chapter"><h2 id="sam-conversions" data-toc="sam-conversions">SAM conversions</h2><p id="p635zy_11">For functional interfaces, you can use SAM conversions that help make your code more concise and readable by using <a href="lambdas.html#lambda-expressions-and-anonymous-functions" id="p635zy_22" data-tooltip="Lambda expressions and anonymous functions are function literals. Function literals are functions that are not declared but are passed immediately as an expression. Consider the following example:">lambda expressions</a>.</p><p id="p635zy_12">Instead of creating a class that implements a functional interface manually, you can use a lambda expression. With a SAM conversion, Kotlin can convert any lambda expression whose signature matches the signature of the interface's single method into the code, which dynamically instantiates the interface implementation.</p><p id="p635zy_13">For example, consider the following Kotlin functional interface:</p><div class="code-block" data-lang="kotlin">
+fun interface IntPredicate {
+   fun accept(i: Int): Boolean
+}
+</div><p id="p635zy_15">If you don't use a SAM conversion, you will need to write code like this:</p><div class="code-block" data-lang="kotlin">
+// Creating an instance of a class
+val isEven = object : IntPredicate {
+   override fun accept(i: Int): Boolean {
+       return i % 2 == 0
+   }
+}
+</div><p id="p635zy_17">By leveraging Kotlin's SAM conversion, you can write the following equivalent code instead:</p><div class="code-block" data-lang="kotlin">
+// Creating an instance using lambda
+val isEven = IntPredicate { it % 2 == 0 }
+</div><p id="p635zy_19">A short lambda expression replaces all the unnecessary code.</p><div class="code-block" data-lang="kotlin" data-runnable="true" data-min-compiler-version="1.4">
+fun interface IntPredicate {
+   fun accept(i: Int): Boolean
+}
+
+val isEven = IntPredicate { it % 2 == 0 }
+
+fun main() {
+   println(&quot;Is 7 even? - ${isEven.accept(7)}&quot;)
+}
+</div><p id="p635zy_21">You can also use <a href="java-interop.html#sam-conversions" id="p635zy_23" data-tooltip="Kotlin supports SAM conversions for both Java and Kotlin interfaces. This support for Java means that Kotlin function literals can be automatically converted into implementations of Java interfaces with a single non-default method, as long as the parameter types of the interface…">SAM conversions for Java interfaces</a>.</p></section><section class="chapter"><h2 id="migration-from-an-interface-with-constructor-function-to-a-functional-interface" data-toc="migration-from-an-interface-with-constructor-function-to-a-functional-interface">Migration from an interface with constructor function to a functional interface</h2><p id="p635zy_24">Starting from 1.6.20, Kotlin supports <a href="reflection.html#callable-references" id="p635zy_32" data-tooltip="References to functions, properties, and constructors can also be called or used as instances of function types.">callable references</a> to functional interface constructors, which adds a source-compatible way to migrate from an interface with a constructor function to a functional interface. Consider the following code:</p><div class="code-block" data-lang="kotlin">
+interface Printer { 
+    fun print() 
+}
+
+fun Printer(block: () -&gt; Unit): Printer = object : Printer { override fun print() = block() }
+</div><p id="p635zy_26">With callable references to functional interface constructors enabled, this code can be replaced with just a functional interface declaration:</p><div class="code-block" data-lang="kotlin">
+fun interface Printer { 
+    fun print()
+}
+</div><p id="p635zy_28">Its constructor will be created implicitly, and any code using the <code class="code" id="p635zy_33">::Printer</code> function reference will compile. For example:</p><div class="code-block" data-lang="kotlin">
+documentsStorage.addPrinter(::Printer)
+</div><p id="p635zy_30">Preserve the binary compatibility by marking the legacy function <code class="code" id="p635zy_34">Printer</code> with the <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-deprecated/" id="p635zy_35" data-external="true" rel="noopener noreferrer" target="_blank"><code class="code" id="p635zy_37">@Deprecated</code></a> annotation with <code class="code" id="p635zy_36">DeprecationLevel.HIDDEN</code>:</p><div class="code-block" data-lang="kotlin">
+@Deprecated(message = &quot;Your message about the deprecation&quot;, level = DeprecationLevel.HIDDEN)
+fun Printer(...) {...}
+</div></section><section class="chapter"><h2 id="functional-interfaces-vs-type-aliases" data-toc="functional-interfaces-vs-type-aliases">Functional interfaces vs. type aliases</h2><p id="p635zy_38">You can also simply rewrite the above using a <a href="type-aliases.html" id="p635zy_44" data-tooltip="Type aliases provide alternative names for existing types. If the type name is too long you can introduce a different shorter name and use the new one instead.">type alias</a> for a functional type:</p><div class="code-block" data-lang="kotlin">
+typealias IntPredicate = (i: Int) -&gt; Boolean
+
+val isEven: IntPredicate = { it % 2 == 0 }
+
+fun main() {
+   println(&quot;Is 7 even? - ${isEven(7)}&quot;)
+}
+</div><p id="p635zy_40">However, functional interfaces and <a href="type-aliases.html" id="p635zy_45" data-tooltip="Type aliases provide alternative names for existing types. If the type name is too long you can introduce a different shorter name and use the new one instead.">type aliases</a> serve different purposes. Type aliases are just names for existing types &ndash; they don't create a new type, while functional interfaces do. You can provide extensions that are specific to a particular functional interface to be inapplicable for plain functions or their type aliases.</p><p id="p635zy_41">Type aliases can have only one member, while functional interfaces can have multiple non-abstract member functions and one abstract member function. Functional interfaces can also implement and extend other interfaces.</p><p id="p635zy_42">Functional interfaces are more flexible and provide more capabilities than type aliases, but they can be more costly both syntactically and at runtime because they can require conversions to a specific interface. When you choose which one to use in your code, consider your needs:</p><ul class="list _bullet" id="p635zy_43"><li class="list__item" id="p635zy_46"><p id="p635zy_48">If your API needs to accept a function (any function) with some specific parameter and return types &ndash; use a simple functional type or define a type alias to give a shorter name to the corresponding functional type.</p></li><li class="list__item" id="p635zy_47"><p id="p635zy_49">If your API accepts a more complex entity than a function &ndash; for example, it has non-trivial contracts and/or operations on it that can't be expressed in a functional type's signature &ndash; declare a separate functional interface for it.</p></li></ul></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="interfaces.html" class="navigation-links__prev">Interfaces</a><a href="visibility-modifiers.html" class="navigation-links__next">Visibility modifiers</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>

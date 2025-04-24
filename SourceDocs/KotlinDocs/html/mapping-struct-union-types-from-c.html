@@ -1,0 +1,209 @@
+<!DOCTYPE html SYSTEM "about:legacy-compat">
+<html lang="en-US" data-preset="contrast" data-primary-color="#307FFF"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta charset="UTF-8"><meta name="robots" content="noindex"><meta name="built-on" content="2025-04-18T20:47:08.762346254"><title>Mapping struct and union types from C &ndash; tutorial | Kotlin</title><script type="application/json" id="virtual-toc-data">[{"id":"mapping-struct-and-union-c-types","level":0,"title":"Mapping struct and union C types","anchor":"#mapping-struct-and-union-c-types"},{"id":"inspect-generated-kotlin-apis-for-a-c-library","level":0,"title":"Inspect generated Kotlin APIs for a C library","anchor":"#inspect-generated-kotlin-apis-for-a-c-library"},{"id":"use-struct-and-union-types-from-kotlin","level":0,"title":"Use struct and union types from Kotlin","anchor":"#use-struct-and-union-types-from-kotlin"},{"id":"create-a-cvalue-t","level":1,"title":"Create a CValue\u003cT\u003e","anchor":"#create-a-cvalue-t"},{"id":"create-struct-and-union-as-cvaluesref-t","level":1,"title":"Create struct and union as CValuesRef\u003cT\u003e","anchor":"#create-struct-and-union-as-cvaluesref-t"},{"id":"conversion-between-cvalue-t-and-cvaluesref-t","level":1,"title":"Conversion between CValue\u003cT\u003e and CValuesRef\u003cT\u003e","anchor":"#conversion-between-cvalue-t-and-cvaluesref-t"},{"id":"update-kotlin-code","level":0,"title":"Update Kotlin code","anchor":"#update-kotlin-code"},{"id":"next-step","level":0,"title":"Next step","anchor":"#next-step"},{"id":"see-also","level":1,"title":"See also","anchor":"#see-also"}]</script><script type="application/json" id="topic-shortcuts"></script><link href="frontend/app.css" rel="stylesheet"><meta name="msapplication-TileColor" content="#000000"><link rel="icon" type="image/png" sizes="32x32" href="writerside_32.png"><link rel="icon" type="image/png" sizes="64x64" href="writerside_64.png"><meta name="image" content=""><!-- Open Graph --><meta property="og:title" content="Mapping struct and union types from C &ndash; tutorial | Kotlin"><meta property="og:description" content=""><meta property="og:image" content=""><meta property="og:site_name" content="Kotlin Help"><meta property="og:type" content="website"><meta property="og:locale" content="en_US"><meta property="og:url" content="writerside-documentation/mapping-struct-union-types-from-c.html"><!-- End Open Graph --><!-- Twitter Card --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:site" content=""><meta name="twitter:title" content="Mapping struct and union types from C &ndash; tutorial | Kotlin"><meta name="twitter:description" content=""><meta name="twitter:creator" content=""><meta name="twitter:image:src" content=""><!-- End Twitter Card --><!-- Schema.org WebPage --><script type="application/ld+json">{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "@id": "writerside-documentation/mapping-struct-union-types-from-c.html#webpage",
+    "url": "writerside-documentation/mapping-struct-union-types-from-c.html",
+    "name": "Mapping struct and union types from C &ndash; tutorial | Kotlin",
+    "description": "",
+    "image": "",
+    "inLanguage":"en-US"
+}</script><!-- End Schema.org --><!-- Schema.org WebSite --><script type="application/ld+json">{
+    "@type": "WebSite",
+    "@id": "writerside-documentation/#website",
+    "url": "writerside-documentation/",
+    "name": "Kotlin Help"
+}</script><!-- End Schema.org --></head><body data-id="mapping-struct-union-types-from-c" data-main-title="Mapping struct and union types from C – tutorial" data-article-props="{&quot;seeAlsoStyle&quot;:&quot;links&quot;}" data-template="article" data-breadcrumbs="Platforms///Native///C interop"><div class="wrapper"><main class="panel _main"><header class="panel__header"><div class="container"><h3>Kotlin  Help</h3><div class="panel-trigger"></div></div></header><section class="panel__content"><div class="container"><article class="article" data-shortcut-switcher="inactive"><h1 data-toc="mapping-struct-union-types-from-c" id="mapping-struct-union-types-from-c.md">Mapping struct and union types from C – tutorial</h1><div class="micro-format" data-content="{&quot;microFormat&quot;:[&quot;\u003cp id\u003d\&quot;-ku0u2v_12\&quot;\u003eThis is the second part of the \u003cb id\u003d\&quot;-ku0u2v_14\&quot;\u003eMapping Kotlin and C\u003c/b\u003e tutorial series. Before proceeding, make sure you\u0027ve completed the previous step.\u003c/p\u003e&quot;,&quot;\u003cp id\u003d\&quot;-ku0u2v_13\&quot;\u003e\u003cimg alt\u003d\&quot;First step\&quot; src\u003d\&quot;images/icon-1-done.svg\&quot; class\u003d\&quot;inline-icon-\&quot; title\u003d\&quot;First step\&quot; id\u003d\&quot;-ku0u2v_15\&quot; width\u003d\&quot;20\&quot; height\u003d\&quot;20\&quot;\u003e \u003ca href\u003d\&quot;mapping-primitive-data-types-from-c.html\&quot; id\u003d\&quot;-ku0u2v_16\&quot; data-tooltip\u003d\&quot;This is the first part of the Mapping Kotlin and C tutorial series.\&quot;\u003eMapping primitive data types from C\u003c/a\u003e\u003cbr\u003e \u003cimg alt\u003d\&quot;Second step\&quot; src\u003d\&quot;images/icon-2.svg\&quot; class\u003d\&quot;inline-icon-\&quot; title\u003d\&quot;Second step\&quot; id\u003d\&quot;-ku0u2v_18\&quot; width\u003d\&quot;20\&quot; height\u003d\&quot;20\&quot;\u003e \u003cb id\u003d\&quot;-ku0u2v_19\&quot;\u003eMapping struct and union types from C\u003c/b\u003e\u003cbr\u003e \u003cimg alt\u003d\&quot;Third step\&quot; src\u003d\&quot;images/icon-3-todo.svg\&quot; class\u003d\&quot;inline-icon-\&quot; title\u003d\&quot;Third step\&quot; id\u003d\&quot;-ku0u2v_21\&quot; width\u003d\&quot;20\&quot; height\u003d\&quot;20\&quot;\u003e \u003ca href\u003d\&quot;mapping-function-pointers-from-c.html\&quot; id\u003d\&quot;-ku0u2v_22\&quot; data-tooltip\u003d\&quot;This is the third part of the Mapping Kotlin and C tutorial series. Before proceeding, make sure you\u0027ve completed the previous steps.\&quot;\u003eMapping function pointers\u003c/a\u003e\u003cbr\u003e \u003cimg alt\u003d\&quot;Fourth step\&quot; src\u003d\&quot;images/icon-4-todo.svg\&quot; class\u003d\&quot;inline-icon-\&quot; title\u003d\&quot;Fourth step\&quot; id\u003d\&quot;-ku0u2v_24\&quot; width\u003d\&quot;20\&quot; height\u003d\&quot;20\&quot;\u003e \u003ca href\u003d\&quot;mapping-strings-from-c.html\&quot; id\u003d\&quot;-ku0u2v_25\&quot; data-tooltip\u003d\&quot;This is the final part of the Mapping Kotlin and C tutorial series. Before proceeding, make sure you\u0027ve completed the previous steps.\&quot;\u003eMapping strings from C\u003c/a\u003e\u003cbr\u003e\u003c/p\u003e&quot;]}"></div><aside class="prompt" data-type="warning" data-title="" id="-ku0u2v_3"><p id="-ku0u2v_27">The C libraries import is <a href="components-stability.html#stability-levels-explained" id="-ku0u2v_29" data-tooltip="Here's a quick guide to these stability levels and their meaning:">Experimental</a>. All Kotlin declarations generated by the cinterop tool from C libraries should have the <code class="code" id="-ku0u2v_30">@ExperimentalForeignApi</code> annotation.</p><p id="-ku0u2v_28">Native platform libraries shipped with Kotlin/Native (like Foundation, UIKit, and POSIX) require opt-in only for some APIs.</p></aside><p id="-ku0u2v_4">Let's explore which C struct and union declarations are visible from Kotlin and examine advanced C interop-related use cases of Kotlin/Native and <a href="gradle-configure-project.html#targeting-multiple-platforms" id="-ku0u2v_31" data-tooltip="Projects targeting multiple platforms, called multiplatform projects, require the kotlin-multiplatform plugin.">multiplatform</a> Gradle builds.</p><p id="-ku0u2v_5">In the tutorial, you'll learn:</p><ul class="list _bullet" id="-ku0u2v_6"><li class="list__item" id="-ku0u2v_32"><p id="-ku0u2v_34"><a href="#mapping-struct-and-union-c-types" id="-ku0u2v_35" data-tooltip="To understand how Kotlin maps struct and union types, let's declare them in C and examine how they are represented in Kotlin.">How struct and union types are mapped</a></p></li><li class="list__item" id="-ku0u2v_33"><p id="-ku0u2v_36"><a href="#use-struct-and-union-types-from-kotlin" id="-ku0u2v_37" data-tooltip="Using C struct and union types from Kotlin is straightforward thanks to the generated API. The only question is how to create new instances of these types.">How to use struct and union types from Kotlin</a></p></li></ul><section class="chapter"><h2 id="mapping-struct-and-union-c-types" data-toc="mapping-struct-and-union-c-types">Mapping struct and union C types</h2><p id="-ku0u2v_38">To understand how Kotlin maps struct and union types, let's declare them in C and examine how they are represented in Kotlin.</p><p id="-ku0u2v_39">In the <a href="mapping-primitive-data-types-from-c.html" id="-ku0u2v_42" data-tooltip="This is the first part of the Mapping Kotlin and C tutorial series.">previous tutorial</a>, you've already created a C library with the necessary files. For this step, update the declarations in the <code class="code" id="-ku0u2v_43">interop.def</code> file after the <code class="code" id="-ku0u2v_44">---</code> separator:</p><div class="code-block" data-lang="c">
+
+---
+
+typedef struct {
+  int a;
+  double b;
+} MyStruct;
+
+void struct_by_value(MyStruct s) {}
+void struct_by_pointer(MyStruct* s) {}
+
+typedef union {
+  int a;
+  MyStruct b;
+  float c;
+} MyUnion;
+
+void union_by_value(MyUnion u) {}
+void union_by_pointer(MyUnion* u) {}
+</div><p id="-ku0u2v_41">The <code class="code" id="-ku0u2v_45">interop.def</code> file provides everything necessary to compile, run, or open the application in an IDE.</p></section><section class="chapter"><h2 id="inspect-generated-kotlin-apis-for-a-c-library" data-toc="inspect-generated-kotlin-apis-for-a-c-library">Inspect generated Kotlin APIs for a C library</h2><p id="-ku0u2v_46">Let's see how C struct and union types are mapped into Kotlin/Native and update your project:</p><ol class="list _decimal" id="-ku0u2v_47" type="1"><li class="list__item" id="-ku0u2v_50"><p id="-ku0u2v_53">In <code class="code" id="-ku0u2v_55">src/nativeMain/kotlin</code>, update your <code class="code" id="-ku0u2v_56">hello.kt</code> file from the <a href="mapping-primitive-data-types-from-c.html" id="-ku0u2v_57" data-tooltip="This is the first part of the Mapping Kotlin and C tutorial series.">previous tutorial</a> with the following content:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.ExperimentalForeignApi
+
+@OptIn(ExperimentalForeignApi::class)
+fun main() {
+    println(&quot;Hello Kotlin/Native!&quot;)
+
+    struct_by_value(/* fix me*/)
+    struct_by_pointer(/* fix me*/)
+    union_by_value(/* fix me*/)
+    union_by_pointer(/* fix me*/)
+}
+</div></li><li class="list__item" id="-ku0u2v_51"><p id="-ku0u2v_58">To avoid compiler errors, add interoperability to the build process. For that, update your <code class="code" id="-ku0u2v_60">build.gradle(.kts)</code> build file with the following content:</p><div class="tabs" id="-ku0u2v_59" data-group="build-script" data-anchors="[-ku0u2v_61,-ku0u2v_62]"><div class="tabs__content" data-gtm="tab" id="-ku0u2v_61" data-sync-tabs="kotlin" data-title="Kotlin"><div class="code-block" data-lang="kotlin" data-title="Kotlin">
+kotlin {
+    macosArm64(&quot;native&quot;) {    // macOS on Apple Silicon
+    // macosX64(&quot;native&quot;) {   // macOS on x86_64 platforms
+    // linuxArm64(&quot;native&quot;) { // Linux on ARM64 platforms 
+    // linuxX64(&quot;native&quot;) {   // Linux on x86_64 platforms
+    // mingwX64(&quot;native&quot;) {   // on Windows
+        val main by compilations.getting
+        val interop by main.cinterops.creating {
+            definitionFile.set(project.file(&quot;src/nativeInterop/cinterop/interop.def&quot;))
+        }
+
+        binaries {
+            executable()
+        }
+    }
+}
+</div></div><div class="tabs__content" data-gtm="tab" id="-ku0u2v_62" data-sync-tabs="groovy" data-title="Groovy"><div class="code-block" data-lang="groovy" data-title="Groovy">
+kotlin {
+    macosArm64(&quot;native&quot;) {    // Apple Silicon macOS
+    // macosX64(&quot;native&quot;) {   // macOS on x86_64 platforms
+    // linuxArm64(&quot;native&quot;) { // Linux on ARM64 platforms
+    // linuxX64(&quot;native&quot;) {   // Linux on x86_64 platforms
+    // mingwX64(&quot;native&quot;) {   // Windows
+        compilations.main.cinterops {
+            interop {   
+                definitionFile = project.file('src/nativeInterop/cinterop/interop.def')
+            }
+        }
+
+        binaries {
+            executable()
+        }
+    }
+}
+</div></div></div></li><li class="list__item" id="-ku0u2v_52"><p id="-ku0u2v_65">Use IntelliJ IDEA's <a href="https://www.jetbrains.com/help/rider/Navigation_and_Search__Go_to_Declaration.html" id="-ku0u2v_67" data-external="true" rel="noopener noreferrer" target="_blank">Go to declaration</a> command (<kbd class="keystroke" id="-ku0u2v_68" data-bypass="true"><span class="keystroke__value">Cmd + B</span></kbd>/<kbd class="keystroke" id="-ku0u2v_69" data-bypass="true"><span class="keystroke__value">Ctrl + B</span></kbd>) to navigate to the following generated API for C functions, struct, and union:</p><div class="code-block" data-lang="kotlin">
+fun struct_by_value(s: kotlinx.cinterop.CValue&lt;interop.MyStruct&gt;)
+fun struct_by_pointer(s: kotlinx.cinterop.CValuesRef&lt;interop.MyStruct&gt;?)
+
+fun union_by_value(u: kotlinx.cinterop.CValue&lt;interop.MyUnion&gt;)
+fun union_by_pointer(u: kotlinx.cinterop.CValuesRef&lt;interop.MyUnion&gt;?)
+</div></li></ol><p id="-ku0u2v_48">Technically, there is no difference between struct and union types on the Kotlin side. The cinterop tool generates Kotlin types for both struct and union C declarations.</p><p id="-ku0u2v_49">The generated API includes fully qualified package names for <code class="code" id="-ku0u2v_70">CValue&lt;T&gt;</code> and <code class="code" id="-ku0u2v_71">CValuesRef&lt;T&gt;</code>, reflecting their location in <code class="code" id="-ku0u2v_72">kotlinx.cinterop</code>. <code class="code" id="-ku0u2v_73">CValue&lt;T&gt;</code> represents a by-value structure parameter, while <code class="code" id="-ku0u2v_74">CValuesRef&lt;T&gt;?</code> is used to pass a pointer to a structure or a union.</p></section><section class="chapter"><h2 id="use-struct-and-union-types-from-kotlin" data-toc="use-struct-and-union-types-from-kotlin">Use struct and union types from Kotlin</h2><p id="-ku0u2v_75">Using C struct and union types from Kotlin is straightforward thanks to the generated API. The only question is how to create new instances of these types.</p><p id="-ku0u2v_76">Let's take a look at the generated functions that take <code class="code" id="-ku0u2v_81">MyStruct</code> and <code class="code" id="-ku0u2v_82">MyUnion</code> as parameters. By-value parameters are represented as <code class="code" id="-ku0u2v_83">kotlinx.cinterop.CValue&lt;T&gt;</code>, while pointer-typed parameters use <code class="code" id="-ku0u2v_84">kotlinx.cinterop.CValuesRef&lt;T&gt;?</code>.</p><p id="-ku0u2v_77">Kotlin provides a convenient API for creating and working with these types. Let's explore how to use it in practice.</p><section class="chapter"><h3 id="create-a-cvalue-t" data-toc="create-a-cvalue-t">Create a CValue&lt;T&gt;</h3><p id="-ku0u2v_86"><code class="code" id="-ku0u2v_90">CValue&lt;T&gt;</code> type is used to pass by-value parameters to a C function call. Use the <code class="code" id="-ku0u2v_91">cValue</code> function to create a <code class="code" id="-ku0u2v_92">CValue&lt;T&gt;</code> instance. The function requires a <a href="lambdas.html#function-literals-with-receiver" id="-ku0u2v_93" data-tooltip="Function types with receiver, such as A.(B) -&gt; C, can be instantiated with a special form of function literals – function literals with receiver.">lambda function with a receiver</a> to initialize the underlying C type in-place. The function is declared as follows:</p><div class="code-block" data-lang="kotlin">
+fun &lt;reified T : CStructVar&gt; cValue(initialize: T.() -&gt; Unit): CValue&lt;T&gt;
+</div><p id="-ku0u2v_88">Here's how to use <code class="code" id="-ku0u2v_94">cValue</code> and pass by-value parameters:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.cValue
+
+@OptIn(ExperimentalForeignApi::class)
+fun callValue() {
+
+    val cStruct = cValue&lt;MyStruct&gt; {
+        a = 42
+        b = 3.14
+    }
+    struct_by_value(cStruct)
+
+    val cUnion = cValue&lt;MyUnion&gt; {
+        b.a = 5
+        b.b = 2.7182
+    }
+
+    union_by_value(cUnion)
+}
+</div></section><section class="chapter"><h3 id="create-struct-and-union-as-cvaluesref-t" data-toc="create-struct-and-union-as-cvaluesref-t">Create struct and union as CValuesRef&lt;T&gt;</h3><p id="-ku0u2v_96">The <code class="code" id="-ku0u2v_104">CValuesRef&lt;T&gt;</code> type is used in Kotlin to pass a pointer-typed parameter of a C function. To allocate <code class="code" id="-ku0u2v_105">MyStruct</code> and <code class="code" id="-ku0u2v_106">MyUnion</code> in the native memory, use the following extension function on <code class="code" id="-ku0u2v_107">kotlinx.cinterop.NativePlacement</code> type:</p><div class="code-block" data-lang="kotlin">
+fun &lt;reified T : kotlinx.cinterop.CVariable&gt; alloc(): T
+</div><p id="-ku0u2v_98"><code class="code" id="-ku0u2v_108">NativePlacement</code> represents native memory with functions similar to <code class="code" id="-ku0u2v_109">malloc</code> and <code class="code" id="-ku0u2v_110">free</code>. There are several implementations of <code class="code" id="-ku0u2v_111">NativePlacement</code>:</p><ul class="list _bullet" id="-ku0u2v_99"><li class="list__item" id="-ku0u2v_112"><p id="-ku0u2v_114">The global implementation is <code class="code" id="-ku0u2v_115">kotlinx.cinterop.nativeHeap</code>, but you must call <code class="code" id="-ku0u2v_116">nativeHeap.free()</code> to release the memory after use.</p></li><li class="list__item" id="-ku0u2v_113"><p id="-ku0u2v_117">A safer alternative is <code class="code" id="-ku0u2v_119">memScoped()</code>, which creates a short-lived memory scope where all allocations are automatically freed at the end of the block:</p><div class="code-block" data-lang="kotlin">
+fun &lt;R&gt; memScoped(block: kotlinx.cinterop.MemScope.() -&gt; R): R
+</div></li></ul><p id="-ku0u2v_100">With <code class="code" id="-ku0u2v_120">memScoped()</code>, your code for calling functions with pointers can look like this:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.ptr
+
+@OptIn(ExperimentalForeignApi::class)
+fun callRef() {
+    memScoped {
+        val cStruct = alloc&lt;MyStruct&gt;()
+        cStruct.a = 42
+        cStruct.b = 3.14
+
+        struct_by_pointer(cStruct.ptr)
+
+        val cUnion = alloc&lt;MyUnion&gt;()
+        cUnion.b.a = 5
+        cUnion.b.b = 2.7182
+
+        union_by_pointer(cUnion.ptr)
+    }
+}
+</div><p id="-ku0u2v_102">Here, the <code class="code" id="-ku0u2v_121">ptr</code> extension property, which is available within the <code class="code" id="-ku0u2v_122">memScoped {}</code> block, converts <code class="code" id="-ku0u2v_123">MyStruct</code> and <code class="code" id="-ku0u2v_124">MyUnion</code> instances into native pointers.</p><p id="-ku0u2v_103">Since memory is managed inside the <code class="code" id="-ku0u2v_125">memScoped {}</code> block, it's automatically freed at the end of the block. Avoid using pointers outside of this scope to prevent accessing deallocated memory. If you need longer-lived allocations (for example, for caching in a C library), consider using <code class="code" id="-ku0u2v_126">Arena()</code> or <code class="code" id="-ku0u2v_127">nativeHeap</code>.</p></section><section class="chapter"><h3 id="conversion-between-cvalue-t-and-cvaluesref-t" data-toc="conversion-between-cvalue-t-and-cvaluesref-t">Conversion between CValue&lt;T&gt; and CValuesRef&lt;T&gt;</h3><p id="-ku0u2v_129">Sometimes you need to pass a struct as a value in one function call and then pass the same struct as a reference in another.</p><p id="-ku0u2v_130">To do this, you'll need a <code class="code" id="-ku0u2v_135">NativePlacement</code>, but first, let's see how <code class="code" id="-ku0u2v_136">CValue&lt;T&gt;</code> is turned into a pointer:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.cValue
+import kotlinx.cinterop.memScoped
+
+@OptIn(ExperimentalForeignApi::class)
+fun callMix_ref() {
+    val cStruct = cValue&lt;MyStruct&gt; {
+        a = 42
+        b = 3.14
+    }
+
+    memScoped {
+        struct_by_pointer(cStruct.ptr)
+    }
+}
+</div><p id="-ku0u2v_132">Here again, the <code class="code" id="-ku0u2v_137">ptr</code> extension property from <code class="code" id="-ku0u2v_138">memScoped {}</code> turns <code class="code" id="-ku0u2v_139">MyStruct</code> instances into native pointers. These pointers are only valid inside the <code class="code" id="-ku0u2v_140">memScoped {}</code> block.</p><p id="-ku0u2v_133">To turn a pointer back into a by-value variable, call the <code class="code" id="-ku0u2v_141">.readValue()</code> extension function:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.readValue
+
+@OptIn(ExperimentalForeignApi::class)
+fun callMix_value() {
+    memScoped {
+        val cStruct = alloc&lt;MyStruct&gt;()
+        cStruct.a = 42
+        cStruct.b = 3.14
+
+        struct_by_value(cStruct.readValue())
+    }
+}
+</div></section></section><section class="chapter"><h2 id="update-kotlin-code" data-toc="update-kotlin-code">Update Kotlin code</h2><p id="-ku0u2v_142">Now that you've learned how to use C declarations in Kotlin code, try to use them in your project. The final code in the <code class="code" id="-ku0u2v_146">hello.kt</code> file may look like this:</p><div class="code-block" data-lang="kotlin">
+import interop.*
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.cValue
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.readValue
+import kotlinx.cinterop.ExperimentalForeignApi
+
+@OptIn(ExperimentalForeignApi::class)
+fun main() {
+    println(&quot;Hello Kotlin/Native!&quot;)
+
+    val cUnion = cValue&lt;MyUnion&gt; {
+        b.a = 5
+        b.b = 2.7182
+    }
+
+    memScoped {
+        union_by_value(cUnion)
+        union_by_pointer(cUnion.ptr)
+    }
+
+    memScoped {
+        val cStruct = alloc&lt;MyStruct&gt; {
+            a = 42
+            b = 3.14
+        }
+
+        struct_by_value(cStruct.readValue())
+        struct_by_pointer(cStruct.ptr)
+    }
+}
+</div><p id="-ku0u2v_144">To verify that everything works as expected, run the <code class="code" id="-ku0u2v_147">runDebugExecutableNative</code> Gradle task <a href="native-get-started.html#build-and-run-the-application" id="-ku0u2v_148" data-tooltip="Open the Main.kt file in the src/nativeMain/kotlin/ directory:">in your IDE</a> or use the following command to run the code:</p><div class="code-block" data-lang="bash">
+./gradlew runDebugExecutableNative
+</div></section><section class="chapter"><h2 id="next-step" data-toc="next-step">Next step</h2><p id="-ku0u2v_149">In the next part of the series, you'll learn how function pointers are mapped between Kotlin and C:</p><p id="-ku0u2v_150"><span class="control" id="-ku0u2v_152"><a href="mapping-function-pointers-from-c.html" id="-ku0u2v_153" data-tooltip="This is the third part of the Mapping Kotlin and C tutorial series. Before proceeding, make sure you've completed the previous steps.">Proceed to the next part</a></span></p><section class="chapter"><h3 id="see-also" data-toc="see-also">See also</h3><p id="-ku0u2v_154">Learn more in the <a href="native-c-interop.html" id="-ku0u2v_155" data-tooltip="The C libraries import is Experimental. All Kotlin declarations generated by the cinterop tool from C libraries should have the @ExperimentalForeignApi annotation.">Interoperability with C</a> documentation that covers more advanced scenarios.</p></section></section><div class="last-modified">19 April 2025</div><div data-feedback-placeholder="true"></div><div class="navigation-links _bottom"><a href="mapping-primitive-data-types-from-c.html" class="navigation-links__prev">Mapping primitive data types from C &ndash; tutorial</a><a href="mapping-function-pointers-from-c.html" class="navigation-links__next">Mapping function pointers from C &ndash; tutorial</a></div></article><div id="disqus_thread"></div></div></section></main></div><script src="frontend/app.js"></script></body></html>
