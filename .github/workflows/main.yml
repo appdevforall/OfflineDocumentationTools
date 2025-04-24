@@ -1,0 +1,59 @@
+name: Publish Documentation Release
+
+on:
+  push:
+    tags:
+      - 'docs-*' # Trigger on tags like 'docs-v1.0', 'docs-latest'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get all tags for versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Kotlin documentation
+        run: python3 ProcessDocs/ProcessKotlinDocs/process_docs.py --input-dir SourceDocs/KotlinDocs/html --output-dir out --menu-file toc.html --stylesheet style.css --log-file log.txt
+
+      - name: Generate table of contents
+        run: python3 ProcessDocs/ProcessKotlinDocs/build_toc.py SourceDocs/KotlinDocs/html/HelpTOC.json out/toc.html  out/toc.css out/toc_script.js
+
+      - name: Zip up processed Kotlin docs
+        run: zip -r kotlin_docs.zip out
+
+      - name: Get tag name
+        id: get_tag_name
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_tag_name.outputs.TAG_NAME }}
+          release_name: Documentation ${{ steps.get_tag_name.outputs.TAG_NAME }}
+          body: |
+            Latest procesed Kotlin documentationb.
+            # You can add more detailed release notes here
+          draft: false
+          prerelease: false
+
+      - name: Upload PDF release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: kotlin_docs.zip # Ensure this path is correct
+          asset_name: documentation-${{ steps.get_tag_name.outputs.TAG_NAME }}.zip
+          asset_content_type: application/zip
