@@ -23,4 +23,6 @@ cp ${script_dir}/buildprofiles.xml ${out_dir}/${DOC_DIRNAME}/cfg/buildprofiles.x
 
 # Get commit hash
 cd $site_path
-echo $(git rev-parse HEAD) >> "${out_dir}/docs_version.txt"
+version_file="$(realpath ${out_dir})/docs_version.txt"
+touch $version_file
+echo $(git rev-parse HEAD) > ${version_file}
