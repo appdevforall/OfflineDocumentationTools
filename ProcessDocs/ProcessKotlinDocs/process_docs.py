@@ -65,7 +65,7 @@ def process_html_file(input_filepath, output_filepath, menu_filename, stylesheet
         # Find the first article in the file.
         article = soup.find("article")
         if not article:
-            logging.info("No <article> element found in %s; skipping.", os.path.basename(input_filepath))
+            logging.info("No <article> element found in %s; copying file over in raw form.", os.path.basename(input_filepath))
             shutil.copy(input_filepath, output_filepath)
             return False
 
@@ -273,11 +273,12 @@ def main():
         else:
             logging.info("No images directory found in input; skipping images copy.")
 
-        logging.info("Processing complete.")
-
         # Copy over Writerside artifcat PNGs
         shutil.copy(os.path.join(args.input_dir, "writerside_32.png"), os.path.join(args.output_dir, "writerside_32.png"))
         shutil.copy(os.path.join(args.input_dir, "writerside_64.png"), os.path.join(args.output_dir, "writerside_64.png"))
+        logging.info("Copied over Writerside icon PNG artifacts.")
+        logging.info("Processing complete.")
+
 
     except Exception as e:
         # Log full traceback if there's any exception.
