@@ -18,8 +18,8 @@ import shutil
 import traceback
 from bs4 import BeautifulSoup
 
-def setup_logging(log_path):
-    logging.basicConfig(filename=log_path,
+def setup_logging():
+    logging.basicConfig(stream=sys.stdout,
                         level=logging.INFO,
                         format='%(asctime)s [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -228,13 +228,15 @@ def main():
                         help="Filename for the navigation menu HTML page to link at the top of every page.")
     parser.add_argument("--stylesheet", required=True,
                         help="Filename for the CSS stylesheet to be generated and linked in every output page.")
-    parser.add_argument("--log-file", required=True,
-                        help="Path to the log file for recording processing messages.")
+
+    # CLI logging
+    # parser.add_argument("--log-file", required=True,
+    #                    help="Path to the log file for recording processing messages.")
 
     args = parser.parse_args()
 
     try:
-        setup_logging(args.log_file)
+        setup_logging()
         logging.info("Started processing with input dir: %s, output dir: %s", args.input_dir, args.output_dir)
 
         # Create the output directory if it doesn't exist.
