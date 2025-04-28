@@ -1,0 +1,38 @@
+name: Publish Kotlin docs
+
+permissions: write-all
+
+on:
+  push:
+    tags:
+      - 'docs-*' # Trigger on tags like 'docs-v1.0', 'docs-latest'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get all tags for versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Java tooltips
+        run: python3 GenerateTooltips/JavaDocsTooltips/generate_java_tooltips.py --path-to-docs SourceDocs/JavaDocs/html/ --out-path java_tooltips --log-file log.txt --device-javadoc-path file:///android_asset/CoGoTooltips/external/javadocs/api/
+
+      - name: Zip generated Java tooltips
+        run: zip -r java_tooltips.zip java_tooltips
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: java_tooltips.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

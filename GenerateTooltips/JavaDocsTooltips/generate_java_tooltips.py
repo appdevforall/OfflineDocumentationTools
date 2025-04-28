@@ -31,6 +31,7 @@ ENTRY_STATUS_MSGS[ENTRY_STATUSES['no_content']] = "has no content"
 START_TIME = time.time()
 def log(msg, log_handle, precision=4):
     msg_with_time = str(round(time.time() - START_TIME, precision)) + ": " + msg
+    print(msg_with_time)
     log_handle.write(msg_with_time + "\n")
 
 # Get HTML in description.
@@ -144,7 +145,7 @@ def main():
         description='Generates tooltips for Code On The Go from the Java API documentation.')
     parser.add_argument('--path-to-docs', help='Path to root directory of the Java API documentation.',
                         required=True)
-    parser.add_argument('--out-path', help='Path to root directory of the Java API documentation.',
+    parser.add_argument('--out-path', help='Path to output directory.',
                         required=True)
     parser.add_argument('--log-file', help='Path to output log file.',
                         required=True)
