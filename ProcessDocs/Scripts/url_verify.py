@@ -12,11 +12,9 @@ def is_external(url):
 
 def check_local_file(base_dir, url):
     """
-    Given the base directory (the directory of the HTML file)
-    and the URL (which may be a relative or absolute URL path),
-    determine if the file exists.
-
-    Returns: "valid" if the file exists, otherwise "broken".
+    Take in a URL pointing to local resource and determine whether the contents are stored locally.
+    Valid = we have it
+    Broken = we don't
     """
     # Remove query and fragment parts using urlparse.
     parsed = urlparse(url)
@@ -35,9 +33,9 @@ def check_local_file(base_dir, url):
 
 
 def process_html_file(file_path, output_fh):
+
     """
-    Process a single HTML file to check all 'href' and 'src' attributes,
-    then write a block to output_fh for each encountered URL.
+    Given an HTML file, find URLs in any src/href attributes and check their availability.
     """
     base_dir = os.path.dirname(file_path)
     try:
@@ -62,8 +60,6 @@ def process_html_file(file_path, output_fh):
                 status = check_local_file(base_dir, url)
 
             # Write the result block to the output file.
-            # Note: file_path is the full path on disk; you may wish to output just
-            # the file name using os.path.basename(file_path)
             output_fh.write(f"{os.path.basename(file_path)}\t{url}\t{status}\n")
 
 
@@ -82,7 +78,6 @@ def main():
     # Open output file.
     try:
         with open(output_file, "w", encoding="utf-8") as out_fh:
-            # Walk the directory tree and process HTML files.
             for root, dirs, files in os.walk(html_directory):
                 for filename in files:
                     if filename.lower().endswith((".html", ".htm")):
