@@ -12,7 +12,7 @@ def is_external(url):
 
 def check_local_file(base_dir, url):
     """
-    Take in a URL pointing to local resource and determine whether the contents are stored locally.
+    Take in a URL pointing to local resource in the current filesystem and determine whether the contents are stored locally.
     Valid = we have it
     Broken = we don't
     """
