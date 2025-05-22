@@ -2,7 +2,7 @@ import unittest
 import os
 import tempfile
 import sqlite3
-from create_empty_database import DocumentationDatabase
+from DocumentationDatabase import DocumentationDatabase
 
 
 class TestDocumentationDatabase(unittest.TestCase):
@@ -31,39 +31,22 @@ class TestDocumentationDatabase(unittest.TestCase):
             self.assertIn(('Languages',), tables)
             self.assertIn(('ContentTypes',), tables)
 
-    def test_get_exts(self):
-        files = ['file1.txt', 'file2.py', 'file3', 'file4.md']
-        exts = self.db.get_exts(files)
-        self.assertEqual(exts, ['.md', '.py', '.txt'])
+    def test_content_types_populated(self):
+        # Check if the ContentTypes table contains all expected types
+        with sqlite3.connect(self.temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT value FROM ContentTypes;")
+            content_types = {row[0] for row in cursor.fetchall()}
+            for mime_type in DocumentationDatabase.CONTENT_TYPES:
+                self.assertIn(mime_type, content_types)
 
-    def test_get_type_content(self):
-        # Test with a known extension
-        ext = '.txt'
-        expected = "INSERT INTO ContentTypes (value, compression) VALUES ('text/plain', 'brotli');"
-        self.assertEqual(self.db.get_type_content(ext), expected)
-        # Test with a skipped extension
-        ext = '.version'
-        self.assertIsNone(self.db.get_type_content(ext))
-        # Test with an unknown extension
-        ext = '.unknown'
-        self.assertIsNone(self.db.get_type_content(ext))
-
-    def test_create_empty_database(self):
-        # Create a temporary file list
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
-            temp_file.write('file1.txt\nfile2.py\nfile3.md\n')
-        try:
-            self.db.create_empty_database(temp_file.name)
-            # Check if the database has the expected content
-            with sqlite3.connect(self.temp_db_file.name) as connection:
-                cursor = connection.cursor()
-                cursor.execute("SELECT value FROM ContentTypes;")
-                content_types = cursor.fetchall()
-                self.assertIn(('text/plain',), content_types)
-                self.assertIn(('text/x-python',), content_types)
-                self.assertIn(('text/markdown',), content_types)
-        finally:
-            os.unlink(temp_file.name)
+    def test_languages_populated(self):
+        # Check if the Languages table contains 'en-US'
+        with sqlite3.connect(self.temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT value FROM Languages;")
+            languages = {row[0] for row in cursor.fetchall()}
+            self.assertIn('en-US', languages)
 
     def test_error_on_bad_schema(self):
         # Create a DB with the wrong schema
@@ -78,12 +61,25 @@ class TestDocumentationDatabase(unittest.TestCase):
             os.unlink(bad_db_file.name)
 
     def test_accept_valid_preexisting_database(self):
-        # Create a valid DB with the correct schema
+        # Create a valid DB with the correct schema and content
         with tempfile.NamedTemporaryFile(delete=False) as valid_db_file:
             valid_db_file.close()
             with sqlite3.connect(valid_db_file.name) as connection:
                 cursor = connection.cursor()
                 cursor.executescript(DocumentationDatabase.SCHEMA_SQL)
+                # Populate content types and languages
+                sql = set()
+                for mime_type in DocumentationDatabase.CONTENT_TYPES:
+                    major_type, minor_type = mime_type.split("/")
+                    if mime_type in DocumentationDatabase.OVERRIDE_MIMETYPES:
+                        compressor = DocumentationDatabase.OVERRIDE_MIMETYPES[mime_type]
+                    elif major_type in DocumentationDatabase.COMPRESSORS:
+                        compressor = DocumentationDatabase.COMPRESSORS[major_type]
+                    else:
+                        compressor = None
+                    sql.add(f"INSERT INTO ContentTypes (value, compression) VALUES ('{mime_type}', '{compressor}');")
+                cursor.executescript("BEGIN;\n" + "\n".join(sql) + "\nCOMMIT;\n")
+                cursor.execute("INSERT INTO Languages (value) VALUES ('en-US');")
             # Should NOT raise ValueError
             try:
                 DocumentationDatabase(valid_db_file.name)
