@@ -164,4 +164,26 @@ COMMIT;
                 # Decompress non-image files
                 return io.BytesIO(brotli.decompress(content))
 
+    def emit_summary(self):
+        """
+        Prints a summary with the total count of files stored and the number of files grouped by each content type.
+        """
+        with sqlite3.connect(self.database_path) as conn:
+            cursor = conn.cursor()
+            # Total count of files
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            total_files = cursor.fetchone()[0]
+            print(f"Total files stored: {total_files}")
+
+            # Number of files grouped by content type
+            cursor.execute('''
+                SELECT ContentTypes.value, COUNT(*)
+                FROM Content
+                JOIN ContentTypes ON Content.contentTypeID = ContentTypes.id
+                GROUP BY ContentTypes.value
+            ''')
+            print("Files by content type:")
+            for mime_type, count in cursor.fetchall():
+                print(f"  {mime_type}: {count}")
+
     # Removed write_languages() method 
