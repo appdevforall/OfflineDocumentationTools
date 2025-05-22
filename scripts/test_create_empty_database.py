@@ -4,13 +4,9 @@ import tempfile
 import sqlite3
 from DocumentationDatabase import DocumentationDatabase
 
-
 class TestDocumentationDatabase(unittest.TestCase):
     def setUp(self):
-        # Create a temporary database file name for testing, but remove the file so DocumentationDatabase can create it
         self.temp_db_file = tempfile.NamedTemporaryFile(delete=False)
-        self.temp_db_file.close()
-        os.unlink(self.temp_db_file.name)
         self.db = DocumentationDatabase(self.temp_db_file.name)
 
     def tearDown(self):
@@ -64,25 +60,19 @@ class TestDocumentationDatabase(unittest.TestCase):
         # Create a valid DB with the correct schema and content
         with tempfile.NamedTemporaryFile(delete=False) as valid_db_file:
             valid_db_file.close()
-            with sqlite3.connect(valid_db_file.name) as connection:
-                cursor = connection.cursor()
-                cursor.executescript(DocumentationDatabase.SCHEMA_SQL)
-                # Populate content types and languages
-                sql = set()
-                for mime_type in DocumentationDatabase.CONTENT_TYPES:
-                    major_type, minor_type = mime_type.split("/")
-                    if mime_type in DocumentationDatabase.OVERRIDE_MIMETYPES:
-                        compressor = DocumentationDatabase.OVERRIDE_MIMETYPES[mime_type]
-                    elif major_type in DocumentationDatabase.COMPRESSORS:
-                        compressor = DocumentationDatabase.COMPRESSORS[major_type]
-                    else:
-                        compressor = None
-                    sql.add(f"INSERT INTO ContentTypes (value, compression) VALUES ('{mime_type}', '{compressor}');")
-                cursor.executescript("BEGIN;\n" + "\n".join(sql) + "\nCOMMIT;\n")
-                cursor.execute("INSERT INTO Languages (value) VALUES ('en-US');")
+            # Use the class's methods to create and populate the schema
+            db = DocumentationDatabase(valid_db_file.name)
             # Should NOT raise ValueError
             try:
-                DocumentationDatabase(valid_db_file.name)
+                with sqlite3.connect(valid_db_file.name) as connection:
+                    cursor = connection.cursor()
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                    tables = cursor.fetchall()
+                    expected_tables = {'ide_tooltip_table', 'Content', 'Languages', 'ContentTypes'}
+                    existing_tables = {table[0] for table in tables if not table[0].startswith('sqlite_')}
+                    self.assertEqual(existing_tables, expected_tables)
+                # Instantiate DocumentationDatabase a second time to verify it accepts a preexisting valid database
+                db2 = DocumentationDatabase(valid_db_file.name)
             finally:
                 os.unlink(valid_db_file.name)
 

@@ -19,15 +19,19 @@ class DocumentationDatabase:
     CONTENT_TYPES = {
         'text/plain',
         'text/html',
+        'text/css',
+        'text/markdown',
         'image/jpeg',
         'image/png',
+        'image/gif',
         'application/json',
         'application/xml'
     }
 
     OVERRIDE_MIMETYPES = {
         'image/jpeg': 'none',
-        'image/png': 'none'
+        'image/png': 'none',
+        'image/gif': 'none'
     }
 
     SCHEMA_SQL = """
@@ -65,9 +69,9 @@ class DocumentationDatabase:
         self.database_path = database_path
         self.input_bytes = 0
         self.stored_bytes = 0
-        # Create the database if it doesn't exist
-        if not os.path.exists(database_path):
-            with sqlite3.connect(database_path) as connection:
+        # Create the database if it doesn't exist or is empty
+        if not os.path.exists(database_path) or os.path.getsize(database_path) == 0:
+            with self.get_connection() as connection:
                 cursor = connection.cursor()
                 self.create_tables(cursor)
                 self.populate_content_types(cursor)
@@ -75,14 +79,16 @@ class DocumentationDatabase:
                 connection.commit()
         else:
             # Check if the database conforms to the schema
-            with sqlite3.connect(database_path) as connection:
+            with self.get_connection() as connection:
                 cursor = connection.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                 tables = cursor.fetchall()
                 expected_tables = {'ide_tooltip_table', 'Content', 'Languages', 'ContentTypes'}
                 existing_tables = {table[0] for table in tables}
-                if existing_tables != expected_tables:
-                    raise ValueError("Database schema does not match the expected schema.")
+                # Ignore any tables that start with 'sqlite_'
+                filtered_tables = {table for table in existing_tables if not table.startswith('sqlite_')}
+                if filtered_tables != expected_tables:
+                    raise ValueError("Database schema does not match the expected schema")
 
     @contextlib.contextmanager
     def get_connection(self):
@@ -96,8 +102,6 @@ class DocumentationDatabase:
     def get_exts(self, files):
         exts = sorted({path.splitext(i)[-1] for i in files if len(path.splitext(i)[-1]) != 0})
         noexts = sorted([i for i in files if len(path.splitext(i)[-1]) == 0])
-        print(f"There are {len(files)} files and {len(exts)} unique extensions. They are\n{"\n".join(exts)}")
-        print(f"There are {len(noexts)} files with no extension. They are\n{"\n".join(noexts)}")
         return exts
 
     def create_tables(self, cursor):
@@ -112,7 +116,6 @@ class DocumentationDatabase:
             elif major_type in self.COMPRESSORS:
                 compressor = self.COMPRESSORS[major_type]
             else:
-                print(f"ERROR: Invalid major_type, \"{major_type}\" for MIME type \"{mime_type}\". Quitting.")
                 sys.exit(1)
             sql.add(f"""INSERT INTO ContentTypes (value, compression) VALUES ('{mime_type}', '{compressor}');""")
         cursor.executescript("BEGIN;\n" + "\n".join(sql) + "\nCOMMIT;\n")

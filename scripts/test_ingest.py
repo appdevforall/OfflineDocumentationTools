@@ -18,26 +18,6 @@ class TestIngest(unittest.TestCase):
             os.unlink(self.db_path)
         
         # Initialize the database with the required schema
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            # Create tables
-            cursor.executescript(DocumentationDatabase.SCHEMA_SQL)
-            # Populate content types
-            for mime_type in DocumentationDatabase.CONTENT_TYPES:
-                major_type, minor_type = mime_type.split("/")
-                if mime_type in DocumentationDatabase.OVERRIDE_MIMETYPES:
-                    compressor = DocumentationDatabase.OVERRIDE_MIMETYPES[mime_type]
-                elif major_type in DocumentationDatabase.COMPRESSORS:
-                    compressor = DocumentationDatabase.COMPRESSORS[major_type]
-                else:
-                    raise ValueError(f"Invalid major_type, \"{major_type}\" for MIME type \"{mime_type}\"")
-                # Convert None to 'none' for database storage
-                compressor = 'none' if compressor is None else compressor
-                cursor.execute("INSERT INTO ContentTypes (value, compression) VALUES (?, ?)", (mime_type, compressor))
-            # Populate languages
-            cursor.execute("INSERT INTO Languages (value) VALUES ('en-US')")
-            conn.commit()
-        
         self.db = DocumentationDatabase(self.db_path)
 
     def tearDown(self):
