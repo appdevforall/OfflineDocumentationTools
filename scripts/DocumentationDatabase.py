@@ -141,4 +141,27 @@ COMMIT;
                 (path, language_id, compressed_content, content_type_id)
             )
 
+    def get_file(self, path, language):
+        with sqlite3.connect(self.database_path) as connection:
+            cursor = connection.cursor()
+            # Get languageID for the given language
+            cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
+            language_id = cursor.fetchone()[0]
+            # Retrieve the file content and content type from the Content table
+            cursor.execute("SELECT content, contentTypeID FROM Content WHERE path = ? AND languageID = ?", (path, language_id))
+            result = cursor.fetchone()
+            if result is None:
+                raise FileNotFoundError(f"File not found: {path} for language: {language}")
+            content, content_type_id = result
+            # Get the content type
+            cursor.execute("SELECT value FROM ContentTypes WHERE id = ?", (content_type_id,))
+            content_type = cursor.fetchone()[0]
+            # Decompress the content if necessary
+            if content_type.startswith('image/'):
+                # Image files are not compressed
+                return io.BytesIO(content)
+            else:
+                # Decompress non-image files
+                return io.BytesIO(brotli.decompress(content))
+
     # Removed write_languages() method 
