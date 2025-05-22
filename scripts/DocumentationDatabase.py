@@ -31,7 +31,8 @@ class DocumentationDatabase:
     OVERRIDE_MIMETYPES = {
         'image/jpeg': 'none',
         'image/png': 'none',
-        'image/gif': 'none'
+        'image/gif': 'none',
+        'image/svg+xml': 'brotli'
     }
 
     SCHEMA_SQL = """
@@ -94,6 +95,7 @@ class DocumentationDatabase:
     def get_connection(self):
         """Context manager for database connections."""
         connection = sqlite3.connect(self.database_path)
+        connection.execute("PRAGMA foreign_keys = ON;")  # Enable foreign key constraints
         try:
             yield connection
         finally:
@@ -118,6 +120,8 @@ class DocumentationDatabase:
             else:
                 sys.exit(1)
             sql.add(f"""INSERT INTO ContentTypes (value, compression) VALUES ('{mime_type}', '{compressor}');""")
+        # Add image/svg+xml to ContentTypes
+        sql.add("""INSERT INTO ContentTypes (value, compression) VALUES ('image/svg+xml', 'brotli');""")
         cursor.executescript("BEGIN;\n" + "\n".join(sql) + "\nCOMMIT;\n")
 
     def populate_languages(self, cursor):
@@ -134,23 +138,19 @@ class DocumentationDatabase:
             if ext not in mimetypes.types_map:
                 raise ValueError(f"Unsupported file extension: {ext}")
             content_type = mimetypes.types_map[ext]
-            # Special handling for image files
-            if content_type.startswith('image/'):
-                if content_type == 'image/png':
-                    # Call pngquant in a subshell
-                    process = subprocess.Popen(['pngquant', '--force', '--output', '-', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    stdout, stderr = process.communicate(input=content)
-                    if process.returncode != 0:
-                        raise RuntimeError(f"pngquant failed: {stderr.decode()}")
-                    compressed_content = stdout
-                else:
-                    compressed_content = content
-            else:
-                # Compress non-image files
+            # Get compression method for this content type
+            cursor.execute("SELECT id, compression FROM ContentTypes WHERE value = ?", (content_type,))
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError(f"Content type {content_type} not found in ContentTypes table")
+            content_type_id, compression = row
+            # Apply compression as specified
+            if compression == 'brotli':
                 compressed_content = brotli.compress(content)
-            # Get contentTypeID for the detected content type
-            cursor.execute("SELECT id FROM ContentTypes WHERE value = ?", (content_type,))
-            content_type_id = cursor.fetchone()[0]
+            elif compression == 'none':
+                compressed_content = content
+            else:
+                raise ValueError(f"Unknown compression method: {compression}")
             # Insert the file into the Content table
             cursor.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
@@ -184,10 +184,13 @@ class DocumentationDatabase:
                 # Decompress non-image files
                 return io.BytesIO(brotli.decompress(content))
 
-    def emit_summary(self):
+    def emit_summary(self, label=None):
         """
         Prints a summary with the total count of files stored and the number of files grouped by each content type.
+        If a label is provided, it will be printed at the start of the method.
         """
+        if label:
+            print(label)
         with self.get_connection() as connection:
             cursor = connection.cursor()
             # Total count of files
@@ -215,3 +218,5 @@ class DocumentationDatabase:
             return count, self.input_bytes, self.stored_bytes
 
     # Removed write_languages() method 
+
+mimetypes.types_map[".svg"] = "image/svg+xml" 

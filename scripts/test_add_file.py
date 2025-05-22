@@ -237,5 +237,37 @@ class TestAddFile(unittest.TestCase):
             stored_content = cursor.fetchone()[0]
             self.assertLessEqual(len(stored_content), len(png_content))
 
+    def test_add_svg_image_to_database(self):
+        # Create a more complex SVG content
+        svg_content = b'''
+        <svg width="400" height="180" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <rect width="400" height="180" fill="url(#grad1)" />
+            <circle cx="100" cy="90" r="80" fill="green" stroke="black" stroke-width="4" />
+            <ellipse cx="300" cy="90" rx="85" ry="55" fill="blue" stroke="black" stroke-width="2" />
+            <text x="200" y="100" font-family="Verdana" font-size="35" fill="white" text-anchor="middle">SVG Test</text>
+            <polygon points="200,10 250,190 160,210" fill="purple" />
+            <polyline points="0,40 40,40 40,80 80,80 80,120 120,120" fill="none" stroke="black" />
+        </svg>
+        '''
+        svg_path = 'test_svg.svg'
+
+        # Add the SVG file to the database
+        self.db.add_file(svg_path, svg_content, 'en-US')
+
+        # Verify the file was added correctly
+        with sqlite3.connect(self.db.database_path) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT content FROM Content WHERE path = ?", (svg_path,))
+            result = cursor.fetchone()
+            self.assertIsNotNone(result)
+            # The stored content should be brotli-compressed, so it should be smaller than the original
+            self.assertLess(len(result[0]), len(svg_content))
+
 if __name__ == '__main__':
     unittest.main() 

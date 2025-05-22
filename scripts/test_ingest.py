@@ -31,9 +31,9 @@ class TestIngest(unittest.TestCase):
     def test_single_file_ingestion(self, mock_db, mock_isfile, mock_file, mock_args):
         mock_args.return_value = argparse.Namespace(file='test.txt', directory=None)
         mock_db.return_value = self.db
-        self.db.emit_summary()
+        self.db.emit_summary(label="test_single_file_ingestion before")
         main()
-        self.db.emit_summary()
+        self.db.emit_summary(label="test_single_file_ingestion after")
 
     @patch('argparse.ArgumentParser.parse_args')
     @patch('os.listdir')
@@ -63,9 +63,9 @@ class TestIngest(unittest.TestCase):
 
         mock_file.side_effect = mock_file_side_effect
 
-        self.db.emit_summary()
+        self.db.emit_summary(label="test_directory_ingestion before")
         main()
-        self.db.emit_summary()
+        self.db.emit_summary(label="test_directory_ingestion after")
 
 if __name__ == '__main__':
     unittest.main() 
