@@ -7,61 +7,64 @@ import brotli
 import io
 from PIL import Image
 import subprocess
+import contextlib
 
 class DocumentationDatabase:
     COMPRESSORS = {
-        "application": "brotli",  # e.g. application/json
-        "text": "brotli",
-        "image": None,
+        'text': 'brotli',
+        'image': 'none',
+        'application': 'brotli'
     }
-    SKIP_EXTS = {"", ".version"}
-    OVERRIDE_MIMETYPES = {"image/svg+xml": "brotli"}
-    CONTENT_TYPES = ["application/json", "text/plain", "text/html", "image/jpeg", "image/png", "image/gif", "text/x-python", "text/markdown", "text/css"]
+
+    CONTENT_TYPES = {
+        'text/plain',
+        'text/html',
+        'image/jpeg',
+        'image/png',
+        'application/json',
+        'application/xml'
+    }
+
+    OVERRIDE_MIMETYPES = {
+        'image/jpeg': 'none',
+        'image/png': 'none'
+    }
 
     SCHEMA_SQL = """
-BEGIN;
+    CREATE TABLE IF NOT EXISTS Content (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        languageID INTEGER NOT NULL,
+        content BLOB NOT NULL,
+        contentTypeID INTEGER NOT NULL,
+        FOREIGN KEY (languageID) REFERENCES Languages(id),
+        FOREIGN KEY (contentTypeID) REFERENCES ContentTypes(id)
+    );
 
-CREATE TABLE ide_tooltip_table (
-  tooltipTag      TEXT NOT NULL,
-  tooltipCategory TEXT NOT NULL,
-  tooltipSummary  TEXT NOT NULL,
-  tooltipDetail   TEXT NOT NULL,
-  tooltipButtons  TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS Languages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        value TEXT NOT NULL UNIQUE
+    );
 
-  PRIMARY KEY(tooltipTag, tooltipCategory)
-);
+    CREATE TABLE IF NOT EXISTS ContentTypes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        value TEXT NOT NULL UNIQUE,
+        compression TEXT NOT NULL
+    );
 
-CREATE TABLE Content (
-  path          TEXT    NOT NULL,
-  languageID    INTEGER NOT NULL,
-  content       BLOB    NOT NULL,
-  contentTypeID INTEGER NOT NULL, 
-  
-  PRIMARY KEY (path, languageID),
-  FOREIGN KEY(languageID)    REFERENCES Languages(id),
-  FOREIGN KEY(contentTypeID) REFERENCES ContentTypes(id)
-);
-
-CREATE TABLE Languages (
-  id    INTEGER PRIMARY KEY NOT NULL,
-  value TEXT NOT NULL,
-
-  UNIQUE(value)
-);
-
-CREATE TABLE ContentTypes (
-  id          INTEGER PRIMARY KEY NOT NULL,
-  value       TEXT NOT NULL,
-  compression TEXT NOT NULL,
-
-  UNIQUE(value)
-);
-
-COMMIT;
-"""
+    CREATE TABLE IF NOT EXISTS ide_tooltip_table (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        languageID INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        FOREIGN KEY (languageID) REFERENCES Languages(id)
+    );
+    """
 
     def __init__(self, database_path):
         self.database_path = database_path
+        self.input_bytes = 0
+        self.stored_bytes = 0
         # Create the database if it doesn't exist
         if not os.path.exists(database_path):
             with sqlite3.connect(database_path) as connection:
@@ -69,6 +72,7 @@ COMMIT;
                 self.create_tables(cursor)
                 self.populate_content_types(cursor)
                 self.populate_languages(cursor)
+                connection.commit()
         else:
             # Check if the database conforms to the schema
             with sqlite3.connect(database_path) as connection:
@@ -79,6 +83,15 @@ COMMIT;
                 existing_tables = {table[0] for table in tables}
                 if existing_tables != expected_tables:
                     raise ValueError("Database schema does not match the expected schema.")
+
+    @contextlib.contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        connection = sqlite3.connect(self.database_path)
+        try:
+            yield connection
+        finally:
+            connection.close()
 
     def get_exts(self, files):
         exts = sorted({path.splitext(i)[-1] for i in files if len(path.splitext(i)[-1]) != 0})
@@ -108,7 +121,7 @@ COMMIT;
         cursor.execute("INSERT INTO Languages (value) VALUES ('en-US');")
 
     def add_file(self, path, content, language):
-        with sqlite3.connect(self.database_path) as connection:
+        with self.get_connection() as connection:
             cursor = connection.cursor()
             # Get languageID for the given language
             cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
@@ -140,9 +153,13 @@ COMMIT;
                 "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
                 (path, language_id, compressed_content, content_type_id)
             )
+            # Update byte counters
+            self.input_bytes += len(content)
+            self.stored_bytes += len(compressed_content)
+            connection.commit()
 
     def get_file(self, path, language):
-        with sqlite3.connect(self.database_path) as connection:
+        with self.get_connection() as connection:
             cursor = connection.cursor()
             # Get languageID for the given language
             cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
@@ -168,8 +185,8 @@ COMMIT;
         """
         Prints a summary with the total count of files stored and the number of files grouped by each content type.
         """
-        with sqlite3.connect(self.database_path) as conn:
-            cursor = conn.cursor()
+        with self.get_connection() as connection:
+            cursor = connection.cursor()
             # Total count of files
             cursor.execute("SELECT COUNT(*) FROM Content")
             total_files = cursor.fetchone()[0]
@@ -185,5 +202,13 @@ COMMIT;
             print("Files by content type:")
             for mime_type, count in cursor.fetchall():
                 print(f"  {mime_type}: {count}")
+
+    def stats(self):
+        with self.get_connection() as connection:
+            cursor = connection.cursor()
+            # Get count of files
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            count = cursor.fetchone()[0]
+            return count, self.input_bytes, self.stored_bytes
 
     # Removed write_languages() method 

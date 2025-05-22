@@ -2,6 +2,8 @@ import argparse
 import os
 from DocumentationDatabase import DocumentationDatabase
 
+# TODO: add multiprocessing support for ingesting large directories
+
 def main():
     parser = argparse.ArgumentParser(description='Ingest files into a documentation database.')
     parser.add_argument('-f', '--file', help='Path to a file to add to the database.')
