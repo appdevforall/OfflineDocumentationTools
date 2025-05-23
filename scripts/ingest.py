@@ -1,8 +1,16 @@
 import argparse
 import os
+import multiprocessing
 from DocumentationDatabase import DocumentationDatabase
 
 # TODO: add multiprocessing support for ingesting large directories
+
+def process_file(file_path, db_path):
+    db = DocumentationDatabase(db_path)
+    with open(file_path, 'rb') as file:
+        content = file.read()
+    if db.add_file(file_path, content, 'en-US'):
+        print(f"Added file {file_path} to the database.")
 
 def main():
     parser = argparse.ArgumentParser(description='Ingest files into a documentation database.')
@@ -21,13 +29,9 @@ def main():
             print(f"Added file {args.file} to the database.")
 
     if args.directory:
-        for filename in os.listdir(args.directory):
-            file_path = os.path.join(args.directory, filename)
-            if os.path.isfile(file_path):
-                with open(file_path, 'rb') as file:
-                    content = file.read()
-                if db.add_file(file_path, content, 'en-US'):
-                    print(f"Added file {file_path} to the database.")
+        file_paths = [os.path.join(args.directory, filename) for filename in os.listdir(args.directory) if os.path.isfile(os.path.join(args.directory, filename))]
+        with multiprocessing.Pool() as pool:
+            pool.starmap(process_file, [(file_path, db_path) for file_path in file_paths])
 
 if __name__ == '__main__':
     main() 
