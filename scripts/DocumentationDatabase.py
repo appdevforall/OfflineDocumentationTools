@@ -147,6 +147,13 @@ class DocumentationDatabase:
                     if process.returncode != 0:
                         raise RuntimeError(f"pngquant failed: {stderr.decode()}")
                     compressed_content = stdout
+                elif content_type in self.OVERRIDE_MIMETYPES:
+                    # Use the compression method specified in OVERRIDE_MIMETYPES
+                    compressor = self.OVERRIDE_MIMETYPES[content_type]
+                    if compressor == 'brotli':
+                        compressed_content = brotli.compress(content)
+                    else:
+                        compressed_content = content
                 else:
                     compressed_content = content
             else:
