@@ -142,7 +142,6 @@ class DocumentationDatabase:
             if content_type in ['application/json', 'application/xml'] or ext == '.jhm':
                 print(f"Skipping file {path}: Unsupported content type: {content_type}")
                 return False
-            print(f"Detected content type for {path}: {content_type}")
             # Special handling for image files
             if content_type.startswith('image/'):
                 if content_type == 'image/png':
