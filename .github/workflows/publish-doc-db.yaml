@@ -1,0 +1,42 @@
+name: Release Documentation Database
+
+permissions: write-all
+
+on:
+  workflow_dispatch: # Trigger manually
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get all tags for versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set date variable
+        run: echo "DATE=$(date +%F)" >> $GITHUB_ENV
+
+      - name: Store Kotlin documentation
+        run: python3 scripts/ingest.py -p documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html
+
+      - name: Store Java documentation
+        run: |
+          for dir in $(find SourceDocs/JavaDocs/html -type d); do
+            python3 scripts/ingest.py -p documentation-db-${{ env.DATE }}.sqlite -d "$dir"
+          done
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: documentation-db-${{ env.DATE }}.sqlite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
