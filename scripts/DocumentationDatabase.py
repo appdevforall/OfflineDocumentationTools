@@ -130,6 +130,10 @@ class DocumentationDatabase:
     def add_file(self, path, content, language):
         with self.get_connection() as connection:
             cursor = connection.cursor()
+            # Check if the path is a directory
+            if os.path.isdir(path):
+                print(f"Skipping directory: {path}")
+                return False
             # Get languageID for the given language
             cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
             language_id = cursor.fetchone()[0]
