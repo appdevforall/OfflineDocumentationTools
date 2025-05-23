@@ -138,19 +138,23 @@ class DocumentationDatabase:
             if ext not in mimetypes.types_map:
                 raise ValueError(f"Unsupported file extension: {ext}")
             content_type = mimetypes.types_map[ext]
-            # Get compression method for this content type
-            cursor.execute("SELECT id, compression FROM ContentTypes WHERE value = ?", (content_type,))
-            row = cursor.fetchone()
-            if row is None:
-                raise ValueError(f"Content type {content_type} not found in ContentTypes table")
-            content_type_id, compression = row
-            # Apply compression as specified
-            if compression == 'brotli':
-                compressed_content = brotli.compress(content)
-            elif compression == 'none':
-                compressed_content = content
+            # Special handling for image files
+            if content_type.startswith('image/'):
+                if content_type == 'image/png':
+                    # Call pngquant in a subshell
+                    process = subprocess.Popen(['pngquant', '--force', '--output', '-', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    stdout, stderr = process.communicate(input=content)
+                    if process.returncode != 0:
+                        raise RuntimeError(f"pngquant failed: {stderr.decode()}")
+                    compressed_content = stdout
+                else:
+                    compressed_content = content
             else:
-                raise ValueError(f"Unknown compression method: {compression}")
+                # Compress non-image files
+                compressed_content = brotli.compress(content)
+            # Get contentTypeID for the detected content type
+            cursor.execute("SELECT id FROM ContentTypes WHERE value = ?", (content_type,))
+            content_type_id = cursor.fetchone()[0]
             # Insert the file into the Content table
             cursor.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",

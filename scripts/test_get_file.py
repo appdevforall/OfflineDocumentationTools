@@ -132,6 +132,9 @@ class TestGetFile(unittest.TestCase):
         except Exception as e:
             self.fail(f"Retrieved content is not a valid PNG file: {e}")
 
+        # Assert that the retrieved content is smaller than the original content
+        self.assertLess(len(retrieved_content), len(png_content), "PNG file was not compressed.")
+
         # Summarize the input size, output size, and percent saved
         input_size = len(png_content)
         output_size = len(retrieved_content)
