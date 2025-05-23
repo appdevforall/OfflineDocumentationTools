@@ -269,5 +269,42 @@ class TestAddFile(unittest.TestCase):
             # The stored content should be brotli-compressed, so it should be smaller than the original
             self.assertLess(len(result[0]), len(svg_content))
 
+    def test_add_version_file_to_database(self):
+        fake = Faker()
+        # Generate a random version file
+        version_content = fake.text().encode()
+        version_path = 'random_' + fake.file_name(extension='version')
+
+        # Create a temporary database file
+        temp_db_file = tempfile.NamedTemporaryFile(delete=False)
+        temp_db_file.close()
+        os.unlink(temp_db_file.name)
+
+        # Initialize the database
+        db = DocumentationDatabase(temp_db_file.name)
+
+        # Get initial file count and byte totals
+        with sqlite3.connect(temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            initial_count = cursor.fetchone()[0]
+            initial_input_bytes = db.input_bytes
+            initial_stored_bytes = db.stored_bytes
+
+        # Attempt to add the version file to the database
+        db.add_file(version_path, version_content, 'en-US')
+
+        # Verify the file count and byte totals remain unchanged
+        with sqlite3.connect(temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            final_count = cursor.fetchone()[0]
+            self.assertEqual(final_count, initial_count)
+            self.assertEqual(db.input_bytes, initial_input_bytes)
+            self.assertEqual(db.stored_bytes, initial_stored_bytes)
+
+        # Clean up the temporary database file
+        os.unlink(temp_db_file.name)
+
 if __name__ == '__main__':
     unittest.main() 

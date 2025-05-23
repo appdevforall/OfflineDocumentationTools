@@ -136,7 +136,8 @@ class DocumentationDatabase:
             # Detect content type from file extension
             ext = os.path.splitext(path)[1]
             if ext not in mimetypes.types_map:
-                raise ValueError(f"Unsupported file extension: {ext}")
+                print(f"Skipping file {path}: Unsupported file extension: {ext}")
+                return
             content_type = mimetypes.types_map[ext]
             # Special handling for image files
             if content_type.startswith('image/'):
