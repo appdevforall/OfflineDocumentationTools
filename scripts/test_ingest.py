@@ -29,7 +29,7 @@ class TestIngest(unittest.TestCase):
     @patch('os.path.isfile', return_value=True)
     @patch('ingest.DocumentationDatabase')
     def test_single_file_ingestion(self, mock_db, mock_isfile, mock_file, mock_args):
-        mock_args.return_value = argparse.Namespace(file='test.txt', directory=None)
+        mock_args.return_value = argparse.Namespace(file='test.txt', directory=None, path_to_db=self.db_path)
         mock_db.return_value = self.db
         self.db.emit_summary(label="test_single_file_ingestion before")
         main()
@@ -41,7 +41,7 @@ class TestIngest(unittest.TestCase):
     @patch('os.path.isfile', return_value=True)
     @patch('ingest.DocumentationDatabase')
     def test_directory_ingestion(self, mock_db, mock_isfile, mock_file, mock_listdir, mock_args):
-        mock_args.return_value = argparse.Namespace(file=None, directory='test_dir')
+        mock_args.return_value = argparse.Namespace(file=None, directory='test_dir', path_to_db=self.db_path)
         mock_listdir.return_value = ['file1.txt', 'file2.txt', 'file3.md', 'image1.jpg', 'image2.png', 'image3.gif']
         mock_db.return_value = self.db
 

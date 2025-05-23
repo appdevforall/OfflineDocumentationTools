@@ -8,9 +8,10 @@ def main():
     parser = argparse.ArgumentParser(description='Ingest files into a documentation database.')
     parser.add_argument('-f', '--file', help='Path to a file to add to the database.')
     parser.add_argument('-d', '--directory', help='Path to a directory to add all files to the database.')
+    parser.add_argument('-p', '--path-to-db', help='Path to the SQLite database file.', default='/tmp/my-doc-db.sqlite')
     args = parser.parse_args()
 
-    db_path = '/tmp/my-doc-db.sqlite'
+    db_path = args.path_to_db
     db = DocumentationDatabase(db_path)
 
     if args.file:
