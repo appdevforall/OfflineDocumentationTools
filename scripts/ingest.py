@@ -17,8 +17,8 @@ def main():
     if args.file:
         with open(args.file, 'rb') as file:
             content = file.read()
-        db.add_file(args.file, content, 'en-US')
-        print(f"Added file {args.file} to the database.")
+        if db.add_file(args.file, content, 'en-US'):
+            print(f"Added file {args.file} to the database.")
 
     if args.directory:
         for filename in os.listdir(args.directory):
@@ -26,8 +26,8 @@ def main():
             if os.path.isfile(file_path):
                 with open(file_path, 'rb') as file:
                     content = file.read()
-                db.add_file(file_path, content, 'en-US')
-                print(f"Added file {file_path} to the database.")
+                if db.add_file(file_path, content, 'en-US'):
+                    print(f"Added file {file_path} to the database.")
 
 if __name__ == '__main__':
     main() 

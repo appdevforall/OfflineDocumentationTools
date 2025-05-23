@@ -137,8 +137,12 @@ class DocumentationDatabase:
             ext = os.path.splitext(path)[1]
             if ext not in mimetypes.types_map:
                 print(f"Skipping file {path}: Unsupported file extension: {ext}")
-                return
+                return False
             content_type = mimetypes.types_map[ext]
+            if content_type in ['application/json', 'application/xml'] or ext == '.jhm':
+                print(f"Skipping file {path}: Unsupported content type: {content_type}")
+                return False
+            print(f"Detected content type for {path}: {content_type}")
             # Special handling for image files
             if content_type.startswith('image/'):
                 if content_type == 'image/png':
@@ -162,7 +166,11 @@ class DocumentationDatabase:
                 compressed_content = brotli.compress(content)
             # Get contentTypeID for the detected content type
             cursor.execute("SELECT id FROM ContentTypes WHERE value = ?", (content_type,))
-            content_type_id = cursor.fetchone()[0]
+            content_type_id = cursor.fetchone()
+            if content_type_id is None:
+                print(f"Content type {content_type} not found in ContentTypes table.")
+                return False
+            content_type_id = content_type_id[0]
             # Insert the file into the Content table
             cursor.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
@@ -172,6 +180,7 @@ class DocumentationDatabase:
             self.input_bytes += len(content)
             self.stored_bytes += len(compressed_content)
             connection.commit()
+            return True
 
     def get_file(self, path, language):
         with self.get_connection() as connection:
