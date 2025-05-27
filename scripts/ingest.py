@@ -6,6 +6,7 @@ from DocumentationDatabase import DocumentationDatabase
 # TODO: add multiprocessing support for ingesting large directories
 
 def process_file(file_path, db_path):
+    print(f"Processing file: {file_path}")
     db = DocumentationDatabase(db_path)
     with open(file_path, 'rb') as file:
         content = file.read()
