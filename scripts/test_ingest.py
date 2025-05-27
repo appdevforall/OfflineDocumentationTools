@@ -77,5 +77,43 @@ class TestIngest(unittest.TestCase):
         main()
         self.db.emit_summary(label="test_directory_ingestion after")
 
+    @patch('builtins.open', new_callable=mock_open, read_data=b'Test content')
+    @patch('os.path.isfile', return_value=True)
+    def test_relative_path_handling(self, mock_isfile, mock_file):
+        from ingest import process_file
+        
+        # Test various relative path patterns
+        test_cases = [
+            ('../../a/b/c.txt', 'a/b/c.txt'),
+            ('../a/b/c.txt', 'a/b/c.txt'),
+            ('./a/b/c.txt', 'a/b/c.txt'),
+            ('a/b/c.txt', 'a/b/c.txt'),  # No change needed
+            ('/a/b/c.txt', '/a/b/c.txt'),  # Absolute path, no change
+        ]
+        
+        for input_path, expected_path in test_cases:
+            with self.subTest(input_path=input_path):
+                # Create a fresh database for each subtest
+                temp_db = tempfile.NamedTemporaryFile(delete=False)
+                temp_db.close()
+                db_path = temp_db.name
+                
+                try:
+                    # Process the file
+                    process_file(input_path, db_path)
+                    
+                    # Verify the path was normalized correctly in the database
+                    with sqlite3.connect(db_path) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT path FROM Content WHERE path = ?", (expected_path,))
+                        result = cursor.fetchone()
+                        self.assertIsNotNone(result, f"Path {expected_path} not found in database")
+                        self.assertEqual(result[0], expected_path,
+                                       f"Path not normalized correctly. Expected {expected_path}, got {result[0]}")
+                finally:
+                    # Clean up the temporary database
+                    if os.path.exists(db_path):
+                        os.unlink(db_path)
+
 if __name__ == '__main__':
     unittest.main() 

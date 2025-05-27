@@ -127,6 +127,15 @@ class DocumentationDatabase:
     def populate_languages(self, cursor):
         cursor.execute("INSERT INTO Languages (value) VALUES ('en-US');")
 
+    def normalize_path(self, path):
+        """Remove leading ../ and ./ sequences from a path."""
+        while path.startswith('../') or path.startswith('./'):
+            if path.startswith('../'):
+                path = path[3:]
+            elif path.startswith('./'):
+                path = path[2:]
+        return path
+
     def add_file(self, path, content, language):
         with self.get_connection() as connection:
             cursor = connection.cursor()
@@ -134,17 +143,21 @@ class DocumentationDatabase:
             if os.path.isdir(path):
                 print(f"Skipping directory: {path}")
                 return False
+
+            # Normalize the path before processing
+            normalized_path = self.normalize_path(path)
+
             # Get languageID for the given language
             cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
             language_id = cursor.fetchone()[0]
             # Detect content type from file extension
-            ext = os.path.splitext(path)[1]
+            ext = os.path.splitext(normalized_path)[1]
             if ext not in mimetypes.types_map:
-                print(f"Skipping file {path}: Unsupported file extension: {ext}")
+                print(f"Skipping file {normalized_path}: Unsupported file extension: {ext}")
                 return False
             content_type = mimetypes.types_map[ext]
             if content_type in ['application/json', 'application/xml'] or ext == '.jhm':
-                print(f"Skipping file {path}: Unsupported content type: {content_type}")
+                print(f"Skipping file {normalized_path}: Unsupported content type: {content_type}")
                 return False
             # Special handling for image files
             if content_type.startswith('image/'):
@@ -177,7 +190,7 @@ class DocumentationDatabase:
             # Insert the file into the Content table
             cursor.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
-                (path, language_id, compressed_content, content_type_id)
+                (normalized_path, language_id, compressed_content, content_type_id)
             )
             # Update byte counters
             self.input_bytes += len(content)
