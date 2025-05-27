@@ -2,7 +2,7 @@ import os
 import unittest
 import tempfile
 import shutil
-from scripts.validator import HTMLValidator
+from validator import HTMLValidator
 
 class TestHTMLValidator(unittest.TestCase):
     def setUp(self):

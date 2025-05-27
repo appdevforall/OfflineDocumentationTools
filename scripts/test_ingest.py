@@ -6,6 +6,12 @@ import os
 import sqlite3
 from ingest import main, DocumentationDatabase
 
+class DummyPool:
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb): pass
+    def starmap(self, func, iterable):
+        return [func(*args) for args in iterable]
+
 class TestIngest(unittest.TestCase):
     def setUp(self):
         # Create a temporary database file for each test
@@ -35,6 +41,7 @@ class TestIngest(unittest.TestCase):
         main()
         self.db.emit_summary(label="test_single_file_ingestion after")
 
+    @patch('multiprocessing.Pool', new=DummyPool)
     @patch('argparse.ArgumentParser.parse_args')
     @patch('os.listdir')
     @patch('builtins.open')
@@ -48,6 +55,9 @@ class TestIngest(unittest.TestCase):
         # Create a mock file that returns different content based on the file being opened
         def mock_file_side_effect(*args, **kwargs):
             filename = args[0]
+            if isinstance(filename, int):
+                # Allow file descriptors to pass through to the real open
+                return open(filename, *args[1:], **kwargs)
             if filename.endswith('.txt'):
                 return mock_open(read_data=b'Text content')(*args, **kwargs)
             elif filename.endswith('.md'):
