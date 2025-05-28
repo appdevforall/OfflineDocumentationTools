@@ -45,11 +45,11 @@ jobs:
 
       - name: Store Kotlin documentation
         run: |
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/images
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/frontend
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ github.ref_name }}.sqlite -f SourceDocs/KotlinDocs/kotlin-spec.pdf
-          if [ ! -f "build/documentation-db-${{ github.ref_name }}.sqlite" ]; then
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/images
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/frontend
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -f SourceDocs/KotlinDocs/kotlin-spec.pdf
+          if [ ! -f "build/documentation-${{ github.ref_name }}.sqlite" ]; then
             echo "Failed to create database file"
             exit 1
           fi
@@ -57,12 +57,12 @@ jobs:
       - name: Store Java documentation
         run: |
           for dir in $(find SourceDocs/JavaDocs/html -type d); do
-            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ github.ref_name }}.sqlite -d "$dir"
+            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d "$dir"
           done
 
       - name: Verify database
         run: |
-          if [ ! -f "build/documentation-db-${{ github.ref_name }}.sqlite" ]; then
+          if [ ! -f "build/documentation-${{ github.ref_name }}.sqlite" ]; then
             echo "Database file not found"
             exit 1
           fi
@@ -71,6 +71,6 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v1
         with:
-          files: build/documentation-db-${{ github.ref_name }}.sqlite
+          files: build/documentation-${{ github.ref_name }}.sqlite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
