@@ -22,7 +22,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y pngquant
+          sudo apt-get install -y pngquant git
 
       - name: Install uv
         run: |
@@ -41,6 +41,16 @@ jobs:
       - name: Set date variable
         run: echo "DATE=$(date +%F)" >> $GITHUB_ENV
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions: Release Documentation Database"
+          git config --global user.email "actions@github.com"
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ env.DATE }}" -m "Documentation database release for ${{ env.DATE }}"
+          git push origin "v${{ env.DATE }}"
+
       - name: Create build directory
         run: mkdir -p build
 
@@ -55,11 +65,12 @@ jobs:
             exit 1
           fi
 
-      - name: Store Java documentation
-        run: |
-          for dir in $(find SourceDocs/JavaDocs/html -type d); do
-            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d "$dir"
-          done
+      # Temporarily disabled due to long execution time
+      # - name: Store Java documentation
+      #   run: |
+      #     for dir in $(find SourceDocs/JavaDocs/html -type d); do
+      #       PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d "$dir"
+      #     done
 
       - name: Verify database
         run: |
