@@ -1,0 +1,66 @@
+name: Release Documentation Database
+
+permissions: write-all
+
+on:
+  workflow_dispatch: # Trigger manually
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get all tags for versioning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt
+
+      - name: Set date variable
+        run: echo "DATE=$(date +%F)" >> $GITHUB_ENV
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Store Kotlin documentation
+        run: |
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html/images
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html/frontend
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -f SourceDocs/KotlinDocs/kotlin-spec.pdf
+          if [ ! -f "build/documentation-db-${{ env.DATE }}.sqlite" ]; then
+            echo "Failed to create database file"
+            exit 1
+          fi
+
+      - name: Store Java documentation
+        run: |
+          for dir in $(find SourceDocs/JavaDocs/html -type d); do
+            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d "$dir"
+          done
+
+      - name: Verify database
+        run: |
+          if [ ! -f "build/documentation-db-${{ env.DATE }}.sqlite" ]; then
+            echo "Database file not found"
+            exit 1
+          fi
+          # Add any additional verification steps here
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/documentation-db-${{ env.DATE }}.sqlite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
