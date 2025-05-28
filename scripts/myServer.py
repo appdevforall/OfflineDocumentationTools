@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import time
 import threading
+import argparse
 
 DATABASE_FILENAME = "Documentation.db"
 HOST_NAME         = "localhost"
@@ -129,9 +130,17 @@ class MyServer(BaseHTTPRequestHandler):
 
 
 # ------------------------------------------------------------------------------
-def start_server():
-    myServer = HTTPServer((HOST_NAME, SERVER_PORT), MyServer)
-    print(f"Server started http://{HOST_NAME}:{SERVER_PORT}")
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Start the documentation server.')
+    parser.add_argument('-d', '--database', type=str, default="Documentation.db",
+                        help='Path to the SQLite database file (default: Documentation.db)')
+    parser.add_argument('-p', '--port', type=int, default=8080,
+                        help='Port to run the server on (default: 8080)')
+    return parser.parse_args()
+
+def start_server(database_filename, server_port):
+    myServer = HTTPServer((HOST_NAME, server_port), MyServer)
+    print(f"Server started http://{HOST_NAME}:{server_port}")
 
     try:
         myServer.serve_forever()
@@ -146,4 +155,6 @@ def start_server():
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
-    start_server()
+    args = parse_arguments()
+    DATABASE_FILENAME = args.database
+    start_server(DATABASE_FILENAME, args.port)

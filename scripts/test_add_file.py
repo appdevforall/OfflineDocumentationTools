@@ -306,5 +306,46 @@ class TestAddFile(unittest.TestCase):
         # Clean up the temporary database file
         os.unlink(temp_db_file.name)
 
+    def test_skip_jpeg_as_png_to_database(self):
+        fake = Faker()
+        # Create a JPEG image
+        img = Image.new('RGB', (800, 600), color='red')
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG')
+        jpeg_content = img_byte_arr.getvalue()
+        # Save it with a .png extension
+        png_path = 'random_' + fake.file_name(extension='png')
+        with sqlite3.connect(self.temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            # Count the number of files before attempting to add the file
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            count_before = cursor.fetchone()[0]
+            # Attempt to add the file
+            self.db.add_file(png_path, jpeg_content, 'en-US')
+            # Verify the file is not added
+            cursor.execute("SELECT COUNT(*) FROM Content")
+            count_after = cursor.fetchone()[0]
+            self.assertEqual(count_after, count_before)
+
+    def test_add_ttf_to_database(self):
+        # Create a simple TTF file
+        ttf_content = b'fake ttf content'
+        ttf_path = 'test.ttf'
+        with open(ttf_path, 'wb') as f:
+            f.write(ttf_content)
+
+        # Add the TTF file to the database
+        self.db.add_file(ttf_path, ttf_content, 'en-US')
+
+        # Check if the file was added
+        with self.db.get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Content WHERE path = ?", (ttf_path,))
+            count = cursor.fetchone()[0]
+            self.assertEqual(count, 1, "TTF file was not added to the database.")
+
+        # Clean up
+        os.remove(ttf_path)
+
 if __name__ == '__main__':
     unittest.main() 

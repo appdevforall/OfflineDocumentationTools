@@ -25,14 +25,17 @@ class DocumentationDatabase:
         'image/png',
         'image/gif',
         'application/json',
-        'application/xml'
+        'application/xml',
+        'font/ttf',
+        'text/javascript'
     }
 
     OVERRIDE_MIMETYPES = {
         'image/jpeg': 'none',
         'image/png': 'none',
         'image/gif': 'none',
-        'image/svg+xml': 'brotli'
+        'image/svg+xml': 'brotli',
+        'font/ttf': 'none'
     }
 
     SCHEMA_SQL = """
@@ -156,12 +159,21 @@ class DocumentationDatabase:
                 print(f"Skipping file {normalized_path}: Unsupported file extension: {ext}")
                 return False
             content_type = mimetypes.types_map[ext]
-            if content_type in ['application/json', 'application/xml'] or ext == '.jhm':
+            if content_type in ['application/xml'] or ext == '.jhm':
                 print(f"Skipping file {normalized_path}: Unsupported content type: {content_type}")
                 return False
             # Special handling for image files
             if content_type.startswith('image/'):
                 if content_type == 'image/png':
+                    # Check if the file is a valid PNG
+                    try:
+                        img = Image.open(io.BytesIO(content))
+                        if img.format != 'PNG':
+                            print(f"Skipping file {normalized_path}: Not a valid PNG file.")
+                            return False
+                    except Exception as e:
+                        print(f"Skipping file {normalized_path}: Error checking PNG format: {e}")
+                        return False
                     # Call pngquant in a subshell
                     process = subprocess.Popen(['pngquant', '--force', '--output', '-', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     stdout, stderr = process.communicate(input=content)
@@ -256,4 +268,5 @@ class DocumentationDatabase:
 
     # Removed write_languages() method 
 
-mimetypes.types_map[".svg"] = "image/svg+xml" 
+mimetypes.types_map[".svg"] = "image/svg+xml"
+mimetypes.types_map[".ttf"] = "font/ttf" 
