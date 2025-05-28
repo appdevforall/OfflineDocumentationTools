@@ -2,18 +2,10 @@ import argparse
 import os
 import multiprocessing
 from DocumentationDatabase import DocumentationDatabase
-from validator import HTMLValidator
 
 def process_file(file_path, db_path):
     print(f"Processing file: {file_path}")
     
-    # For HTML files, validate before adding
-    if file_path.endswith('.html') or file_path.endswith('.htm'):
-        validator = HTMLValidator()
-        if not validator.check_html_file(file_path):
-            print(f"Skipping invalid HTML file: {file_path}")
-            return
-
     # Add file to database
     db = DocumentationDatabase(db_path)
     with open(file_path, 'rb') as file:
