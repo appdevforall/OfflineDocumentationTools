@@ -150,6 +150,12 @@ class DocumentationDatabase:
             # Normalize the path before processing
             normalized_path = self.normalize_path(path)
 
+            # Check if the file already exists in the database
+            cursor.execute("SELECT COUNT(*) FROM Content WHERE path = ?", (normalized_path,))
+            if cursor.fetchone()[0] > 0:
+                print(f"File {normalized_path} already exists in the database. Skipping.")
+                return False
+
             # Get languageID for the given language
             cursor.execute("SELECT id FROM Languages WHERE value = ?", (language,))
             language_id = cursor.fetchone()[0]

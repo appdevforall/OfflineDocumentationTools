@@ -347,5 +347,35 @@ class TestAddFile(unittest.TestCase):
         # Clean up
         os.remove(ttf_path)
 
+    def test_add_file_idempotency(self):
+        # Create a simple file
+        file_content = b'Hello, World!'
+        file_path = 'test_idempotency.txt'
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+
+        # Add the file to the database
+        self.db.add_file(file_path, file_content, 'en-US')
+
+        # Check if the file was added
+        with self.db.get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Content WHERE path = ?", (file_path,))
+            count_after_first = cursor.fetchone()[0]
+            self.assertEqual(count_after_first, 1, "File was not added to the database on the first call.")
+
+        # Add the same file again
+        self.db.add_file(file_path, file_content, 'en-US')
+
+        # Check if the file count remains unchanged
+        with self.db.get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Content WHERE path = ?", (file_path,))
+            count_after_second = cursor.fetchone()[0]
+            self.assertEqual(count_after_second, 1, "File count changed on the second call, violating idempotency.")
+
+        # Clean up
+        os.remove(file_path)
+
 if __name__ == '__main__':
     unittest.main() 
