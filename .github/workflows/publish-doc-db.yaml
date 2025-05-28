@@ -3,7 +3,9 @@ name: Release Documentation Database
 permissions: write-all
 
 on:
-  workflow_dispatch: # Trigger manually
+  push:
+    tags:
+      - 'db-*' # Trigger on tags like 'db-2024-03-21'
 
 jobs:
   build-and-release:
@@ -19,27 +21,35 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y pngquant git
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Activate virtual environment
+        run: source .venv/bin/activate
+
       - name: Install dependencies
         run: uv pip install -r requirements.txt
-
-      - name: Set date variable
-        run: echo "DATE=$(date +%F)" >> $GITHUB_ENV
 
       - name: Create build directory
         run: mkdir -p build
 
       - name: Store Kotlin documentation
         run: |
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html/images
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d SourceDocs/KotlinDocs/html/frontend
-          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -f SourceDocs/KotlinDocs/kotlin-spec.pdf
-          if [ ! -f "build/documentation-db-${{ env.DATE }}.sqlite" ]; then
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/images
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d SourceDocs/KotlinDocs/html/frontend
+          PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -f SourceDocs/KotlinDocs/kotlin-spec.pdf
+          if [ ! -f "build/documentation-${{ github.ref_name }}.sqlite" ]; then
             echo "Failed to create database file"
             exit 1
           fi
@@ -47,12 +57,12 @@ jobs:
       - name: Store Java documentation
         run: |
           for dir in $(find SourceDocs/JavaDocs/html -type d); do
-            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-db-${{ env.DATE }}.sqlite -d "$dir"
+            PYTHONPATH=scripts uv run python scripts/ingest.py -p build/documentation-${{ github.ref_name }}.sqlite -d "$dir"
           done
 
       - name: Verify database
         run: |
-          if [ ! -f "build/documentation-db-${{ env.DATE }}.sqlite" ]; then
+          if [ ! -f "build/documentation-${{ github.ref_name }}.sqlite" ]; then
             echo "Database file not found"
             exit 1
           fi
@@ -61,6 +71,6 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v1
         with:
-          files: build/documentation-db-${{ env.DATE }}.sqlite
+          files: build/documentation-${{ github.ref_name }}.sqlite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
