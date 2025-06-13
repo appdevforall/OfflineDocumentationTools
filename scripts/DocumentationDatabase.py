@@ -59,14 +59,6 @@ class DocumentationDatabase:
         value TEXT NOT NULL UNIQUE,
         compression TEXT NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS ide_tooltip_table (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        path TEXT NOT NULL,
-        languageID INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        FOREIGN KEY (languageID) REFERENCES Languages(id)
-    );
     """
 
     def __init__(self, database_path):
@@ -87,12 +79,20 @@ class DocumentationDatabase:
                 cursor = connection.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                 tables = cursor.fetchall()
-                expected_tables = {'ide_tooltip_table', 'Content', 'Languages', 'ContentTypes'}
+                # Core tables that must exist
+                required_tables = {'Content', 'Languages', 'ContentTypes'}
+                # Optional tables that may exist
+                optional_tables = {'ide_tooltip_table'}
                 existing_tables = {table[0] for table in tables}
                 # Ignore any tables that start with 'sqlite_'
                 filtered_tables = {table for table in existing_tables if not table.startswith('sqlite_')}
-                if filtered_tables != expected_tables:
-                    raise ValueError("Database schema does not match the expected schema")
+                # Check if all required tables exist
+                if not required_tables.issubset(filtered_tables):
+                    raise ValueError("Database schema is missing required tables")
+                # Check if there are any unexpected tables
+                unexpected_tables = filtered_tables - required_tables - optional_tables
+                if unexpected_tables:
+                    raise ValueError(f"Database schema contains unexpected tables: {unexpected_tables}")
 
     @contextlib.contextmanager
     def get_connection(self):
@@ -131,12 +131,14 @@ class DocumentationDatabase:
         cursor.execute("INSERT INTO Languages (value) VALUES ('en-US');")
 
     def normalize_path(self, path):
-        """Remove leading ../ and ./ sequences from a path."""
+        """Remove leading ../, ./ sequences and 'SourceDocs' from a path."""
         while path.startswith('../') or path.startswith('./'):
             if path.startswith('../'):
                 path = path[3:]
             elif path.startswith('./'):
                 path = path[2:]
+        if path.startswith('SourceDocs/'):
+            path = path[11:]  # Remove 'SourceDocs/' (11 characters)
         return path
 
     def add_file(self, path, content, language):
