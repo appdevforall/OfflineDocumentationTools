@@ -43,8 +43,8 @@ class TooltipDatabase:
                 raise ValueError(f"Empty cell found in required column '{col_name}' at row {row_idx}")
 
     def _transform_kotlin_url(self, uri):
-        if uri and uri.startswith("https://kotlinlab.org/docs"):
-            return uri.replace("https://kotlinlab.org/docs", "http://localhost:6174/KotlinDocs/html")
+        if uri and uri.startswith("https://kotlinlang.org/docs"):
+            return uri.replace("https://kotlinlang.org/docs", "http://localhost:6174/KotlinDocs/html")
         return uri
 
     def _create_button_hash(self, descr, uri):
