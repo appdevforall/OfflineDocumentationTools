@@ -42,18 +42,33 @@ class TooltipDatabase:
             if not value:
                 raise ValueError(f"Empty cell found in required column '{col_name}' at row {row_idx}")
 
-    def _transform_kotlin_url(self, uri):
-        if uri and uri.startswith("https://kotlinlang.org/docs"):
-            return uri.replace("https://kotlinlang.org/docs", "http://localhost:6174/KotlinDocs/html")
-        return uri
-
     def _create_button_hash(self, descr, uri):
         if descr and uri:
             return {
                 "first": descr,
-                "second": self._transform_kotlin_url(uri)
+                "second": self._normalize_button_url(uri)
             }
         return None
+
+    def _normalize_button_url(self, uri):
+        """
+        Normalize button URLs by applying domain-specific transformations.
+        Currently handles:
+        - Kotlin docs URLs (replaces kotlinlang.org with localhost)
+        - Java docs URLs (adds localhost prefix for java_keywords.html)
+        """
+        if not uri:
+            return uri
+            
+        # Handle Kotlin docs
+        if uri.startswith("https://kotlinlang.org/docs"):
+            return uri.replace("https://kotlinlang.org/docs", "http://localhost:6174/KotlinDocs/html")
+            
+        # Handle Java docs
+        if uri.startswith("java_keywords.html"):
+            return f"http://localhost:6174/JavaDocs/{uri}"
+            
+        return uri
 
     def read_xlsx(self):
         # Try to open the xlsx file using openpyxl
