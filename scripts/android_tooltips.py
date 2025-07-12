@@ -144,16 +144,29 @@ def normalize_button_uri(file_path, button_uri):
     
     # For Android docs, convert relative paths to absolute localhost URLs
     if button_uri.startswith('/reference/'):
-        # Remove the leading slash and add the localhost prefix
-        clean_uri = button_uri[1:]  # Remove leading '/'
-        return f"http://localhost:6174/AndroidDocs/API/Classes/developer.android.com/{clean_uri}.html"
+        # Remove the /reference/ prefix and construct the path
+        clean_uri = button_uri[10:]  # Remove '/reference/' (10 characters)
+        # Ensure no leading slash to avoid double slashes
+        if clean_uri.startswith('/'):
+            clean_uri = clean_uri[1:]  # Remove leading '/'
+        return f"http://localhost:6174/AndroidDocs/{clean_uri}.html"
     
     # For other relative paths, try to construct based on the current file location
-    # Get the directory path relative to the API directory
-    api_index = file_path.find('/API/')
-    if api_index != -1:
-        rel_path = file_path[api_index + 5:]  # Skip '/API/'
-        dir_path = os.path.dirname(rel_path)
+    # Extract the android path from the file_path
+    # Example: /path/to/SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html
+    # We want to extract: android/widget/AbsListView.html
+    
+    # Find the reference directory in the path
+    ref_index = file_path.find('/reference/')
+    if ref_index != -1:
+        # Extract everything after /reference/
+        android_path = file_path[ref_index + 10:]  # Skip '/reference/'
+        # Remove .html extension if present
+        if android_path.endswith('.html'):
+            android_path = android_path[:-5]
+        # Ensure no leading slash to avoid empty string in split
+        if android_path.startswith('/'):
+            android_path = android_path[1:]
         
         # Count the number of parent directory references
         parent_refs = button_uri.count('../')
@@ -161,17 +174,25 @@ def normalize_button_uri(file_path, button_uri):
         # Remove parent directory references from the button URI
         clean_uri = button_uri.replace('../', '')
         
-        # Split the directory path and remove the appropriate number of directories
-        dir_parts = dir_path.split('/')
+        # Split the android path and remove the appropriate number of directories
+        path_parts = android_path.split('/')
         if parent_refs > 0:
-            dir_parts = dir_parts[:-parent_refs]
+            path_parts = path_parts[:-parent_refs]
         
         # Construct the final path
-        final_path = '/'.join(dir_parts)
-        if final_path:
-            final_path += '/'
+        final_path = '/'.join(path_parts)
         
-        return f"http://localhost:6174/AndroidDocs/API/{final_path}{clean_uri}"
+        # Ensure proper path construction without double slashes
+        if final_path:
+            # Ensure clean_uri doesn't start with a slash
+            if clean_uri.startswith('/'):
+                clean_uri = clean_uri[1:]
+            return f"http://localhost:6174/AndroidDocs/{final_path}/{clean_uri}"
+        else:
+            # Ensure clean_uri doesn't start with a slash
+            if clean_uri.startswith('/'):
+                clean_uri = clean_uri[1:]
+            return f"http://localhost:6174/AndroidDocs/{clean_uri}"
     
     return button_uri
 
@@ -293,8 +314,25 @@ def get_all_file_data(file_path):
                     detail = detail[:1000] + "..."
             
             # Only include a button to the exact page for the specific class
-            rel_path = os.path.relpath(file_path, os.path.dirname(file_path))
-            self_url = normalize_button_uri(file_path, rel_path)
+            # Construct the button URL based on the class URL pattern
+            # We need to extract the android path from the file_path and construct the URL
+            ref_index = file_path.find('/reference/')
+            if ref_index != -1:
+                # Extract everything after /reference/
+                android_path = file_path[ref_index + 10:]  # Skip '/reference/'
+                # Remove .html extension if present
+                if android_path.endswith('.html'):
+                    android_path = android_path[:-5]
+                # Ensure no leading slash to avoid double slashes
+                if android_path.startswith('/'):
+                    android_path = android_path[1:]
+                # Construct the button URL
+                self_url = f"http://localhost:6174/AndroidDocs/{android_path}.html"
+            else:
+                # Fallback: use the old method
+                rel_path = os.path.relpath(file_path, os.path.dirname(file_path))
+                self_url = normalize_button_uri(file_path, rel_path)
+            
             buttons = [["View full documentation", self_url]]
             
             # Extract doc type - simplified
@@ -424,8 +462,28 @@ def traverse(directory_path, db_path, debug_mode=False):
                     html_content = android_page.get_html_page()
                     
                     if html_content and not html_content.strip().startswith("<html><head><title>Class Documentation</title></head><body><p>File not found"):
-                        # Create a path for the content table (relative to the documentation root)
-                        content_path = os.path.relpath(full_path, directory_path)
+                        # Create a path for the content table
+                        # Extract the android path from the full_path
+                        # Example: /path/to/SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html
+                        # We want: AndroidDocs/android/widget/AbsListView.html
+                        
+                        # Find the reference directory in the path
+                        ref_index = full_path.find('/reference/')
+                        if ref_index != -1:
+                            # Extract everything after /reference/
+                            android_path = full_path[ref_index + 10:]  # Skip '/reference/'
+                            # Remove .html extension if present
+                            if android_path.endswith('.html'):
+                                android_path = android_path[:-5]
+                            # Ensure no leading slash to avoid double slashes
+                            if android_path.startswith('/'):
+                                android_path = android_path[1:]
+                            # Construct the content path
+                            content_path = f"AndroidDocs/{android_path}.html"
+                        else:
+                            # Fallback: use relative path from directory
+                            content_path = os.path.relpath(full_path, directory_path)
+                        
                         # Add the cleaned HTML content to the Content table
                         doc_db.add_file(content_path, html_content.encode('utf-8'), 'en-US')
                 except Exception as e:

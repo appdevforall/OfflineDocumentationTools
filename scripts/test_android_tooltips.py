@@ -236,19 +236,19 @@ class TestAndroidTooltips(unittest.TestCase):
         # Test case 1: Simple relative path
         file_path = "SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html"
         button_uri = "/reference/android/widget/AdapterView"
-        expected = "http://localhost:6174/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AdapterView.html"
+        expected = "http://localhost:6174/AndroidDocs/android/widget/AdapterView.html"
         self.assertEqual(normalize_button_uri(file_path, button_uri), expected)
 
         # Test case 2: Already absolute path
         file_path = "SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html"
-        button_uri = "http://localhost:6174/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AdapterView.html"
-        expected = "http://localhost:6174/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AdapterView.html"
+        button_uri = "http://localhost:6174/AndroidDocs/android/widget/AdapterView.html"
+        expected = "http://localhost:6174/AndroidDocs/android/widget/AdapterView.html"
         self.assertEqual(normalize_button_uri(file_path, button_uri), expected)
 
         # Test case 3: Package reference
         file_path = "SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html"
         button_uri = "/reference/android/widget/package-summary"
-        expected = "http://localhost:6174/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/package-summary.html"
+        expected = "http://localhost:6174/AndroidDocs/android/widget/package-summary.html"
         self.assertEqual(normalize_button_uri(file_path, button_uri), expected)
 
     def test_analyze_classes_with_empty_description(self):
