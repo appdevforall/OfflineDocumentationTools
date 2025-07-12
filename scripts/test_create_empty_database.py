@@ -17,15 +17,15 @@ class TestDocumentationDatabase(unittest.TestCase):
     def test_init_creates_database(self):
         # Check if the database file exists
         self.assertTrue(os.path.exists(self.temp_db_file.name))
-        # Check if the tables are created
+        # Check if the core tables are created (ide_tooltip_table is optional and created by tooltip scripts)
         with sqlite3.connect(self.temp_db_file.name) as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             tables = cursor.fetchall()
-            self.assertIn(('ide_tooltip_table',), tables)
             self.assertIn(('Content',), tables)
             self.assertIn(('Languages',), tables)
             self.assertIn(('ContentTypes',), tables)
+            # ide_tooltip_table is optional and created by tooltip processing scripts
 
     def test_content_types_populated(self):
         # Check if the ContentTypes table contains all expected types
@@ -68,7 +68,7 @@ class TestDocumentationDatabase(unittest.TestCase):
                     cursor = connection.cursor()
                     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                     tables = cursor.fetchall()
-                    expected_tables = {'ide_tooltip_table', 'Content', 'Languages', 'ContentTypes'}
+                    expected_tables = {'Content', 'Languages', 'ContentTypes'}  # ide_tooltip_table is optional
                     existing_tables = {table[0] for table in tables if not table[0].startswith('sqlite_')}
                     self.assertEqual(existing_tables, expected_tables)
                 # Instantiate DocumentationDatabase a second time to verify it accepts a preexisting valid database

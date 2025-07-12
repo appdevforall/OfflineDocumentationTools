@@ -26,11 +26,10 @@ class TooltipDatabase:
         self.db_path = db_path
         self.xlsx_path = xlsx_path
         # Create the table if it doesn't exist
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(self.SCHEMA)
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(self.SCHEMA)
+            conn.commit()
 
     def validate_row(self, row, headers, row_idx):
         for col_name in self.REQUIRED_COLUMNS:

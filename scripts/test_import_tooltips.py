@@ -28,13 +28,12 @@ class TestTooltipDatabase(unittest.TestCase):
         try:
             db = TooltipDatabase(db_path, xlsx_path)
             # Connect to the database and check for the table
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT name FROM sqlite_master WHERE type='table' AND name='ide_tooltip_table';
-            """)
-            result = cursor.fetchone()
-            conn.close()
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT name FROM sqlite_master WHERE type='table' AND name='ide_tooltip_table';
+                """)
+                result = cursor.fetchone()
             self.assertIsNotNone(result, "ide_tooltip_table does not exist in the database")
         finally:
             os.remove(db_path)
@@ -117,8 +116,12 @@ class TestTooltipDatabase(unittest.TestCase):
 
                     # Attempt to create TooltipDatabase with empty cell
                     db = TooltipDatabase(db_path, xlsx_path)
-                    with self.assertRaises(Exception):
-                        db.read_xlsx()  # This method will need to be implemented
+                    result = db.read_xlsx()  # This should skip the row with empty required column
+                    
+                    # Verify that the row was skipped
+                    self.assertEqual(result['processed_rows'], 0, f"Row with empty {empty_col} should be skipped")
+                    self.assertEqual(result['skipped_rows'][0][0], 2, f"Row 2 should be skipped due to empty {empty_col}")
+                    self.assertIn(empty_col, result['skipped_rows'][0][1], f"Error message should mention {empty_col}")
         finally:
             # Clean up temporary files
             os.remove(xlsx_path)
@@ -218,11 +221,10 @@ class TestTooltipDatabase(unittest.TestCase):
             db.read_xlsx()
 
             # Verify the data was inserted correctly
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM ide_tooltip_table")
-            count = cursor.fetchone()[0]
-            conn.close()
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM ide_tooltip_table")
+                count = cursor.fetchone()[0]
 
             self.assertEqual(count, 5, "Expected 5 rows in the database")
 
@@ -271,11 +273,10 @@ class TestTooltipDatabase(unittest.TestCase):
             db.read_xlsx()
 
             # Verify the data was inserted correctly
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT tooltipTag FROM ide_tooltip_table")
-            result = cursor.fetchone()
-            conn.close()
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT tooltipTag FROM ide_tooltip_table")
+                result = cursor.fetchone()
 
             self.assertEqual(result[0], "FALSE", "Tag value 'FALSE' was not preserved correctly")
 

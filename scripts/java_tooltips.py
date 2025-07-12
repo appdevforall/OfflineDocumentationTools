@@ -55,14 +55,14 @@ def analyze_classes(directory_path):
                         # Get the deprecation comment
                         deprecation_div = last_div.find('div', class_='deprecation-comment')
                         if deprecation_div:
-                            description = 'Deprecated. ' + str(deprecation_div)
+                            description = 'Deprecated. ' + deprecation_div.get_text(strip=True)
                         else:
                             description = 'Deprecated.'
                     else:
                         # Regular class with block description
                         block_div = last_div.find('div', class_='block')
                         if block_div:
-                            description = str(block_div)
+                            description = block_div.get_text(strip=True)
                         else:
                             description = ""
                     
@@ -103,7 +103,8 @@ def get_detail(file_path):
             for element in desc_section.children:
                 if element.name != 'div' or 'type-signature' not in element.get('class', []):
                     content.append(str(element))
-            return str(BeautifulSoup(''.join(content), 'html.parser'))
+            # Convert HTML to plain text
+            return BeautifulSoup(''.join(content), 'html.parser').get_text(separator=' ', strip=True)
     return "No detail found"
 
 def normalize_button_uri(file_path, button_uri):
@@ -133,7 +134,13 @@ def normalize_button_uri(file_path, button_uri):
     
     # Split the directory path and remove the appropriate number of directories
     dir_parts = dir_path.split('/')
-    if parent_refs > 0:
+    
+    # For module-summary.html, always go to the module level (first directory)
+    if clean_uri == 'module-summary.html':
+        # Only keep the first directory (module name)
+        dir_parts = dir_parts[:1] if dir_parts else []
+    elif parent_refs > 0:
+        # For other files, remove the appropriate number of directories
         dir_parts = dir_parts[:-parent_refs]
     
     # Construct the final path
@@ -141,7 +148,7 @@ def normalize_button_uri(file_path, button_uri):
     if final_path:
         final_path += '/'
     
-    return f"http://localhost:6174/JavaDocs/html/api/{final_path}{clean_uri}"
+    return f"http://localhost:6174/JavaDoc/html/api/{final_path}{clean_uri}"
 
 def get_buttons(file_path):
     """
