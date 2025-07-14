@@ -205,7 +205,10 @@ def remove_unwanted_tags(soup):
     for tag in soup.find_all():
         if tag.name is None:
             continue
-        if tag.name == "iframe" or "devsite" in tag.name and tag.name != "devsite-code":
+        if "devsite" in tag.name and tag.name != "devsite-code":
+            tag.decompose()
+            continue
+        if "devsite-embedded-youtube-video" in tag.get('class', []):
             tag.decompose()
 
     # Remove all CSS (<style> elements) and JavaScript (<script> elements)
