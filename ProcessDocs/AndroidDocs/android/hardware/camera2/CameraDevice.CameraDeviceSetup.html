@@ -1,0 +1,100 @@
+<html><head><title>Class Documentation</title></head><body>CameraDevice.CameraDeviceSetup Kotlin | Java public
+  static
+  
+  abstract
+  class
+  CameraDevice.CameraDeviceSetup extends Object java.lang.Object ↳ android.hardware.camera2.CameraDevice.CameraDeviceSetup CameraDeviceSetup is a limited representation of CameraDevice that can be used to
+ query device specific information which would otherwise need a CameraDevice instance.
+ This class can be constructed without calling CameraManager.openCamera and paying
+ the latency cost of CameraDevice creation. Use CameraManager.getCameraDeviceSetup to get an instance of this class. Can only be instantiated for camera devices for which CameraManager.isCameraDeviceSetupSupported returns true. See also: CameraManager.isCameraDeviceSetupSupported(String) CameraManager.getCameraDeviceSetup(String) Summary Public methods abstract CaptureRequest.Builder createCaptureRequest (int templateType) Create a CaptureRequest.Builder for new capture requests,
+ initialized with a template for target use case. abstract String getId () Get the ID of this camera device. abstract CameraCharacteristics getSessionCharacteristics ( SessionConfiguration sessionConfig) Get camera characteristics for a particular session configuration for this camera
+ device. abstract
+        
+        
+        
+        
+        boolean isSessionConfigurationSupported ( SessionConfiguration config) Checks whether a particular SessionConfiguration is supported by the camera
+ device. abstract
+        
+        
+        
+        
+        void openCamera ( Executor executor, CameraDevice.StateCallback callback) Utility function to forward the call to CameraManager.openCamera(String, Executor, StateCallback) . Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public methods createCaptureRequest Added in API level 35 public abstract CaptureRequest.Builder createCaptureRequest (int templateType) Create a CaptureRequest.Builder for new capture requests,
+ initialized with a template for target use case. The settings are chosen to be the best options for the specific camera device,
+ so it is not recommended to reuse the same request for a different camera device;
+ create a builder specific for that device and template and override the
+ settings as desired, instead. Supported if CameraCharacteristics.INFO_SESSION_CONFIGURATION_QUERY_VERSION is at least Build.VERSION_CODES.VANILLA_ICE_CREAM . If less or equal to Build.VERSION_CODES.UPSIDE_DOWN_CAKE , this function throws an UnsupportedOperationException . Parameters templateType int : An enumeration selecting the use case for this request. Not all
+                     template types are supported on every device. See the documentation
+                     for each template type for details.
+
+ Value is CameraDevice.TEMPLATE_PREVIEW , CameraDevice.TEMPLATE_STILL_CAPTURE , CameraDevice.TEMPLATE_RECORD , CameraDevice.TEMPLATE_VIDEO_SNAPSHOT , CameraDevice.TEMPLATE_ZERO_SHUTTER_LAG , or CameraDevice.TEMPLATE_MANUAL Returns CaptureRequest.Builder a builder for a capture request, initialized with default settings for that
+ template, and no output streams
+
+ This value cannot be null . Throws CameraAccessException if the querying the camera device failed or there has been
+ a fatal error IllegalArgumentException if the templateType is not supported by this device getId Added in API level 35 public abstract String getId () Get the ID of this camera device. This matches the ID given to CameraManager.getCameraDeviceSetup to instantiate
+ this object. Returns String the ID for this camera device
+
+ This value cannot be null . See also: CameraManager.getCameraIdList() getSessionCharacteristics Added in API level 35 public abstract CameraCharacteristics getSessionCharacteristics ( SessionConfiguration sessionConfig) Get camera characteristics for a particular session configuration for this camera
+ device. The camera characteristics returned by this method are different from those returned
+ from CameraManager.getCameraCharacteristics . The characteristics returned here
+ reflect device capabilities more accurately if the device were to be configured with sessionConfig . The keys that may get updated are listed in CameraCharacteristics.getAvailableSessionCharacteristicsKeys . Other than that, the characteristics returned here can be used in the same way as
+ those returned from CameraManager.getCameraCharacteristics . To optimize latency, the application can call this method before acquiring valid SurfaceView , SurfaceTexture , MediaRecorder , MediaCodec , or ImageReader surfaces. For SurfaceView , SurfaceTexture , MediaRecorder , and MediaCodec , the application can call OutputConfiguration.OutputConfiguration(Size, Class) . For ImageReader , the application can call OutputConfiguration.OutputConfiguration(int, android.util.Size) , OutputConfiguration.OutputConfiguration(int, int, android.util.Size) , OutputConfiguration.OutputConfiguration(int, android.util.Size, long) , or OutputConfiguration.OutputConfiguration(int, int, android.util.Size, long) . The SessionConfiguration can then be created using the OutputConfiguration objects and
+ be used for this function. To create the CameraCaptureSession, the application still
+ needs to make sure all output surfaces are added via OutputConfiguration.addSurface(Surface) with the exception of deferred surfaces for SurfaceView and SurfaceTexture . Parameters sessionConfig SessionConfiguration : The session configuration for which characteristics are fetched.
+ This value cannot be null . Returns CameraCharacteristics CameraCharacteristics specific to a given session configuration.
+
+ This value cannot be null . Throws IllegalArgumentException if the session configuration is invalid or if isSessionConfigurationSupported(SessionConfiguration) returns false for the provided SessionConfiguration CameraAccessException if the camera device is no longer connected or has
+                                  encountered a fatal error See also: CameraCharacteristics.getAvailableSessionCharacteristicsKeys() isSessionConfigurationSupported Added in API level 35 public abstract boolean isSessionConfigurationSupported ( SessionConfiguration config) Checks whether a particular SessionConfiguration is supported by the camera
+ device. This method performs a runtime check of a given SessionConfiguration . The
+ result confirms whether or not the SessionConfiguration , including the
+ parameters specified via SessionConfiguration.setSessionParameters , can
+ be used to create a camera capture session using CameraDevice.createCaptureSession(SessionConfiguration) . This method is supported if the CameraCharacteristics.INFO_SESSION_CONFIGURATION_QUERY_VERSION is at least Build.VERSION_CODES.VANILLA_ICE_CREAM . If less or equal
+ to Build.VERSION_CODES.UPSIDE_DOWN_CAKE , this function throws UnsupportedOperationException . Although this method is much faster than creating a new capture session, it can still
+ take a few milliseconds per call. Applications should therefore not use this method to
+ explore the entire space of supported session combinations. Instead, applications should use this method to query whether combinations of
+ certain features are supported. CameraCharacteristics.INFO_SESSION_CONFIGURATION_QUERY_VERSION provides the list of
+ feature combinations the camera device will reliably report. If this function returns true for a particular stream combination, the camera
+ device supports concurrent captures on all of the streams in the same CaptureRequest,
+ with two exceptions below where concurrent captures are not supported: Supported stream combinations with exclusive dynamic range profiles as specified by DynamicRangeProfiles.getProfileCaptureRequestConstraints(long) . Supported combinations of 'default' mode and 'max resolution' mode streams for
+ devices with ULTRA_HIGH_RESOLUTION_SENSOR capability. For other cases where concurrent captures of a stream combination are not supported,
+ this function returns false . IMPORTANT: If feature support can be queried via CameraCharacteristics , applications
+ should directly use that route rather than calling this function as: (1) using CameraCharacteristics is more efficient, and (2) querying a feature explicitly
+ deemed unsupported by CameraCharacteristics may throw a IllegalArgumentException . To minimize SessionConfiguration creation latency due to its dependency on
+ output surfaces, the application can call this method before acquiring valid SurfaceView , SurfaceTexture , MediaRecorder , MediaCodec , or ImageReader surfaces. For SurfaceView , SurfaceTexture , MediaRecorder , and MediaCodec , the application can call OutputConfiguration.OutputConfiguration(Size, Class) . For ImageReader , the application can call OutputConfiguration.OutputConfiguration(int, android.util.Size) , OutputConfiguration.OutputConfiguration(int, int, android.util.Size) , OutputConfiguration.OutputConfiguration(int, android.util.Size, long) , or OutputConfiguration.OutputConfiguration(int, int, android.util.Size, long) . The SessionConfiguration can then be created using the OutputConfiguration objects and
+ be used to query whether it's supported by the camera device. To create the
+ CameraCaptureSession, the application still needs to make sure all output surfaces
+ are added via OutputConfiguration.addSurface with the exception of deferred
+ surfaces for SurfaceView and SurfaceTexture . Parameters config SessionConfiguration : This value cannot be null . Returns boolean true if the given session configuration is supported by the camera
+ device, false otherwise. Throws CameraAccessException if the camera device is no longer connected or has
+ encountered a fatal error IllegalArgumentException if the session configuration is invalid, including,
+ if it contains certain non-supported features queryable via CameraCharacteristics. See also: CameraCharacteristics.INFO_SESSION_CONFIGURATION_QUERY_VERSION SessionConfiguration ImageReader openCamera Added in API level 35 public abstract void openCamera ( Executor executor, CameraDevice.StateCallback callback) Utility function to forward the call to CameraManager.openCamera(String, Executor, StateCallback) . This function simply
+ calls CameraManager.openCamera for the cameraId for which this class was
+ constructed. All semantics are consistent with CameraManager.openCamera . Requires Manifest.permission.CAMERA Parameters executor Executor : The executor which will be used when invoking the callback.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback CameraDevice.StateCallback : The callback which is invoked once the camera is opened
+
+ This value cannot be null . Throws CameraAccessException if the camera is disabled by device policy,
+ has been disconnected, or is being used by a higher-priority camera API client. IllegalArgumentException if cameraId, the callback or the executor was null,
+ or the cameraId does not match any currently or previously available
+ camera device. SecurityException if the application does not have permission to
+ access the camera See also: CameraManager.openCamera(String, Executor, StateCallback)</body></html>

@@ -1,0 +1,455 @@
+<html><head><title>Class Documentation</title></head><body>DialogFragment Kotlin | Java public
+  
+  
+  
+  class
+  DialogFragment extends Fragment implements DialogInterface.OnCancelListener , DialogInterface.OnDismissListener java.lang.Object ↳ android.app.Fragment ↳ android.app.DialogFragment This class was deprecated
+      in API level 28. Use the Support Library DialogFragment for consistent behavior across all devices
+      and access to Lifecycle . A fragment that displays a dialog window, floating on top of its
+ activity's window.  This fragment contains a Dialog object, which it
+ displays as appropriate based on the fragment's state.  Control of
+ the dialog (deciding when to show, hide, dismiss it) should be done through
+ the API here, not with direct calls on the dialog. Implementations should override this class and implement Fragment.onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) to supply the
+ content of the dialog.  Alternatively, they can override onCreateDialog(android.os.Bundle) to create an entirely custom dialog, such
+ as an AlertDialog, with its own content. Topics covered here: Lifecycle Basic Dialog Alert Dialog Selecting Between Dialog or Embedding Lifecycle DialogFragment does various things to keep the fragment's lifecycle
+ driving it, instead of the Dialog.  Note that dialogs are generally
+ autonomous entities -- they are their own window, receiving their own
+ input events, and often deciding on their own when to disappear (by
+ receiving a back key event or the user clicking on a button). DialogFragment needs to ensure that what is happening with the Fragment
+ and Dialog states remains consistent.  To do this, it watches for dismiss
+ events from the dialog and takes care of removing its own state when they
+ happen.  This means you should use show(android.app.FragmentManager, java.lang.String) or show(android.app.FragmentTransaction, java.lang.String) to add an instance of
+ DialogFragment to your UI, as these keep track of how DialogFragment should
+ remove itself when the dialog is dismissed. Basic Dialog The simplest use of DialogFragment is as a floating container for the
+ fragment's view hierarchy.  A simple implementation may look like this: public static class MyDialogFragment extends DialogFragment {
+    int mNum;
+
+    /**
+     * Create a new instance of MyDialogFragment, providing "num"
+     * as an argument.
+     */
+    static MyDialogFragment newInstance(int num) {
+        MyDialogFragment f = new MyDialogFragment();
+
+        // Supply num input as an argument.
+        Bundle args = new Bundle();
+        args.putInt("num", num);
+        f.setArguments(args);
+
+        return f;
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mNum = getArguments().getInt("num");
+
+        // Pick a style based on the num.
+        int style = DialogFragment.STYLE_NORMAL, theme = 0;
+        switch ((mNum-1)%6) {
+            case 1: style = DialogFragment.STYLE_NO_TITLE; break;
+            case 2: style = DialogFragment.STYLE_NO_FRAME; break;
+            case 3: style = DialogFragment.STYLE_NO_INPUT; break;
+            case 4: style = DialogFragment.STYLE_NORMAL; break;
+            case 5: style = DialogFragment.STYLE_NORMAL; break;
+            case 6: style = DialogFragment.STYLE_NO_TITLE; break;
+            case 7: style = DialogFragment.STYLE_NO_FRAME; break;
+            case 8: style = DialogFragment.STYLE_NORMAL; break;
+        }
+        switch ((mNum-1)%6) {
+            case 4: theme = android.R.style.Theme_Holo; break;
+            case 5: theme = android.R.style.Theme_Holo_Light_Dialog; break;
+            case 6: theme = android.R.style.Theme_Holo_Light; break;
+            case 7: theme = android.R.style.Theme_Holo_Light_Panel; break;
+            case 8: theme = android.R.style.Theme_Holo_Light; break;
+        }
+        setStyle(style, theme);
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+            Bundle savedInstanceState) {
+        View v = inflater.inflate(R.layout.fragment_dialog, container, false);
+        View tv = v.findViewById(R.id.text);
+        ((TextView)tv).setText("Dialog #" + mNum + ": using style "
+                + getNameForNum(mNum));
+
+        // Watch for button clicks.
+        Button button = (Button)v.findViewById(R.id.show);
+        button.setOnClickListener(new OnClickListener() {
+            public void onClick(View v) {
+                // When button is clicked, call up to owning activity.
+                ((FragmentDialog)getActivity()).showDialog();
+            }
+        });
+
+        return v;
+    }
+} An example showDialog() method on the Activity could be: void showDialog() {
+    mStackLevel++;
+
+    // DialogFragment.show() will take care of adding the fragment
+    // in a transaction.  We also want to remove any currently showing
+    // dialog, so make our own transaction and take care of that here.
+    FragmentTransaction ft = getFragmentManager().beginTransaction();
+    Fragment prev = getFragmentManager().findFragmentByTag("dialog");
+    if (prev != null) {
+        ft.remove(prev);
+    }
+    ft.addToBackStack(null);
+
+    // Create and show the dialog.
+    DialogFragment newFragment = MyDialogFragment.newInstance(mStackLevel);
+    newFragment.show(ft, "dialog");
+} This removes any currently shown dialog, creates a new DialogFragment
+ with an argument, and shows it as a new state on the back stack.  When the
+ transaction is popped, the current DialogFragment and its Dialog will be
+ destroyed, and the previous one (if any) re-shown.  Note that in this case
+ DialogFragment will take care of popping the transaction of the Dialog
+ is dismissed separately from it. Alert Dialog Instead of (or in addition to) implementing Fragment.onCreateView(LayoutInflater, ViewGroup, Bundle) to
+ generate the view hierarchy inside of a dialog, you may implement onCreateDialog(android.os.Bundle) to create your own custom Dialog object. This is most useful for creating an AlertDialog , allowing you
+ to display standard alerts to the user that are managed by a fragment.
+ A simple example implementation of this is: public static class MyAlertDialogFragment extends DialogFragment {
+
+    public static MyAlertDialogFragment newInstance(int title) {
+        MyAlertDialogFragment frag = new MyAlertDialogFragment();
+        Bundle args = new Bundle();
+        args.putInt("title", title);
+        frag.setArguments(args);
+        return frag;
+    }
+
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState) {
+        int title = getArguments().getInt("title");
+
+        return new AlertDialog.Builder(getActivity())
+                .setIcon(R.drawable.alert_dialog_icon)
+                .setTitle(title)
+                .setPositiveButton(R.string.alert_dialog_ok,
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+                            ((FragmentAlertDialog)getActivity()).doPositiveClick();
+                        }
+                    }
+                )
+                .setNegativeButton(R.string.alert_dialog_cancel,
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+                            ((FragmentAlertDialog)getActivity()).doNegativeClick();
+                        }
+                    }
+                )
+                .create();
+    }
+} The activity creating this fragment may have the following methods to
+ show the dialog and receive results from it: void showDialog() {
+    DialogFragment newFragment = MyAlertDialogFragment.newInstance(
+            R.string.alert_dialog_two_buttons_title);
+    newFragment.show(getFragmentManager(), "dialog");
+}
+
+public void doPositiveClick() {
+    // Do stuff here.
+    Log.i("FragmentAlertDialog", "Positive click!");
+}
+
+public void doNegativeClick() {
+    // Do stuff here.
+    Log.i("FragmentAlertDialog", "Negative click!");
+} Note that in this case the fragment is not placed on the back stack, it
+ is just added as an indefinitely running fragment.  Because dialogs normally
+ are modal, this will still operate as a back stack, since the dialog will
+ capture user input until it is dismissed.  When it is dismissed, DialogFragment
+ will take care of removing itself from its fragment manager. Selecting Between Dialog or Embedding A DialogFragment can still optionally be used as a normal fragment, if
+ desired.  This is useful if you have a fragment that in some cases should
+ be shown as a dialog and others embedded in a larger UI.  This behavior
+ will normally be automatically selected for you based on how you are using
+ the fragment, but can be customized with setShowsDialog(boolean) . For example, here is a simple dialog fragment: public static class MyDialogFragment extends DialogFragment {
+    static MyDialogFragment newInstance() {
+        return new MyDialogFragment();
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+            Bundle savedInstanceState) {
+        View v = inflater.inflate(R.layout.hello_world, container, false);
+        View tv = v.findViewById(R.id.text);
+        ((TextView)tv).setText("This is an instance of MyDialogFragment");
+        return v;
+    }
+} An instance of this fragment can be created and shown as a dialog: void showDialog() {
+    // Create the fragment and show it as a dialog.
+    DialogFragment newFragment = MyDialogFragment.newInstance();
+    newFragment.show(getFragmentManager(), "dialog");
+} It can also be added as content in a view hierarchy: FragmentTransaction ft = getFragmentManager().beginTransaction();
+DialogFragment newFragment = MyDialogFragment.newInstance();
+ft.add(R.id.embedded, newFragment);
+ft.commit(); Summary Inherited XML attributes From class android.app.Fragment android:fragmentAllowEnterTransitionOverlap Sets whether the enter and exit transitions should overlap when transitioning
+ forward. android:fragmentAllowReturnTransitionOverlap Sets whether the enter and exit transitions should overlap when transitioning
+ because of popping the back stack. android:fragmentEnterTransition The Transition that will be used to move Views into the initial scene. android:fragmentExitTransition The Transition that will be used to move Views out of the scene when the
+ fragment is removed, hidden, or detached when not popping the back stack. android:fragmentReenterTransition The Transition that will be used to move Views in to the scene when returning due
+ to popping a back stack. android:fragmentSharedElementEnterTransition The Transition that will be used for shared elements transferred into the content
+ Scene. android:fragmentSharedElementReturnTransition The Transition that will be used for shared elements transferred back during a
+ pop of the back stack. Constants int STYLE_NORMAL Style for setStyle(int, int) : a basic,
+ normal dialog. int STYLE_NO_FRAME Style for setStyle(int, int) : don't draw
+ any frame at all; the view hierarchy returned by Fragment.onCreateView(LayoutInflater, ViewGroup, Bundle) is entirely responsible for drawing the dialog. int STYLE_NO_INPUT Style for setStyle(int, int) : like STYLE_NO_FRAME , but also disables all input to the dialog. int STYLE_NO_TITLE Style for setStyle(int, int) : don't include
+ a title area. Inherited constants From interface android.content.ComponentCallbacks2 int TRIM_MEMORY_BACKGROUND Level for onTrimMemory(int) : the process has gone on to the
+ LRU list. int TRIM_MEMORY_COMPLETE This constant was deprecated
+      in API level 35.
+    Apps are not notified of this level since API level 34 int TRIM_MEMORY_MODERATE This constant was deprecated
+      in API level 35.
+    Apps are not notified of this level since API level 34 int TRIM_MEMORY_RUNNING_CRITICAL This constant was deprecated
+      in API level 35.
+    Apps are not notified of this level since API level 34 int TRIM_MEMORY_RUNNING_LOW This constant was deprecated
+      in API level 35.
+    Apps are not notified of this level since API level 34 int TRIM_MEMORY_RUNNING_MODERATE This constant was deprecated
+      in API level 35.
+    Apps are not notified of this level since API level 34 int TRIM_MEMORY_UI_HIDDEN Level for onTrimMemory(int) : the process had been showing
+ a user interface, and is no longer doing so. Public constructors DialogFragment () Public methods void dismiss () Dismiss the fragment and its dialog. void dismissAllowingStateLoss () Version of dismiss() that uses FragmentTransaction.commitAllowingStateLoss() . void dump ( String prefix, FileDescriptor fd, PrintWriter writer, String[] args) Print the Fragments's state into the given stream. Dialog getDialog () boolean getShowsDialog () Return the current value of setShowsDialog(boolean) . int getTheme () boolean isCancelable () Return the current value of setCancelable(boolean) . void onActivityCreated ( Bundle savedInstanceState) Called when the fragment's activity has been created and this
+ fragment's view hierarchy instantiated. void onAttach ( Context context) Called when a fragment is first attached to its context. void onCancel ( DialogInterface dialog) This method will be invoked when the dialog is canceled. void onCreate ( Bundle savedInstanceState) Called to do initial creation of a fragment. Dialog onCreateDialog ( Bundle savedInstanceState) Override to build your own custom Dialog container. void onDestroyView () Remove dialog. void onDetach () Called when the fragment is no longer attached to its activity. void onDismiss ( DialogInterface dialog) This method will be invoked when the dialog is dismissed. void onSaveInstanceState ( Bundle outState) Called to ask the fragment to save its current dynamic state, so it
+ can later be reconstructed in a new instance of its process is
+ restarted. void onStart () Called when the Fragment is visible to the user. void onStop () Called when the Fragment is no longer started. void setCancelable (boolean cancelable) Control whether the shown Dialog is cancelable. void setShowsDialog (boolean showsDialog) Controls whether this fragment should be shown in a dialog. void setStyle (int style, int theme) Call to customize the basic appearance and behavior of the
+ fragment's dialog. void show ( FragmentManager manager, String tag) Display the dialog, adding the fragment to the given FragmentManager. int show ( FragmentTransaction transaction, String tag) Display the dialog, adding the fragment using an existing transaction
+ and then committing the transaction. Inherited methods From class android.app.Fragment void dump ( String prefix, FileDescriptor fd, PrintWriter writer, String[] args) Print the Fragments's state into the given stream. final
+        
+        boolean equals ( Object o) Subclasses can not override equals(). final Activity getActivity () Return the Activity this fragment is currently associated with. boolean getAllowEnterTransitionOverlap () Returns whether the exit transition and enter transition overlap or not. boolean getAllowReturnTransitionOverlap () Returns whether the return transition and reenter transition overlap or not. final Bundle getArguments () Return the arguments supplied to setArguments(Bundle) , if any. final FragmentManager getChildFragmentManager () Return a private FragmentManager for placing and managing Fragments
+ inside of this Fragment. Context getContext () Return the Context this fragment is currently associated with. Transition getEnterTransition () Returns the Transition that will be used to move Views into the initial scene. Transition getExitTransition () Returns the Transition that will be used to move Views out of the scene when the
+ fragment is removed, hidden, or detached when not popping the back stack. final FragmentManager getFragmentManager () Return the FragmentManager for interacting with fragments associated
+ with this fragment's activity. final Object getHost () Return the host object of this fragment. final
+        
+        int getId () Return the identifier this fragment is known by. final LayoutInflater getLayoutInflater () Returns the cached LayoutInflater used to inflate Views of this Fragment. LoaderManager getLoaderManager () This method is deprecated.
+    Use Fragment.getLoaderManager() final Fragment getParentFragment () Returns the parent Fragment containing this Fragment. Transition getReenterTransition () Returns the Transition that will be used to move Views in to the scene when returning due
+ to popping a back stack. final Resources getResources () Return getActivity().getResources() . final
+        
+        boolean getRetainInstance () Transition getReturnTransition () Returns the Transition that will be used to move Views out of the scene when the Fragment is
+ preparing to be removed, hidden, or detached because of popping the back stack. Transition getSharedElementEnterTransition () Returns the Transition that will be used for shared elements transferred into the content
+ Scene. Transition getSharedElementReturnTransition () Return the Transition that will be used for shared elements transferred back during a
+ pop of the back stack. final String getString (int resId) Return a localized string from the application's package's
+ default string table. final String getString (int resId, Object... formatArgs) Return a localized formatted string from the application's package's
+ default string table, substituting the format arguments as defined in Formatter and String.format(String, Object) . final String getTag () Get the tag name of the fragment, if specified. final Fragment getTargetFragment () Return the target fragment set by setTargetFragment(Fragment, int) . final
+        
+        int getTargetRequestCode () Return the target request code set by setTargetFragment(Fragment, int) . final CharSequence getText (int resId) Return a localized, styled CharSequence from the application's package's
+ default string table. boolean getUserVisibleHint () View getView () Get the root view for the fragment's layout (the one returned by onCreateView(LayoutInflater, ViewGroup, Bundle) ),
+ if provided. final
+        
+        int hashCode () Subclasses can not override hashCode(). static Fragment instantiate ( Context context, String fname) Like instantiate(android.content.Context, java.lang.String, android.os.Bundle) but with a null
+ argument Bundle. static Fragment instantiate ( Context context, String fname, Bundle args) Create a new instance of a Fragment with the given class name. final
+        
+        boolean isAdded () Return true if the fragment is currently added to its activity. final
+        
+        boolean isDetached () Return true if the fragment has been explicitly detached from the UI. final
+        
+        boolean isHidden () Return true if the fragment has been hidden. final
+        
+        boolean isInLayout () Return true if the layout is included as part of an activity view
+ hierarchy via the <fragment> tag. final
+        
+        boolean isRemoving () Return true if this fragment is currently being removed from its
+ activity. final
+        
+        boolean isResumed () Return true if the fragment is in the resumed state. final
+        
+        boolean isStateSaved () Returns true if this fragment is added and its state has already been saved
+ by its host. final
+        
+        boolean isVisible () Return true if the fragment is currently visible to the user. void onActivityCreated ( Bundle savedInstanceState) Called when the fragment's activity has been created and this
+ fragment's view hierarchy instantiated. void onActivityResult (int requestCode, int resultCode, Intent data) Receive the result from a previous call to startActivityForResult(android.content.Intent, int) . void onAttach ( Activity activity) This method was deprecated
+      in API level 23.
+    Use onAttach(android.content.Context) instead. void onAttach ( Context context) Called when a fragment is first attached to its context. void onAttachFragment ( Fragment childFragment) Called when a fragment is attached as a child of this fragment. void onConfigurationChanged ( Configuration newConfig) Called by the system when the device configuration changes while your
+ component is running.
+
+ If you override this method you must call through to the
+ superclass implementation. boolean onContextItemSelected ( MenuItem item) This hook is called whenever an item in a context menu is selected. void onCreate ( Bundle savedInstanceState) Called to do initial creation of a fragment. Animator onCreateAnimator (int transit, boolean enter, int nextAnim) Called when a fragment loads an animation. void onCreateContextMenu ( ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) Called when a context menu for the view is about to be shown. void onCreateOptionsMenu ( Menu menu, MenuInflater inflater) Initialize the contents of the Activity's standard options menu. View onCreateView ( LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) Called to have the fragment instantiate its user interface view. void onDestroy () Called when the fragment is no longer in use. void onDestroyOptionsMenu () Called when this fragment's option menu items are no longer being
+ included in the overall options menu. void onDestroyView () Called when the view previously created by onCreateView(LayoutInflater, ViewGroup, Bundle) has
+ been detached from the fragment. void onDetach () Called when the fragment is no longer attached to its activity. LayoutInflater onGetLayoutInflater ( Bundle savedInstanceState) Returns the LayoutInflater used to inflate Views of this Fragment. void onHiddenChanged (boolean hidden) Called when the hidden state (as returned by isHidden() of
+ the fragment has changed. void onInflate ( AttributeSet attrs, Bundle savedInstanceState) This method was deprecated
+      in API level 15.
+    Use onInflate(android.content.Context, android.util.AttributeSet, android.os.Bundle) instead. void onInflate ( Activity activity, AttributeSet attrs, Bundle savedInstanceState) This method was deprecated
+      in API level 23.
+    Use onInflate(android.content.Context, android.util.AttributeSet, android.os.Bundle) instead. void onInflate ( Context context, AttributeSet attrs, Bundle savedInstanceState) Called when a fragment is being created as part of a view layout
+ inflation, typically from setting the content view of an activity. void onLowMemory () This is called when the overall system is running low on memory, and
+ actively running processes should trim their memory usage.
+
+ If you override this method you must call through to the
+ superclass implementation. void onMultiWindowModeChanged (boolean isInMultiWindowMode) This method was deprecated
+      in API level 26.
+    Use onMultiWindowModeChanged(boolean, android.content.res.Configuration) instead. void onMultiWindowModeChanged (boolean isInMultiWindowMode, Configuration newConfig) Called when the Fragment's activity changes from fullscreen mode to multi-window mode and
+ visa-versa. boolean onOptionsItemSelected ( MenuItem item) This hook is called whenever an item in your options menu is selected. void onOptionsMenuClosed ( Menu menu) This hook is called whenever the options menu is being closed (either by the user canceling
+ the menu with the back/menu button, or when an item is selected). void onPause () Called when the Fragment is no longer resumed. void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) Called by the system when the activity changes to and from picture-in-picture mode. void onPictureInPictureModeChanged (boolean isInPictureInPictureMode) This method was deprecated
+      in API level 26.
+    Use onPictureInPictureModeChanged(boolean, android.content.res.Configuration) instead. void onPrepareOptionsMenu ( Menu menu) Prepare the Screen's standard options menu to be displayed. void onRequestPermissionsResult (int requestCode, String[] permissions, int[] grantResults) Callback for the result from requesting permissions. void onResume () Called when the fragment is visible to the user and actively running. void onSaveInstanceState ( Bundle outState) Called to ask the fragment to save its current dynamic state, so it
+ can later be reconstructed in a new instance of its process is
+ restarted. void onStart () Called when the Fragment is visible to the user. void onStop () Called when the Fragment is no longer started. void onTrimMemory (int level) Called when the operating system has determined that it is a good
+ time for a process to trim unneeded memory from its process.
+
+ If you override this method you must call through to the
+ superclass implementation. void onViewCreated ( View view, Bundle savedInstanceState) Called immediately after onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) has returned, but before any saved state has been restored in to the view. void onViewStateRestored ( Bundle savedInstanceState) Called when all saved state has been restored into the view hierarchy
+ of the fragment. void postponeEnterTransition () Postpone the entering Fragment transition until startPostponedEnterTransition() or FragmentManager.executePendingTransactions() has been called. void registerForContextMenu ( View view) Registers a context menu to be shown for the given view (multiple views
+ can show the context menu). final
+        
+        void requestPermissions ( String[] permissions, int requestCode) Requests permissions to be granted to this application. void setAllowEnterTransitionOverlap (boolean allow) Sets whether the exit transition and enter transition overlap or not. void setAllowReturnTransitionOverlap (boolean allow) Sets whether the return transition and reenter transition overlap or not. void setArguments ( Bundle args) Supply the construction arguments for this fragment. void setEnterSharedElementCallback ( SharedElementCallback callback) When custom transitions are used with Fragments, the enter transition callback
+ is called when this Fragment is attached or detached when not popping the back stack. void setEnterTransition ( Transition transition) Sets the Transition that will be used to move Views into the initial scene. void setExitSharedElementCallback ( SharedElementCallback callback) When custom transitions are used with Fragments, the exit transition callback
+ is called when this Fragment is attached or detached when popping the back stack. void setExitTransition ( Transition transition) Sets the Transition that will be used to move Views out of the scene when the
+ fragment is removed, hidden, or detached when not popping the back stack. void setHasOptionsMenu (boolean hasMenu) Report that this fragment would like to participate in populating
+ the options menu by receiving a call to onCreateOptionsMenu(Menu, MenuInflater) and related methods. void setInitialSavedState ( Fragment.SavedState state) Set the initial saved state that this Fragment should restore itself
+ from when first being constructed, as returned by FragmentManager.saveFragmentInstanceState . void setMenuVisibility (boolean menuVisible) Set a hint for whether this fragment's menu should be visible. void setReenterTransition ( Transition transition) Sets the Transition that will be used to move Views in to the scene when returning due
+ to popping a back stack. void setRetainInstance (boolean retain) Control whether a fragment instance is retained across Activity
+ re-creation (such as from a configuration change). void setReturnTransition ( Transition transition) Sets the Transition that will be used to move Views out of the scene when the Fragment is
+ preparing to be removed, hidden, or detached because of popping the back stack. void setSharedElementEnterTransition ( Transition transition) Sets the Transition that will be used for shared elements transferred into the content
+ Scene. void setSharedElementReturnTransition ( Transition transition) Sets the Transition that will be used for shared elements transferred back during a
+ pop of the back stack. void setTargetFragment ( Fragment fragment, int requestCode) Optional target for this fragment. void setUserVisibleHint (boolean isVisibleToUser) Set a hint to the system about whether this fragment's UI is currently visible
+ to the user. boolean shouldShowRequestPermissionRationale ( String permission) Gets whether you should show UI with rationale before requesting a permission. void startActivity ( Intent intent) Call Activity.startActivity(Intent) from the fragment's
+ containing Activity. void startActivity ( Intent intent, Bundle options) Call Activity.startActivity(Intent, Bundle) from the fragment's
+ containing Activity. void startActivityForResult ( Intent intent, int requestCode) Call Activity.startActivityForResult(Intent, int) from the fragment's
+ containing Activity. void startActivityForResult ( Intent intent, int requestCode, Bundle options) Call Activity.startActivityForResult(Intent, int, Bundle) from the fragment's
+ containing Activity. void startIntentSenderForResult ( IntentSender intent, int requestCode, Intent fillInIntent, int flagsMask, int flagsValues, int extraFlags, Bundle options) Call Activity.startIntentSenderForResult(IntentSender, int, Intent, int, int, int,
+ Bundle) from the fragment's containing Activity. void startPostponedEnterTransition () Begin postponed transitions after postponeEnterTransition() was called. String toString () Returns a string representation of the object. void unregisterForContextMenu ( View view) Prevents a context menu to be shown for the given view. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface android.content.ComponentCallbacks2 abstract
+        
+        
+        
+        
+        void onTrimMemory (int level) Called when the operating system has determined that it is a good
+ time for a process to trim unneeded memory from its process. From interface android.view.View.OnCreateContextMenuListener abstract
+        
+        
+        
+        
+        void onCreateContextMenu ( ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) Called when the context menu for this view is being built. From interface android.content.DialogInterface.OnCancelListener abstract
+        
+        
+        
+        
+        void onCancel ( DialogInterface dialog) This method will be invoked when the dialog is canceled. From interface android.content.DialogInterface.OnDismissListener abstract
+        
+        
+        
+        
+        void onDismiss ( DialogInterface dialog) This method will be invoked when the dialog is dismissed. From interface android.content.ComponentCallbacks abstract
+        
+        
+        
+        
+        void onConfigurationChanged ( Configuration newConfig) Called by the system when the device configuration changes while your
+ component is running. abstract
+        
+        
+        
+        
+        void onLowMemory () This method was deprecated
+      in API level 35.
+    Since API level 14 this is superseded by ComponentCallbacks2.onTrimMemory .
+             Since API level 34 this is never called.
+             If you're overriding ComponentCallbacks2#onTrimMemory and
+             your minSdkVersion is greater than API 14, you can provide
+             an empty implementation for this method. Constants STYLE_NORMAL Added in API level 11 public static final int STYLE_NORMAL Style for setStyle(int, int) : a basic,
+ normal dialog. Constant Value:
+      
+          0
+          (0x00000000) STYLE_NO_FRAME Added in API level 11 public static final int STYLE_NO_FRAME Style for setStyle(int, int) : don't draw
+ any frame at all; the view hierarchy returned by Fragment.onCreateView(LayoutInflater, ViewGroup, Bundle) is entirely responsible for drawing the dialog. Constant Value:
+      
+          2
+          (0x00000002) STYLE_NO_INPUT Added in API level 11 public static final int STYLE_NO_INPUT Style for setStyle(int, int) : like STYLE_NO_FRAME , but also disables all input to the dialog.
+ The user can not touch it, and its window will not receive input focus. Constant Value:
+      
+          3
+          (0x00000003) STYLE_NO_TITLE Added in API level 11 public static final int STYLE_NO_TITLE Style for setStyle(int, int) : don't include
+ a title area. Constant Value:
+      
+          1
+          (0x00000001) Public constructors DialogFragment Added in API level 11 public DialogFragment () Public methods dismiss Added in API level 11 public void dismiss () Dismiss the fragment and its dialog.  If the fragment was added to the
+ back stack, all back stack state up to and including this entry will
+ be popped.  Otherwise, a new transaction will be committed to remove
+ the fragment. dismissAllowingStateLoss Added in API level 12 Deprecated in API level
+      28 public void dismissAllowingStateLoss () Version of dismiss() that uses FragmentTransaction.commitAllowingStateLoss() .  See linked
+ documentation for further details. dump Added in API level 11 public void dump ( String prefix, FileDescriptor fd, PrintWriter writer, String[] args) Print the Fragments's state into the given stream. Parameters prefix String : Text to print at the front of each line. fd FileDescriptor : The raw file descriptor that the dump is being sent to. writer PrintWriter : The PrintWriter to which you should dump your state.  This will be
+ closed for you after you return. args String : additional arguments to the dump request. getDialog Added in API level 11 public Dialog getDialog () Returns Dialog getShowsDialog Added in API level 11 public boolean getShowsDialog () Return the current value of setShowsDialog(boolean) . Returns boolean getTheme Added in API level 11 public int getTheme () Returns int isCancelable Added in API level 11 public boolean isCancelable () Return the current value of setCancelable(boolean) . Returns boolean onActivityCreated Added in API level 11 public void onActivityCreated ( Bundle savedInstanceState) Called when the fragment's activity has been created and this
+ fragment's view hierarchy instantiated.  It can be used to do final
+ initialization once these pieces are in place, such as retrieving
+ views or restoring state.  It is also useful for fragments that use setRetainInstance(boolean) to retain their instance,
+ as this callback tells the fragment when it is fully associated with
+ the new activity instance.  This is called after onCreateView(LayoutInflater, ViewGroup, Bundle) and before onViewStateRestored(android.os.Bundle) . If you override this method you must call through to the
+ superclass implementation. Parameters savedInstanceState Bundle : If the fragment is being re-created from
+ a previous saved state, this is the state.
+
+ This value may be null . onAttach Added in API level 23 Deprecated in API level
+      28 public void onAttach ( Context context) Called when a fragment is first attached to its context. onCreate(android.os.Bundle) will be called after this. If you override this method you must call through to the
+ superclass implementation. Parameters context Context onCancel Added in API level 11 public void onCancel ( DialogInterface dialog) This method will be invoked when the dialog is canceled. Parameters dialog DialogInterface : the dialog that was canceled will be passed into the
+               method onCreate Added in API level 11 public void onCreate ( Bundle savedInstanceState) Called to do initial creation of a fragment.  This is called after onAttach(android.app.Activity) and before onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) , but is not called if the fragment
+ instance is retained across Activity re-creation (see setRetainInstance(boolean) ). Note that this can be called while the fragment's activity is
+ still in the process of being created.  As such, you can not rely
+ on things like the activity's content view hierarchy being initialized
+ at this point.  If you want to do work once the activity itself is
+ created, see onActivityCreated(android.os.Bundle) . If your app's targetSdkVersion is Build.VERSION_CODES.M or lower, child fragments being restored from the savedInstanceState are restored after onCreate returns. When targeting Build.VERSION_CODES.N or
+ above and running on an N or newer platform version
+ they are restored by Fragment.onCreate . If you override this method you must call through to the
+ superclass implementation. Parameters savedInstanceState Bundle : If the fragment is being re-created from
+ a previous saved state, this is the state.
+
+ This value may be null . onCreateDialog Added in API level 11 public Dialog onCreateDialog ( Bundle savedInstanceState) Override to build your own custom Dialog container.  This is typically
+ used to show an AlertDialog instead of a generic Dialog; when doing so, Fragment.onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) does not need
+ to be implemented since the AlertDialog takes care of its own content. This method will be called after onCreate(android.os.Bundle) and
+ before Fragment.onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) .  The
+ default implementation simply instantiates and returns a Dialog class. Note: DialogFragment own the Dialog.setOnCancelListener and Dialog.setOnDismissListener callbacks.  You must not set them yourself. To find out about these events, override onCancel(android.content.DialogInterface) and onDismiss(android.content.DialogInterface) . Parameters savedInstanceState Bundle : The last saved instance state of the Fragment,
+ or null if this is a freshly created Fragment. Returns Dialog Return a new Dialog instance to be displayed by the Fragment. onDestroyView Added in API level 11 public void onDestroyView () Remove dialog. onDetach Added in API level 11 public void onDetach () Called when the fragment is no longer attached to its activity.  This is called after onDestroy() , except in the cases where the fragment instance is retained across
+ Activity re-creation (see setRetainInstance(boolean) ), in which case it is called
+ after onStop() . If you override this method you must call through to the
+ superclass implementation. onDismiss Added in API level 11 public void onDismiss ( DialogInterface dialog) This method will be invoked when the dialog is dismissed. Parameters dialog DialogInterface : the dialog that was dismissed will be passed into the
+               method onSaveInstanceState Added in API level 11 public void onSaveInstanceState ( Bundle outState) Called to ask the fragment to save its current dynamic state, so it
+ can later be reconstructed in a new instance of its process is
+ restarted.  If a new instance of the fragment later needs to be
+ created, the data you place in the Bundle here will be available
+ in the Bundle given to onCreate(android.os.Bundle) , onCreateView(android.view.LayoutInflater, android.view.ViewGroup, android.os.Bundle) , and onActivityCreated(android.os.Bundle) . This corresponds to Activity.onSaveInstanceState(Bundle) and most of the discussion there
+ applies here as well.  Note however: this method may be called
+ at any time before onDestroy() .  There are many situations
+ where a fragment may be mostly torn down (such as when placed on the
+ back stack with no UI showing), but its state will not be saved until
+ its owning activity actually needs to save its state. Parameters outState Bundle : Bundle in which to place your saved state. onStart Added in API level 11 public void onStart () Called when the Fragment is visible to the user.  This is generally
+ tied to Activity.onStart of the containing
+ Activity's lifecycle. If you override this method you must call through to the
+ superclass implementation. onStop Added in API level 11 public void onStop () Called when the Fragment is no longer started.  This is generally
+ tied to Activity.onStop of the containing
+ Activity's lifecycle. If you override this method you must call through to the
+ superclass implementation. setCancelable Added in API level 11 public void setCancelable (boolean cancelable) Control whether the shown Dialog is cancelable.  Use this instead of
+ directly calling Dialog.setCancelable(boolean) , because DialogFragment needs to change
+ its behavior based on this. Parameters cancelable boolean : If true, the dialog is cancelable.  The default
+ is true. setShowsDialog Added in API level 11 public void setShowsDialog (boolean showsDialog) Controls whether this fragment should be shown in a dialog.  If not
+ set, no Dialog will be created in onActivityCreated(android.os.Bundle) ,
+ and the fragment's view hierarchy will thus not be added to it.  This
+ allows you to instead use it as a normal fragment (embedded inside of
+ its activity). This is normally set for you based on whether the fragment is
+ associated with a container view ID passed to FragmentTransaction.add(int, Fragment) .
+ If the fragment was added with a container, setShowsDialog will be
+ initialized to false; otherwise, it will be true. Parameters showsDialog boolean : If true, the fragment will be displayed in a Dialog.
+ If false, no Dialog will be created and the fragment's view hierarchly
+ left undisturbed. setStyle Added in API level 11 public void setStyle (int style, 
+                int theme) Call to customize the basic appearance and behavior of the
+ fragment's dialog.  This can be used for some common dialog behaviors,
+ taking care of selecting flags, theme, and other options for you.  The
+ same effect can be achieve by manually setting Dialog and Window
+ attributes yourself.  Calling this after the fragment's Dialog is
+ created will have no effect. Parameters style int : Selects a standard style: may be STYLE_NORMAL , STYLE_NO_TITLE , STYLE_NO_FRAME , or STYLE_NO_INPUT . theme int : Optional custom theme.  If 0, an appropriate theme (based
+ on the style) will be selected for you. show Added in API level 11 public void show ( FragmentManager manager, String tag) Display the dialog, adding the fragment to the given FragmentManager.  This
+ is a convenience for explicitly creating a transaction, adding the
+ fragment to it with the given tag, and committing it.  This does not add the transaction to the back stack.  When the fragment
+ is dismissed, a new transaction will be executed to remove it from
+ the activity. Parameters manager FragmentManager : The FragmentManager this fragment will be added to. tag String : The tag for this fragment, as per FragmentTransaction.add . show Added in API level 11 public int show ( FragmentTransaction transaction, String tag) Display the dialog, adding the fragment using an existing transaction
+ and then committing the transaction. Parameters transaction FragmentTransaction : An existing transaction in which to add the fragment. tag String : The tag for this fragment, as per FragmentTransaction.add . Returns int Returns the identifier of the committed transaction, as per FragmentTransaction.commit() .</body></html>

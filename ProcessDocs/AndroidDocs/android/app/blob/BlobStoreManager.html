@@ -1,0 +1,190 @@
+<html><head><title>Class Documentation</title></head><body>BlobStoreManager Kotlin | Java public
+  
+  
+  
+  class
+  BlobStoreManager extends Object java.lang.Object ↳ android.app.blob.BlobStoreManager This class provides access to the blob store managed by the system. Apps can publish and access a data blob using a BlobHandle object which can
+ be created with BlobHandle.createWithSha256(byte[], CharSequence, long, String) .
+ This BlobHandle object encapsulates the following pieces of information used for
+ identifying the blobs: BlobHandle.getSha256Digest() BlobHandle.getLabel() BlobHandle.getExpiryTimeMillis() BlobHandle.getTag() For two BlobHandle objects to be considered identical, all these pieces of information
+ must be equal. For contributing a new data blob, an app needs to create a session using BlobStoreManager.createSession(BlobHandle) and then open this session for writing using BlobStoreManager.openSession(long) . The following code snippet shows how to create and open a session for writing: final long sessionId = blobStoreManager.createSession(blobHandle);
+     try (BlobStoreManager.Session session = blobStoreManager.openSession(sessionId)) {
+         try (OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(
+                 session.openWrite(offsetBytes, lengthBytes))) {
+             writeData(out);
+         }
+     } If all the data could not be written in a single attempt, apps can close this session
+ and re-open it again using the session id obtained via BlobStoreManager.createSession(BlobHandle) . Note that the session data is persisted
+ and can be re-opened for completing the data contribution, even across device reboots. After the data is written to the session, it can be committed using Session.commit(Executor, Consumer) . Until the session is committed, data written
+ to the session will not be shared with any app. Once a session is committed using Session.commit(Executor, Consumer) ,
+ any data written as part of this session is sealed and cannot be modified anymore. Before committing the session, apps can indicate which apps are allowed to access the
+ contributed data using one or more of the following access modes: Session.allowPackageAccess(String, byte[]) which will allow specific packages
+          to access the blobs. Session.allowSameSignatureAccess() which will allow only apps which are signed
+          with the same certificate as the app which contributed the blob to access it. Session.allowPublicAccess() which will allow any app on the device to access
+          the blob. The following code snippet shows how to specify the access mode and commit the session: try ( BlobStoreManager . Session session = blobStoreManager . openSession ( sessionId )) { try ( OutputStream out = new ParcelFileDescriptor . AutoCloseOutputStream ( session . openWrite ( offsetBytes , lengthBytes ))) { writeData ( out ); } session . allowSameSignatureAccess (); session . allowPackageAccess ( packageName , certificate ); session . commit ( executor , callback ); } Apps that satisfy at least one of the access mode constraints specified by the publisher
+ of the data blob will be able to access it. A data blob published without specifying any of
+ these access modes will be considered private and only the app that contributed the data
+ blob will be allowed to access it. This is still useful for overall device system health as
+ the System can try to keep one copy of data blob on disk when multiple apps contribute the
+ same data. It is strongly recommended that apps use one of Session.allowPackageAccess(String, byte[]) or Session.allowSameSignatureAccess() when they know, ahead of time, the set of apps they would like to share the blobs with. Session.allowPublicAccess() is meant for publicly available data committed from
+ libraries and SDKs. Once a data blob is committed with Session.commit(Executor, Consumer) , it
+ can be accessed using BlobStoreManager.openBlob(BlobHandle) , assuming the caller
+ satisfies constraints of any of the access modes associated with that data blob. An app may
+ acquire a lease on a blob with BlobStoreManager.acquireLease(BlobHandle, int) and
+ release the lease with BlobStoreManager.releaseLease(BlobHandle) . A blob will not be
+ deleted from the system while there is at least one app leasing it. The following code snippet shows how to access the data blob: try (InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(
+             blobStoreManager.openBlob(blobHandle)) {
+         useData(in);
+     } Summary Nested classes class BlobStoreManager.Session Represents an ongoing session of a blob's contribution to the blob store managed by the
+ system. Public methods void abandonSession (long sessionId) Abandons an existing session and deletes any data that was written to that session so far. void acquireLease ( BlobHandle blobHandle, int descriptionResId, long leaseExpiryTimeMillis) Acquire a lease to the blob represented by blobHandle . void acquireLease ( BlobHandle blobHandle, CharSequence description, long leaseExpiryTimeMillis) Acquire a lease to the blob represented by blobHandle . void acquireLease ( BlobHandle blobHandle, CharSequence description) Acquire a lease to the blob represented by blobHandle . void acquireLease ( BlobHandle blobHandle, int descriptionResId) Acquire a lease to the blob represented by blobHandle . long createSession ( BlobHandle blobHandle) Create a new session using the given BlobHandle , returning a unique id
+ that represents the session. List < BlobHandle > getLeasedBlobs () Return the BlobHandles corresponding to the data blobs that
+ the calling app currently has a lease on. long getRemainingLeaseQuotaBytes () Return the remaining quota size for acquiring a lease (in bytes) which indicates the
+ remaining amount of data that an app can acquire a lease on before the System starts
+ rejecting lease requests. ParcelFileDescriptor openBlob ( BlobHandle blobHandle) Opens an existing blob for reading from the blob store managed by the system. BlobStoreManager.Session openSession (long sessionId) Open an existing session to actively perform work. void releaseLease ( BlobHandle blobHandle) Release any active lease to the blob represented by blobHandle which is
+ currently held by the caller. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public methods abandonSession Added in API level 30 public void abandonSession (long sessionId) Abandons an existing session and deletes any data that was written to that session so far. Parameters sessionId long : a unique id obtained via createSession(android.app.blob.BlobHandle) that
+                  represents a particular session.
+
+ Value is 1 or greater Throws IOException when there is an I/O error while deleting the session. SecurityException when the caller does not own the session, or
+                           the session does not exist or is invalid. acquireLease Added in API level 30 public void acquireLease ( BlobHandle blobHandle, 
+                int descriptionResId, 
+                long leaseExpiryTimeMillis) Acquire a lease to the blob represented by blobHandle . This lease indicates to the
+ system that the caller wants the blob to be kept around. Any active leases will be automatically released when the blob's expiry time
+ ( BlobHandle.getExpiryTimeMillis() ) is elapsed. This lease information is persisted and calling this more than once will result in
+ latest lease overriding any previous lease. When an app acquires a lease on a blob, the System will try to keep this
+ blob around but note that it can still be deleted if it was requested by the user. In case the resource name for the descriptionResId is modified as part of
+ an app update, apps should re-acquire the lease with the new resource id. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller wants to
+                   acquire a lease for.
+ This value cannot be null . descriptionResId int : the resource id for a short description string that can be surfaced
+                         to the user explaining what the blob is used for. leaseExpiryTimeMillis long : the time in milliseconds after which the lease can be
+                              automatically released, in System.currentTimeMillis() timebase. If its value is 0 , then the behavior of this
+                              API is identical to acquireLease(android.app.blob.BlobHandle, int) where clients have to explicitly call releaseLease(android.app.blob.BlobHandle) when they don't
+                              need the blob anymore.
+
+ Value is a non-negative timestamp measured as the number of
+ milliseconds since 1970-01-01T00:00:00Z. Throws IOException when there is an I/O error while acquiring a lease to the blob. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. IllegalArgumentException when blobHandle is invalid or
+                                  if the leaseExpiryTimeMillis is greater than the BlobHandle.getExpiryTimeMillis() . LimitExceededException when a lease could not be acquired, such as when the
+                                caller is trying to acquire too many leases or acquire
+                                leases on too much data. Apps can avoid this by checking
+                                the remaining quota using getRemainingLeaseQuotaBytes() before trying to
+                                acquire a lease. See also: acquireLease(BlobHandle, int) acquireLease(BlobHandle, CharSequence) acquireLease Added in API level 30 public void acquireLease ( BlobHandle blobHandle, CharSequence description, 
+                long leaseExpiryTimeMillis) Acquire a lease to the blob represented by blobHandle . This lease indicates to the
+ system that the caller wants the blob to be kept around. This is a variant of acquireLease(android.app.blob.BlobHandle, int, long) taking a CharSequence for description . It is highly recommended that callers only
+ use this when a valid resource ID for description could not be provided. Otherwise,
+ apps should prefer using acquireLease(android.app.blob.BlobHandle, int) which will allow description to be localized. Any active leases will be automatically released when the blob's expiry time
+ ( BlobHandle.getExpiryTimeMillis() ) is elapsed. This lease information is persisted and calling this more than once will result in
+ latest lease overriding any previous lease. When an app acquires a lease on a blob, the System will try to keep this
+ blob around but note that it can still be deleted if it was requested by the user. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller wants to
+                   acquire a lease for.
+ This value cannot be null . description CharSequence : a short description string that can be surfaced
+                    to the user explaining what the blob is used for. It is recommended to
+                    keep this description brief. This may be truncated and ellipsized
+                    if it is too long to be displayed to the user.
+ This value cannot be null . leaseExpiryTimeMillis long : the time in milliseconds after which the lease can be
+                              automatically released, in System.currentTimeMillis() timebase. If its value is 0 , then the behavior of this
+                              API is identical to acquireLease(android.app.blob.BlobHandle, int) where clients have to explicitly call releaseLease(android.app.blob.BlobHandle) when they don't
+                              need the blob anymore.
+
+ Value is a non-negative timestamp measured as the number of
+ milliseconds since 1970-01-01T00:00:00Z. Throws IOException when there is an I/O error while acquiring a lease to the blob. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. IllegalArgumentException when blobHandle is invalid or
+                                  if the leaseExpiryTimeMillis is greater than the BlobHandle.getExpiryTimeMillis() . LimitExceededException when a lease could not be acquired, such as when the
+                                caller is trying to acquire too many leases or acquire
+                                leases on too much data. Apps can avoid this by checking
+                                the remaining quota using getRemainingLeaseQuotaBytes() before trying to
+                                acquire a lease. See also: acquireLease(BlobHandle, int, long) acquireLease(BlobHandle, CharSequence) acquireLease Added in API level 30 public void acquireLease ( BlobHandle blobHandle, CharSequence description) Acquire a lease to the blob represented by blobHandle . This lease indicates to the
+ system that the caller wants the blob to be kept around. This is a variant of acquireLease(android.app.blob.BlobHandle, int) taking a CharSequence for description . It is highly recommended that callers only use this when a valid
+ resource ID for description could not be provided. Otherwise, apps should prefer
+ using acquireLease(android.app.blob.BlobHandle, int) which will allow description to be
+ localized. This is similar to acquireLease(android.app.blob.BlobHandle, java.lang.CharSequence, long) except clients
+ don't have to specify the lease expiry time upfront using this API and need to explicitly
+ release the lease using releaseLease(android.app.blob.BlobHandle) when they no longer like to keep
+ a blob around. Any active leases will be automatically released when the blob's expiry time
+ ( BlobHandle.getExpiryTimeMillis() ) is elapsed. This lease information is persisted and calling this more than once will result in
+ latest lease overriding any previous lease. When an app acquires a lease on a blob, the System will try to keep this
+ blob around but note that it can still be deleted if it was requested by the user. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller wants to
+                   acquire a lease for.
+ This value cannot be null . description CharSequence : a short description string that can be surfaced
+                    to the user explaining what the blob is used for. It is recommended to
+                    keep this description brief. This may be truncated and
+                    ellipsized if it is too long to be displayed to the user.
+
+ This value cannot be null . Throws IOException when there is an I/O error while acquiring a lease to the blob. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. IllegalArgumentException when blobHandle is invalid. LimitExceededException when a lease could not be acquired, such as when the
+                                caller is trying to acquire too many leases or acquire
+                                leases on too much data. Apps can avoid this by checking
+                                the remaining quota using getRemainingLeaseQuotaBytes() before trying to
+                                acquire a lease. See also: acquireLease(BlobHandle, int) acquireLease(BlobHandle, CharSequence, long) acquireLease Added in API level 30 public void acquireLease ( BlobHandle blobHandle, 
+                int descriptionResId) Acquire a lease to the blob represented by blobHandle . This lease indicates to the
+ system that the caller wants the blob to be kept around. This is similar to acquireLease(android.app.blob.BlobHandle, int, long) except clients don't
+ have to specify the lease expiry time upfront using this API and need to explicitly
+ release the lease using releaseLease(android.app.blob.BlobHandle) when they no longer like to keep
+ a blob around. Any active leases will be automatically released when the blob's expiry time
+ ( BlobHandle.getExpiryTimeMillis() ) is elapsed. This lease information is persisted and calling this more than once will result in
+ latest lease overriding any previous lease. When an app acquires a lease on a blob, the System will try to keep this
+ blob around but note that it can still be deleted if it was requested by the user. In case the resource name for the descriptionResId is modified as part of
+ an app update, apps should re-acquire the lease with the new resource id. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller wants to
+                   acquire a lease for.
+ This value cannot be null . descriptionResId int : the resource id for a short description string that can be surfaced
+                         to the user explaining what the blob is used for. Throws IOException when there is an I/O error while acquiring a lease to the blob. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. IllegalArgumentException when blobHandle is invalid. LimitExceededException when a lease could not be acquired, such as when the
+                                caller is trying to acquire too many leases or acquire
+                                leases on too much data. Apps can avoid this by checking
+                                the remaining quota using getRemainingLeaseQuotaBytes() before trying to
+                                acquire a lease. See also: acquireLease(BlobHandle, int, long) acquireLease(BlobHandle, CharSequence, long) createSession Added in API level 30 public long createSession ( BlobHandle blobHandle) Create a new session using the given BlobHandle , returning a unique id
+ that represents the session. Once created, the session can be opened
+ multiple times across multiple device boots. The system may automatically destroy sessions that have not been
+ finalized (either committed or abandoned) within a reasonable period of
+ time, typically about a week. If an app is planning to acquire a lease on this data (using acquireLease(android.app.blob.BlobHandle, int) or one of it's other variants) after committing
+ this data (using Session.commit(Executor, Consumer) ), it is recommended that
+ the app checks the remaining quota for acquiring a lease first using getRemainingLeaseQuotaBytes() and can skip contributing this data if needed. Parameters blobHandle BlobHandle : the BlobHandle identifier for which a new session
+                   needs to be created.
+ This value cannot be null . Returns long positive, non-zero unique id that represents the created session.
+         This id remains consistent across device reboots until the
+         session is finalized. IDs are not reused during a given boot.
+
+ Value is 1 or greater Throws IOException when there is an I/O error while creating the session. SecurityException when the caller is not allowed to create a session, such
+                           as when called from an Instant app. IllegalArgumentException when blobHandle is invalid. LimitExceededException when a new session could not be created, such as when the
+                                caller is trying to create too many sessions. getLeasedBlobs Added in API level 30 public List < BlobHandle > getLeasedBlobs () Return the BlobHandles corresponding to the data blobs that
+ the calling app currently has a lease on. Returns List < BlobHandle > a list of BlobHandles that the caller has a lease on.
+
+ This value cannot be null . Throws IOException getRemainingLeaseQuotaBytes Added in API level 30 public long getRemainingLeaseQuotaBytes () Return the remaining quota size for acquiring a lease (in bytes) which indicates the
+ remaining amount of data that an app can acquire a lease on before the System starts
+ rejecting lease requests.
+
+ If an app wants to acquire a lease on a blob but the remaining quota size is not sufficient,
+ then it can try releasing leases on any older blobs which are not needed anymore. Returns long the remaining quota size for acquiring a lease.
+
+ Value is 0 or greater openBlob Added in API level 30 public ParcelFileDescriptor openBlob ( BlobHandle blobHandle) Opens an existing blob for reading from the blob store managed by the system. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller
+                   wants to access.
+ This value cannot be null . Returns ParcelFileDescriptor a ParcelFileDescriptor that can be used to read the blob content.
+
+ This value cannot be null . Throws IOException when there is an I/O while opening the blob for read. IllegalArgumentException when blobHandle is invalid. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. openSession Added in API level 30 public BlobStoreManager.Session openSession (long sessionId) Open an existing session to actively perform work. Parameters sessionId long : a unique id obtained via createSession(android.app.blob.BlobHandle) that
+                  represents a particular session.
+ Value is 1 or greater Returns BlobStoreManager.Session the Session object corresponding to the sessionId .
+
+ This value cannot be null . Throws IOException when there is an I/O error while opening the session. SecurityException when the caller does not own the session, or
+                           the session does not exist or is invalid. releaseLease Added in API level 30 public void releaseLease ( BlobHandle blobHandle) Release any active lease to the blob represented by blobHandle which is
+ currently held by the caller. Parameters blobHandle BlobHandle : the BlobHandle representing the blob that the caller wants to
+                   release the lease for.
+
+ This value cannot be null . Throws IOException when there is an I/O error while releasing the release to the blob. SecurityException when the blob represented by the blobHandle does not
+                           exist or the caller does not have access to it. IllegalArgumentException when blobHandle is invalid.</body></html>

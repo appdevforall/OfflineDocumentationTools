@@ -1,0 +1,89 @@
+<html><head><title>Class Documentation</title></head><body>WindowInsetsAnimation.Callback Kotlin | Java public
+  static
+  
+  abstract
+  class
+  WindowInsetsAnimation.Callback extends Object java.lang.Object ↳ android.view.WindowInsetsAnimation.Callback Interface that allows the application to listen to animation events for windows that cause
+ insets. Summary Constants int DISPATCH_MODE_CONTINUE_ON_SUBTREE Return value for getDispatchMode() : Dispatching of animation events should
+ continue in the view hierarchy. int DISPATCH_MODE_STOP Return value for getDispatchMode() : Dispatching of animation events should
+ stop at this level in the view hierarchy, and no animation events should be dispatch to
+ the subtree of the view hierarchy. Public constructors Callback (int dispatchMode) Creates a new WindowInsetsAnimation callback with the given dispatch mode . Public methods final
+        
+        int getDispatchMode () Retrieves the dispatch mode of this listener. void onEnd ( WindowInsetsAnimation animation) Called when an insets animation has ended. void onPrepare ( WindowInsetsAnimation animation) Called when an insets animation is about to start and before the views have been laid out
+ in the end state of the animation. abstract WindowInsets onProgress ( WindowInsets insets, List < WindowInsetsAnimation > runningAnimations) Called when the insets change as part of running an animation. WindowInsetsAnimation.Bounds onStart ( WindowInsetsAnimation animation, WindowInsetsAnimation.Bounds bounds) Called when an insets animation gets started. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants DISPATCH_MODE_CONTINUE_ON_SUBTREE Added in API level 30 public static final int DISPATCH_MODE_CONTINUE_ON_SUBTREE Return value for getDispatchMode() : Dispatching of animation events should
+ continue in the view hierarchy. Constant Value:
+      
+          1
+          (0x00000001) DISPATCH_MODE_STOP Added in API level 30 public static final int DISPATCH_MODE_STOP Return value for getDispatchMode() : Dispatching of animation events should
+ stop at this level in the view hierarchy, and no animation events should be dispatch to
+ the subtree of the view hierarchy. Constant Value:
+      
+          0
+          (0x00000000) Public constructors Callback Added in API level 30 public Callback (int dispatchMode) Creates a new WindowInsetsAnimation callback with the given dispatch mode . Parameters dispatchMode int : The dispatch mode for this callback. See getDispatchMode() .
+
+ Value is DISPATCH_MODE_STOP , or DISPATCH_MODE_CONTINUE_ON_SUBTREE Public methods getDispatchMode Added in API level 30 public final int getDispatchMode () Retrieves the dispatch mode of this listener. Dispatch of the all animation events is
+ hierarchical: It will starts at the root of the view hierarchy and then traverse it and
+ invoke the callback of the specific View that is being traversed.
+ The method may return either DISPATCH_MODE_CONTINUE_ON_SUBTREE to indicate that
+ animation events should be propagated to the subtree of the view hierarchy, or DISPATCH_MODE_STOP to stop dispatching. In that case, all animation callbacks
+ related to the animation passed in will be stopped from propagating to the subtree of the
+ hierarchy. Also note that DISPATCH_MODE_STOP behaves the same way as
+ returning WindowInsets.CONSUMED during the regular insets dispatch in View.onApplyWindowInsets . Returns int Either DISPATCH_MODE_CONTINUE_ON_SUBTREE to indicate that dispatching of
+         animation events will continue to the subtree of the view hierarchy, or DISPATCH_MODE_STOP to indicate that animation events will stop
+         dispatching.
+
+ Value is DISPATCH_MODE_STOP , or DISPATCH_MODE_CONTINUE_ON_SUBTREE onEnd Added in API level 30 public void onEnd ( WindowInsetsAnimation animation) Called when an insets animation has ended. Parameters animation WindowInsetsAnimation : The animation that has ended. This will be the same instance
+                  as passed into onStart(WindowInsetsAnimation, Bounds) This value cannot be null . onPrepare Added in API level 30 public void onPrepare ( WindowInsetsAnimation animation) Called when an insets animation is about to start and before the views have been laid out
+ in the end state of the animation. The ordering of events during an insets animation is
+ the following: Application calls WindowInsetsController.hide(int) , WindowInsetsController.show(int) , WindowInsetsController.controlWindowInsetsAnimation onPrepare is called on the view hierarchy listeners View.onApplyWindowInsets will be called with the end state of the
+     animation View hierarchy gets laid out according to the changes the application has
+     requested due to the new insets being dispatched onStart(WindowInsetsAnimation, Bounds) is called before the view
+     hierarchy gets drawn in the new laid out state onProgress(WindowInsets, List) is called immediately after with the animation start
+     state The frame gets drawn. This ordering allows the application to inspect the end state after the animation has
+ finished, and then revert to the starting state of the animation in the first onProgress(WindowInsets, List) callback by using post-layout view properties like View.setX and related methods. Note that the animation might be cancelled before onStart(WindowInsetsAnimation, Bounds) is dispatched. On S and later, onEnd(WindowInsetsAnimation) is immediately
+ dispatched without an onStart(WindowInsetsAnimation, Bounds) in that case.
+ On R , no callbacks are dispatched after #onPrepare for such an animation. Note: If the animation is application controlled by using WindowInsetsController.controlWindowInsetsAnimation , the end state of the
+ animation is undefined as the application may decide on the end state only by passing in shown parameter when calling WindowInsetsAnimationController.finish . In
+ this situation, the system will dispatch the insets in the opposite visibility state
+ before the animation starts. Example: When controlling the input method with WindowInsetsController.controlWindowInsetsAnimation and the input method is
+ currently showing, View.onApplyWindowInsets will receive a WindowInsets instance for which WindowInsets.isVisible will return false for WindowInsets.Type.ime . Parameters animation WindowInsetsAnimation : The animation that is about to start.
+
+ This value cannot be null . onProgress Added in API level 30 public abstract WindowInsets onProgress ( WindowInsets insets, List < WindowInsetsAnimation > runningAnimations) Called when the insets change as part of running an animation. Note that even if multiple
+ animations for different types are running, there will only be one progress callback per
+ frame. The insets passed as an argument represents the overall state and will
+ include all types, regardless of whether they are animating or not. Note that insets dispatch is hierarchical: It will start at the root of the view
+ hierarchy, and then traverse it and invoke the callback of the specific View being traversed. The method may return a modified instance by calling WindowInsets.inset(int, int, int, int) to indicate that a part of the insets have
+ been used to offset or clip its children, and the children shouldn't worry about that
+ part anymore. Furthermore, if getDispatchMode() returns DISPATCH_MODE_STOP , children of this view will not receive the callback anymore. Parameters insets WindowInsets : The current insets.
+ This value cannot be null . runningAnimations List : The currently running animations.
+ This value cannot be null . Returns WindowInsets The insets to dispatch to the subtree of the hierarchy.
+
+ This value cannot be null . onStart Added in API level 30 public WindowInsetsAnimation.Bounds onStart ( WindowInsetsAnimation animation, WindowInsetsAnimation.Bounds bounds) Called when an insets animation gets started. Note that, like onProgress(WindowInsets, List) , dispatch of the animation start event is
+ hierarchical: It will starts at the root of the view hierarchy and then traverse it
+ and invoke the callback of the specific View that is being traversed.
+ The method may return a modified
+ instance of the bounds by calling Bounds.inset to indicate that a part of
+ the insets have been used to offset or clip its children, and the children shouldn't
+ worry about that part anymore. Furthermore, if getDispatchMode() returns DISPATCH_MODE_STOP , children of this view will not receive the callback anymore. Parameters animation WindowInsetsAnimation : The animation that is about to start.
+ This value cannot be null . bounds WindowInsetsAnimation.Bounds : The bounds in which animation happens.
+ This value cannot be null . Returns WindowInsetsAnimation.Bounds The animation representing the part of the insets that should be dispatched to
+         the subtree of the hierarchy.
+
+ This value cannot be null .</body></html>

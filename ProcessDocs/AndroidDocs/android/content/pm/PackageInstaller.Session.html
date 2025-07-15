@@ -1,0 +1,160 @@
+<html><head><title>Class Documentation</title></head><body>PackageInstaller.Session Kotlin | Java public
+  static
+  
+  
+  class
+  PackageInstaller.Session extends Object implements Closeable java.lang.Object ↳ android.content.pm.PackageInstaller.Session An installation that is being actively staged. For an install to succeed,
+ all existing and new packages must have identical package names, version
+ codes, and signing certificates. A session may contain any number of split packages. If the application
+ does not yet exist, this session must include a base package. If an APK included in this session is already defined by the existing
+ installation (for example, the same split name), the APK in this session
+ will replace the existing APK. In such a case that multiple packages need to be committed simultaneously,
+ multiple sessions can be referenced by a single multi-package session.
+ This session is created with no package name and calling SessionParams.setMultiPackage() . The individual session IDs can be
+ added with addChildSessionId(int) and commit of the multi-package
+ session will result in all child sessions being committed atomically. Summary Public methods void abandon () Completely abandon this session, destroying all staged data and
+ rendering it invalid. void addChildSessionId (int sessionId) Adds a session ID to the set of sessions that will be committed atomically
+ when this session is committed. void close () Release this session object. void commit ( IntentSender statusReceiver) Attempt to commit everything staged in this session. void fsync ( OutputStream out) Ensure that any outstanding data for given stream has been committed
+ to disk. PersistableBundle getAppMetadata () int[] getChildSessionIds () String[] getNames () Return all APK names contained in this session. int getParentSessionId () boolean isApplicationEnabledSettingPersistent () boolean isMultiPackage () boolean isRequestUpdateOwnership () boolean isStaged () InputStream openRead ( String name) Open a stream to read an APK file from the session. OutputStream openWrite ( String name, long offsetBytes, long lengthBytes) Open a stream to write an APK file into the session. void removeChildSessionId (int sessionId) Removes a session ID from the set of sessions that will be committed
+ atomically when this session is committed. void removeSplit ( String splitName) Removes a split. void requestChecksums ( String name, int required, List < Certificate > trustedInstallers, Executor executor, PackageManager.OnChecksumsReadyListener onChecksumsReadyListener) Requests checksums for the APK file in session. void requestUserPreapproval ( PackageInstaller.PreapprovalDetails details, IntentSender statusReceiver) Attempt to request the approval before committing this session. void setAppMetadata ( PersistableBundle data) Optionally set the app metadata. void setChecksums ( String name, List < Checksum > checksums, byte[] signature) This method was deprecated
+      in API level 31.
+    do not use installer-provided checksums,
+              use platform-enforced checksums
+              e.g. Checksum.TYPE_WHOLE_MERKLE_ROOT_4K_SHA256 in PackageManager.requestChecksums . void setStagingProgress (float progress) Set current progress of staging this session. void transfer ( String packageName) Transfer the session to a new owner. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.io.Closeable abstract
+        
+        
+        
+        
+        void close () Closes this stream and releases any system resources associated
+ with it. From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public methods abandon Added in API level 21 public void abandon () Completely abandon this session, destroying all staged data and
+ rendering it invalid. Abandoned sessions will be reported to SessionCallback listeners as failures. This is equivalent to PackageInstaller.abandonSession(int) . If the parent is abandoned, all children will also be abandoned. Any written data
+ would be destroyed and the created Session information will be discarded. addChildSessionId Added in API level 29 public void addChildSessionId (int sessionId) Adds a session ID to the set of sessions that will be committed atomically
+ when this session is committed. If the parent is staged or has rollback enabled, all children must have
+ the same properties. If the parent is abandoned, all children will also be abandoned. Parameters sessionId int : the session ID to add to this multi-package session. close Added in API level 21 public void close () Release this session object. You can open the session again if it
+ hasn't been finalized. commit Added in API level 21 public void commit ( IntentSender statusReceiver) Attempt to commit everything staged in this session. This may require
+ user intervention, and so it may not happen immediately. The final
+ result of the commit will be reported through the given callback. Once this method is called, the session is sealed and no additional mutations may be
+ performed on the session. In case of device reboot or data loader transient failure
+ before the session has been finalized, you may commit the session again. If the installer is the device owner, the affiliated profile owner, or has received
+ user pre-approval of this session, there will be no user intervention. Parameters statusReceiver IntentSender : Called when the state of the session changes. Intents
+                       sent to this receiver contain PackageInstaller.EXTRA_STATUS . Refer to the
+                       individual status codes on how to handle them.
+
+ This value cannot be null . Throws SecurityException if streams opened through openWrite(java.lang.String, long, long) are still open. IllegalArgumentException if the statusReceiver from an immutable PendingIntent when caller has a target SDK of API
+             version 35 or above. See also: DevicePolicyManager requestUserPreapproval(PreapprovalDetails, IntentSender) fsync Added in API level 21 public void fsync ( OutputStream out) Ensure that any outstanding data for given stream has been committed
+ to disk. This is only valid for streams returned from openWrite(java.lang.String, long, long) . Parameters out OutputStream : This value cannot be null . Throws IOException getAppMetadata Added in API level 34 public PersistableBundle getAppMetadata () Returns PersistableBundle A PersistableBundle containing the app metadata set with Session.setAppMetadata(PersistableBundle) . In the case where this data does not
+ exist, an empty PersistableBundle is returned.
+
+ This value cannot be null . getChildSessionIds Added in API level 29 public int[] getChildSessionIds () Returns int[] the set of session IDs that will be committed atomically when this session is
+ committed if this is a multi-package session or null if none exist. getNames Added in API level 21 public String[] getNames () Return all APK names contained in this session. This returns all names which have been previously written through openWrite(java.lang.String, long, long) as part of this session. Returns String[] This value cannot be null . Throws SecurityException if called after the session has been abandoned. IOException getParentSessionId Added in API level 29 public int getParentSessionId () Returns int the session ID of the multi-package session that this belongs to or SessionInfo.INVALID_ID if it does not belong to a multi-package session. isApplicationEnabledSettingPersistent Added in API level 34 public boolean isApplicationEnabledSettingPersistent () Returns boolean true if this session will keep the existing application enabled setting
+ after installation. isMultiPackage Added in API level 29 public boolean isMultiPackage () Returns boolean true if this session will commit more than one package when it is
+ committed. isRequestUpdateOwnership Added in API level 34 public boolean isRequestUpdateOwnership () Returns boolean true if the installer requested the update ownership enforcement
+ for the packages in this session. See also: PackageInstaller.SessionParams.setRequestUpdateOwnership(boolean) isStaged Added in API level 29 public boolean isStaged () Returns boolean true if this session will be staged and applied at next reboot. openRead Added in API level 21 public InputStream openRead ( String name) Open a stream to read an APK file from the session. This is only valid for names which have been previously written
+ through openWrite(java.lang.String, long, long) as part of this
+ session. For example, this stream may be used to calculate a MessageDigest of a written APK before committing. Parameters name String : This value cannot be null . Returns InputStream This value cannot be null . Throws SecurityException if called after the session has been
+             committed or abandoned. IOException openWrite Added in API level 21 public OutputStream openWrite ( String name, 
+                long offsetBytes, 
+                long lengthBytes) Open a stream to write an APK file into the session. The returned stream will start writing data at the requested offset
+ in the underlying file, which can be used to resume a partially
+ written file. If a valid file length is specified, the system will
+ preallocate the underlying disk space to optimize placement on disk.
+ It's strongly recommended to provide a valid file length when known. You can write data into the returned stream, optionally call fsync(java.io.OutputStream) as needed to ensure bytes have been
+ persisted to disk, and then close when finished. All streams must be
+ closed before calling commit(android.content.IntentSender) . Parameters name String : arbitrary, unique name of your choosing to identify the
+            APK being written. You can open a file again for
+            additional writes (such as after a reboot) by using the
+            same name. This name is only meaningful within the context
+            of a single install session.
+ This value cannot be null . offsetBytes long : offset into the file to begin writing at, or 0 to
+            start at the beginning of the file. lengthBytes long : total size of the file being written, used to
+            preallocate the underlying disk space, or -1 if unknown.
+            The system may clear various caches as needed to allocate
+            this space. Returns OutputStream This value cannot be null . Throws IOException if trouble opening the file for writing, such as
+             lack of disk space or unavailable media. SecurityException if called after the session has been
+             sealed or abandoned removeChildSessionId Added in API level 29 public void removeChildSessionId (int sessionId) Removes a session ID from the set of sessions that will be committed
+ atomically when this session is committed. Parameters sessionId int : the session ID to remove from this multi-package session. removeSplit Added in API level 24 public void removeSplit ( String splitName) Removes a split. Split removals occur prior to adding new APKs. If upgrading a feature
+ split, it is not expected nor desirable to remove the split prior to
+ upgrading. When split removal is bundled with new APKs, the packageName must be
+ identical. Parameters splitName String : This value cannot be null . Throws IOException requestChecksums Added in API level 33 public void requestChecksums ( String name, 
+                int required, List < Certificate > trustedInstallers, Executor executor, PackageManager.OnChecksumsReadyListener onChecksumsReadyListener) Requests checksums for the APK file in session. A possible use case is replying to Intent.ACTION_PACKAGE_NEEDS_VERIFICATION broadcast.
+ The checksums will be returned asynchronously via onChecksumsReadyListener. By default returns all readily available checksums: enforced by platform, enforced by the installer. If the caller needs a specific checksum type, they can specify it as required. Caution: Android can not verify installer-provided checksums. Make sure you specify
+ trusted installers. Parameters name String : previously written as part of this session. openWrite(String, long, long) This value cannot be null . required int : to explicitly request the checksum types. Will incur significant
+                 CPU/memory/disk usage.
+ Value is either 0 or a combination of Checksum.TYPE_WHOLE_MERKLE_ROOT_4K_SHA256 , Checksum.TYPE_WHOLE_MD5 , Checksum.TYPE_WHOLE_SHA1 , Checksum.TYPE_WHOLE_SHA256 , Checksum.TYPE_WHOLE_SHA512 , Checksum.TYPE_PARTIAL_MERKLE_ROOT_1M_SHA256 , and Checksum.TYPE_PARTIAL_MERKLE_ROOT_1M_SHA512 trustedInstallers List : for checksums enforced by installer, which installers are to be
+                          trusted. PackageManager.TRUST_ALL will return checksums from any
+                          installer, PackageManager.TRUST_NONE disables optimized
+                          installer-enforced checksums, otherwise the list has to be
+                          a non-empty list of certificates.
+ This value cannot be null . executor Executor : the Executor on which to invoke the callback
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. onChecksumsReadyListener PackageManager.OnChecksumsReadyListener : called once when the results are available.
+ This value cannot be null . Throws CertificateEncodingException if an encoding error occurs for trustedInstallers. FileNotFoundException if the file does not exist. IllegalArgumentException if the list of trusted installer certificates is empty. requestUserPreapproval Added in API level 34 public void requestUserPreapproval ( PackageInstaller.PreapprovalDetails details, IntentSender statusReceiver) Attempt to request the approval before committing this session.
+
+ For installers that have been granted the REQUEST_INSTALL_PACKAGES permission, they can request the approval from users before Session.commit(IntentSender) is called. This may require user intervention as
+ well. When user intervention is required, installers will receive a PackageInstaller.STATUS_PENDING_USER_ACTION callback, and PackageInstaller.STATUS_SUCCESS otherwise.
+ In case that requesting user pre-approval is not available, installers will receive PackageInstaller.STATUS_FAILURE_BLOCKED instead. Note that if the users decline the request,
+ this session will be abandoned.
+
+ If user intervention is required but never resolved, or requesting user
+ pre-approval is not available, you may still call Session.commit(IntentSender) as the typical installation. Parameters details PackageInstaller.PreapprovalDetails : the adequate context to this session for requesting the approval from
+                users prior to commit.
+ This value cannot be null . statusReceiver IntentSender : called when the state of the session changes.
+                       Intents sent to this receiver contain PackageInstaller.EXTRA_STATUS and the PackageInstaller.EXTRA_PRE_APPROVAL would be true .
+                       Refer to the individual status codes on how to handle them.
+
+ This value cannot be null . Throws IllegalArgumentException when PreapprovalDetails is null . IllegalArgumentException if IntentSender is null . IllegalStateException if called on a multi-package session (no matter
+                               the parent session or any of the children sessions). IllegalStateException if called again after this method has been called on
+                               this session. SecurityException when the caller does not own this session. SecurityException if called after the session has been committed or abandoned. setAppMetadata Added in API level 34 public void setAppMetadata ( PersistableBundle data) Optionally set the app metadata. The size of this data cannot exceed the maximum allowed.
+ Any existing data from the previous install will not be retained even if no data is set
+ for the current install session. Setting data to null or an empty PersistableBundle will
+ remove any metadata that has previously been set in the same session. Parameters data PersistableBundle : a PersistableBundle containing the app metadata.
+ This value may be null . Throws IOException if writing the data fails. setChecksums Added in API level 31 Deprecated in API level
+      31 public void setChecksums ( String name, List < Checksum > checksums, 
+                byte[] signature) This method was deprecated
+      in API level 31. do not use installer-provided checksums,
+              use platform-enforced checksums
+              e.g. Checksum.TYPE_WHOLE_MERKLE_ROOT_4K_SHA256 in PackageManager.requestChecksums . Sets installer-provided checksums for the APK file in session. Parameters name String : previously written as part of this session. openWrite(String, long, long) This value cannot be null . checksums List : installer intends to make available via PackageManager.requestChecksums or requestChecksums(String, int, List, Executor, OnChecksumsReadyListener) .
+ This value cannot be null . signature byte : DER PKCS#7 detached signature bytes over binary serialized checksums
+                  to enable integrity checking for the checksums or null for no integrity
+                  checking. PackageManager.requestChecksums will return
+                  the certificate used to create signature.
+                  Binary format for checksums: DataOutputStream dos;
+                  dos.writeInt(checksum.getType());
+                  dos.writeInt(checksum.getValue().length);
+                  dos.write(checksum.getValue()); If using openssl cms , make sure to specify -binary -nosmimecap. Throws SecurityException if called after the session has been
+                           committed or abandoned. IllegalStateException if checksums for this file have already been added. IOException See also: openssl cms setStagingProgress Added in API level 21 public void setStagingProgress (float progress) Set current progress of staging this session. Valid values are
+ anywhere between 0 and 1. Note that this progress may not directly correspond to the value
+ reported by SessionCallback.onProgressChanged(int, float) , as
+ the system may carve out a portion of the overall progress to
+ represent its own internal installation work. Parameters progress float transfer Added in API level 27} public void transfer ( String packageName) Transfer the session to a new owner. Only sessions that update the installing app can be transferred. After the transfer to a package with a different uid all method calls on the session
+ will cause SecurityException s. Once this method is called, the session is sealed and no additional mutations beside
+ committing it may be performed on the session. Parameters packageName String : The package of the new owner. Needs to hold the INSTALL_PACKAGES
+                    permission.
+
+ This value cannot be null . Throws PackageManager.NameNotFoundException if the new owner could not be found. SecurityException if called after the session has been committed or abandoned. IllegalStateException if streams opened through
+                                  {@link #openWrite(java.lang.String,long,long) are still open. IllegalArgumentException if packageName is invalid.</body></html>

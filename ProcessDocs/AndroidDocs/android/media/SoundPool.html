@@ -1,0 +1,240 @@
+<html><head><title>Class Documentation</title></head><body>SoundPool Kotlin | Java public
+  
+  
+  
+  class
+  SoundPool extends Object java.lang.Object ↳ android.media.SoundPool The SoundPool class manages and plays audio resources for applications. A SoundPool is a collection of sound samples that can be loaded into memory
+ from a resource inside the APK or from a file in the file system. The
+ SoundPool library uses the MediaCodec service to decode the audio
+ into raw 16-bit PCM. This allows applications
+ to ship with compressed streams without having to suffer the CPU load
+ and latency of decompressing during playback. Soundpool sounds are expected to be short as they are
+ predecoded into memory. Each decoded sound is internally limited to one
+ megabyte storage, which represents approximately 5.6 seconds at 44.1kHz stereo
+ (the duration is proportionally longer at lower sample rates or
+ a channel mask of mono). A decoded audio sound will be truncated if it would
+ exceed the per-sound one megabyte storage space. In addition to low-latency playback, SoundPool can also manage the number
+ of audio streams being rendered at once. When the SoundPool object is
+ constructed, the maxStreams parameter sets the maximum number of streams
+ that can be played at a time from this single SoundPool. SoundPool tracks
+ the number of active streams. If the maximum number of streams is exceeded,
+ SoundPool will automatically stop a previously playing stream based first
+ on priority and then by age within that priority. Limiting the maximum
+ number of streams helps to cap CPU loading and reducing the likelihood that
+ audio mixing will impact visuals or UI performance. Sounds can be looped by setting a non-zero loop value. A value of -1
+ causes the sound to loop forever. In this case, the application must
+ explicitly call the stop() function to stop the sound. Any other non-zero
+ value will cause the sound to repeat the specified number of times, e.g.
+ a value of 3 causes the sound to play a total of 4 times. The playback rate can also be changed. A playback rate of 1.0 causes
+ the sound to play at its original frequency (resampled, if necessary,
+ to the hardware output frequency). A playback rate of 2.0 causes the
+ sound to play at twice its original frequency, and a playback rate of
+ 0.5 causes it to play at half its original frequency. The playback
+ rate range is 0.5 to 2.0. Priority runs low to high, i.e. higher numbers are higher priority.
+ Priority is used when a call to play() would cause the number of active
+ streams to exceed the value established by the maxStreams parameter when
+ the SoundPool was created. In this case, the stream allocator will stop
+ the lowest priority stream. If there are multiple streams with the same
+ low priority, it will choose the oldest stream to stop. In the case
+ where the priority of the new stream is lower than all the active
+ streams, the new sound will not play and the play() function will return
+ a streamID of zero. Let's examine a typical use case: A game consists of several levels of
+ play. For each level, there is a set of unique sounds that are used only
+ by that level. In this case, the game logic should create a new SoundPool
+ object when the first level is loaded. The level data itself might contain
+ the list of sounds to be used by this level. The loading logic iterates
+ through the list of sounds calling the appropriate SoundPool.load()
+ function. This should typically be done early in the process to allow time
+ for decompressing the audio to raw PCM format before they are needed for
+ playback. Once the sounds are loaded and play has started, the application can
+ trigger sounds by calling SoundPool.play(). Playing streams can be
+ paused or resumed, and the application can also alter the pitch by
+ adjusting the playback rate in real-time for doppler or synthesis
+ effects. Note that since streams can be stopped due to resource constraints, the
+ streamID is a reference to a particular instance of a stream. If the stream
+ is stopped to allow a higher priority stream to play, the stream is no
+ longer valid. However, the application is allowed to call methods on
+ the streamID without error. This may help simplify program logic since
+ the application need not concern itself with the stream lifecycle. In our example, when the player has completed the level, the game
+ logic should call SoundPool.release() to release all the native resources
+ in use and then set the SoundPool reference to null. If the player starts
+ another level, a new SoundPool is created, sounds are loaded, and play
+ resumes. Summary Nested classes class SoundPool.Builder Builder class for SoundPool objects. interface SoundPool.OnLoadCompleteListener Public constructors SoundPool (int maxStreams, int streamType, int srcQuality) This constructor is deprecated.
+    use SoundPool.Builder instead to create and configure a
+     SoundPool instance Public methods final
+        
+        void autoPause () Pause all active streams. final
+        
+        void autoResume () Resume all previously active streams. int load ( Context context, int resId, int priority) Load the sound from the specified APK resource. int load ( String path, int priority) Load the sound from the specified path. int load ( AssetFileDescriptor afd, int priority) Load the sound from an asset file descriptor. int load ( FileDescriptor fd, long offset, long length, int priority) Load the sound from a FileDescriptor. final
+        
+        void pause (int streamID) Pause a playback stream. final
+        
+        int play (int soundID, float leftVolume, float rightVolume, int priority, int loop, float rate) Play a sound from a sound ID. final
+        
+        void release () Release the SoundPool resources. final
+        
+        void resume (int streamID) Resume a playback stream. final
+        
+        void setLoop (int streamID, int loop) Set loop mode. void setOnLoadCompleteListener ( SoundPool.OnLoadCompleteListener listener) Sets the callback hook for the OnLoadCompleteListener. final
+        
+        void setPriority (int streamID, int priority) Change stream priority. final
+        
+        void setRate (int streamID, float rate) Change playback rate. final
+        
+        void setVolume (int streamID, float leftVolume, float rightVolume) Set stream volume. final
+        
+        void stop (int streamID) Stop a playback stream. final
+        
+        boolean unload (int soundID) Unload a sound from a sound ID. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors SoundPool Added in API level 1 public SoundPool (int maxStreams, 
+                int streamType, 
+                int srcQuality) This constructor is deprecated. use SoundPool.Builder instead to create and configure a
+     SoundPool instance Constructor. Constructs a SoundPool object with the following
+ characteristics: Parameters maxStreams int : the maximum number of simultaneous streams for this
+                   SoundPool object streamType int : the audio stream type as described in AudioManager
+                   For example, game applications will normally use AudioManager.STREAM_MUSIC . srcQuality int : the sample-rate converter quality. Currently has no
+                   effect. Use 0 for the default. Returns a SoundPool object, or null if creation failed Public methods autoPause Added in API level 8 public final void autoPause () Pause all active streams.
+
+ Pause all streams that are currently playing. This function
+ iterates through all the active streams and pauses any that
+ are playing. It also sets a flag so that any streams that
+ are playing can be resumed by calling autoResume(). autoResume Added in API level 8 public final void autoResume () Resume all previously active streams.
+
+ Automatically resumes all streams that were paused in previous
+ calls to autoPause(). load Added in API level 1 public int load ( Context context, 
+                int resId, 
+                int priority) Load the sound from the specified APK resource.
+
+ Note that the extension is dropped. For example, if you want to load
+ a sound from the raw resource file "explosion.mp3", you would specify
+ "R.raw.explosion" as the resource ID. Note that this means you cannot
+ have both an "explosion.wav" and an "explosion.mp3" in the res/raw
+ directory. Parameters context Context : the application context resId int : the resource ID priority int : the priority of the sound. Currently has no effect. Use
+                 a value of 1 for future compatibility. Returns int a sound ID. This value can be used to play or unload the sound. load Added in API level 1 public int load ( String path, 
+                int priority) Load the sound from the specified path. Parameters path String : the path to the audio file priority int : the priority of the sound. Currently has no effect. Use
+                 a value of 1 for future compatibility. Returns int a sound ID. This value can be used to play or unload the sound. load Added in API level 3 public int load ( AssetFileDescriptor afd, 
+                int priority) Load the sound from an asset file descriptor. Parameters afd AssetFileDescriptor : an asset file descriptor priority int : the priority of the sound. Currently has no effect. Use
+                 a value of 1 for future compatibility. Returns int a sound ID. This value can be used to play or unload the sound. load Added in API level 3 public int load ( FileDescriptor fd, 
+                long offset, 
+                long length, 
+                int priority) Load the sound from a FileDescriptor.
+
+ This version is useful if you store multiple sounds in a single
+ binary. The offset specifies the offset from the start of the file
+ and the length specifies the length of the sound within the file. Parameters fd FileDescriptor : a FileDescriptor object offset long : offset to the start of the sound length long : length of the sound priority int : the priority of the sound. Currently has no effect. Use
+                 a value of 1 for future compatibility. Returns int a sound ID. This value can be used to play or unload the sound. pause Added in API level 1 public final void pause (int streamID) Pause a playback stream.
+
+ Pause the stream specified by the streamID. This is the
+ value returned by the play() function. If the stream is
+ playing, it will be paused. If the stream is not playing
+ (e.g. is stopped or was previously paused), calling this
+ function will have no effect. Parameters streamID int : a streamID returned by the play() function play Added in API level 1 public final int play (int soundID, 
+                float leftVolume, 
+                float rightVolume, 
+                int priority, 
+                int loop, 
+                float rate) Play a sound from a sound ID.
+
+ Play the sound specified by the soundID. This is the value
+ returned by the load() function. Returns a non-zero streamID
+ if successful, zero if it fails. The streamID can be used to
+ further control playback. Note that calling play() may cause
+ another sound to stop playing if the maximum number of active
+ streams is exceeded. A loop value of -1 means loop forever,
+ a value of 0 means don't loop, other values indicate the
+ number of repeats, e.g. a value of 1 plays the audio twice.
+ The playback rate allows the application to vary the playback
+ rate (pitch) of the sound. A value of 1.0 means play back at
+ the original frequency. A value of 2.0 means play back twice
+ as fast, and a value of 0.5 means playback at half speed. Parameters soundID int : a soundID returned by the load() function leftVolume float : left volume value (range = 0.0 to 1.0) rightVolume float : right volume value (range = 0.0 to 1.0) priority int : stream priority (0 = lowest priority) loop int : loop mode (0 = no loop, -1 = loop forever) rate float : playback rate (1.0 = normal playback, range 0.5 to 2.0) Returns int non-zero streamID if successful, zero if failed release Added in API level 1 public final void release () Release the SoundPool resources.
+
+ Release all memory and native resources used by the SoundPool
+ object. The SoundPool can no longer be used and the reference
+ should be set to null. resume Added in API level 1 public final void resume (int streamID) Resume a playback stream.
+
+ Resume the stream specified by the streamID. This
+ is the value returned by the play() function. If the stream
+ is paused, this will resume playback. If the stream was not
+ previously paused, calling this function will have no effect. Parameters streamID int : a streamID returned by the play() function setLoop Added in API level 1 public final void setLoop (int streamID, 
+                int loop) Set loop mode.
+
+ Change the loop mode. A loop value of -1 means loop forever,
+ a value of 0 means don't loop, other values indicate the
+ number of repeats, e.g. a value of 1 plays the audio twice.
+ If the stream does not exist, it will have no effect. Parameters streamID int : a streamID returned by the play() function loop int : loop mode (0 = no loop, -1 = loop forever) setOnLoadCompleteListener Added in API level 8 public void setOnLoadCompleteListener ( SoundPool.OnLoadCompleteListener listener) Sets the callback hook for the OnLoadCompleteListener. Parameters listener SoundPool.OnLoadCompleteListener setPriority Added in API level 1 public final void setPriority (int streamID, 
+                int priority) Change stream priority.
+
+ Change the priority of the stream specified by the streamID.
+ This is the value returned by the play() function. Affects the
+ order in which streams are re-used to play new sounds. If the
+ stream does not exist, it will have no effect. Parameters streamID int : a streamID returned by the play() function priority int setRate Added in API level 1 public final void setRate (int streamID, 
+                float rate) Change playback rate.
+
+ The playback rate allows the application to vary the playback
+ rate (pitch) of the sound. A value of 1.0 means playback at
+ the original frequency. A value of 2.0 means playback twice
+ as fast, and a value of 0.5 means playback at half speed.
+ If the stream does not exist, it will have no effect. Parameters streamID int : a streamID returned by the play() function rate float : playback rate (1.0 = normal playback, range 0.5 to 2.0) setVolume Added in API level 1 public final void setVolume (int streamID, 
+                float leftVolume, 
+                float rightVolume) Set stream volume.
+
+ Sets the volume on the stream specified by the streamID.
+ This is the value returned by the play() function. The
+ value must be in the range of 0.0 to 1.0. If the stream does
+ not exist, it will have no effect. Parameters streamID int : a streamID returned by the play() function leftVolume float : left volume value (range = 0.0 to 1.0) rightVolume float : right volume value (range = 0.0 to 1.0) stop Added in API level 1 public final void stop (int streamID) Stop a playback stream.
+
+ Stop the stream specified by the streamID. This
+ is the value returned by the play() function. If the stream
+ is playing, it will be stopped. It also releases any native
+ resources associated with this stream. If the stream is not
+ playing, it will have no effect. Parameters streamID int : a streamID returned by the play() function unload Added in API level 1 public final boolean unload (int soundID) Unload a sound from a sound ID.
+
+ Unloads the sound specified by the soundID. This is the value
+ returned by the load() function. Returns true if the sound is
+ successfully unloaded, false if the sound was already unloaded. Parameters soundID int : a soundID returned by the load() function Returns boolean true if just unloaded, false if previously unloaded Protected methods finalize Added in API level 1 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored.</body></html>

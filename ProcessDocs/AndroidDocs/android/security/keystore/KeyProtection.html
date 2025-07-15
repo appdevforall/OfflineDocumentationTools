@@ -1,0 +1,209 @@
+<html><head><title>Class Documentation</title></head><body>KeyProtection Kotlin | Java public
+  
+  final
+  
+  class
+  KeyProtection extends Object implements KeyStore.ProtectionParameter java.lang.Object ↳ android.security.keystore.KeyProtection Specification of how a key or key pair is secured when imported into the Android Keystore system . This class
+ specifies authorized uses of the imported key, such as whether user authentication is required
+ for using the key, what operations the key is authorized for (e.g., decryption, but not signing)
+ with what parameters (e.g., only with a particular padding scheme or digest), and the key's
+ validity start and end dates. Key use authorizations expressed in this class apply only to secret
+ keys and private keys -- public keys can be used for any supported operations. To import a key or key pair into the Android Keystore, create an instance of this class using
+ the Builder and pass the instance into KeyStore.setEntry with the key or key pair being imported. To obtain the secret/symmetric or private key from the Android Keystore use KeyStore.getKey(String, null) or KeyStore.getEntry(String, null) .
+ To obtain the public key from the Android Keystore use KeyStore.getCertificate(String) and then Certificate.getPublicKey() . To help obtain algorithm-specific public parameters of key pairs stored in the Android
+ Keystore, its private keys implement ECKey or RSAKey interfaces whereas its public keys implement ECPublicKey or RSAPublicKey interfaces. NOTE: The key material of keys stored in the Android Keystore is not accessible. Instances of this class are immutable. Known issues A known bug in Android 6.0 (API Level 23) causes user authentication-related authorizations to be
+ enforced even for public keys. To work around this issue extract the public key material to use
+ outside of Android Keystore. For example: PublicKey unrestrictedPublicKey =
+         KeyFactory.getInstance(publicKey.getAlgorithm()).generatePublic(
+                 new X509EncodedKeySpec(publicKey.getEncoded())); Example: AES key for encryption/decryption in GCM mode This example illustrates how to import an AES key into the Android KeyStore under alias key1 authorized to be used only for encryption/decryption in GCM mode with no padding.
+ The key must export its key material via Key.getEncoded() in RAW format. SecretKey key = ...; // AES key
+
+ KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+ keyStore.load(null);
+ keyStore.setEntry(
+         "key1",
+         new KeyStore.SecretKeyEntry(key),
+         new KeyProtection.Builder(KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                 .setBlockMode(KeyProperties.BLOCK_MODE_GCM)
+                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                 .build());
+ // Key imported, obtain a reference to it.
+ SecretKey keyStoreKey = (SecretKey) keyStore.getKey("key1", null);
+ // The original key can now be discarded.
+
+ Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+ cipher.init(Cipher.ENCRYPT_MODE, keyStoreKey);
+ ... Example: HMAC key for generating MACs using SHA-512 This example illustrates how to import an HMAC key into the Android KeyStore under alias key1 authorized to be used only for generating MACs using SHA-512 digest. The key must
+ export its key material via Key.getEncoded() in RAW format. SecretKey key = ...; // HMAC key of algorithm "HmacSHA512".
+
+ KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+ keyStore.load(null);
+ keyStore.setEntry(
+         "key1",
+         new KeyStore.SecretKeyEntry(key),
+         new KeyProtection.Builder(KeyProperties.PURPOSE_SIGN).build());
+ // Key imported, obtain a reference to it.
+ SecretKey keyStoreKey = (SecretKey) keyStore.getKey("key1", null);
+ // The original key can now be discarded.
+
+ Mac mac = Mac.getInstance("HmacSHA512");
+ mac.init(keyStoreKey);
+ ... Example: EC key pair for signing/verification using ECDSA This example illustrates how to import an EC key pair into the Android KeyStore under alias key2 with the private key authorized to be used only for signing with SHA-256 or SHA-512
+ digests. The use of the public key is unrestricted. Both the private and the public key must
+ export their key material via Key.getEncoded() in PKCS#8 and X.509 format
+ respectively. PrivateKey privateKey = ...;   // EC private key
+ Certificate[] certChain = ...; // Certificate chain with the first certificate
+                                // containing the corresponding EC public key.
+
+ KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+ keyStore.load(null);
+ keyStore.setEntry(
+         "key2",
+         new KeyStore.PrivateKeyEntry(privateKey, certChain),
+         new KeyProtection.Builder(KeyProperties.PURPOSE_SIGN)
+                 .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                 .build());
+ // Key pair imported, obtain a reference to it.
+ PrivateKey keyStorePrivateKey = (PrivateKey) keyStore.getKey("key2", null);
+ PublicKey publicKey = keyStore.getCertificate("key2").getPublicKey();
+ // The original private key can now be discarded.
+
+ Signature signature = Signature.getInstance("SHA256withECDSA");
+ signature.initSign(keyStorePrivateKey);
+ ... Example: RSA key pair for signing/verification using PKCS#1 padding This example illustrates how to import an RSA key pair into the Android KeyStore under alias key2 with the private key authorized to be used only for signing using the PKCS#1
+ signature padding scheme with SHA-256 digest and only if the user has been authenticated within
+ the last ten minutes. The use of the public key is unrestricted (see Known Issues). Both the
+ private and the public key must export their key material via Key.getEncoded() in PKCS#8 and X.509 format respectively. PrivateKey privateKey = ...;   // RSA private key
+ Certificate[] certChain = ...; // Certificate chain with the first certificate
+                                // containing the corresponding RSA public key.
+
+ KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+ keyStore.load(null);
+ keyStore.setEntry(
+         "key2",
+         new KeyStore.PrivateKeyEntry(privateKey, certChain),
+         new KeyProtection.Builder(KeyProperties.PURPOSE_SIGN)
+                 .setDigests(KeyProperties.DIGEST_SHA256)
+                 .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                 // Only permit this key to be used if the user
+                 // authenticated within the last ten minutes.
+                 .setUserAuthenticationRequired(true)
+                 .setUserAuthenticationValidityDurationSeconds(10 * 60)
+                 .build());
+ // Key pair imported, obtain a reference to it.
+ PrivateKey keyStorePrivateKey = (PrivateKey) keyStore.getKey("key2", null);
+ PublicKey publicKey = keyStore.getCertificate("key2").getPublicKey();
+ // The original private key can now be discarded.
+
+ Signature signature = Signature.getInstance("SHA256withRSA");
+ signature.initSign(keyStorePrivateKey);
+ ... Example: RSA key pair for encryption/decryption using PKCS#1 padding This example illustrates how to import an RSA key pair into the Android KeyStore under alias key2 with the private key authorized to be used only for decryption using the PKCS#1
+ encryption padding scheme. The use of public key is unrestricted, thus permitting encryption
+ using any padding schemes and digests. Both the private and the public key must export their key
+ material via Key.getEncoded() in PKCS#8 and X.509 format respectively. PrivateKey privateKey = ...;   // RSA private key
+ Certificate[] certChain = ...; // Certificate chain with the first certificate
+                                // containing the corresponding RSA public key.
+
+ KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+ keyStore.load(null);
+ keyStore.setEntry(
+         "key2",
+         new KeyStore.PrivateKeyEntry(privateKey, certChain),
+         new KeyProtection.Builder(KeyProperties.PURPOSE_DECRYPT)
+                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
+                 .build());
+ // Key pair imported, obtain a reference to it.
+ PrivateKey keyStorePrivateKey = (PrivateKey) keyStore.getKey("key2", null);
+ PublicKey publicKey = keyStore.getCertificate("key2").getPublicKey();
+ // The original private key can now be discarded.
+
+ Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+ cipher.init(Cipher.DECRYPT_MODE, keyStorePrivateKey);
+ ... Summary Nested classes class KeyProtection.Builder Builder of KeyProtection instances. Public methods String[] getBlockModes () Gets the set of block modes (e.g., GCM , CBC ) with which the key can be used
+ when encrypting/decrypting. String[] getDigests () Gets the set of digest algorithms (e.g., SHA-256 , SHA-384 ) with which the key
+ can be used. String[] getEncryptionPaddings () Gets the set of padding schemes (e.g., PKCS7Padding , PKCS1Padding , NoPadding ) with which the key can be used when encrypting/decrypting. Date getKeyValidityForConsumptionEnd () Gets the time instant after which the key is no long valid for decryption and verification. Date getKeyValidityForOriginationEnd () Gets the time instant after which the key is no long valid for encryption and signing. Date getKeyValidityStart () Gets the time instant before which the key is not yet valid. int getMaxUsageCount () Returns the maximum number of times the limited use key is allowed to be used or KeyProperties.UNRESTRICTED_USAGE_COUNT if there\u2019s no restriction on the number of
+ times the key can be used. Set < String > getMgf1Digests () Returns the set of digests that can be used by the MGF1 mask generation function
+ (e.g., SHA-256 , SHA-384 ) with the key. int getPurposes () Gets the set of purposes (e.g., encrypt, decrypt, sign) for which the key can be used. String[] getSignaturePaddings () Gets the set of padding schemes (e.g., PSS , PKCS#1 ) with which the key
+ can be used when signing/verifying. int getUserAuthenticationType () int getUserAuthenticationValidityDurationSeconds () Gets the duration of time (seconds) for which this key is authorized to be used after the
+ user is successfully authenticated. boolean isDigestsSpecified () Returns true if the set of digest algorithms with which the key can be used has been
+ specified. boolean isInvalidatedByBiometricEnrollment () Returns true if the key is irreversibly invalidated when a new biometric is
+ enrolled or all enrolled biometrics are removed. boolean isMgf1DigestsSpecified () Returns true if the set of digests for the MGF1 mask generation function,
+ with which the key can be used, has been specified. boolean isRandomizedEncryptionRequired () Returns true if encryption using this key must be sufficiently randomized to produce
+ different ciphertexts for the same plaintext every time. boolean isUnlockedDeviceRequired () Returns true if the key is authorized to be used only while the device is unlocked. boolean isUserAuthenticationRequired () Returns true if the key is authorized to be used only if the user has been
+ authenticated. boolean isUserAuthenticationValidWhileOnBody () Returns true if the key will be de-authorized when the device is removed from the
+ user's body. boolean isUserConfirmationRequired () Returns true if the key is authorized to be used only for messages confirmed by the
+ user. boolean isUserPresenceRequired () Returns true if the key is authorized to be used only if a test of user presence has
+ been performed between the Signature.initSign() and Signature.sign() calls. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public methods getBlockModes Added in API level 23 public String[] getBlockModes () Gets the set of block modes (e.g., GCM , CBC ) with which the key can be used
+ when encrypting/decrypting. Attempts to use the key with any other block modes will be
+ rejected. See KeyProperties . BLOCK_MODE constants. Returns String[] This value cannot be null .
+
+ Value is KeyProperties.BLOCK_MODE_ECB , KeyProperties.BLOCK_MODE_CBC , KeyProperties.BLOCK_MODE_CTR , or KeyProperties.BLOCK_MODE_GCM getDigests Added in API level 23 public String[] getDigests () Gets the set of digest algorithms (e.g., SHA-256 , SHA-384 ) with which the key
+ can be used. See KeyProperties . DIGEST constants. Returns String[] This value cannot be null .
+
+ Value is KeyProperties.DIGEST_NONE , KeyProperties.DIGEST_MD5 , KeyProperties.DIGEST_SHA1 , KeyProperties.DIGEST_SHA224 , KeyProperties.DIGEST_SHA256 , KeyProperties.DIGEST_SHA384 , or KeyProperties.DIGEST_SHA512 Throws IllegalStateException if this set has not been specified. See also: isDigestsSpecified() getEncryptionPaddings Added in API level 23 public String[] getEncryptionPaddings () Gets the set of padding schemes (e.g., PKCS7Padding , PKCS1Padding , NoPadding ) with which the key can be used when encrypting/decrypting. Attempts to use
+ the key with any other padding scheme will be rejected. See KeyProperties . ENCRYPTION_PADDING constants. Returns String[] This value cannot be null .
+
+ Value is KeyProperties.ENCRYPTION_PADDING_NONE , KeyProperties.ENCRYPTION_PADDING_PKCS7 , KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1 , or KeyProperties.ENCRYPTION_PADDING_RSA_OAEP getKeyValidityForConsumptionEnd Added in API level 23 public Date getKeyValidityForConsumptionEnd () Gets the time instant after which the key is no long valid for decryption and verification. Returns Date instant or null if not restricted. getKeyValidityForOriginationEnd Added in API level 23 public Date getKeyValidityForOriginationEnd () Gets the time instant after which the key is no long valid for encryption and signing. Returns Date instant or null if not restricted. getKeyValidityStart Added in API level 23 public Date getKeyValidityStart () Gets the time instant before which the key is not yet valid. Returns Date instant or null if not restricted. getMaxUsageCount Added in API level 31 public int getMaxUsageCount () Returns the maximum number of times the limited use key is allowed to be used or KeyProperties.UNRESTRICTED_USAGE_COUNT if there\u2019s no restriction on the number of
+ times the key can be used. Returns int See also: KeyProtection.Builder.setMaxUsageCount(int) getMgf1Digests Added in API level 35 public Set < String > getMgf1Digests () Returns the set of digests that can be used by the MGF1 mask generation function
+ (e.g., SHA-256 , SHA-384 ) with the key. Useful with the RSA-OAEP scheme.
+ If not explicitly specified  during key generation, the default SHA-1 digest is
+ used and may be specified. See KeyProperties . DIGEST constants. Returns Set < String > This value cannot be null .
+
+ Value is KeyProperties.DIGEST_NONE , KeyProperties.DIGEST_MD5 , KeyProperties.DIGEST_SHA1 , KeyProperties.DIGEST_SHA224 , KeyProperties.DIGEST_SHA256 , KeyProperties.DIGEST_SHA384 , or KeyProperties.DIGEST_SHA512 Throws IllegalStateException if this set has not been specified. See also: isMgf1DigestsSpecified() getPurposes Added in API level 23 public int getPurposes () Gets the set of purposes (e.g., encrypt, decrypt, sign) for which the key can be used.
+ Attempts to use the key for any other purpose will be rejected. See KeyProperties . PURPOSE flags. Returns int Value is either 0 or a combination of KeyProperties.PURPOSE_ENCRYPT , KeyProperties.PURPOSE_DECRYPT , KeyProperties.PURPOSE_SIGN , KeyProperties.PURPOSE_VERIFY , KeyProperties.PURPOSE_WRAP_KEY , KeyProperties.PURPOSE_AGREE_KEY , and KeyProperties.PURPOSE_ATTEST_KEY getSignaturePaddings Added in API level 23 public String[] getSignaturePaddings () Gets the set of padding schemes (e.g., PSS , PKCS#1 ) with which the key
+ can be used when signing/verifying. Attempts to use the key with any other padding scheme
+ will be rejected. See KeyProperties . SIGNATURE_PADDING constants. Returns String[] This value cannot be null .
+
+ Value is KeyProperties.SIGNATURE_PADDING_RSA_PKCS1 , or KeyProperties.SIGNATURE_PADDING_RSA_PSS getUserAuthenticationType Added in API level 30 public int getUserAuthenticationType () Returns int Value is either 0 or a combination of KeyProperties.AUTH_BIOMETRIC_STRONG , and KeyProperties.AUTH_DEVICE_CREDENTIAL getUserAuthenticationValidityDurationSeconds Added in API level 23 public int getUserAuthenticationValidityDurationSeconds () Gets the duration of time (seconds) for which this key is authorized to be used after the
+ user is successfully authenticated. This has effect only if user authentication is required
+ (see isUserAuthenticationRequired() ). This authorization applies only to secret key and private key operations. Public key
+ operations are not restricted. Returns int duration in seconds or -1 if authentication is required for every use of the
+         key. See also: isUserAuthenticationRequired() KeyProtection.Builder.setUserAuthenticationValidityDurationSeconds(int) isDigestsSpecified Added in API level 23 public boolean isDigestsSpecified () Returns true if the set of digest algorithms with which the key can be used has been
+ specified. Returns boolean See also: getDigests() isInvalidatedByBiometricEnrollment Added in API level 24 public boolean isInvalidatedByBiometricEnrollment () Returns true if the key is irreversibly invalidated when a new biometric is
+ enrolled or all enrolled biometrics are removed. This has effect only for keys that
+ require biometric user authentication for every use. Returns boolean See also: isUserAuthenticationRequired() getUserAuthenticationValidityDurationSeconds() KeyProtection.Builder.setInvalidatedByBiometricEnrollment(boolean) isMgf1DigestsSpecified Added in API level 35 public boolean isMgf1DigestsSpecified () Returns true if the set of digests for the MGF1 mask generation function,
+ with which the key can be used, has been specified. Useful with the RSA-OAEP scheme. Returns boolean This value cannot be null . See also: getMgf1Digests() isRandomizedEncryptionRequired Added in API level 23 public boolean isRandomizedEncryptionRequired () Returns true if encryption using this key must be sufficiently randomized to produce
+ different ciphertexts for the same plaintext every time. The formal cryptographic property
+ being required is indistinguishability under chosen-plaintext attack ( IND-CPA ) . This property is important because it mitigates several classes of
+ weaknesses due to which ciphertext may leak information about plaintext. For example, if a
+ given plaintext always produces the same ciphertext, an attacker may see the repeated
+ ciphertexts and be able to deduce something about the plaintext. Returns boolean isUnlockedDeviceRequired Added in API level 28 public boolean isUnlockedDeviceRequired () Returns true if the key is authorized to be used only while the device is unlocked. Returns boolean See also: KeyProtection.Builder.setUnlockedDeviceRequired(boolean) isUserAuthenticationRequired Added in API level 23 public boolean isUserAuthenticationRequired () Returns true if the key is authorized to be used only if the user has been
+ authenticated. This authorization applies only to secret key and private key operations. Public key
+ operations are not restricted. Returns boolean See also: getUserAuthenticationValidityDurationSeconds() KeyProtection.Builder.setUserAuthenticationRequired(boolean) isUserAuthenticationValidWhileOnBody Added in API level 24 public boolean isUserAuthenticationValidWhileOnBody () Returns true if the key will be de-authorized when the device is removed from the
+ user's body.  This option has no effect on keys that don't have an authentication validity
+ duration, and has no effect if the device lacks an on-body sensor. Authorization applies only to secret key and private key operations. Public key operations
+ are not restricted. Returns boolean See also: isUserAuthenticationRequired() getUserAuthenticationValidityDurationSeconds() KeyProtection.Builder.setUserAuthenticationValidWhileOnBody(boolean) isUserConfirmationRequired Added in API level 28 public boolean isUserConfirmationRequired () Returns true if the key is authorized to be used only for messages confirmed by the
+ user.
+
+ Confirmation is separate from user authentication (see isUserAuthenticationRequired() ). Keys can be created that require confirmation but
+ not user authentication, or user authentication but not confirmation, or both. Confirmation
+ verifies that some user with physical possession of the device has approved a displayed
+ message. User authentication verifies that the correct user is present and has
+ authenticated. This authorization applies only to secret key and private key operations. Public key
+ operations are not restricted. Returns boolean See also: KeyProtection.Builder.setUserConfirmationRequired(boolean) isUserPresenceRequired Added in API level 28 public boolean isUserPresenceRequired () Returns true if the key is authorized to be used only if a test of user presence has
+ been performed between the Signature.initSign() and Signature.sign() calls.
+ It requires that the KeyStore implementation have a direct way to validate the user presence
+ for example a KeyStore hardware backed strongbox can use a button press that is observable
+ in hardware. A test for user presence is tangential to authentication. The test can be part
+ of an authentication step as long as this step can be validated by the hardware protecting
+ the key and cannot be spoofed. For example, a physical button press can be used as a test of
+ user presence if the other pins connected to the button are not able to simulate a button
+ press. There must be no way for the primary processor to fake a button press, or that
+ button must not be used as a test of user presence. Returns boolean</body></html>

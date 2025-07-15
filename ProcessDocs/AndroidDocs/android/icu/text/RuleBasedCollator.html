@@ -1,0 +1,310 @@
+<html><head><title>Class Documentation</title></head><body>RuleBasedCollator Kotlin | Java public
+  
+  final
+  
+  class
+  RuleBasedCollator extends Collator java.lang.Object ↳ android.icu.text.Collator ↳ android.icu.text.RuleBasedCollator RuleBasedCollator is a concrete subclass of Collator. It allows customization of the Collator via user-specified rule
+ sets. RuleBasedCollator is designed to be fully compliant to the Unicode Collation Algorithm (UCA) and conforms to ISO 14651. A Collator is thread-safe only when frozen. See isFrozen() and Freezable . Users are strongly encouraged to read the User
+ Guide for more information about the collation service before using this class. Create a RuleBasedCollator from a locale by calling the getInstance(Locale) factory method in the base class
+ Collator. Collator.getInstance(Locale) creates a RuleBasedCollator object based on the collation rules defined by the
+ argument locale. If a customized collation ordering or attributes is required, use the RuleBasedCollator(String)
+ constructor with the appropriate rules. The customized RuleBasedCollator will base its ordering on the CLDR root collation, while
+ re-adjusting the attributes and orders of the characters in the specified rule accordingly. RuleBasedCollator provides correct collation orders for most locales supported in ICU. If specific data for a locale
+ is not available, the orders eventually falls back to the CLDR root sort order . For information about the collation rule syntax and details about customization, please refer to the Collation customization section of the User Guide. Note that there are some differences between the Collation rule syntax used in Java and ICU4J: According to the JDK documentation: Modifier '!' : Turns on Thai/Lao vowel-consonant swapping. If this rule is in force when a Thai vowel of the range
+ \U0E40-\U0E44 precedes a Thai consonant of the range \U0E01-\U0E2E OR a Lao vowel of the range
+ \U0EC0-\U0EC4 precedes a Lao consonant of the range \U0E81-\U0EAE then the vowel is placed after the
+ consonant for collation purposes. If a rule is without the modifier '!', the Thai/Lao vowel-consonant swapping is not turned on. ICU4J's RuleBasedCollator does not support turning off the Thai/Lao vowel-consonant swapping, since the UCA clearly
+ states that it has to be supported to ensure a correct sorting order. If a '!' is encountered, it is ignored. As mentioned in the documentation of the base class Collator, compatibility decomposition mode is not supported. Examples Creating Customized RuleBasedCollators: String simple = "& a < b < c < d";
+ RuleBasedCollator simpleCollator = new RuleBasedCollator(simple);
+
+ String norwegian = "& a , A < b , B < c , C < d , D < e , E "
+                    + "< f , F < g , G < h , H < i , I < j , "
+                    + "J < k , K < l , L < m , M < n , N < "
+                    + "o , O < p , P < q , Q <r , R <s , S < "
+                    + "t , T < u , U < v , V < w , W < x , X "
+                    + "< y , Y < z , Z < \u00E5 = a\u030A "
+                    + ", \u00C5 = A\u030A ; aa , AA < \u00E6 "
+                    + ", \u00C6 < \u00F8 , \u00D8";
+ RuleBasedCollator norwegianCollator = new RuleBasedCollator(norwegian); Concatenating rules to combine Collator s: // Create an en_US Collator object
+ RuleBasedCollator en_USCollator = (RuleBasedCollator)
+     Collator.getInstance(new Locale("en", "US", ""));
+ // Create a da_DK Collator object
+ RuleBasedCollator da_DKCollator = (RuleBasedCollator)
+     Collator.getInstance(new Locale("da", "DK", ""));
+ // Combine the two
+ // First, get the collation rules from en_USCollator
+ String en_USRules = en_USCollator.getRules();
+ // Second, get the collation rules from da_DKCollator
+ String da_DKRules = da_DKCollator.getRules();
+ RuleBasedCollator newCollator =
+                             new RuleBasedCollator(en_USRules + da_DKRules);
+ // newCollator has the combined rules Making changes to an existing RuleBasedCollator to create a new Collator object, by appending changes to
+ the existing rule: // Create a new Collator object with additional rules
+ String addRules = "& C < ch, cH, Ch, CH";
+ RuleBasedCollator myCollator =
+     new RuleBasedCollator(en_USCollator.getRules() + addRules);
+ // myCollator contains the new rules How to change the order of non-spacing accents: // old rule with main accents
+ String oldRules = "= \u0301 ; \u0300 ; \u0302 ; \u0308 "
+                 + "; \u0327 ; \u0303 ; \u0304 ; \u0305 "
+                 + "; \u0306 ; \u0307 ; \u0309 ; \u030A "
+                 + "; \u030B ; \u030C ; \u030D ; \u030E "
+                 + "; \u030F ; \u0310 ; \u0311 ; \u0312 "
+                 + "< a , A ; ae, AE ; \u00e6 , \u00c6 "
+                 + "< b , B < c, C < e, E & C < d , D";
+ // change the order of accent characters
+ String addOn = "& \u0300 ; \u0308 ; \u0302";
+ RuleBasedCollator myCollator = new RuleBasedCollator(oldRules + addOn); Putting in a new primary ordering before the default setting, e.g. sort English characters before or after Japanese
+ characters in the Japanese Collator : // get en_US Collator rules
+ RuleBasedCollator en_USCollator
+                        = (RuleBasedCollator)Collator.getInstance(Locale.US);
+ // add a few Japanese characters to sort before English characters
+ // suppose the last character before the first base letter 'a' in
+ // the English collation rule is \u2212
+ String jaString = "& \u2212 <\u3041, \u3042 <\u3043, "
+                   + "\u3044";
+ RuleBasedCollator myJapaneseCollator
+              = new RuleBasedCollator(en_USCollator.getRules() + jaString); This class is not subclassable Summary Inherited constants From class android.icu.text.Collator int CANONICAL_DECOMPOSITION Decomposition mode value. int FULL_DECOMPOSITION [icu] Note: This is for backwards compatibility with Java APIs only. int IDENTICAL Smallest Collator strength value. int NO_DECOMPOSITION Decomposition mode value. int PRIMARY Strongest collator strength value. int QUATERNARY [icu] Fourth level collator strength value. int SECONDARY Second level collator strength value. int TERTIARY Third level collator strength value. Public constructors RuleBasedCollator ( String rules) Constructor that takes the argument rules for customization. Public methods Object clone () Clones the RuleBasedCollator RuleBasedCollator cloneAsThawed () Provides for the clone operation. int compare ( String source, String target) Compares the source text String to the target text String according to the collation rules, strength and
+ decomposition mode for this RuleBasedCollator. boolean equals ( Object obj) Compares the equality of two Collator objects. Collator freeze () Freezes the collator. CollationElementIterator getCollationElementIterator ( UCharacterIterator source) Return a CollationElementIterator for the given UCharacterIterator. CollationElementIterator getCollationElementIterator ( String source) Return a CollationElementIterator for the given String. CollationElementIterator getCollationElementIterator ( CharacterIterator source) Return a CollationElementIterator for the given CharacterIterator. CollationKey getCollationKey ( String source) Get a Collation key for the argument String source from this RuleBasedCollator. void getContractionsAndExpansions ( UnicodeSet contractions, UnicodeSet expansions, boolean addPrefixes) Gets unicode sets containing contractions and/or expansions of a collator int getDecomposition () Returns the decomposition mode of this Collator. int getMaxVariable () [icu] Returns the maximum reordering group whose characters are affected by
+ the alternate handling behavior. boolean getNumericCollation () Method to retrieve the numeric collation value. int[] getReorderCodes () Retrieves the reordering codes for this collator. String getRules () Gets the collation tailoring rules for this RuleBasedCollator. String getRules (boolean fullrules) Returns current rules. int getStrength () Returns this Collator's strength attribute. UnicodeSet getTailoredSet () Get a UnicodeSet that contains all the characters and sequences tailored in this collator. VersionInfo getUCAVersion () Get the UCA version of this collator object. int getVariableTop () [icu] Gets the variable top value of a Collator. VersionInfo getVersion () Get the version of this collator object. int hashCode () Generates a unique hash code for this RuleBasedCollator. boolean isAlternateHandlingShifted () Checks if the alternate handling behavior is the UCA defined SHIFTED or NON_IGNORABLE. boolean isCaseLevel () Checks if case level is set to true. boolean isFrenchCollation () Checks if French Collation is set to true. boolean isFrozen () Determines whether the object has been frozen or not. boolean isLowerCaseFirst () Return true if a lowercase character is sorted before the corresponding uppercase character. boolean isUpperCaseFirst () Return true if an uppercase character is sorted before the corresponding lowercase character. void setAlternateHandlingDefault () Sets the alternate handling mode to the initial mode set during construction of the RuleBasedCollator. void setAlternateHandlingShifted (boolean shifted) Sets the alternate handling for QUATERNARY strength to be either shifted or non-ignorable. void setCaseFirstDefault () Sets the case first mode to the initial mode set during construction of the RuleBasedCollator. void setCaseLevel (boolean flag) When case level is set to true, an additional weight is formed between the SECONDARY and TERTIARY weight, known
+ as the case level. void setCaseLevelDefault () Sets the case level mode to the initial mode set during construction of the RuleBasedCollator. void setDecomposition (int decomposition) Sets the decomposition mode of this Collator. void setDecompositionDefault () Sets the decomposition mode to the initial mode set during construction of the RuleBasedCollator. void setFrenchCollation (boolean flag) Sets the mode for the direction of SECONDARY weights to be used in French collation. void setFrenchCollationDefault () Sets the French collation mode to the initial mode set during construction of the RuleBasedCollator. void setLowerCaseFirst (boolean lowerfirst) Sets the orders of lower cased characters to sort before upper cased characters, in strength TERTIARY. RuleBasedCollator setMaxVariable (int group) [icu] Sets the variable top to the top of the specified reordering group. void setNumericCollation (boolean flag) [icu] When numeric collation is turned on, this Collator makes
+ substrings of digits sort according to their numeric values. void setNumericCollationDefault () Method to set numeric collation to its default value. void setReorderCodes (int... order) Sets the reordering codes for this collator. void setStrength (int newStrength) Sets this Collator's strength attribute. void setStrengthDefault () Sets the collation strength to the initial mode set during the construction of the RuleBasedCollator. void setUpperCaseFirst (boolean upperfirst) Sets whether uppercase characters sort before lowercase characters or vice versa, in strength TERTIARY. Inherited methods From class android.icu.text.Collator Object clone () Clones the collator. Collator cloneAsThawed () Provides for the clone operation. int compare ( Object source, Object target) Compares the source Object to the target Object. abstract
+        
+        
+        
+        
+        int compare ( String source, String target) Compares the source text String to the target text String according to
+ this Collator's rules, strength and decomposition mode. boolean equals ( String source, String target) Compares the equality of two text Strings using
+ this Collator's rules, strength and decomposition mode. boolean equals ( Object obj) Compares the equality of two Collator objects. Collator freeze () Freezes the collator. static Locale[] getAvailableLocales () Returns the set of locales, as Locale objects, for which collators
+ are installed. static
+        final ULocale[] getAvailableULocales () [icu] Returns the set of locales, as ULocale objects, for which collators
+ are installed. abstract CollationKey getCollationKey ( String source) Transforms the String into a CollationKey suitable for efficient
+ repeated comparison. int getDecomposition () Returns the decomposition mode of this Collator. static String getDisplayName ( Locale objectLocale, Locale displayLocale) [icu] Returns the name of the collator for the objectLocale, localized for the
+ displayLocale. static String getDisplayName ( ULocale objectLocale) [icu] Returns the name of the collator for the objectLocale, localized for the
+ default DISPLAY locale. static String getDisplayName ( ULocale objectLocale, ULocale displayLocale) [icu] Returns the name of the collator for the objectLocale, localized for the
+ displayLocale. static String getDisplayName ( Locale objectLocale) [icu] Returns the name of the collator for the objectLocale, localized for the
+ default DISPLAY locale. static
+        
+        
+        int[] getEquivalentReorderCodes (int reorderCode) Retrieves all the reorder codes that are grouped with the given reorder code. static
+        final ULocale getFunctionalEquivalent ( String keyword, ULocale locID) [icu] Returns the functionally equivalent locale for the given
+ requested locale, with respect to given keyword, for the
+ collation service. static
+        final ULocale getFunctionalEquivalent ( String keyword, ULocale locID, boolean[] isAvailable) [icu] Returns the functionally equivalent locale for the given
+ requested locale, with respect to given keyword, for the
+ collation service. static
+        final Collator getInstance () Returns the Collator for the current default locale. static
+        final Collator getInstance ( Locale locale) Returns the Collator for the desired locale. static
+        final Collator getInstance ( ULocale locale) [icu] Returns the Collator for the desired locale. static
+        final String[] getKeywordValues ( String keyword) [icu] Given a keyword, returns an array of all values for
+ that keyword that are currently in use. static
+        final String[] getKeywordValuesForLocale ( String key, ULocale locale, boolean commonlyUsed) [icu] Given a key and a locale, returns an array of string values in a preferred
+ order that would make a difference. static
+        final String[] getKeywords () [icu] Returns an array of all possible keywords that are relevant to
+ collation. int getMaxVariable () [icu] Returns the maximum reordering group whose characters are affected by
+ the alternate handling behavior. int[] getReorderCodes () Retrieves the reordering codes for this collator. int getStrength () Returns this Collator's strength attribute. UnicodeSet getTailoredSet () [icu] Returns a UnicodeSet that contains all the characters and sequences tailored
+ in this collator. abstract VersionInfo getUCAVersion () [icu] Returns the UCA version of this collator object. abstract
+        
+        
+        
+        
+        int getVariableTop () [icu] Gets the variable top value of a Collator. abstract VersionInfo getVersion () [icu] Returns the version of this collator object. int hashCode () Generates a hash code for this Collator object. boolean isFrozen () Determines whether the object has been frozen or not. void setDecomposition (int decomposition) Sets the decomposition mode of this Collator. Collator setMaxVariable (int group) [icu] Sets the variable top to the top of the specified reordering group. void setReorderCodes (int... order) Sets the reordering codes for this collator. void setStrength (int newStrength) Sets this Collator's strength attribute. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.util.Comparator abstract
+        
+        
+        
+        
+        int compare ( Object o1, Object o2) Compares its two arguments for order. static
+        
+        <T, U> Comparator < Object > comparing ( Function <? super T, ? extends U> keyExtractor, Comparator <? super U> keyComparator) Accepts a function that extracts a sort key from a type T , and
+ returns a Comparator<T> that compares by that sort key using
+ the specified Comparator . static
+        
+        <T, U extends Comparable <? super U>> Comparator < Object > comparing ( Function <? super T, ? extends U> keyExtractor) Accepts a function that extracts a Comparable sort key from a type T , and returns a Comparator<T> that compares by that sort key. static
+        
+        <T> Comparator < Object > comparingDouble ( ToDoubleFunction <? super T> keyExtractor) Accepts a function that extracts a double sort key from a type T , and returns a Comparator<T> that compares by that
+ sort key. static
+        
+        <T> Comparator < Object > comparingInt ( ToIntFunction <? super T> keyExtractor) Accepts a function that extracts an int sort key from a type T , and returns a Comparator<T> that compares by that
+ sort key. static
+        
+        <T> Comparator < Object > comparingLong ( ToLongFunction <? super T> keyExtractor) Accepts a function that extracts a long sort key from a type T , and returns a Comparator<T> that compares by that
+ sort key. abstract
+        
+        
+        
+        
+        boolean equals ( Object obj) Indicates whether some other object is "equal to"
+ this comparator. static
+        
+        <T extends Comparable <? super T>> Comparator <T> naturalOrder () Returns a comparator that compares Comparable objects in natural
+ order. static
+        
+        <T> Comparator < Object > nullsFirst ( Comparator <? super T> comparator) Returns a null-friendly comparator that considers null to be
+ less than non-null. static
+        
+        <T> Comparator < Object > nullsLast ( Comparator <? super T> comparator) Returns a null-friendly comparator that considers null to be
+ greater than non-null. static
+        
+        <T extends Comparable <? super T>> Comparator <T> reverseOrder () Returns a comparator that imposes the reverse of the natural
+ ordering . default Comparator < Object > reversed () Returns a comparator that imposes the reverse ordering of this
+ comparator. default
+        
+        
+        <U extends Comparable <? super U>> Comparator < Object > thenComparing ( Function <? super T, ? extends U> keyExtractor) Returns a lexicographic-order comparator with a function that
+ extracts a Comparable sort key. default
+        
+        
+        <U> Comparator < Object > thenComparing ( Function <? super T, ? extends U> keyExtractor, Comparator <? super U> keyComparator) Returns a lexicographic-order comparator with a function that
+ extracts a key to be compared with the given Comparator . default Comparator < Object > thenComparing ( Comparator <? super T> other) Returns a lexicographic-order comparator with another comparator. default Comparator < Object > thenComparingDouble ( ToDoubleFunction <? super T> keyExtractor) Returns a lexicographic-order comparator with a function that
+ extracts a double sort key. default Comparator < Object > thenComparingInt ( ToIntFunction <? super T> keyExtractor) Returns a lexicographic-order comparator with a function that
+ extracts an int sort key. default Comparator < Object > thenComparingLong ( ToLongFunction <? super T> keyExtractor) Returns a lexicographic-order comparator with a function that
+ extracts a long sort key. From interface android.icu.util.Freezable abstract Collator cloneAsThawed () Provides for the clone operation. abstract Collator freeze () Freezes the object. abstract
+        
+        
+        
+        
+        boolean isFrozen () Determines whether the object has been frozen or not. Public constructors RuleBasedCollator Added in API level 24 public RuleBasedCollator ( String rules) Constructor that takes the argument rules for customization.
+ The collator will be based on the CLDR root collation, with the
+ attributes and re-ordering of the characters specified in the argument rules. See the User Guide's section on Collation Customization for details on the rule syntax. Parameters rules String : the collation rules to build the collation table from. Throws ParseException and IOException thrown. ParseException thrown when argument rules have an invalid syntax.
+                IOException thrown when an error occurred while reading internal data. Exception Public methods clone Added in API level 24 public Object clone () Clones the RuleBasedCollator Returns Object a new instance of this RuleBasedCollator object Throws CloneNotSupportedException cloneAsThawed Added in API level 24 public RuleBasedCollator cloneAsThawed () Provides for the clone operation. Any clone is initially unfrozen. Returns RuleBasedCollator compare Added in API level 24 public int compare ( String source, String target) Compares the source text String to the target text String according to the collation rules, strength and
+ decomposition mode for this RuleBasedCollator. Returns an integer less than, equal to or greater than zero
+ depending on whether the source String is less than, equal to or greater than the target String. See the Collator
+ class description for an example of use. General recommendation: If comparison are to be done to the same String multiple times, it would be more efficient to generate
+ CollationKeys for the Strings and use CollationKey.compareTo(CollationKey) for the comparisons. If speed
+ performance is critical and object instantiation is to be reduced, further optimization may be achieved by
+ generating a simpler key of the form RawCollationKey and reusing this RawCollationKey object with the method
+ RuleBasedCollator.getRawCollationKey. Internal byte representation can be directly accessed via RawCollationKey
+ and stored for future use. Like CollationKey, RawCollationKey provides a method RawCollationKey.compareTo for key
+ comparisons. If the each Strings are compared to only once, using the method RuleBasedCollator.compare(String,
+ String) will have a better performance. Parameters source String : the source text String. target String : the target text String. Returns int Returns an integer value. Value is less than zero if source is less than target, value is zero if source
+         and target are equal, value is greater than zero if source is greater than target. See also: CollationKey getCollationKey(String) equals Added in API level 24 public boolean equals ( Object obj) Compares the equality of two Collator objects. Collator objects are equal if they have the same
+ collation (sorting & searching) behavior. The base class checks for null and for equal types.
+ Subclasses should override. Parameters obj Object : the Collator to compare to. Returns boolean true if this Collator has exactly the same collation behavior as obj, false otherwise. freeze Added in API level 24 public Collator freeze () Freezes the collator. Returns Collator the collator itself. getCollationElementIterator Added in API level 24 public CollationElementIterator getCollationElementIterator ( UCharacterIterator source) Return a CollationElementIterator for the given UCharacterIterator. The source iterator's integrity will be
+ preserved since a new copy will be created for use. Parameters source UCharacterIterator Returns CollationElementIterator See also: CollationElementIterator getCollationElementIterator Added in API level 24 public CollationElementIterator getCollationElementIterator ( String source) Return a CollationElementIterator for the given String. Parameters source String Returns CollationElementIterator See also: CollationElementIterator getCollationElementIterator Added in API level 24 public CollationElementIterator getCollationElementIterator ( CharacterIterator source) Return a CollationElementIterator for the given CharacterIterator. The source iterator's integrity will be
+ preserved since a new copy will be created for use. Parameters source CharacterIterator Returns CollationElementIterator See also: CollationElementIterator getCollationKey Added in API level 24 public CollationKey getCollationKey ( String source) Get a Collation key for the argument String source from this RuleBasedCollator. General recommendation: If comparison are to be done to the same String multiple times, it would be more efficient to generate
+ CollationKeys for the Strings and use CollationKey.compareTo(CollationKey) for the comparisons. If the each
+ Strings are compared to only once, using the method RuleBasedCollator.compare(String, String) will have a better
+ performance. See the class documentation for an explanation about CollationKeys. Parameters source String : the text String to be transformed into a collation key. Returns CollationKey the CollationKey for the given String based on this RuleBasedCollator's collation rules. If the source
+         String is null, a null CollationKey is returned. See also: CollationKey compare(String, String) getContractionsAndExpansions Added in API level 24 public void getContractionsAndExpansions ( UnicodeSet contractions, UnicodeSet expansions, 
+                boolean addPrefixes) Gets unicode sets containing contractions and/or expansions of a collator Parameters contractions UnicodeSet : if not null, set to contain contractions expansions UnicodeSet : if not null, set to contain expansions addPrefixes boolean : add the prefix contextual elements to contractions Throws Exception Throws an exception if any errors occurs. getDecomposition Added in API level 24 public int getDecomposition () Returns the decomposition mode of this Collator. The decomposition mode
+ determines how Unicode composed characters are handled. See the Collator class description for more details. Returns int the decomposition mode See also: setDecomposition(int) Collator.NO_DECOMPOSITION Collator.CANONICAL_DECOMPOSITION getMaxVariable Added in API level 24 public int getMaxVariable () [icu] Returns the maximum reordering group whose characters are affected by
+ the alternate handling behavior. Returns int the maximum variable reordering group. See also: setMaxVariable(int) getNumericCollation Added in API level 24 public boolean getNumericCollation () Method to retrieve the numeric collation value. When numeric collation is turned on, this Collator generates a
+ collation key for the numeric value of substrings of digits. This is a way to get '100' to sort AFTER '2' Returns boolean true if numeric collation is turned on, false otherwise See also: setNumericCollation(boolean) setNumericCollationDefault() getReorderCodes Added in API level 24 public int[] getReorderCodes () Retrieves the reordering codes for this collator.
+ These reordering codes are a combination of UScript codes and ReorderCodes. Returns int[] a copy of the reordering codes for this collator;
+ if none are set then returns an empty array See also: setReorderCodes(int) Collator.getEquivalentReorderCodes(int) getRules Added in API level 24 public String getRules () Gets the collation tailoring rules for this RuleBasedCollator.
+ Equivalent to String getRules(false). On Android, the returned string will be empty unless this instance was
+ constructed using RuleBasedCollator(java.lang.String) . Returns String the collation tailoring rules See also: getRules(boolean) getRules Added in API level 24 public String getRules (boolean fullrules) Returns current rules.
+ The argument defines whether full rules (root collation + tailored) rules are returned
+ or just the tailoring. The root collation rules are an approximation of the root collator's sort order.
+ They are almost never used or useful at runtime and can be removed from the data.
+ See User Guide:
+ Collation Customization, Building on Existing Locales getRules() should normally be used instead. Parameters fullrules boolean : true if the rules that defines the full set of collation order is required, otherwise false for
+            returning only the tailored rules Returns String the current rules that defines this Collator. See also: getRules() getStrength Added in API level 24 public int getStrength () Returns this Collator's strength attribute. The strength attribute
+ determines the minimum level of difference considered significant. [icu] Note: This can return QUATERNARY strength, which is not supported by the
+ JDK version. See the Collator class description for more details. Returns int this Collator's current strength attribute. See also: setStrength(int) Collator.PRIMARY Collator.SECONDARY Collator.TERTIARY Collator.QUATERNARY Collator.IDENTICAL getTailoredSet Added in API level 24 public UnicodeSet getTailoredSet () Get a UnicodeSet that contains all the characters and sequences tailored in this collator. Returns UnicodeSet a pointer to a UnicodeSet object containing all the code points and sequences that may sort differently
+         than in the root collator. getUCAVersion Added in API level 24 public VersionInfo getUCAVersion () Get the UCA version of this collator object. Returns VersionInfo the version object associated with this collator getVariableTop Added in API level 24 public int getVariableTop () [icu] Gets the variable top value of a Collator. Returns int the variable top primary weight See also: getMaxVariable() getVersion Added in API level 24 public VersionInfo getVersion () Get the version of this collator object. Returns VersionInfo the version object associated with this collator hashCode Added in API level 24 public int hashCode () Generates a unique hash code for this RuleBasedCollator. Returns int the unique hash code for this Collator isAlternateHandlingShifted Added in API level 24 public boolean isAlternateHandlingShifted () Checks if the alternate handling behavior is the UCA defined SHIFTED or NON_IGNORABLE. If return value is true,
+ then the alternate handling attribute for the Collator is SHIFTED. Otherwise if return value is false, then the
+ alternate handling attribute for the Collator is NON_IGNORABLE See setAlternateHandlingShifted(boolean) for more
+ details. Returns boolean true or false See also: setAlternateHandlingShifted(boolean) setAlternateHandlingDefault() isCaseLevel Added in API level 24 public boolean isCaseLevel () Checks if case level is set to true. See setCaseLevel(boolean) for details. Returns boolean the case level mode See also: setCaseLevelDefault() isCaseLevel() setCaseLevel(boolean) isFrenchCollation Added in API level 24 public boolean isFrenchCollation () Checks if French Collation is set to true. See setFrenchCollation(boolean) for details. Returns boolean true if French Collation is set to true, false otherwise See also: setFrenchCollation(boolean) setFrenchCollationDefault() isFrozen Added in API level 24 public boolean isFrozen () Determines whether the object has been frozen or not. An unfrozen Collator is mutable and not thread-safe.
+ A frozen Collator is immutable and thread-safe. Returns boolean isLowerCaseFirst Added in API level 24 public boolean isLowerCaseFirst () Return true if a lowercase character is sorted before the corresponding uppercase character. See
+ setCaseFirst(boolean) for details. Returns boolean true lower cased characters are sorted before upper cased characters, false otherwise See also: setUpperCaseFirst(boolean) setLowerCaseFirst(boolean) isUpperCaseFirst() setCaseFirstDefault() isUpperCaseFirst Added in API level 24 public boolean isUpperCaseFirst () Return true if an uppercase character is sorted before the corresponding lowercase character. See
+ setCaseFirst(boolean) for details. Returns boolean true if upper cased characters are sorted before lower cased characters, false otherwise See also: setUpperCaseFirst(boolean) setLowerCaseFirst(boolean) isLowerCaseFirst() setCaseFirstDefault() setAlternateHandlingDefault Added in API level 24 public void setAlternateHandlingDefault () Sets the alternate handling mode to the initial mode set during construction of the RuleBasedCollator. See
+ setAlternateHandling(boolean) for more details. See also: setAlternateHandlingShifted(boolean) isAlternateHandlingShifted() setAlternateHandlingShifted Added in API level 24 public void setAlternateHandlingShifted (boolean shifted) Sets the alternate handling for QUATERNARY strength to be either shifted or non-ignorable. See the UCA definition
+ on Variable Weighting . This
+ attribute will only be effective when QUATERNARY strength is set. If the mode is set to
+ false, it corresponds to the NON_IGNORABLE mode in UCA. In the NON_IGNORABLE mode, the RuleBasedCollator treats all
+ the code points with non-ignorable primary weights in the same way. If the mode is set to true, the behavior
+ corresponds to SHIFTED defined in UCA, this causes code points with PRIMARY orders that are equal or below the
+ variable top value to be ignored in PRIMARY order and moved to the QUATERNARY order.
+ The default setting in a Collator object depends on the locale data loaded from the
+ resources. For most locales, the default is false, but for others, such as "th",
+ the default could be true. Parameters shifted boolean : true if SHIFTED behavior for alternate handling is desired, false for the NON_IGNORABLE behavior. See also: isAlternateHandlingShifted() setAlternateHandlingDefault() setCaseFirstDefault Added in API level 24 public void setCaseFirstDefault () Sets the case first mode to the initial mode set during construction of the RuleBasedCollator. See
+ setUpperCaseFirst(boolean) and setLowerCaseFirst(boolean) for more details. See also: isLowerCaseFirst() isUpperCaseFirst() setLowerCaseFirst(boolean) setUpperCaseFirst(boolean) setCaseLevel Added in API level 24 public void setCaseLevel (boolean flag) When case level is set to true, an additional weight is formed between the SECONDARY and TERTIARY weight, known
+ as the case level. The case level is used to distinguish large and small Japanese Kana characters. Case level
+ could also be used in other situations. For example to distinguish certain Pinyin characters. If the value
+ is false, it means the case level is not generated. The contents of the case level are affected by the case
+ first mode. A simple way to ignore accent differences in a string is to set the strength to PRIMARY and enable
+ case level. The default setting in a Collator object depends
+ on the locale data loaded from the resources. See the section on case
+ level for more information. Parameters flag boolean : true if case level sorting is required, false otherwise See also: setCaseLevelDefault() isCaseLevel() setCaseLevelDefault Added in API level 24 public void setCaseLevelDefault () Sets the case level mode to the initial mode set during construction of the RuleBasedCollator. See
+ setCaseLevel(boolean) for more details. See also: setCaseLevel(boolean) isCaseLevel() setDecomposition Added in API level 24 public void setDecomposition (int decomposition) Sets the decomposition mode of this Collator.  Setting this
+ decomposition attribute with CANONICAL_DECOMPOSITION allows the
+ Collator to handle un-normalized text properly, producing the
+ same results as if the text were normalized. If
+ NO_DECOMPOSITION is set, it is the user's responsibility to
+ insure that all text is already in the appropriate form before
+ a comparison or before getting a CollationKey. Adjusting
+ decomposition mode allows the user to select between faster and
+ more complete collation behavior. Since a great many of the world's languages do not require
+ text normalization, most locales set NO_DECOMPOSITION as the
+ default decomposition mode.
+
+ The default decompositon mode for the Collator is
+ NO_DECOMPOSITON, unless specified otherwise by the locale used
+ to create the Collator. See getDecomposition for a description of decomposition
+ mode. Parameters decomposition int : the new decomposition mode Throws IllegalArgumentException If the given value is not a valid
+            decomposition mode. See also: getDecomposition() Collator.NO_DECOMPOSITION Collator.CANONICAL_DECOMPOSITION setDecompositionDefault Added in API level 24 public void setDecompositionDefault () Sets the decomposition mode to the initial mode set during construction of the RuleBasedCollator. See
+ setDecomposition(int) for more details. See also: getDecomposition() setDecomposition(int) setFrenchCollation Added in API level 24 public void setFrenchCollation (boolean flag) Sets the mode for the direction of SECONDARY weights to be used in French collation. If set to false,
+ which treats SECONDARY weights in the order they appear. If set to true, the SECONDARY weights will be sorted
+ backwards. See the section on French collation for more information. The default setting in a Collator object depends on the
+ locale data loaded from the resources. For example, for "fr_CA" locale, the default is true. Parameters flag boolean : true to set the French collation on, false to set it off See also: isFrenchCollation() setFrenchCollationDefault() setFrenchCollationDefault Added in API level 24 public void setFrenchCollationDefault () Sets the French collation mode to the initial mode set during construction of the RuleBasedCollator. See
+ setFrenchCollation(boolean) for more details. See also: isFrenchCollation() setFrenchCollation(boolean) setLowerCaseFirst Added in API level 24 public void setLowerCaseFirst (boolean lowerfirst) Sets the orders of lower cased characters to sort before upper cased characters, in strength TERTIARY.
+ If true is set, the RuleBasedCollator will sort lower cased characters before the upper
+ cased ones. Otherwise, if false is set, the RuleBasedCollator will ignore case preferences.
+ The default default setting in a Collator object depends on the locale data loaded from
+ the resources. Parameters lowerfirst boolean : true for sorting lower cased characters before upper cased characters, false to ignore case
+            preferences. See also: isLowerCaseFirst() isUpperCaseFirst() setUpperCaseFirst(boolean) setCaseFirstDefault() setMaxVariable Added in API level 24 public RuleBasedCollator setMaxVariable (int group) [icu] Sets the variable top to the top of the specified reordering group.
+ The variable top determines the highest-sorting character
+ which is affected by the alternate handling behavior.
+ If that attribute is set to NON_IGNORABLE, then the variable top has no effect. Parameters group int : one of Collator.ReorderCodes.SPACE, Collator.ReorderCodes.PUNCTUATION,
+              Collator.ReorderCodes.SYMBOL, Collator.ReorderCodes.CURRENCY;
+              or Collator.ReorderCodes.DEFAULT to restore the default max variable group Returns RuleBasedCollator this See also: getMaxVariable() setNumericCollation Added in API level 24 public void setNumericCollation (boolean flag) [icu] When numeric collation is turned on, this Collator makes
+ substrings of digits sort according to their numeric values. This is a way to get '100' to sort AFTER '2'. Note that the longest
+ digit substring that can be treated as a single unit is
+ 254 digits (not counting leading zeros). If a digit substring is
+ longer than that, the digits beyond the limit will be treated as a
+ separate digit substring. A "digit" in this sense is a code point with General_Category=Nd,
+ which does not include circled numbers, roman numerals, etc.
+ Only a contiguous digit substring is considered, that is,
+ non-negative integers without separators.
+ There is no support for plus/minus signs, decimals, exponents, etc. Parameters flag boolean : true to turn numeric collation on and false to turn it off See also: getNumericCollation() setNumericCollationDefault() setNumericCollationDefault Added in API level 24 public void setNumericCollationDefault () Method to set numeric collation to its default value. See also: getNumericCollation() setNumericCollation(boolean) setReorderCodes Added in API level 24 public void setReorderCodes (int... order) Sets the reordering codes for this collator.
+ Collation reordering allows scripts and some other groups of characters
+ to be moved relative to each other. This reordering is done on top of
+ the DUCET/CLDR standard collation order. Reordering can specify groups to be placed
+ at the start and/or the end of the collation order. These groups are specified using
+ UScript codes and Collator.ReorderCodes entries. By default, reordering codes specified for the start of the order are placed in the
+ order given after several special non-script blocks. These special groups of characters
+ are space, punctuation, symbol, currency, and digit. These special groups are represented with Collator.ReorderCodes entries. Script groups can be intermingled with
+ these special non-script groups if those special groups are explicitly specified in the reordering. The special code OTHERS stands for any script that is not explicitly
+ mentioned in the list of reordering codes given. Anything that is after OTHERS
+ will go at the very end of the reordering in the order given. The special reorder code DEFAULT will reset the reordering for this collator
+ to the default for this collator. The default reordering may be the DUCET/CLDR order or may be a reordering that
+ was specified when this collator was created from resource data or from rules. The
+ DEFAULT code must be the sole code supplied when it is used.
+ If not, then an IllegalArgumentException will be thrown. The special reorder code NONE will remove any reordering for this collator.
+ The result of setting no reordering will be to have the DUCET/CLDR ordering used. The
+ NONE code must be the sole code supplied when it is used. Parameters order int : the reordering codes to apply to this collator; if this is null or an empty array
+ then this clears any existing reordering Throws IllegalArgumentException if the reordering codes are malformed in any way (e.g. duplicates, multiple reset codes, overlapping equivalent scripts) See also: getReorderCodes() Collator.getEquivalentReorderCodes(int) Collator.ReorderCodes UScript setStrength Added in API level 24 public void setStrength (int newStrength) Sets this Collator's strength attribute. The strength attribute determines the minimum level of difference
+ considered significant during comparison. See the Collator class description for an example of use. Parameters newStrength int : the new strength value. Throws IllegalArgumentException If the new strength value is not one of PRIMARY, SECONDARY, TERTIARY, QUATERNARY or IDENTICAL. See also: getStrength() setStrengthDefault() Collator.PRIMARY Collator.SECONDARY Collator.TERTIARY Collator.QUATERNARY Collator.IDENTICAL setStrengthDefault Added in API level 24 public void setStrengthDefault () Sets the collation strength to the initial mode set during the construction of the RuleBasedCollator. See
+ setStrength(int) for more details. See also: setStrength(int) getStrength() setUpperCaseFirst Added in API level 24 public void setUpperCaseFirst (boolean upperfirst) Sets whether uppercase characters sort before lowercase characters or vice versa, in strength TERTIARY.
+ If false, lowercase characters sort before uppercase characters. If true, sort upper case
+ characters first. The default setting in a Collator object depends on the
+ locale data loaded from the resources. For most locales, the default is false,
+ but for others, such as "da" or "mt", the default could be true. Parameters upperfirst boolean : true to sort uppercase characters before lowercase characters, false to sort lowercase characters
+            before uppercase characters See also: isLowerCaseFirst() isUpperCaseFirst() setLowerCaseFirst(boolean) setCaseFirstDefault()</body></html>

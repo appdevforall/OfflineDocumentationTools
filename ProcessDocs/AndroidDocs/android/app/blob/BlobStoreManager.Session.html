@@ -1,0 +1,108 @@
+<html><head><title>Class Documentation</title></head><body>BlobStoreManager.Session Kotlin | Java public
+  static
+  
+  
+  class
+  BlobStoreManager.Session extends Object implements Closeable java.lang.Object ↳ android.app.blob.BlobStoreManager.Session Represents an ongoing session of a blob's contribution to the blob store managed by the
+ system. Clients that want to contribute a blob need to first create a Session using BlobStoreManager.createSession(android.app.blob.BlobHandle) and once the session is created, clients can open and
+ close this session multiple times using BlobStoreManager.openSession(long) and Session.close() before committing it using Session.commit(Executor, Consumer) , at which point system will take
+ ownership of the blob and the client can no longer make any modifications to the blob's
+ content. Summary Public methods void abandon () Abandon this session and delete any data that was written to this session so far. void allowPackageAccess ( String packageName, byte[] certificate) Allow packageName with a particular signing certificate to access this blob
+ data once it is committed using a BlobHandle representing the blob. void allowPublicAccess () Allow any app on the device to access this blob data once it is committed using
+ a BlobHandle representing the blob. void allowSameSignatureAccess () Allow packages which are signed with the same certificate as the caller to access this
+ blob data once it is committed using a BlobHandle representing the blob. void close () Close this session. void commit ( Executor executor, Consumer < Integer > resultCallback) Commit the file that was written so far to this session to the blob store maintained by
+ the system. long getSize () Gets the size of the blob file that was written to the session so far. boolean isPackageAccessAllowed ( String packageName, byte[] certificate) Returns true if access has been allowed for a packageName using either allowPackageAccess(java.lang.String, byte[]) . boolean isPublicAccessAllowed () Returns true if public access has been allowed by using allowPublicAccess() . boolean isSameSignatureAccessAllowed () Returns true if access has been allowed for packages signed with the same
+ certificate as the caller by using allowSameSignatureAccess() . ParcelFileDescriptor openRead () Opens a file descriptor to read the blob content already written into this session. ParcelFileDescriptor openWrite (long offsetBytes, long lengthBytes) Opens a file descriptor to write a blob into the session. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.io.Closeable abstract
+        
+        
+        
+        
+        void close () Closes this stream and releases any system resources associated
+ with it. From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public methods abandon Added in API level 30 public void abandon () Abandon this session and delete any data that was written to this session so far. Throws IOException when there is an I/O error while abandoning the session. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to abandon a session which was
+                               already finalized. allowPackageAccess Added in API level 30 public void allowPackageAccess ( String packageName, 
+                byte[] certificate) Allow packageName with a particular signing certificate to access this blob
+ data once it is committed using a BlobHandle representing the blob. This needs to be called before committing the blob using commit(java.util.concurrent.Executor, java.util.function.Consumer) . Parameters packageName String : the name of the package which should be allowed to access the blob.
+ This value cannot be null . certificate byte : the input bytes representing a certificate of type PackageManager.CERT_INPUT_SHA256 .
+
+ This value cannot be null . Throws IOException when there is an I/O error while changing the access. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to change access for a blob which is
+                               already committed. LimitExceededException when the caller tries to explicitly allow too
+                                many packages using this API. allowPublicAccess Added in API level 30 public void allowPublicAccess () Allow any app on the device to access this blob data once it is committed using
+ a BlobHandle representing the blob. Note: This is only meant to be used from libraries and SDKs where
+ the apps which we want to allow access is not known ahead of time.
+ If a blob is being committed to be shared with a particular set of apps, it is highly
+ recommended to use allowPackageAccess(java.lang.String, byte[]) instead. This needs to be called before committing the blob using commit(java.util.concurrent.Executor, java.util.function.Consumer) . Throws IOException when there is an I/O error while changing the access. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to change access for a blob which is
+                               already committed. allowSameSignatureAccess Added in API level 30 public void allowSameSignatureAccess () Allow packages which are signed with the same certificate as the caller to access this
+ blob data once it is committed using a BlobHandle representing the blob. This needs to be called before committing the blob using commit(java.util.concurrent.Executor, java.util.function.Consumer) . Throws IOException when there is an I/O error while changing the access. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to change access for a blob which is
+                               already committed. close Added in API level 30 public void close () Close this session. It can be re-opened for writing/reading if it has not been
+ abandoned (using abandon() ) or committed (using commit(Executor, Consumer) ). Throws IOException when there is an I/O error while closing the session. SecurityException when the caller is not the owner of the session. commit Added in API level 30 public void commit ( Executor executor, Consumer < Integer > resultCallback) Commit the file that was written so far to this session to the blob store maintained by
+ the system. Once this method is called, the session is finalized and no additional
+ mutations can be performed on the session. If the device reboots
+ before the session has been finalized, you may commit the session again. Note that this commit operation will fail if the hash of the data written so far
+ to this session does not match with the one used for BlobHandle.createWithSha256(byte[], CharSequence, long, String) BlobHandle}
+ associated with this session. Committing the same data more than once will result in replacing the corresponding
+ access mode (via calling one of allowPackageAccess(java.lang.String, byte[]) , allowSameSignatureAccess() , etc) with the latest one. Parameters executor Executor : the executor on which result callback will be invoked.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. resultCallback Consumer : a callback to receive the commit result. when the result is 0 , it indicates success. Otherwise, failure.
+
+ This value cannot be null . Throws IOException when there is an I/O error while committing the session. SecurityException when the caller is not the owner of the session. IllegalArgumentException when the passed parameters are not valid. IllegalStateException when the caller tries to commit a session which was
+                               already finalized. getSize Added in API level 30 public long getSize () Gets the size of the blob file that was written to the session so far. Value is a non-negative number of bytes. Returns long the size of the blob file so far.
+
+ Value is a non-negative number of bytes. Throws IOException when there is an I/O error while opening the file to read. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to get the file size after it is
+                               abandoned (using abandon() )
+                               or closed (using close() ). isPackageAccessAllowed Added in API level 30 public boolean isPackageAccessAllowed ( String packageName, 
+                byte[] certificate) Returns true if access has been allowed for a packageName using either allowPackageAccess(java.lang.String, byte[]) .
+ Otherwise, false . Parameters packageName String : the name of the package to check the access for.
+ This value cannot be null . certificate byte : the input bytes representing a certificate of type PackageManager.CERT_INPUT_SHA256 .
+
+ This value cannot be null . Returns boolean Throws IOException when there is an I/O error while getting the access type. IllegalStateException when the caller tries to get access type from a session
+                               which is closed or abandoned. isPublicAccessAllowed Added in API level 30 public boolean isPublicAccessAllowed () Returns true if public access has been allowed by using allowPublicAccess() . Otherwise, false . Returns boolean Throws IOException when there is an I/O error while getting the access type. IllegalStateException when the caller tries to get access type from a session
+                               which is closed or abandoned. isSameSignatureAccessAllowed Added in API level 30 public boolean isSameSignatureAccessAllowed () Returns true if access has been allowed for packages signed with the same
+ certificate as the caller by using allowSameSignatureAccess() .
+ Otherwise, false . Returns boolean Throws IOException when there is an I/O error while getting the access type. IllegalStateException when the caller tries to get access type from a session
+                               which is closed or abandoned. openRead Added in API level 30 public ParcelFileDescriptor openRead () Opens a file descriptor to read the blob content already written into this session. Returns ParcelFileDescriptor a ParcelFileDescriptor for reading from the blob file.
+
+ This value cannot be null . Throws IOException when there is an I/O error while opening the file to read. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to read the file after it is
+                               abandoned (using abandon() )
+                               or closed (using close() ). openWrite Added in API level 30 public ParcelFileDescriptor openWrite (long offsetBytes, 
+                long lengthBytes) Opens a file descriptor to write a blob into the session. The returned file descriptor will start writing data at the requested offset
+ in the underlying file, which can be used to resume a partially
+ written file. If a valid file length is specified, the system will
+ preallocate the underlying disk space to optimize placement on disk.
+ It is strongly recommended to provide a valid file length when known. Parameters offsetBytes long : offset into the file to begin writing at, or 0 to
+                    start at the beginning of the file.
+ Value is a non-negative number of bytes. lengthBytes long : total size of the file being written, used to
+                    preallocate the underlying disk space, or -1 if unknown.
+                    The system may clear various caches as needed to allocate
+                    this space.
+
+ Value is a non-negative number of bytes. Returns ParcelFileDescriptor a ParcelFileDescriptor for writing to the blob file.
+
+ This value cannot be null . Throws IOException when there is an I/O error while opening the file to write. SecurityException when the caller is not the owner of the session. IllegalStateException when the caller tries to write to the file after it is
+                               abandoned (using abandon() )
+                               or committed (using commit(Executor, Consumer) )
+                               or closed (using close() ).</body></html>

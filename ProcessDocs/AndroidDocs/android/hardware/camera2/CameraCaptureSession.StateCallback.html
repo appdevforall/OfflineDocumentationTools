@@ -1,0 +1,74 @@
+<html><head><title>Class Documentation</title></head><body>CameraCaptureSession.StateCallback Kotlin | Java public
+  static
+  
+  abstract
+  class
+  CameraCaptureSession.StateCallback extends Object java.lang.Object ↳ android.hardware.camera2.CameraCaptureSession.StateCallback A callback object for receiving updates about the state of a camera capture session. Summary Public constructors StateCallback () Public methods void onActive ( CameraCaptureSession session) This method is called when the session starts actively processing capture requests. void onCaptureQueueEmpty ( CameraCaptureSession session) This method is called when camera device's input capture queue becomes empty,
+ and is ready to accept the next request. void onClosed ( CameraCaptureSession session) This method is called when the session is closed. abstract
+        
+        
+        
+        
+        void onConfigureFailed ( CameraCaptureSession session) This method is called if the session cannot be configured as requested. abstract
+        
+        
+        
+        
+        void onConfigured ( CameraCaptureSession session) This method is called when the camera device has finished configuring itself, and the
+ session can start processing capture requests. void onReady ( CameraCaptureSession session) This method is called every time the session has no more capture requests to process. void onSurfacePrepared ( CameraCaptureSession session, Surface surface) This method is called when the buffer pre-allocation for an output Surface is complete. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors StateCallback public StateCallback () Public methods onActive Added in API level 21 public void onActive ( CameraCaptureSession session) This method is called when the session starts actively processing capture requests. If capture requests are submitted prior to onConfigured(CameraCaptureSession) being called,
+ then the session will start processing those requests immediately after the callback,
+ and this method will be immediately called after onConfigured(CameraCaptureSession) . If the session runs out of capture requests to process and calls onReady(CameraCaptureSession) ,
+ then this callback will be invoked again once new requests are submitted for capture. Parameters session CameraCaptureSession : the session returned by onConfigured(CameraCaptureSession) This value cannot be null . onCaptureQueueEmpty Added in API level 26 public void onCaptureQueueEmpty ( CameraCaptureSession session) This method is called when camera device's input capture queue becomes empty,
+ and is ready to accept the next request. Pending capture requests exist in one of two queues: the in-flight queue where requests
+ are already in different stages of processing pipeline, and an input queue where requests
+ wait to enter the in-flight queue. The input queue is needed because more requests may be
+ submitted than the current camera device pipeline depth. This callback is fired when the input queue becomes empty, and the camera device may
+ have to fall back to the repeating request if set, or completely skip the next frame from
+ the sensor. This can cause glitches to camera preview output, for example. This callback
+ will only fire after requests queued by capture() or captureBurst(), not after a
+ repeating request or burst enters the in-flight queue. For example, in the common case
+ of a repeating request and a single-shot JPEG capture, this callback only fires when the
+ JPEG request has entered the in-flight queue for capture. By only sending a new CameraCaptureSession.capture(CaptureRequest, CaptureCallback, Handler) or CameraCaptureSession.captureBurst(List, CaptureCallback, Handler) when the input
+ queue is empty, pipeline latency can be minimized. This callback is not fired when the session is first created. It is different from onReady(CameraCaptureSession) , which is fired when all requests in both queues have been processed. Parameters session CameraCaptureSession : The session returned by onConfigured(CameraCaptureSession) This value cannot be null . onClosed Added in API level 21 public void onClosed ( CameraCaptureSession session) This method is called when the session is closed. A session is closed when a new session is created by the parent camera device,
+ or when the parent camera device is closed (either by the user closing the device,
+ or due to a camera device disconnection or fatal error). Once a session is closed, all methods on it will throw an IllegalStateException, and
+ any repeating requests or bursts are stopped (as if CameraCaptureSession.stopRepeating() was called).
+ However, any in-progress capture requests submitted to the session will be completed
+ as normal. Parameters session CameraCaptureSession : the session returned by onConfigured(CameraCaptureSession) This value cannot be null . onConfigureFailed Added in API level 21 public abstract void onConfigureFailed ( CameraCaptureSession session) This method is called if the session cannot be configured as requested. This can happen if the set of requested outputs contains unsupported sizes,
+ or too many outputs are requested at once. The session is considered to be closed, and all methods called on it after this
+ callback is invoked will throw an IllegalStateException. Any capture requests submitted
+ to the session prior to this callback will be discarded and will not produce any
+ callbacks on their listeners. Parameters session CameraCaptureSession : the session instance that failed during configuration
+
+ This value cannot be null . onConfigured Added in API level 21 public abstract void onConfigured ( CameraCaptureSession session) This method is called when the camera device has finished configuring itself, and the
+ session can start processing capture requests. If there are capture requests already queued with the session, they will start
+ processing once this callback is invoked, and the session will call onActive(CameraCaptureSession) right after this callback is invoked. If no capture requests have been submitted, then the session will invoke onReady(CameraCaptureSession) right after this callback. If the camera device configuration fails, then onConfigureFailed(CameraCaptureSession) will
+ be invoked instead of this callback. Parameters session CameraCaptureSession : the successfully configured session instance
+
+ This value cannot be null . onReady Added in API level 21 public void onReady ( CameraCaptureSession session) This method is called every time the session has no more capture requests to process. During the creation of a new session, this callback is invoked right after onConfigured(CameraCaptureSession) if no capture requests were submitted to the session prior to it
+ completing configuration. Otherwise, this callback will be invoked any time the session finishes processing
+ all of its active capture requests, and no repeating request or burst is set up. Parameters session CameraCaptureSession : the session returned by onConfigured(CameraCaptureSession) This value cannot be null . onSurfacePrepared Added in API level 23 public void onSurfacePrepared ( CameraCaptureSession session, Surface surface) This method is called when the buffer pre-allocation for an output Surface is complete. Buffer pre-allocation for an output Surface is started by the CameraCaptureSession.prepare(Surface) call.
+ While allocation is underway, the Surface must not be used as a capture target.
+ Once this callback fires, the output Surface provided can again be used as a target for
+ a capture request. In case of a error during pre-allocation (such as running out of suitable memory),
+ this callback is still invoked after the error is encountered, though some buffers may
+ not have been successfully pre-allocated. Parameters session CameraCaptureSession : the session returned by onConfigured(CameraCaptureSession) This value cannot be null . surface Surface : the Surface that was used with the CameraCaptureSession.prepare(Surface) call.
+
+ This value cannot be null .</body></html>

@@ -1,0 +1,461 @@
+<html><head><title>Class Documentation</title></head><body>DecimalFormat Kotlin | Java public
+  
+  
+  
+  class
+  DecimalFormat extends NumberFormat java.lang.Object ↳ java.text.Format ↳ android.icu.text.UFormat ↳ android.icu.text.NumberFormat ↳ android.icu.text.DecimalFormat Known direct subclasses CompactDecimalFormat CompactDecimalFormat Formats numbers in compact (abbreviated) notation, like "1.2K" instead of "1200". [icu enhancement] ICU's replacement for DecimalFormat . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. IMPORTANT: New users are strongly encouraged to see if NumberFormatter fits their use case.  Although not deprecated, this
+ class, DecimalFormat, is only provided for java.text.DecimalFormat compatibility. DecimalFormat is the primary
+ concrete subclass of NumberFormat . It has a variety of features designed to make it
+ possible to parse and format numbers in any locale, including support for Western, Arabic, or
+ Indic digits. It supports different flavors of numbers, including integers ("123"), fixed-point
+ numbers ("123.4"), scientific notation ("1.23E4"), percentages ("12%"), and currency amounts
+ ("$123.00", "USD123.00", "123.00 US dollars"). All of these flavors can be easily localized. To obtain a number formatter for a specific locale (including the default locale), call one of
+ NumberFormat's factory methods such as NumberFormat.getInstance . Do not call
+ DecimalFormat constructors directly unless you know what you are doing. DecimalFormat aims to comply with the specification UTS #35 . Read
+ the specification for more information on how all the properties in DecimalFormat fit together. NOTE: Starting in ICU 60, there is a new set of APIs for localized number
+ formatting that are designed to be an improvement over DecimalFormat.  New users are discouraged
+ from using DecimalFormat.  For more information, see the package android.icu.number. Example Usage Customize settings on a DecimalFormat instance from the NumberFormat factory: NumberFormat f = NumberFormat.getInstance(loc);
+ if (f instanceof DecimalFormat) {
+     ((DecimalFormat) f).setDecimalSeparatorAlwaysShown(true);
+     ((DecimalFormat) f).setMinimumGroupingDigits(2);
+ } Quick and dirty print out a number using the localized number, currency, and percent format
+ for each locale: for (ULocale uloc : ULocale.getAvailableLocales()) {
+     System.out.print(uloc + ":\t");
+     System.out.print(NumberFormat.getInstance(uloc).format(1.23));
+     System.out.print("\t");
+     System.out.print(NumberFormat.getCurrencyInstance(uloc).format(1.23));
+     System.out.print("\t");
+     System.out.print(NumberFormat.getPercentInstance(uloc).format(1.23));
+     System.out.println();
+ } Properties and Symbols A DecimalFormat object encapsulates a set of properties and a set of symbols . Grouping size, rounding mode, and affixes are examples of properties. Locale
+ digits and the characters used for grouping and decimal separators are examples of symbols. To set a custom set of symbols, use setDecimalFormatSymbols(DecimalFormatSymbols) . Use the various other
+ setters in this class to set custom values for the properties. Rounding DecimalFormat provides three main strategies to specify the position at which numbers should
+ be rounded: Magnitude: Display a fixed number of fraction digits; this is the most
+       common form. Increment: Round numbers to the closest multiple of a certain increment,
+       such as 0.05. This is common in currencies. Significant Digits: Round numbers such that a fixed number of nonzero
+       digits are shown. This is most common in scientific notation. It is not possible to specify more than one rounding strategy. For example, setting a rounding
+ increment in conjunction with significant digits results in undefined behavior. It is also possible to specify the rounding mode to use. The default rounding mode is
+ "half even", which rounds numbers to their closest increment, with ties broken in favor of
+ trailing numbers being even. For more information, see setRoundingMode(int) and the ICU
+ User Guide . Pattern Strings A pattern string is a way to serialize some of the available properties for decimal
+ formatting. However, not all properties are capable of being serialized into a pattern string;
+ see applyPattern(String) for more information. Most users should not need to interface with pattern strings directly. ICU DecimalFormat aims to follow the specification for pattern strings in UTS #35 .
+ Refer to that specification for more information on pattern string syntax. Pattern String BNF The following BNF is used when parsing the pattern string into property values: pattern    := subpattern (';' subpattern)?
+ subpattern := prefix? number exponent? suffix?
+ number     := (integer ('.' fraction)?) | sigDigits
+ prefix     := '\u0000'..'\uFFFD' - specialCharacters
+ suffix     := '\u0000'..'\uFFFD' - specialCharacters
+ integer    := '#'* '0'* '0'
+ fraction   := '0'* '#'*
+ sigDigits  := '#'* '@' '@'* '#'*
+ exponent   := 'E' '+'? '0'* '0'
+ padSpec    := '*' padChar
+ padChar    := '\u0000'..'\uFFFD' - quote
+  
+ Notation:
+   X*       0 or more instances of X
+   X?       0 or 1 instances of X
+   X|Y      either X or Y
+   C..D     any character from C up to D, inclusive
+   S-T      characters in S, except those in T The first subpattern is for positive numbers. The second (optional) subpattern is for negative
+ numbers. Not indicated in the BNF syntax above: The grouping separator ',' can occur inside the integer and sigDigits elements, between any
+       two pattern characters of that element, as long as the integer or sigDigits element is not
+       followed by the exponent element. Two grouping intervals are recognized: That between the decimal point and the first
+       grouping symbol, and that between the first and second grouping symbols. These intervals
+       are identical in most locales, but in some locales they differ. For example, the pattern
+       "#,##,###" formats the number 123456789 as "12,34,56,789". The pad specifier padSpec may appear before the prefix, after the prefix,
+       before the suffix, after the suffix, or not at all. In place of '0', the digits '1' through '9' may be used to indicate a rounding increment. Parsing DecimalFormat aims to be able to parse anything that it can output as a formatted string. There are two primary parse modes: lenient and strict . Lenient mode should
+ be used if the goal is to parse user input to a number; strict mode should be used if the goal is
+ validation. The default is lenient mode. For more information, see setParseStrict(boolean) . DecimalFormat parses all Unicode characters that represent decimal digits, as
+ defined by UCharacter.digit . In addition, DecimalFormat also recognizes as
+ digits the ten consecutive characters starting with the localized zero digit defined in the DecimalFormatSymbols object. During formatting, the DecimalFormatSymbols -based
+ digits are output. Grouping separators are ignored in lenient mode (default). In strict mode, grouping separators
+ must match the locale-specified grouping sizes. When using parseCurrency(CharSequence, ParsePosition) , all currencies are accepted, not just the currency
+ currently set in the formatter. In addition, the formatter is able to parse every currency style
+ format for a particular locale no matter which style the formatter is constructed with. For
+ example, a formatter instance gotten from NumberFormat.getInstance(ULocale,
+ NumberFormat.CURRENCYSTYLE) can parse both "USD1.00" and "3.00 US dollars". Whitespace characters (lenient mode) and control characters (lenient and strict mode),
+ collectively called "ignorables", do not need to match in identity or quantity between the
+ pattern string and the input string. For example, the pattern "# %" matches "35 %" (with a single
+ space), "35%" (with no space), "35 %" (with a non-breaking space), and "35  %" (with
+ multiple spaces). Arbitrary ignorables are also allowed at boundaries between the parts of the
+ number: prefix, number, exponent separator, and suffix. Ignorable whitespace characters are those
+ having the Unicode "blank" property for regular expressions, defined in UTS #18 Annex C, which is
+ "horizontal" whitespace, like spaces and tabs, but not "vertical" whitespace, like line breaks.
+ Ignorable control characters are those in the Unicode set [:Default_Ignorable_Code_Point:]. If parse(java.lang.String, java.text.ParsePosition) fails to parse a string, it returns null and leaves the parse position unchanged. The convenience method NumberFormat.parse(java.lang.String) indicates
+ parse failure by throwing a ParseException . Under the hood, a state table parsing engine is used. To debug a parsing failure during
+ development, use the following pattern to print details about the state table transitions: android.icu.impl.number.Parse.DEBUGGING = true;
+ df.parse("123.45", ppos);
+ android.icu.impl.number.Parse.DEBUGGING = false; Thread Safety and Best Practices Starting with ICU 59, instances of DecimalFormat are thread-safe. Under the hood, DecimalFormat maintains an immutable formatter object that is rebuilt whenever
+ any of the property setters are called. It is therefore best practice to call property setters
+ only during construction and not when formatting numbers online. See also: Format NumberFormat Summary Constants int MINIMUM_GROUPING_DIGITS_AUTO [icu] Constant for setMinimumGroupingDigits(int) to specify display
+ grouping using the default strategy for all locales. int MINIMUM_GROUPING_DIGITS_MIN2 [icu] Constant for setMinimumGroupingDigits(int) to specify display
+ grouping using locale defaults, except do not show grouping on values smaller than
+ 10000 (such that there is a minimum of two digits before the first separator). int PAD_AFTER_PREFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted after the prefix. int PAD_AFTER_SUFFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted after the suffix. int PAD_BEFORE_PREFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted before the prefix. int PAD_BEFORE_SUFFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted before the suffix. Inherited constants From class android.icu.text.NumberFormat int ACCOUNTINGCURRENCYSTYLE [icu] Constant to specify currency style of format which uses currency symbol
+ to represent currency for accounting, for example: "($3.00), instead of
+ "-$3.00" ( CURRENCYSTYLE ). int CASHCURRENCYSTYLE [icu] Constant to specify currency cash style of format which uses currency
+ ISO code to represent currency, for example: "NT$3" instead of "NT$3.23". int CURRENCYSTYLE [icu] Constant to specify general currency style of format. int FRACTION_FIELD Field constant used to construct a FieldPosition object. int INTEGERSTYLE [icu] Constant to specify a integer number style format. int INTEGER_FIELD Field constant used to construct a FieldPosition object. int ISOCURRENCYSTYLE [icu] Constant to specify currency style of format which uses currency
+ ISO code to represent currency, for example: "USD3.00". int NUMBERSTYLE [icu] Constant to specify normal number style of format. int PERCENTSTYLE [icu] Constant to specify a style of format to display percent. int PLURALCURRENCYSTYLE [icu] Constant to specify currency style of format which uses currency
+ long name with plural format to represent currency, for example,
+ "3.00 US Dollars". int SCIENTIFICSTYLE [icu] Constant to specify a style of format to display scientific number. int STANDARDCURRENCYSTYLE [icu] Constant to specify currency style of format which uses currency symbol
+ to represent currency, for example "$3.00", using non-accounting style for
+ negative values (e.g. Public constructors DecimalFormat () Creates a DecimalFormat based on the number pattern and symbols for the default locale. DecimalFormat ( String pattern) Creates a DecimalFormat based on the given pattern, using symbols for the default locale. DecimalFormat ( String pattern, DecimalFormatSymbols symbols) Creates a DecimalFormat based on the given pattern and symbols. DecimalFormat ( String pattern, DecimalFormatSymbols symbols, CurrencyPluralInfo infoInput, int style) Creates a DecimalFormat based on the given pattern and symbols, with additional control over
+ the behavior of currency. Public methods void applyLocalizedPattern ( String localizedPattern) Converts the given string to standard notation and then parses it using applyPattern(String) . void applyPattern ( String pattern) Parses the given pattern string and overwrites the settings specified in the pattern string. boolean areSignificantDigitsUsed () [icu] Returns whether significant digits are being used in rounding. Object clone () Overrides clone. boolean equals ( Object obj) Tests for equality between this formatter and another formatter. StringBuffer format ( BigInteger number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a BigInteger. StringBuffer format ( CurrencyAmount currAmt, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a CurrencyAmount. StringBuffer format ( BigDecimal number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats an ICU BigDecimal. StringBuffer format (double number, StringBuffer result, FieldPosition fieldPosition) Specialization of format. StringBuffer format ( BigDecimal number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a BigDecimal. StringBuffer format (long number, StringBuffer result, FieldPosition fieldPosition) Specialization of format. AttributedCharacterIterator formatToCharacterIterator ( Object obj) Formats an Object producing an AttributedCharacterIterator . Currency getCurrency () Returns the currency used to display currency amounts. CurrencyPluralInfo getCurrencyPluralInfo () [icu] Returns the current instance of CurrencyPluralInfo. Currency.CurrencyUsage getCurrencyUsage () [icu] Returns the strategy for rounding currency amounts. DecimalFormatSymbols getDecimalFormatSymbols () Returns a copy of the decimal format symbols used by this formatter. int getFormatWidth () Returns the minimum number of characters in formatted output. int getGroupingSize () Returns the primary grouping size in use. MathContext getMathContext () [icu] Returns the MathContext being used to round numbers. MathContext getMathContextICU () [icu] Returns the MathContext being used to round numbers. int getMaximumFractionDigits () Returns the effective maximum number of integer digits after the decimal separator. int getMaximumIntegerDigits () Returns the effective maximum number of digits before the decimal separator. int getMaximumSignificantDigits () [icu] Returns the effective maximum number of significant digits displayed. byte getMinimumExponentDigits () [icu] Returns the minimum number of digits printed in the exponent in scientific notation. int getMinimumFractionDigits () Returns the effective minimum number of integer digits after the decimal separator. int getMinimumGroupingDigits () [icu] Returns the minimum number of digits before grouping is triggered. int getMinimumIntegerDigits () Returns the effective minimum number of digits before the decimal separator. int getMinimumSignificantDigits () [icu] Returns the effective minimum number of significant digits displayed. int getMultiplier () Returns the multiplier being applied to numbers before they are formatted. String getNegativePrefix () Affixes: Gets the negative prefix string currently being used to format
+ numbers. String getNegativeSuffix () Affixes: Gets the negative suffix string currently being used to format
+ numbers. char getPadCharacter () [icu] Returns the character used for padding. int getPadPosition () [icu] Returns the position used for padding. int getParseMaxDigits () This method was deprecated
+      in API level 28.
+    Setting max parse digits has no effect since ICU4J 59. String getPositivePrefix () Affixes: Gets the positive prefix string currently being used to format
+ numbers. String getPositiveSuffix () Affixes: Gets the positive suffix string currently being used to format
+ numbers. BigDecimal getRoundingIncrement () [icu] Returns the increment to which numbers are being rounded. int getRoundingMode () Returns the rounding mode being used to round numbers. int getSecondaryGroupingSize () [icu] Returns the secondary grouping size in use. int hashCode () Returns a hash code value for the object. boolean isDecimalPatternMatchRequired () [icu] Returns whether the presence of a decimal point must match the pattern. boolean isDecimalSeparatorAlwaysShown () Returns whether the decimal separator is shown on integers. boolean isExponentSignAlwaysShown () [icu] Returns whether the sign (plus or minus) is always printed in scientific notation. boolean isGroupingUsed () Returns whether or not grouping separators are being printed in the output. boolean isParseBigDecimal () Returns whether NumberFormat.parse(String) will always return a BigDecimal. boolean isParseCaseSensitive () [icu] Returns whether to force case (uppercase/lowercase) to match when parsing. boolean isParseIntegerOnly () Returns true if this format will parse numbers as integers only. boolean isParseNoExponent () [icu] Returns whether to ignore exponents when parsing. boolean isParseStrict () [icu] Returns whether strict parsing is in effect. boolean isScientificNotation () [icu] Returns whether scientific (exponential) notation is enabled on this formatter. boolean isSignAlwaysShown () [icu] Returns whether the sign is being shown on positive numbers. Number parse ( String text, ParsePosition parsePosition) Returns a Long if possible (e.g., within the range [Long.MIN_VALUE,
+ Long.MAX_VALUE] and with no decimals); otherwise, returns another type,
+ such as a BigDecimal, BigInteger, or Double. CurrencyAmount parseCurrency ( CharSequence text, ParsePosition parsePosition) Parses text from the given string as a CurrencyAmount. void setCurrency ( Currency currency) Sets the currency to be used when formatting numbers. void setCurrencyPluralInfo ( CurrencyPluralInfo newInfo) [icu] Sets a custom instance of CurrencyPluralInfo. void setCurrencyUsage ( Currency.CurrencyUsage usage) [icu] Sets the currency-dependent strategy to use when rounding numbers. void setDecimalFormatSymbols ( DecimalFormatSymbols newSymbols) Sets the decimal format symbols used by this formatter. void setDecimalPatternMatchRequired (boolean value) [icu] Parsing: This method is used to either require or forbid the presence of a decimal point in the string being parsed (disabled by
+ default). void setDecimalSeparatorAlwaysShown (boolean value) Separators: Sets whether the decimal separator (a period in en-US ) is
+ shown on integers. void setExponentSignAlwaysShown (boolean expSignAlways) [icu] Scientific Notation: Sets whether the sign (plus or minus) is always to
+ be shown in the exponent in scientific notation. void setFormatWidth (int width) Padding: Sets the minimum width of the string output by the formatting
+ pipeline. void setGroupingSize (int width) Grouping: Sets the primary grouping size (distance between grouping
+ separators) used when formatting large numbers. void setGroupingUsed (boolean enabled) Grouping: Sets whether grouping is to be used when formatting numbers. void setMathContext ( MathContext mathContext) [icu] Rounding and Digit Limits: Sets the MathContext used
+ to round numbers. void setMathContextICU ( MathContext mathContextICU) [icu] Rounding and Digit Limits: Overload of setMathContext(MathContext) for MathContext . void setMaximumFractionDigits (int value) Rounding and Digit Limits: Sets the maximum number of digits to display after
+ the decimal separator. void setMaximumIntegerDigits (int value) Rounding and Digit Limits: Sets the maximum number of digits to display before
+ the decimal separator. void setMaximumSignificantDigits (int value) [icu] Rounding and Digit Limits: Sets the maximum number of significant
+ digits to be displayed. void setMinimumExponentDigits (byte minExpDig) [icu] Scientific Notation: Sets the minimum number of digits to be printed in
+ the exponent. void setMinimumFractionDigits (int value) Rounding and Digit Limits: Sets the minimum number of digits to display after
+ the decimal separator. void setMinimumGroupingDigits (int number) [icu] Sets the minimum number of digits that must be before the first grouping separator in
+ order for the grouping separator to be printed. void setMinimumIntegerDigits (int value) Rounding and Digit Limits: Sets the minimum number of digits to display before
+ the decimal separator. void setMinimumSignificantDigits (int value) [icu] Rounding and Digit Limits: Sets the minimum number of significant
+ digits to be displayed. void setMultiplier (int multiplier) Sets a number that will be used to multiply all numbers prior to formatting. void setNegativePrefix ( String prefix) Affixes: Sets the string to prepend to negative numbers. void setNegativeSuffix ( String suffix) Affixes: Sets the string to append to negative numbers. void setPadCharacter (char padChar) [icu] Padding: Sets the character used to pad numbers that are narrower than
+ the width specified in setFormatWidth(int) . void setPadPosition (int padPos) [icu] Padding: Sets the position where to insert the pad character when
+ narrower than the width specified in setFormatWidth(int) . void setParseBigDecimal (boolean value) Whether to make NumberFormat.parse(String) prefer returning a BigDecimal when
+ possible. void setParseCaseSensitive (boolean value) [icu] Specifies whether parsing should require cases to match in affixes, exponent separators,
+ and currency codes. void setParseIntegerOnly (boolean parseIntegerOnly) Parsing: Sets whether to ignore the fraction part of a number when parsing
+ (defaults to false). This is functionally equivalent to calling setDecimalPatternMatchRequired(boolean) and a
+ pattern without a decimal point. void setParseMaxDigits (int maxDigits) This method was deprecated
+      in API level 28.
+    Setting max parse digits has no effect since ICU4J 59. void setParseNoExponent (boolean value) [icu] Specifies whether to stop parsing when an exponent separator is encountered. void setParseStrict (boolean parseStrict) [icu] Sets whether strict parsing is in effect. void setPositivePrefix ( String prefix) Affixes: Sets the string to prepend to positive numbers. void setPositiveSuffix ( String suffix) Affixes: Sets the string to append to positive numbers. void setRoundingIncrement ( BigDecimal increment) [icu] Rounding and Digit Limits: Sets an increment, or interval, to which
+ numbers are rounded. void setRoundingIncrement ( BigDecimal increment) [icu] Rounding and Digit Limits: Overload of setRoundingIncrement(java.math.BigDecimal) . void setRoundingIncrement (double increment) [icu] Rounding and Digit Limits: Overload of setRoundingIncrement(java.math.BigDecimal) . void setRoundingMode (int roundingMode) Rounding and Digit Limits: Sets the RoundingMode used to round
+ numbers. void setScientificNotation (boolean useScientific) [icu] Scientific Notation: Sets whether this formatter should print in
+ scientific (exponential) notation. void setSecondaryGroupingSize (int width) [icu] Grouping: Sets the secondary grouping size (distance between grouping
+ separators after the first separator) used when formatting large numbers. void setSignAlwaysShown (boolean value) Sets whether to always shown the plus sign ('+' in en ) on positive numbers. void setSignificantDigitsUsed (boolean useSignificantDigits) [icu] Rounding and Digit Limits: Sets whether significant digits are to be
+ used in rounding. String toLocalizedPattern () Calls toPattern() and converts the string to localized notation. String toPattern () Serializes this formatter object to a decimal format pattern string. String toString () Returns the default value of toString() with extra DecimalFormat-specific information appended
+ to the end of the string. Inherited methods From class android.icu.text.NumberFormat Object clone () Overrides clone. boolean equals ( Object obj) Overrides equals. abstract StringBuffer format ( BigInteger number, StringBuffer toAppendTo, FieldPosition pos) [icu] Formats a BigInteger. abstract StringBuffer format ( BigDecimal number, StringBuffer toAppendTo, FieldPosition pos) [icu] Formats an ICU BigDecimal. StringBuffer format ( Object number, StringBuffer toAppendTo, FieldPosition pos) Formats a number and appends the resulting text to the given string buffer. final String format ( BigDecimal number) Convenience method to format a BigDecimal. abstract StringBuffer format (double number, StringBuffer toAppendTo, FieldPosition pos) Specialization of format. abstract StringBuffer format ( BigDecimal number, StringBuffer toAppendTo, FieldPosition pos) [icu] Formats a BigDecimal. final String format ( BigInteger number) [icu] Convenience method to format a BigInteger. final String format ( BigDecimal number) [icu] Convenience method to format an ICU BigDecimal. final String format (double number) Specialization of format. final String format (long number) Specialization of format. StringBuffer format ( CurrencyAmount currAmt, StringBuffer toAppendTo, FieldPosition pos) [icu] Formats a CurrencyAmount. final String format ( CurrencyAmount currAmt) [icu] Convenience method to format a CurrencyAmount. abstract StringBuffer format (long number, StringBuffer toAppendTo, FieldPosition pos) Specialization of format. static Locale[] getAvailableLocales () Returns the list of Locales for which NumberFormats are available. DisplayContext getContext ( DisplayContext.Type type) [icu] Get the formatter's DisplayContext value for the specified DisplayContext.Type,
+ such as CAPITALIZATION. Currency getCurrency () Returns the Currency object used to display currency
+ amounts. static NumberFormat getCurrencyInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getCurrencyInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getCurrencyInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getInstance ( ULocale desiredLocale, int choice) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getInstance ( Locale inLocale, int style) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getInstance (int style) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getIntegerInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getIntegerInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getIntegerInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. int getMaximumFractionDigits () Returns the maximum number of digits allowed in the fraction
+ portion of a number. int getMaximumIntegerDigits () Returns the maximum number of digits allowed in the integer portion of a
+ number. int getMinimumFractionDigits () Returns the minimum number of digits allowed in the fraction portion of a
+ number. int getMinimumIntegerDigits () Returns the minimum number of digits allowed in the integer portion of a
+ number. static NumberFormat getNumberInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getNumberInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getNumberInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static String getPattern ( ULocale forLocale, int choice) Returns the pattern for the provided locale and choice. static
+        final NumberFormat getPercentInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getPercentInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getPercentInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. int getRoundingMode () Returns the rounding mode used in this NumberFormat. static NumberFormat getScientificInstance ( ULocale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static NumberFormat getScientificInstance ( Locale inLocale) NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. static
+        final NumberFormat getScientificInstance () NOTE: New users are strongly encouraged to use NumberFormatter instead of NumberFormat. int hashCode () Returns a hash code value for the object. boolean isGroupingUsed () Returns true if grouping is used in this format. boolean isParseIntegerOnly () Returns true if this format will parse numbers as integers only. boolean isParseStrict () [icu] Returns whether strict parsing is in effect. Number parse ( String text) Parses text from the beginning of the given string to produce a number. abstract Number parse ( String text, ParsePosition parsePosition) Returns a Long if possible (e.g., within the range [Long.MIN_VALUE,
+ Long.MAX_VALUE] and with no decimals); otherwise, returns another type,
+ such as a BigDecimal, BigInteger, or Double. CurrencyAmount parseCurrency ( CharSequence text, ParsePosition pos) Parses text from the given string as a CurrencyAmount. final Object parseObject ( String source, ParsePosition parsePosition) Parses text from a string to produce a number. void setContext ( DisplayContext context) [icu] Set a particular DisplayContext value in the formatter,
+ such as CAPITALIZATION_FOR_STANDALONE. void setCurrency ( Currency theCurrency) Sets the Currency object used to display currency
+ amounts. void setGroupingUsed (boolean newValue) Sets whether or not grouping will be used in this format. void setMaximumFractionDigits (int newValue) Sets the maximum number of digits allowed in the fraction portion of a
+ number. void setMaximumIntegerDigits (int newValue) Sets the maximum number of digits allowed in the integer portion of a
+ number. void setMinimumFractionDigits (int newValue) Sets the minimum number of digits allowed in the fraction portion of a
+ number. void setMinimumIntegerDigits (int newValue) Sets the minimum number of digits allowed in the integer portion of a
+ number. void setParseIntegerOnly (boolean value) Sets whether to ignore the fraction part of a number when parsing
+ (defaults to false). void setParseStrict (boolean value) [icu] Sets whether strict parsing is in effect. void setRoundingMode (int roundingMode) Set the rounding mode used in this NumberFormat. From class java.text.Format Object clone () Creates and returns a copy of this object. final String format ( Object obj) Formats an object to produce a string. abstract StringBuffer format ( Object obj, StringBuffer toAppendTo, FieldPosition pos) Formats an object and appends the resulting text to a given string
+ buffer. AttributedCharacterIterator formatToCharacterIterator ( Object obj) Formats an Object producing an AttributedCharacterIterator . Object parseObject ( String source) Parses text from the beginning of the given string to produce an object. abstract Object parseObject ( String source, ParsePosition pos) Parses text from a string to produce an object. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants MINIMUM_GROUPING_DIGITS_AUTO Added in API level 33 public static final int MINIMUM_GROUPING_DIGITS_AUTO [icu] Constant for setMinimumGroupingDigits(int) to specify display
+ grouping using the default strategy for all locales. See also: setMinimumGroupingDigits(int) MINIMUM_GROUPING_DIGITS_MIN2 Constant Value:
+      
+          -2
+          (0xfffffffe) MINIMUM_GROUPING_DIGITS_MIN2 Added in API level 33 public static final int MINIMUM_GROUPING_DIGITS_MIN2 [icu] Constant for setMinimumGroupingDigits(int) to specify display
+ grouping using locale defaults, except do not show grouping on values smaller than
+ 10000 (such that there is a minimum of two digits before the first separator). See also: setMinimumGroupingDigits(int) MINIMUM_GROUPING_DIGITS_AUTO Constant Value:
+      
+          -3
+          (0xfffffffd) PAD_AFTER_PREFIX Added in API level 24 public static final int PAD_AFTER_PREFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted after the prefix. See also: setPadPosition(int) getPadPosition() PAD_BEFORE_PREFIX PAD_BEFORE_SUFFIX PAD_AFTER_SUFFIX Constant Value:
+      
+          1
+          (0x00000001) PAD_AFTER_SUFFIX Added in API level 24 public static final int PAD_AFTER_SUFFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted after the suffix. See also: setPadPosition(int) getPadPosition() PAD_BEFORE_PREFIX PAD_AFTER_PREFIX PAD_BEFORE_SUFFIX Constant Value:
+      
+          3
+          (0x00000003) PAD_BEFORE_PREFIX Added in API level 24 public static final int PAD_BEFORE_PREFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted before the prefix. See also: setPadPosition(int) getPadPosition() PAD_AFTER_PREFIX PAD_BEFORE_SUFFIX PAD_AFTER_SUFFIX Constant Value:
+      
+          0
+          (0x00000000) PAD_BEFORE_SUFFIX Added in API level 24 public static final int PAD_BEFORE_SUFFIX [icu] Constant for getPadPosition() and setPadPosition(int) to specify pad
+ characters inserted before the suffix. See also: setPadPosition(int) getPadPosition() PAD_BEFORE_PREFIX PAD_AFTER_PREFIX PAD_AFTER_SUFFIX Constant Value:
+      
+          2
+          (0x00000002) Public constructors DecimalFormat Added in API level 24 public DecimalFormat () Creates a DecimalFormat based on the number pattern and symbols for the default locale. This is
+ a convenient way to obtain a DecimalFormat instance when internationalization is not the main
+ concern. Most users should call the factory methods on NumberFormat, such as NumberFormat.getNumberInstance() , which return localized formatter objects, instead of the
+ DecimalFormat constructors. See also: NumberFormat.getInstance() NumberFormat.getNumberInstance() NumberFormat.getCurrencyInstance() NumberFormat.getPercentInstance() ULocale.Category.FORMAT DecimalFormat Added in API level 24 public DecimalFormat ( String pattern) Creates a DecimalFormat based on the given pattern, using symbols for the default locale. This
+ is a convenient way to obtain a DecimalFormat instance when internationalization is not the
+ main concern. Most users should call the factory methods on NumberFormat, such as NumberFormat.getNumberInstance() , which return localized formatter objects, instead of the
+ DecimalFormat constructors. Parameters pattern String : A pattern string such as "#,##0.00" conforming to UTS
+     #35 . Throws IllegalArgumentException if the given pattern is invalid. See also: NumberFormat.getInstance() NumberFormat.getNumberInstance() NumberFormat.getCurrencyInstance() NumberFormat.getPercentInstance() ULocale.Category.FORMAT DecimalFormat Added in API level 24 public DecimalFormat ( String pattern, DecimalFormatSymbols symbols) Creates a DecimalFormat based on the given pattern and symbols. Use this constructor if you
+ want complete control over the behavior of the formatter. Most users should call the factory methods on NumberFormat, such as NumberFormat.getNumberInstance() , which return localized formatter objects, instead of the
+ DecimalFormat constructors. Parameters pattern String : A pattern string such as "#,##0.00" conforming to UTS
+     #35 . symbols DecimalFormatSymbols : The set of symbols to be used. Throws IllegalArgumentException if the given pattern is invalid See also: NumberFormat.getInstance() NumberFormat.getNumberInstance() NumberFormat.getCurrencyInstance() NumberFormat.getPercentInstance() DecimalFormatSymbols DecimalFormat Added in API level 24 public DecimalFormat ( String pattern, DecimalFormatSymbols symbols, CurrencyPluralInfo infoInput, 
+                int style) Creates a DecimalFormat based on the given pattern and symbols, with additional control over
+ the behavior of currency. The style argument determines whether currency rounding rules should
+ override the pattern, and the CurrencyPluralInfo object is used for customizing the
+ plural forms used for currency long names. Most users should call the factory methods on NumberFormat, such as NumberFormat.getNumberInstance() , which return localized formatter objects, instead of the
+ DecimalFormat constructors. Parameters pattern String : a non-localized pattern string symbols DecimalFormatSymbols : the set of symbols to be used infoInput CurrencyPluralInfo : the information used for currency plural format, including currency plural
+     patterns and plural rules. style int : the decimal formatting style, it is one of the following values:
+     NumberFormat.NUMBERSTYLE; NumberFormat.CURRENCYSTYLE; NumberFormat.PERCENTSTYLE;
+     NumberFormat.SCIENTIFICSTYLE; NumberFormat.INTEGERSTYLE; NumberFormat.ISOCURRENCYSTYLE;
+     NumberFormat.PLURALCURRENCYSTYLE; Public methods applyLocalizedPattern Added in API level 24 public void applyLocalizedPattern ( String localizedPattern) Converts the given string to standard notation and then parses it using applyPattern(String) .
+ This method is provided for backwards compatibility and should not be used in new projects. Localized notation means that instead of using generic placeholders in the pattern, you use
+ the corresponding locale-specific characters instead. For example, in locale fr-FR ,
+ the period in the pattern "0.000" means "decimal" in standard notation (as it does in every
+ other locale), but it means "grouping" in localized notation. Parameters localizedPattern String : The pattern string in localized notation. applyPattern Added in API level 24 public void applyPattern ( String pattern) Parses the given pattern string and overwrites the settings specified in the pattern string.
+ The properties corresponding to the following setters are overwritten, either with their
+ default values or with the value specified in the pattern string: setDecimalSeparatorAlwaysShown(boolean) setExponentSignAlwaysShown(boolean) setFormatWidth(int) setGroupingSize(int) setMultiplier(int) (percent/permille) setMaximumFractionDigits(int) setMaximumIntegerDigits(int) setMaximumSignificantDigits(int) setMinimumExponentDigits(byte) setMinimumFractionDigits(int) setMinimumIntegerDigits(int) setMinimumSignificantDigits(int) setPadPosition(int) setPadCharacter(char) setRoundingIncrement(BigDecimal) setSecondaryGroupingSize(int) All other settings remain untouched. For more information on pattern strings, see UTS #35 . Parameters pattern String areSignificantDigitsUsed Added in API level 24 public boolean areSignificantDigitsUsed () [icu] Returns whether significant digits are being used in rounding. Returns boolean See also: setSignificantDigitsUsed(boolean) clone Added in API level 24 public Object clone () Overrides clone. Returns Object a clone of this instance. equals Added in API level 24 public boolean equals ( Object obj) Tests for equality between this formatter and another formatter. If two DecimalFormat instances are equal, then they will always produce the same output.
+ However, the reverse is not necessarily true: if two DecimalFormat instances always produce the
+ same output, they are not necessarily equal. Parameters obj Object : the object to compare against Returns boolean true if the object is equal to this. format Added in API level 24 public StringBuffer format ( BigInteger number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a BigInteger. Specialization of format. Parameters number BigInteger result StringBuffer fieldPosition FieldPosition Returns StringBuffer format Added in API level 24 public StringBuffer format ( CurrencyAmount currAmt, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a CurrencyAmount. Specialization of format. Parameters currAmt CurrencyAmount result StringBuffer fieldPosition FieldPosition Returns StringBuffer format Added in API level 24 public StringBuffer format ( BigDecimal number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats an ICU BigDecimal. Specialization of format. Parameters number BigDecimal result StringBuffer fieldPosition FieldPosition Returns StringBuffer format Added in API level 24 public StringBuffer format (double number, StringBuffer result, FieldPosition fieldPosition) Specialization of format. Parameters number double result StringBuffer fieldPosition FieldPosition Returns StringBuffer format Added in API level 24 public StringBuffer format ( BigDecimal number, StringBuffer result, FieldPosition fieldPosition) [icu] Formats a BigDecimal. Specialization of format. Parameters number BigDecimal result StringBuffer fieldPosition FieldPosition Returns StringBuffer format Added in API level 24 public StringBuffer format (long number, StringBuffer result, FieldPosition fieldPosition) Specialization of format. Parameters number long result StringBuffer fieldPosition FieldPosition Returns StringBuffer formatToCharacterIterator Added in API level 24 public AttributedCharacterIterator formatToCharacterIterator ( Object obj) Formats an Object producing an AttributedCharacterIterator .
+ You can use the returned AttributedCharacterIterator to build the resulting String, as well as to determine information
+ about the resulting String. Each attribute key of the AttributedCharacterIterator will be of type Field . It is up to each Format implementation
+ to define what the legal values are for each attribute in the AttributedCharacterIterator , but typically the attribute
+ key is also used as the attribute value. The default implementation creates an AttributedCharacterIterator with no attributes. Subclasses
+ that support fields should override this and create an AttributedCharacterIterator with meaningful attributes. Parameters obj Object : The object to format Returns AttributedCharacterIterator AttributedCharacterIterator describing the formatted value. getCurrency Added in API level 24 public Currency getCurrency () Returns the currency used to display currency amounts. May be null. Returns Currency See also: setCurrency(Currency) DecimalFormatSymbols.getCurrency() getCurrencyPluralInfo Added in API level 24 public CurrencyPluralInfo getCurrencyPluralInfo () [icu] Returns the current instance of CurrencyPluralInfo. Returns CurrencyPluralInfo See also: setCurrencyPluralInfo(CurrencyPluralInfo) getCurrencyUsage Added in API level 24 public Currency.CurrencyUsage getCurrencyUsage () [icu] Returns the strategy for rounding currency amounts. Returns Currency.CurrencyUsage See also: setCurrencyUsage(CurrencyUsage) getDecimalFormatSymbols Added in API level 24 public DecimalFormatSymbols getDecimalFormatSymbols () Returns a copy of the decimal format symbols used by this formatter. Returns DecimalFormatSymbols desired DecimalFormatSymbols See also: DecimalFormatSymbols getFormatWidth Added in API level 24 public int getFormatWidth () Returns the minimum number of characters in formatted output. Returns int See also: setFormatWidth(int) getGroupingSize Added in API level 24 public int getGroupingSize () Returns the primary grouping size in use. Returns int See also: setGroupingSize(int) getMathContext Added in API level 24 public MathContext getMathContext () [icu] Returns the MathContext being used to round numbers. Returns MathContext See also: setMathContext(MathContext) getMathContextICU Added in API level 24 public MathContext getMathContextICU () [icu] Returns the MathContext being used to round numbers. Returns MathContext See also: setMathContext(MathContext) getMaximumFractionDigits Added in API level 24 public int getMaximumFractionDigits () Returns the effective maximum number of integer digits after the decimal separator. Returns int the maximum number of fraction digits See also: setMaximumIntegerDigits(int) getMaximumIntegerDigits Added in API level 24 public int getMaximumIntegerDigits () Returns the effective maximum number of digits before the decimal separator. Returns int the maximum number of integer digits See also: setMaximumIntegerDigits(int) getMaximumSignificantDigits Added in API level 24 public int getMaximumSignificantDigits () [icu] Returns the effective maximum number of significant digits displayed. Returns int See also: setMaximumSignificantDigits(int) getMinimumExponentDigits Added in API level 24 public byte getMinimumExponentDigits () [icu] Returns the minimum number of digits printed in the exponent in scientific notation. Returns byte See also: setMinimumExponentDigits(byte) getMinimumFractionDigits Added in API level 24 public int getMinimumFractionDigits () Returns the effective minimum number of integer digits after the decimal separator. Returns int the minimum number of fraction digits See also: setMaximumIntegerDigits(int) getMinimumGroupingDigits Added in API level 31 public int getMinimumGroupingDigits () [icu] Returns the minimum number of digits before grouping is triggered. Returns int See also: setMinimumGroupingDigits(int) getMinimumIntegerDigits Added in API level 24 public int getMinimumIntegerDigits () Returns the effective minimum number of digits before the decimal separator. Returns int the minimum number of integer digits See also: setMinimumIntegerDigits(int) getMinimumSignificantDigits Added in API level 24 public int getMinimumSignificantDigits () [icu] Returns the effective minimum number of significant digits displayed. Returns int See also: setMinimumSignificantDigits(int) getMultiplier Added in API level 24 public int getMultiplier () Returns the multiplier being applied to numbers before they are formatted. Returns int See also: setMultiplier(int) getNegativePrefix Added in API level 24 public String getNegativePrefix () Affixes: Gets the negative prefix string currently being used to format
+ numbers. If the affix was specified via the pattern, the string returned by this method will have
+ locale symbols substituted in place of special characters according to the LDML specification.
+ If the affix was specified via setNegativePrefix(String) , the string will be returned
+ literally. Returns String The string being prepended to negative numbers. getNegativeSuffix Added in API level 24 public String getNegativeSuffix () Affixes: Gets the negative suffix string currently being used to format
+ numbers. If the affix was specified via the pattern, the string returned by this method will have
+ locale symbols substituted in place of special characters according to the LDML specification.
+ If the affix was specified via setNegativeSuffix(String) , the string will be returned
+ literally. Returns String The string being appended to negative numbers. getPadCharacter Added in API level 24 public char getPadCharacter () [icu] Returns the character used for padding. Returns char See also: setPadCharacter(char) getPadPosition Added in API level 24 public int getPadPosition () [icu] Returns the position used for padding. Returns int See also: setPadPosition(int) getParseMaxDigits Added in API level 24 Deprecated in API level
+      28 public int getParseMaxDigits () This method was deprecated
+      in API level 28. Setting max parse digits has no effect since ICU4J 59. Always returns 1000, the default prior to ICU 59. Returns int getPositivePrefix Added in API level 24 public String getPositivePrefix () Affixes: Gets the positive prefix string currently being used to format
+ numbers. If the affix was specified via the pattern, the string returned by this method will have
+ locale symbols substituted in place of special characters according to the LDML specification.
+ If the affix was specified via setPositivePrefix(String) , the string will be returned
+ literally. Returns String The string being prepended to positive numbers. getPositiveSuffix Added in API level 24 public String getPositiveSuffix () Affixes: Gets the positive suffix string currently being used to format
+ numbers. If the affix was specified via the pattern, the string returned by this method will have
+ locale symbols substituted in place of special characters according to the LDML specification.
+ If the affix was specified via setPositiveSuffix(String) , the string will be returned
+ literally. Returns String The string being appended to positive numbers. getRoundingIncrement Added in API level 24 public BigDecimal getRoundingIncrement () [icu] Returns the increment to which numbers are being rounded. Returns BigDecimal See also: setRoundingIncrement(BigDecimal) getRoundingMode Added in API level 24 public int getRoundingMode () Returns the rounding mode being used to round numbers. Returns int A rounding mode, between BigDecimal.ROUND_UP and BigDecimal.ROUND_UNNECESSARY . See also: setRoundingMode(int) getSecondaryGroupingSize Added in API level 24 public int getSecondaryGroupingSize () [icu] Returns the secondary grouping size in use. Returns int See also: setSecondaryGroupingSize(int) hashCode Added in API level 24 public int hashCode () Returns a hash code value for the object. This method is
+ supported for the benefit of hash tables such as those provided by HashMap . The general contract of hashCode is: Whenever it is invoked on the same object more than once during
+     an execution of a Java application, the hashCode method
+     must consistently return the same integer, provided no information
+     used in equals comparisons on the object is modified.
+     This integer need not remain consistent from one execution of an
+     application to another execution of the same application. If two objects are equal according to the equals method, then calling the hashCode method on each of the two objects must produce the
+     same integer result. It is not required that if two objects are unequal
+     according to the equals method, then
+     calling the hashCode method on each of the two objects
+     must produce distinct integer results.  However, the programmer
+     should be aware that producing distinct integer results for
+     unequal objects may improve the performance of hash tables. Returns int a hash code value for this object. isDecimalPatternMatchRequired Added in API level 24 public boolean isDecimalPatternMatchRequired () [icu] Returns whether the presence of a decimal point must match the pattern. Returns boolean See also: setDecimalPatternMatchRequired(boolean) isDecimalSeparatorAlwaysShown Added in API level 24 public boolean isDecimalSeparatorAlwaysShown () Returns whether the decimal separator is shown on integers. Returns boolean See also: setDecimalSeparatorAlwaysShown(boolean) isExponentSignAlwaysShown Added in API level 24 public boolean isExponentSignAlwaysShown () [icu] Returns whether the sign (plus or minus) is always printed in scientific notation. Returns boolean See also: setExponentSignAlwaysShown(boolean) isGroupingUsed Added in API level 24 public boolean isGroupingUsed () Returns whether or not grouping separators are being printed in the output. Returns boolean true if grouping is used See also: setGroupingUsed(boolean) isParseBigDecimal Added in API level 24 public boolean isParseBigDecimal () Returns whether NumberFormat.parse(String) will always return a BigDecimal. Returns boolean See also: setParseBigDecimal(boolean) isParseCaseSensitive Added in API level 31 public boolean isParseCaseSensitive () [icu] Returns whether to force case (uppercase/lowercase) to match when parsing. Returns boolean See also: setParseNoExponent(boolean) isParseIntegerOnly Added in API level 24 public boolean isParseIntegerOnly () Returns true if this format will parse numbers as integers only.
+ For example in the English locale, with ParseIntegerOnly true, the
+ string "1234." would be parsed as the integer value 1234 and parsing
+ would stop at the "." character.  The decimal separator accepted
+ by the parse operation is locale-dependent and determined by the
+ subclass. Returns boolean true if this will parse integers only See also: setParseIntegerOnly(boolean) isParseNoExponent Added in API level 31 public boolean isParseNoExponent () [icu] Returns whether to ignore exponents when parsing. Returns boolean See also: setParseNoExponent(boolean) isParseStrict Added in API level 24 public boolean isParseStrict () [icu] Returns whether strict parsing is in effect. Returns boolean true if strict parsing is in effect isScientificNotation Added in API level 24 public boolean isScientificNotation () [icu] Returns whether scientific (exponential) notation is enabled on this formatter. Returns boolean See also: setScientificNotation(boolean) isSignAlwaysShown Added in API level 31 public boolean isSignAlwaysShown () [icu] Returns whether the sign is being shown on positive numbers. Returns boolean Whether the sign is shown on positive numbers and zero. See also: setSignAlwaysShown(boolean) parse Added in API level 24 public Number parse ( String text, ParsePosition parsePosition) Returns a Long if possible (e.g., within the range [Long.MIN_VALUE,
+ Long.MAX_VALUE] and with no decimals); otherwise, returns another type,
+ such as a BigDecimal, BigInteger, or Double. The return type is not
+ guaranteed other than for the Long case. If IntegerOnly is set, will stop at a decimal
+ point (or equivalent; e.g., for rational numbers "1 2/3", will stop
+ after the 1). Does not throw an exception; if no object can be parsed, index is
+ unchanged! For more detail on parsing, see the "Parsing" header in the class
+ documentation of DecimalFormat . Parameters text String parsePosition ParsePosition Returns Number parseCurrency Added in API level 24 public CurrencyAmount parseCurrency ( CharSequence text, ParsePosition parsePosition) Parses text from the given string as a CurrencyAmount.  Unlike
+ the parse() method, this method will attempt to parse a generic
+ currency name, searching for a match of this object's locale's
+ currency display names, or for a 3-letter ISO currency code.
+ This method will fail if this format is not a currency format,
+ that is, if it does not contain the currency pattern symbol
+ (U+00A4) in its prefix or suffix. Parameters text CharSequence : the text to parse parsePosition ParsePosition : input-output position; on input, the position within
+ text to match; must have 0 <= pos.getIndex() < text.length();
+ on output, the position after the last matched character. If
+ the parse fails, the position in unchanged upon output. Returns CurrencyAmount a CurrencyAmount, or null upon failure setCurrency Added in API level 24 public void setCurrency ( Currency currency) Sets the currency to be used when formatting numbers. The effect is twofold: Substitutions for currency symbols in the pattern string will use this currency The rounding mode will obey the rules for this currency (see setCurrencyUsage(CurrencyUsage) ) Important: Displaying the currency in the output requires that the patter
+ associated with this formatter contains a currency symbol '¤'. This will be the case if the
+ instance was created via NumberFormat.getCurrencyInstance() or one of its friends. Parameters currency Currency : The currency to use. setCurrencyPluralInfo Added in API level 24 public void setCurrencyPluralInfo ( CurrencyPluralInfo newInfo) [icu] Sets a custom instance of CurrencyPluralInfo. CurrencyPluralInfo generates pattern
+ strings for printing currency long names. Most users should not call this method directly. You should instead create
+ your formatter via NumberFormat.getInstance(NumberFormat.PLURALCURRENCYSTYLE) . Parameters newInfo CurrencyPluralInfo : The CurrencyPluralInfo to use when printing currency long names. setCurrencyUsage Added in API level 24 public void setCurrencyUsage ( Currency.CurrencyUsage usage) [icu] Sets the currency-dependent strategy to use when rounding numbers. There are two
+ strategies: STANDARD: When the amount displayed is intended for banking statements or electronic
+       transfer. CASH: When the amount displayed is intended to be representable in physical currency,
+       like at a cash register. CASH mode is relevant in currencies that do not have tender down to the penny. For more
+ information on the two rounding strategies, see UTS
+ #35 . If omitted, the strategy defaults to STANDARD. To override currency rounding
+ altogether, use setMinimumFractionDigits(int) and setMaximumFractionDigits(int) or setRoundingIncrement(BigDecimal) . Parameters usage Currency.CurrencyUsage : The strategy to use when rounding in the current currency. setDecimalFormatSymbols Added in API level 24 public void setDecimalFormatSymbols ( DecimalFormatSymbols newSymbols) Sets the decimal format symbols used by this formatter. The formatter uses a copy of the
+ provided symbols. Parameters newSymbols DecimalFormatSymbols : desired DecimalFormatSymbols See also: DecimalFormatSymbols setDecimalPatternMatchRequired Added in API level 24 public void setDecimalPatternMatchRequired (boolean value) [icu] Parsing: This method is used to either require or forbid the presence of a decimal point in the string being parsed (disabled by
+ default). This feature was designed to be an extra layer of strictness on top of strict
+ parsing, although it can be used in either lenient mode or strict mode. To require a decimal point, call this method in combination with either a pattern
+ containing a decimal point or with setDecimalSeparatorAlwaysShown(boolean) . // Require a decimal point in the string being parsed:
+ df.applyPattern("#.");
+ df.setDecimalPatternMatchRequired(true);
+
+ // Alternatively:
+ df.setDecimalSeparatorAlwaysShown(true);
+ df.setDecimalPatternMatchRequired(true); To forbid a decimal point, call this method in combination with a pattern containing
+ no decimal point. Alternatively, use setParseIntegerOnly(boolean) for the same behavior without
+ depending on the contents of the pattern string. // Forbid a decimal point in the string being parsed:
+ df.applyPattern("#");
+ df.setDecimalPatternMatchRequired(true); Parameters value boolean : true to either require or forbid the decimal point according to the pattern; false
+     to disable this feature. See also: setParseIntegerOnly(boolean) setDecimalSeparatorAlwaysShown Added in API level 24 public void setDecimalSeparatorAlwaysShown (boolean value) Separators: Sets whether the decimal separator (a period in en-US ) is
+ shown on integers. For example, if this setting is turned on, formatting 123 will result in
+ "123." with the decimal separator. This setting can be specified in the pattern for integer formats: "#,##0." is an example. Parameters value boolean : true to always show the decimal separator; false to show it only when there is a
+     fraction part of the number. setExponentSignAlwaysShown Added in API level 24 public void setExponentSignAlwaysShown (boolean expSignAlways) [icu] Scientific Notation: Sets whether the sign (plus or minus) is always to
+ be shown in the exponent in scientific notation. For example, if this setting is enabled, the
+ number 123000 will be printed as "1.23E+5" in locale en-US . The number 0.0000123 will
+ always be printed as "1.23E-5" in locale en-US whether or not this setting is enabled. This setting corresponds to the '+' in a pattern such as "0.00E+0". Parameters expSignAlways boolean : true to always shown the sign in the exponent; false to show it for
+     negatives but not positives. setFormatWidth Added in API level 24 public void setFormatWidth (int width) Padding: Sets the minimum width of the string output by the formatting
+ pipeline. For example, if padding is enabled and paddingWidth is set to 6, formatting the
+ number "3.14159" with the pattern "0.00" will result in "··3.14" if '·' is your padding string. If the number is longer than your padding width, the number will display as if no padding
+ width had been specified, which may result in strings longer than the padding width. Padding can be specified in the pattern string using the '*' symbol. For example, the format
+ "*x######0" has a format width of 7 and a pad character of 'x'. Padding is currently counted in UTF-16 code units; see ticket #13034 for more information. Parameters width int : The minimum number of characters in the output. See also: setPadCharacter(char) setPadPosition(int) setGroupingSize Added in API level 24 public void setGroupingSize (int width) Grouping: Sets the primary grouping size (distance between grouping
+ separators) used when formatting large numbers. For most locales, this defaults to 3: the
+ number of digits between the ones and thousands place, between thousands and millions, and so
+ forth. For example, with a grouping size of 3, the number 1234567 will be formatted as "1,234,567". Grouping size can also be specified in the pattern: for example, "#,##0" corresponds to a
+ grouping size of 3. Parameters width int : The grouping size to use. See also: setSecondaryGroupingSize(int) setGroupingUsed Added in API level 24 public void setGroupingUsed (boolean enabled) Grouping: Sets whether grouping is to be used when formatting numbers.
+ Grouping means whether the thousands, millions, billions, and larger powers of ten should be
+ separated by a grouping separator (a comma in en-US ). For example, if grouping is enabled, 12345 will be printed as "12,345" in en-US . If
+ grouping were disabled, it would instead be printed as simply "12345". Parameters enabled boolean : true to enable grouping separators; false to disable them. See also: setGroupingSize(int) setSecondaryGroupingSize(int) setMathContext Added in API level 24 public void setMathContext ( MathContext mathContext) [icu] Rounding and Digit Limits: Sets the MathContext used
+ to round numbers. A "math context" encodes both a rounding mode and a number of significant
+ digits. Most users should call setRoundingMode(int) and/or setMaximumSignificantDigits(int) instead of this method. When formatting, since no division is ever performed, the default MathContext is unlimited
+ significant digits. However, when division occurs during parsing to correct for percentages and
+ multipliers, a MathContext of 34 digits, the IEEE 754R Decimal128 standard, is used by default.
+ If you require more than 34 digits when parsing, you can set a custom MathContext using this
+ method. Parameters mathContext MathContext : The MathContext to use when rounding numbers. Throws ArithmeticException when inverting multiplier produces a non-terminating decimal result
+         in conjunction with MathContext of unlimited precision. See also: MathContext setMathContextICU Added in API level 24 public void setMathContextICU ( MathContext mathContextICU) [icu] Rounding and Digit Limits: Overload of setMathContext(MathContext) for MathContext . Parameters mathContextICU MathContext : The MathContext to use when rounding numbers. Throws ArithmeticException when inverting multiplier produces a non-terminating decimal result
+         in conjunction with MathContext of unlimited precision. See also: setMathContext(java.math.MathContext) setMaximumFractionDigits Added in API level 24 public void setMaximumFractionDigits (int value) Rounding and Digit Limits: Sets the maximum number of digits to display after
+ the decimal separator. If the number has more than this many digits, the number is rounded
+ according to the rounding mode. For example, if maximum fraction digits is 2, the number 123.456 will be printed as
+ "123.46". Minimum integer and minimum and maximum fraction digits can be specified via the pattern
+ string. For example, "#,#00.00#" has 2 minimum integer digits, 2 minimum fraction digits, and 3
+ maximum fraction digits. Note that it is not possible to specify maximum integer digits in the
+ pattern except in scientific notation. If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. Parameters value int : The maximum number of integer digits after the decimal separator. See also: setRoundingMode(int) setMaximumIntegerDigits Added in API level 24 public void setMaximumIntegerDigits (int value) Rounding and Digit Limits: Sets the maximum number of digits to display before
+ the decimal separator. If the number has more than this many digits, the number is truncated. For example, if maximum integer digits is 3, the number 12345 will be printed as "345". Minimum integer and minimum and maximum fraction digits can be specified via the pattern
+ string. For example, "#,#00.00#" has 2 minimum integer digits, 2 minimum fraction digits, and 3
+ maximum fraction digits. Note that it is not possible to specify maximum integer digits in the
+ pattern except in scientific notation. If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. Parameters value int : The maximum number of digits before the decimal separator. setMaximumSignificantDigits Added in API level 24 public void setMaximumSignificantDigits (int value) [icu] Rounding and Digit Limits: Sets the maximum number of significant
+ digits to be displayed. If the number of significant digits in the number exceeds this value,
+ the number will be rounded according to the current rounding mode. For example, if maximum significant digits is 3 and the number is 12345, the number will be
+ printed as "12300". If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. See setRoundingIncrement(BigDecimal) and setMaximumFractionDigits(int) for two other ways
+ of specifying rounding strategies. Parameters value int : The maximum number of significant digits to display. See also: setRoundingMode(int) setRoundingIncrement(BigDecimal) setMaximumFractionDigits(int) setMinimumExponentDigits Added in API level 24 public void setMinimumExponentDigits (byte minExpDig) [icu] Scientific Notation: Sets the minimum number of digits to be printed in
+ the exponent. For example, if minimum exponent digits is 3, the number 123000 will be printed
+ as "1.23E005". This setting corresponds to the number of zeros after the 'E' in a pattern string such as
+ "0.00E000". Parameters minExpDig byte : The minimum number of digits in the exponent. setMinimumFractionDigits Added in API level 24 public void setMinimumFractionDigits (int value) Rounding and Digit Limits: Sets the minimum number of digits to display after
+ the decimal separator. If the number has fewer than this many digits, the number is padded with
+ zeros. For example, if minimum fraction digits is 2, the number 123.4 will be printed as "123.40". Minimum integer and minimum and maximum fraction digits can be specified via the pattern
+ string. For example, "#,#00.00#" has 2 minimum integer digits, 2 minimum fraction digits, and 3
+ maximum fraction digits. Note that it is not possible to specify maximum integer digits in the
+ pattern except in scientific notation. If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. See setRoundingIncrement(BigDecimal) and setMaximumSignificantDigits(int) for two other
+ ways of specifying rounding strategies. Parameters value int : The minimum number of integer digits after the decimal separator. See also: setRoundingMode(int) setRoundingIncrement(BigDecimal) setMaximumSignificantDigits(int) setMinimumGroupingDigits Added in API level 31 public void setMinimumGroupingDigits (int number) [icu] Sets the minimum number of digits that must be before the first grouping separator in
+ order for the grouping separator to be printed. For example, if minimum grouping digits is set
+ to 2, in en-US , 1234 will be printed as "1234" and 12345 will be printed as "12,345".
+
+ Set the value to: 1 to turn off minimum grouping digits. MINIMUM_GROUPING_DIGITS_AUTO to display grouping using the default
+ strategy for all locales. MINIMUM_GROUPING_DIGITS_MIN2 to display grouping using locale defaults,
+ except do not show grouping on values smaller than 10000 (such that there is a minimum of
+ two digits before the first separator). Parameters number int : The minimum number of digits before grouping is triggered. setMinimumIntegerDigits Added in API level 24 public void setMinimumIntegerDigits (int value) Rounding and Digit Limits: Sets the minimum number of digits to display before
+ the decimal separator. If the number has fewer than this many digits, the number is padded with
+ zeros. For example, if minimum integer digits is 3, the number 12.3 will be printed as "001.23". Minimum integer and minimum and maximum fraction digits can be specified via the pattern
+ string. For example, "#,#00.00#" has 2 minimum integer digits, 2 minimum fraction digits, and 3
+ maximum fraction digits. Note that it is not possible to specify maximum integer digits in the
+ pattern except in scientific notation. If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. Parameters value int : The minimum number of digits before the decimal separator. setMinimumSignificantDigits Added in API level 24 public void setMinimumSignificantDigits (int value) [icu] Rounding and Digit Limits: Sets the minimum number of significant
+ digits to be displayed. If the number of significant digits is less than this value, the number
+ will be padded with zeros as necessary. For example, if minimum significant digits is 3 and the number is 1.2, the number will be
+ printed as "1.20". If minimum and maximum integer, fraction, or significant digits conflict with each other,
+ the most recently specified value is used. For example, if there is a formatter with minInt=5,
+ and then you set maxInt=3, then minInt will be changed to 3. Parameters value int : The minimum number of significant digits to display. setMultiplier Added in API level 24 public void setMultiplier (int multiplier) Sets a number that will be used to multiply all numbers prior to formatting. For example, when
+ formatting percents, a multiplier of 100 can be used. If a percent or permille sign is specified in the pattern, the multiplier is automatically
+ set to 100 or 1000, respectively. If the number specified here is a power of 10, a more efficient code path will be used. Parameters multiplier int : The number by which all numbers passed to NumberFormat.format(BigDecimal) will be multiplied. Throws IllegalArgumentException If the given multiplier is zero. ArithmeticException when inverting multiplier produces a non-terminating decimal result
+         in conjunction with MathContext of unlimited precision. setNegativePrefix Added in API level 24 public void setNegativePrefix ( String prefix) Affixes: Sets the string to prepend to negative numbers. For example, if you
+ set the value "#", then the number -123 will be formatted as "#123" in the locale en-US (overriding the implicit default '-' in the pattern). Using this method overrides the affix specified via the pattern, and unlike the pattern, the
+ string given to this method will be interpreted literally WITHOUT locale symbol substitutions. Parameters prefix String : The literal string to prepend to negative numbers. setNegativeSuffix Added in API level 24 public void setNegativeSuffix ( String suffix) Affixes: Sets the string to append to negative numbers. For example, if you
+ set the value "#", then the number 123 will be formatted as "123#" in the locale en-US . Using this method overrides the affix specified via the pattern, and unlike the pattern, the
+ string given to this method will be interpreted literally WITHOUT locale symbol substitutions. Parameters suffix String : The literal string to append to negative numbers. setPadCharacter Added in API level 24 public void setPadCharacter (char padChar) [icu] Padding: Sets the character used to pad numbers that are narrower than
+ the width specified in setFormatWidth(int) . In the pattern string, the padding character is the token that follows '*' before or after
+ the prefix or suffix. Parameters padChar char : The character used for padding. See also: setFormatWidth(int) setPadPosition Added in API level 24 public void setPadPosition (int padPos) [icu] Padding: Sets the position where to insert the pad character when
+ narrower than the width specified in setFormatWidth(int) . For example, consider the pattern
+ "P123S" with padding width 8 and padding char "*". The four positions are: DecimalFormat.PAD_BEFORE_PREFIX \u21d2 "***P123S" DecimalFormat.PAD_AFTER_PREFIX \u21d2 "P***123S" DecimalFormat.PAD_BEFORE_SUFFIX \u21d2 "P123***S" DecimalFormat.PAD_AFTER_SUFFIX \u21d2 "P123S***" Parameters padPos int : The position used for padding. See also: setFormatWidth(int) setParseBigDecimal Added in API level 24 public void setParseBigDecimal (boolean value) Whether to make NumberFormat.parse(String) prefer returning a BigDecimal when
+ possible. For strings corresponding to return values of Infinity, -Infinity, NaN, and -0.0, a
+ Double will be returned even if ParseBigDecimal is enabled. Parameters value boolean : true to cause NumberFormat.parse(String) to prefer BigDecimal; false to let NumberFormat.parse(String) return additional data types like Long or BigInteger. setParseCaseSensitive Added in API level 31 public void setParseCaseSensitive (boolean value) [icu] Specifies whether parsing should require cases to match in affixes, exponent separators,
+ and currency codes. Case mapping is performed for each code point using UCharacter.foldCase(int, boolean) . Parameters value boolean : true to force case (uppercase/lowercase) to match when parsing; false to ignore
+     case and perform case folding. setParseIntegerOnly Added in API level 24 public void setParseIntegerOnly (boolean parseIntegerOnly) Parsing: Sets whether to ignore the fraction part of a number when parsing
+ (defaults to false). If a string contains a decimal point, parsing will stop before the decimal
+ point. Note that determining whether a character is a decimal point depends on the locale. For example, in en-US , parsing the string "123.45" will return the number 123 and
+ parse position 3. This is functionally equivalent to calling setDecimalPatternMatchRequired(boolean) and a
+ pattern without a decimal point. Parameters parseIntegerOnly boolean : true to ignore fractional parts of numbers when parsing; false to
+     consume fractional parts. setParseMaxDigits Added in API level 24 Deprecated in API level
+      28 public void setParseMaxDigits (int maxDigits) This method was deprecated
+      in API level 28. Setting max parse digits has no effect since ICU4J 59. Parameters maxDigits int : Prior to ICU 59, the maximum number of digits in the output number after
+     exponential notation is applied. setParseNoExponent Added in API level 31 public void setParseNoExponent (boolean value) [icu] Specifies whether to stop parsing when an exponent separator is encountered. For
+ example, parses "123E4" to 123 (with parse position 3) instead of 1230000 (with parse position
+ 5). Parameters value boolean : true to prevent exponents from being parsed; false to allow them to be parsed. setParseStrict Added in API level 24 public void setParseStrict (boolean parseStrict) [icu] Sets whether strict parsing is in effect.  When this is true, the string
+ is required to be a stronger match to the pattern than when lenient parsing is in
+ effect.  More specifically, the following conditions cause a parse failure relative
+ to lenient mode (examples use the pattern "#,##0.#"): The presence and position of special symbols, including currency, must match the
+ pattern. '+123' fails (there is no plus sign in the pattern) Leading or doubled grouping separators ',123' and '1,,234" fail Groups of incorrect length when grouping is used '1,23' and '1234,567' fail, but '1234' passes Grouping separators used in numbers followed by exponents '1,234E5' fails, but '1234E5' and '1,234E' pass ('E' is not an exponent when
+ not followed by a number) When strict parsing is off,  all grouping separators are ignored.
+ This is the default behavior. Parameters parseStrict boolean : True to enable strict parsing.  Default is false. setPositivePrefix Added in API level 24 public void setPositivePrefix ( String prefix) Affixes: Sets the string to prepend to positive numbers. For example, if you
+ set the value "#", then the number 123 will be formatted as "#123" in the locale en-US . Using this method overrides the affix specified via the pattern, and unlike the pattern, the
+ string given to this method will be interpreted literally WITHOUT locale symbol substitutions. Parameters prefix String : The literal string to prepend to positive numbers. setPositiveSuffix Added in API level 24 public void setPositiveSuffix ( String suffix) Affixes: Sets the string to append to positive numbers. For example, if you
+ set the value "#", then the number 123 will be formatted as "123#" in the locale en-US . Using this method overrides the affix specified via the pattern, and unlike the pattern, the
+ string given to this method will be interpreted literally WITHOUT locale symbol substitutions. Parameters suffix String : The literal string to append to positive numbers. setRoundingIncrement Added in API level 24 public void setRoundingIncrement ( BigDecimal increment) [icu] Rounding and Digit Limits: Sets an increment, or interval, to which
+ numbers are rounded. For example, a rounding increment of 0.05 will cause the number 1.23 to be
+ rounded to 1.25 in the default rounding mode. The rounding increment can be specified via the pattern string: for example, the pattern
+ "#,##0.05" encodes a rounding increment of 0.05. The rounding increment is applied after any multipliers might take effect; for
+ example, in scientific notation or when setMultiplier(int) is used. See setMaximumFractionDigits(int) and setMaximumSignificantDigits(int) for two other
+ ways of specifying rounding strategies. Parameters increment BigDecimal : The increment to which numbers are to be rounded. See also: setRoundingMode(int) setMaximumFractionDigits(int) setMaximumSignificantDigits(int) setRoundingIncrement Added in API level 24 public void setRoundingIncrement ( BigDecimal increment) [icu] Rounding and Digit Limits: Overload of setRoundingIncrement(java.math.BigDecimal) . Parameters increment BigDecimal : The increment to which numbers are to be rounded. See also: setRoundingIncrement(BigDecimal) setRoundingIncrement Added in API level 24 public void setRoundingIncrement (double increment) [icu] Rounding and Digit Limits: Overload of setRoundingIncrement(java.math.BigDecimal) . Parameters increment double : The increment to which numbers are to be rounded. See also: setRoundingIncrement(BigDecimal) setRoundingMode Added in API level 24 public void setRoundingMode (int roundingMode) Rounding and Digit Limits: Sets the RoundingMode used to round
+ numbers. The default rounding mode is HALF_EVEN, which rounds decimals to their closest whole
+ number, and rounds to the closest even number if at the midpoint. For more detail on rounding modes, see the ICU
+ User Guide . For backwards compatibility, the rounding mode is specified as an int argument, which can be
+ from either the constants in BigDecimal or the ordinal value of RoundingMode .
+ The following two calls are functionally equivalent. df.setRoundingMode(BigDecimal.ROUND_CEILING);
+ df.setRoundingMode(RoundingMode.CEILING.ordinal()); Parameters roundingMode int : The integer constant rounding mode to use when formatting numbers. setScientificNotation Added in API level 24 public void setScientificNotation (boolean useScientific) [icu] Scientific Notation: Sets whether this formatter should print in
+ scientific (exponential) notation. For example, if scientific notation is enabled, the number
+ 123000 will be printed as "1.23E5" in locale en-US . A locale-specific symbol is used
+ as the exponent separator. Calling df.setScientificNotation(true) is functionally equivalent to calling df.setMinimumExponentDigits(1) . Parameters useScientific boolean : true to enable scientific notation; false to disable it. See also: setMinimumExponentDigits(byte) setSecondaryGroupingSize Added in API level 24 public void setSecondaryGroupingSize (int width) [icu] Grouping: Sets the secondary grouping size (distance between grouping
+ separators after the first separator) used when formatting large numbers. In many south Asian
+ locales, this is set to 2. For example, with primary grouping size 3 and secondary grouping size 2, the number 1234567
+ will be formatted as "12,34,567". Grouping size can also be specified in the pattern: for example, "#,##,##0" corresponds to a
+ primary grouping size of 3 and a secondary grouping size of 2. Parameters width int : The secondary grouping size to use. See also: setGroupingSize(int) setSignAlwaysShown Added in API level 31 public void setSignAlwaysShown (boolean value) Sets whether to always shown the plus sign ('+' in en ) on positive numbers. The rules
+ in UTS #35 section 3.2.1 will be followed to ensure a locale-aware placement of the sign. More specifically, the following strategy will be used to place the plus sign: Patterns without a negative subpattern: The locale's plus sign will be prepended
+       to the positive prefix. Patterns with a negative subpattern without a '-' sign (e.g., accounting): The
+       locale's plus sign will be prepended to the positive prefix, as in case 1. Patterns with a negative subpattern that has a '-' sign: The locale's plus sign
+       will substitute the '-' in the negative subpattern. The positive subpattern will be
+       unused. This method is designed to be used instead of applying a pattern containing an
+ explicit plus sign, such as "+0;-0". The behavior when combining this method with explicit plus
+ signs in the pattern is undefined. Parameters value boolean : true to always show a sign; false to hide the sign on positive numbers and zero. setSignificantDigitsUsed Added in API level 24 public void setSignificantDigitsUsed (boolean useSignificantDigits) [icu] Rounding and Digit Limits: Sets whether significant digits are to be
+ used in rounding. Calling df.setSignificantDigitsUsed(true) is functionally equivalent to: df.setMinimumSignificantDigits(1);
+ df.setMaximumSignificantDigits(6); Parameters useSignificantDigits boolean : true to enable significant digit rounding; false to disable it. toLocalizedPattern Added in API level 24 public String toLocalizedPattern () Calls toPattern() and converts the string to localized notation. For more information on
+ localized notation, see applyLocalizedPattern(String) . This method is provided for backwards
+ compatibility and should not be used in new projects. Returns String A decimal format pattern string in localized notation. toPattern Added in API level 24 public String toPattern () Serializes this formatter object to a decimal format pattern string. The result of this method
+ is guaranteed to be functionally equivalent to the pattern string used to create this
+ instance after incorporating values from the setter methods. For more information on decimal format pattern strings, see UTS #35 . Important: Not all properties are capable of being encoded in a pattern
+ string. See a list of properties in applyPattern(String) . Returns String A decimal format pattern string. toString Added in API level 24 public String toString () Returns the default value of toString() with extra DecimalFormat-specific information appended
+ to the end of the string. This extra information is intended for debugging purposes, and the
+ format is not guaranteed to be stable. Returns String a string representation of the object.</body></html>

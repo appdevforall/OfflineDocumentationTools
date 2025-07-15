@@ -1,0 +1,71 @@
+<html><head><title>Class Documentation</title></head><body>CustomDescription.Builder Kotlin | Java public
+  static
+  
+  
+  class
+  CustomDescription.Builder extends Object java.lang.Object ↳ android.service.autofill.CustomDescription.Builder Builder for CustomDescription objects. Summary Public constructors Builder ( RemoteViews parentPresentation) Default constructor. Public methods CustomDescription.Builder addChild (int id, Transformation transformation) Adds a transformation to replace the value of a child view with the fields in the
+ screen. CustomDescription.Builder addOnClickAction (int id, OnClickAction action) Sets an action to be applied to the presentation template when the
+ child view with the given id is clicked. CustomDescription.Builder batchUpdate ( Validator condition, BatchUpdates updates) Updates the presentation template when a condition is satisfied by
+ applying a series of remote view operations. CustomDescription build () Creates a new CustomDescription instance. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors Builder Added in API level 27 public Builder ( RemoteViews parentPresentation) Default constructor. Note: If any child view of presentation triggers a on click , such PendingIntent must follow the restrictions below, otherwise
+ it might not be triggered or the autofill save UI might not be shown when its activity
+ is finished: It cannot be created with the PendingIntent.FLAG_IMMUTABLE flag. It must be a PendingIntent for an Activity . The activity must call Activity.finish() when done. The activity should not launch other activities. Parameters parentPresentation RemoteViews : template presentation with (optional) children views.
+ This value cannot be null . Throws NullPointerException if parentPresentation is null (on Android Build.VERSION_CODES.P or higher). Public methods addChild Added in API level 27 public CustomDescription.Builder addChild (int id, Transformation transformation) Adds a transformation to replace the value of a child view with the fields in the
+ screen. When multiple transformations are added for the same child view, they will be applied
+ in the same order as added. Parameters id int : view id of the children view. transformation Transformation : an implementation provided by the Android System.
+
+ This value cannot be null . Returns CustomDescription.Builder this builder.
+
+ This value cannot be null . Throws IllegalArgumentException if transformation is not a class provided
+ by the Android System. IllegalStateException if build() was already called. addOnClickAction Added in API level 29 public CustomDescription.Builder addOnClickAction (int id, OnClickAction action) Sets an action to be applied to the presentation template when the
+ child view with the given id is clicked. Typically used when the presentation uses a masked field (like **** ) for
+ sensitive fields like passwords or credit cards numbers, but offers a an icon that the
+ user can tap to show the value for that field. Example: customDescriptionBuilder
+   .addChild(R.id.password_plain, new CharSequenceTransformation
+      .Builder(passwordId, Pattern.compile("^(.*)$"), "$1").build())
+   .addOnClickAction(R.id.showIcon, new VisibilitySetterAction
+     .Builder(R.id.hideIcon, View.VISIBLE)
+     .setVisibility(R.id.showIcon, View.GONE)
+     .setVisibility(R.id.password_plain, View.VISIBLE)
+     .setVisibility(R.id.password_masked, View.GONE)
+     .build())
+   .addOnClickAction(R.id.hideIcon, new VisibilitySetterAction
+     .Builder(R.id.showIcon, View.VISIBLE)
+     .setVisibility(R.id.hideIcon, View.GONE)
+     .setVisibility(R.id.password_masked, View.VISIBLE)
+     .setVisibility(R.id.password_plain, View.GONE)
+     .build()); Note: Currently only one action can be applied to a child; if this method
+ is called multiple times passing the same id , only the last call will be used. Parameters id int : resource id of the child view. action OnClickAction : action to be performed. Must be an an implementation provided by the
+ Android System.
+
+ This value cannot be null . Returns CustomDescription.Builder this builder
+
+ This value cannot be null . Throws IllegalArgumentException if action is not a class provided
+ by the Android System. IllegalStateException if build() was already called. batchUpdate Added in API level 28 public CustomDescription.Builder batchUpdate ( Validator condition, BatchUpdates updates) Updates the presentation template when a condition is satisfied by
+ applying a series of remote view operations. This allows dynamic customization of the
+ portion of the save UI that is controlled by the autofill service. Such dynamic
+ customization is based on the content of target views. The updates are applied in the sequence they are added, after the transformations are applied to the children
+ views. For example, to make children views visible when fields are not empty: RemoteViews template = new RemoteViews ( pgkName , R . layout . my_full_template ); Pattern notEmptyPattern = Pattern . compile ( ".+" ); Validator hasAddress = new RegexValidator ( addressAutofillId , notEmptyPattern ); Validator hasCcNumber = new RegexValidator ( ccNumberAutofillId , notEmptyPattern ); RemoteViews addressUpdates = new RemoteViews ( pgkName , R . layout . my_full_template ) addressUpdates . setViewVisibility ( R . id . address , View . VISIBLE ); // Make address visible BatchUpdates addressBatchUpdates = new BatchUpdates . Builder () . updateTemplate ( addressUpdates ) . build (); RemoteViews ccUpdates = new RemoteViews ( pgkName , R . layout . my_full_template ) ccUpdates . setViewVisibility ( R . id . cc_number , View . VISIBLE ); // Mask credit card number (as .....LAST_4_DIGITS) and make it visible BatchUpdates ccBatchUpdates = new BatchUpdates . Builder () . updateTemplate ( ccUpdates ) . transformChild ( R . id . templateCcNumber , new CharSequenceTransformation . Builder ( ccNumberId , Pattern . compile ( "^.*(\\d\\d\\d\\d)$" ), "...$1" ) . build ()) . build (); CustomDescription customDescription = new CustomDescription . Builder ( template ) . batchUpdate ( hasAddress , addressBatchUpdates ) . batchUpdate ( hasCcNumber , ccBatchUpdates ) . build (); Another approach is to add a child first, then apply the transformations. Example: RemoteViews template = new RemoteViews ( pgkName , R . layout . my_base_template ); RemoteViews addressPresentation = new RemoteViews ( pgkName , R . layout . address ) RemoteViews addressUpdates = new RemoteViews ( pgkName , R . layout . my_template ) addressUpdates . addView ( R . id . parentId , addressPresentation ); BatchUpdates addressBatchUpdates = new BatchUpdates . Builder () . updateTemplate ( addressUpdates ) . build (); RemoteViews ccPresentation = new RemoteViews ( pgkName , R . layout . cc ) RemoteViews ccUpdates = new RemoteViews ( pgkName , R . layout . my_template ) ccUpdates . addView ( R . id . parentId , ccPresentation ); BatchUpdates ccBatchUpdates = new BatchUpdates . Builder () . updateTemplate ( ccUpdates ) . transformChild ( R . id . templateCcNumber , new CharSequenceTransformation . Builder ( ccNumberId , Pattern . compile ( "^.*(\\d\\d\\d\\d)$" ), "...$1" ) . build ()) . build (); CustomDescription customDescription = new CustomDescription . Builder ( template ) . batchUpdate ( hasAddress , addressBatchUpdates ) . batchUpdate ( hasCcNumber , ccBatchUpdates ) . build (); Parameters condition Validator : condition used to trigger the updates.
+ This value cannot be null . updates BatchUpdates : actions to be applied to the template presentation when the condition
+ is satisfied.
+
+ This value cannot be null . Returns CustomDescription.Builder this builder
+
+ This value cannot be null . Throws IllegalArgumentException if condition is not a class provided
+ by the Android System. IllegalStateException if build() was already called. build Added in API level 27 public CustomDescription build () Creates a new CustomDescription instance. Returns CustomDescription This value cannot be null .</body></html>

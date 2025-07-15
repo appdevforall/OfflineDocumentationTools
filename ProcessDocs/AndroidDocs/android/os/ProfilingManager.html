@@ -1,0 +1,102 @@
+<html><head><title>Class Documentation</title></head><body>ProfilingManager Kotlin | Java public
+  
+  final
+  
+  class
+  ProfilingManager extends Object java.lang.Object ↳ android.os.ProfilingManager This class allows the caller to: Request profiling and listen for results. Profiling types supported are: system traces,
+     java heap dumps, heap profiles, and stack traces. Register triggers for the system to capture profiling on the apps behalf. The requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) API can be used to begin profiling. Profiling may be ended manually
+ using the CancellationSignal provided in the request, or as a result of a timeout. The timeout
+ may be either the system default or caller defined in the parameter bundle for select types. The profiling results are delivered to the requesting app's data directory and a pointer to the
+ file will be received using the app provided listeners. Apps can provide listeners in one or both of two ways: A request-specific listener included with the request. This will trigger only with a result
+     from the request it was provided with. A global listener provided by registerForAllProfilingResults(Executor, Consumer) . This will be triggered
+     for all results belonging to your app. This listener is the only way to receive results from
+     system triggered profiling instances set up with addProfilingTriggers(List) . Requests are rate limited and not guaranteed to be filled. Rate limiting can be disabled for
+ local testing of requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) using the shell command device_config put profiling_testing rate_limiter.disabled true For local testing, profiling results can be accessed more easily by enabling debug mode. This
+ will retain output files in a temporary system directory. The locations of the retained files
+ will be available in logcat. The behavior and command varies by version: For Android versions 16 and above, debug mode will retain both unredacted (where applicable)
+ and redacted results in the temporary directory. It can be enabled with the shell command device_config put profiling_testing delete_temporary_results.disabled true and disabled
+ by setting that same value back to false. Retained results are accessible on all build types. For Android version 15, debug mode will retain only the unredacted result (where applicable)
+ in the temporary directory. It can be enabled with the shell command device_config put profiling_testing delete_unredacted_trace.disabled true and disabled
+ by setting that same value back to false. The retained unredacted file can only be accessed on
+ builds with root access. To access the redacted output file on an unrooted device, apps can copy
+ the file from /pkg/files/profiling/file.type to /pkg/cache/file.type . In order to test profiling triggers, enable testing mode for your app with the shell command device_config put profiling_testing system_triggered_profiling.testing_package_name
+ com.your.app which will: Ensure that a background trace is running. Allow all triggers for the provided package name to pass the system level rate limiter.
+     This mode will continue until manually stopped with the shell command device_config delete profiling_testing
+     system_triggered_profiling.testing_package_name . Results are redacted and contain specific information about the requesting process only. Summary Constants int PROFILING_TYPE_HEAP_PROFILE Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a heap profile. int PROFILING_TYPE_JAVA_HEAP_DUMP Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a java heap dump. int PROFILING_TYPE_STACK_SAMPLING Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a stack sample. int PROFILING_TYPE_SYSTEM_TRACE Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a system trace. Public methods void addProfilingTriggers ( List < ProfilingTrigger > triggers) Register the provided list of triggers for this process. void clearProfilingTriggers () Remove all triggers for this process. void registerForAllProfilingResults ( Executor executor, Consumer < ProfilingResult > listener) Register a listener to be called for all profiling results for this uid. void removeProfilingTriggersByType (int[] triggers) Remove triggers for this process with trigger types in the provided list. void requestProfiling (int profilingType, Bundle parameters, String tag, CancellationSignal cancellationSignal, Executor executor, Consumer < ProfilingResult > listener) Request system profiling. void unregisterForAllProfilingResults ( Consumer < ProfilingResult > listener) Unregister a listener that was to be called for all profiling results. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants PROFILING_TYPE_HEAP_PROFILE Added in API level 35 public static final int PROFILING_TYPE_HEAP_PROFILE Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a heap profile. Constant Value:
+      
+          2
+          (0x00000002) PROFILING_TYPE_JAVA_HEAP_DUMP Added in API level 35 public static final int PROFILING_TYPE_JAVA_HEAP_DUMP Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a java heap dump. Constant Value:
+      
+          1
+          (0x00000001) PROFILING_TYPE_STACK_SAMPLING Added in API level 35 public static final int PROFILING_TYPE_STACK_SAMPLING Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a stack sample. Constant Value:
+      
+          3
+          (0x00000003) PROFILING_TYPE_SYSTEM_TRACE Added in API level 35 public static final int PROFILING_TYPE_SYSTEM_TRACE Profiling type for requestProfiling(int, Bundle, String, CancellationSignal, Executor, Consumer) to request a system trace. Constant Value:
+      
+          4
+          (0x00000004) Public methods addProfilingTriggers Added in API level 36 public void addProfilingTriggers ( List < ProfilingTrigger > triggers) Register the provided list of triggers for this process. Profiling triggers are system events that an app can register interest in, and then receive
+ profiling data when any of the registered triggers occur. There is no guarantee that these
+ triggers will be filled. Results, if available, will be delivered only to a global listener
+ added using registerForAllProfilingResults(Executor, Consumer) . Only one of each trigger type can be added at a time. If the provided list contains a trigger type that is already registered then the new one
+     will replace the existing one. If the provided list contains more than one trigger object for a trigger type then only
+     one will be kept. Apps can define their own per-trigger rate limiting to help ensure they receive results
+ aligned with their needs. More details can be found at ProfilingTrigger.Builder.setRateLimitingPeriodHours . Parameters triggers List : This value cannot be null . clearProfilingTriggers Added in API level 36 public void clearProfilingTriggers () Remove all triggers for this process. registerForAllProfilingResults Added in API level 35 public void registerForAllProfilingResults ( Executor executor, Consumer < ProfilingResult > listener) Register a listener to be called for all profiling results for this uid. Listeners set here
+ will be called in addition to any provided with the request. Note: If a callback attempt fails (for example, because your app is killed
+ while a trace is in progress) re-delivery may be attempted using a listener added via this
+ method. Parameters executor Executor : The executor to call back with.
+ This value cannot be null . listener Consumer : Listener to be triggered with result.
+
+ This value cannot be null . removeProfilingTriggersByType Added in API level 36 public void removeProfilingTriggersByType (int[] triggers) Remove triggers for this process with trigger types in the provided list. Parameters triggers int : This value cannot be null .
+
+ Value is ProfilingTrigger.TRIGGER_TYPE_NONE , ProfilingTrigger.TRIGGER_TYPE_APP_FULLY_DRAWN , or ProfilingTrigger.TRIGGER_TYPE_ANR requestProfiling Added in API level 35 public void requestProfiling (int profilingType, Bundle parameters, String tag, CancellationSignal cancellationSignal, Executor executor, Consumer < ProfilingResult > listener) Request system profiling. Note: use of this API directly is not recommended for most use cases.
+   Consider using the higher level
+   wrappers provided by AndroidX that will construct the request correctly, supporting
+   available options with simplified request parameters. Both a listener and an executor must be set at the time of the request for the request to
+   be considered for fulfillment. Listener/executor pairs can be set in this method, with registerForAllProfilingResults(Executor, Consumer) , or both. The listener and executor must be set
+   together, in the same call. If no listener and executor combination is set, the request
+   will be discarded and no callback will be received. Requests will be rate limited and are not guaranteed to be filled. There might be a delay before profiling begins.
+   For continuous profiling types (system tracing, stack sampling, and heap profiling),
+   we recommend starting the collection early and stopping it with cancellationSignal immediately after the area of interest to ensure that the section you want profiled is
+   captured.
+   For heap dumps, we recommend testing locally to ensure that the heap dump is collected at
+   the proper time. Parameters profilingType int : Type of profiling to collect.
+ Value is PROFILING_TYPE_JAVA_HEAP_DUMP , PROFILING_TYPE_HEAP_PROFILE , PROFILING_TYPE_STACK_SAMPLING , or PROFILING_TYPE_SYSTEM_TRACE parameters Bundle : Bundle of request related parameters. If the bundle contains any
+                  unrecognized parameters, the request will be fail with ProfilingResult.ERROR_FAILED_INVALID_REQUEST . If the
+                  values for the parameters are out of supported range, the closest possible
+                  in range value will be chosen.
+                  Use of androidx wrappers is recommended over generating this directly.
+ This value may be null . tag String : Caller defined data to help identify the output.
+                  The first 20 alphanumeric characters, plus dashes, will be lowercased
+                  and included in the output filename.
+ This value may be null . cancellationSignal CancellationSignal : for caller requested cancellation.
+                  Results will be returned if available.
+                  If this is null, the requesting app will not be able to stop the collection.
+                  The collection will stop after timing out with either the provided
+                  configurations or with system defaults executor Executor : The executor to call back with.
+                  Will only be used for the listener provided in this method.
+                  If this is null, and no global executor and listener combinations are
+                  registered at the time of the request, the request will be dropped. listener Consumer : Listener to be triggered with result. Any global listeners registered via registerForAllProfilingResults(Executor, Consumer) will also be triggered. If this is
+                  null, and no global listener and executor combinations are registered at
+                  the time of the request, the request will be dropped. unregisterForAllProfilingResults Added in API level 35 public void unregisterForAllProfilingResults ( Consumer < ProfilingResult > listener) Unregister a listener that was to be called for all profiling results. If no listener is
+ provided, all listeners for this process that were not submitted with a profiling request
+ will be removed. Parameters listener Consumer : Listener to unregister and no longer be triggered with the results.
+                 Null to remove all global listeners for this uid.
+
+ This value may be null .</body></html>

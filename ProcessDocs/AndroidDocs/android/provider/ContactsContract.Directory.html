@@ -1,0 +1,202 @@
+<html><head><title>Class Documentation</title></head><body>ContactsContract.Directory Kotlin | Java public
+  static
+  final
+  
+  class
+  ContactsContract.Directory extends Object implements BaseColumns java.lang.Object ↳ android.provider.ContactsContract.Directory A Directory represents a contacts corpus, e.g. Local contacts,
+ Google Apps Global Address List or Corporate Global Address List. A Directory is implemented as a content provider with its unique authority and
+ the same API as the main Contacts Provider.  However, there is no expectation that
+ every directory provider will implement this Contract in its entirety.  If a
+ directory provider does not have an implementation for a specific request, it
+ should throw an UnsupportedOperationException. The most important use case for Directories is search.  A Directory provider is
+ expected to support at least Contacts.CONTENT_FILTER_URI .  If a Directory provider wants to participate
+ in email and phone lookup functionalities, it should also implement CommonDataKinds.Email.CONTENT_FILTER_URI and CommonDataKinds.Phone.CONTENT_FILTER_URI . A directory provider should return NULL for every projection field it does not
+ recognize, rather than throwing an exception.  This way it will not be broken
+ if ContactsContract is extended with new fields in the future. The client interacts with a directory via Contacts Provider by supplying an
+ optional directory= query parameter. When the Contacts Provider receives the request, it transforms the URI and forwards
+ the request to the corresponding directory content provider.
+ The URI is transformed in the following fashion: The URI authority is replaced with the corresponding DIRECTORY_AUTHORITY . The accountName= and accountType= parameters are added or
+ replaced using the corresponding ACCOUNT_TYPE and ACCOUNT_NAME values. Clients should send directory requests to Contacts Provider and let it
+ forward them to the respective providers rather than constructing
+ directory provider URIs by themselves. This level of indirection allows
+ Contacts Provider to implement additional system-level features and
+ optimizations. Access to Contacts Provider is protected by the
+ READ_CONTACTS permission, but access to the directory provider is protected by
+ BIND_DIRECTORY_SEARCH. This permission was introduced at the API level 17, for previous
+ platform versions the provider should perform the following check to make sure the call
+ is coming from the ContactsProvider: private boolean isCallerAllowed() {
+   PackageManager pm = getContext().getPackageManager();
+   for (String packageName: pm.getPackagesForUid(Binder.getCallingUid())) {
+     if (packageName.equals("com.android.providers.contacts")) {
+       return true;
+     }
+   }
+   return false;
+ } The Directory table is read-only and is maintained by the Contacts Provider
+ automatically. It always has at least these two rows: The local directory. It has Directory._ID = Directory.DEFAULT . This directory can be used to access locally
+ stored contacts. The same can be achieved by omitting the directory= parameter altogether. The local invisible contacts. The corresponding directory ID is Directory.LOCAL_INVISIBLE . Custom Directories are discovered by the Contacts Provider following this procedure: It finds all installed content providers with meta data identifying them
+ as directory providers in AndroidManifest.xml: <meta-data android:name="android.content.ContactDirectory"
+               android:value="true" /> This tag should be placed inside the corresponding content provider declaration. Then Contacts Provider sends a Directory.CONTENT_URI query to each of the directory authorities.  A directory provider must implement
+ this query and return a list of directories.  Each directory returned by
+ the provider must have a unique combination for the ACCOUNT_NAME and ACCOUNT_TYPE columns (nulls are allowed).  Since directory IDs are assigned
+ automatically, the _ID field will not be part of the query projection. Contacts Provider compiles directory lists received from all directory
+ providers into one, assigns each individual directory a globally unique ID and
+ stores all directory records in the Directory table. Contacts Provider automatically interrogates newly installed or replaced packages.
+ Thus simply installing a package containing a directory provider is sufficient
+ to have that provider registered.  A package supplying a directory provider does
+ not have to contain launchable activities. Every row in the Directory table is automatically associated with the corresponding package
+ (apk).  If the package is later uninstalled, all corresponding directory rows
+ are automatically removed from the Contacts Provider. When the list of directories handled by a directory provider changes
+ (for instance when the user adds a new Directory account), the directory provider
+ should call notifyDirectoryChange(ContentResolver) to notify the Contacts Provider of the change.
+ In response, the Contacts Provider will requery the directory provider to obtain the
+ new list of directories. A directory row can be optionally associated with an existing account
+ (see AccountManager ). If the account is later removed,
+ the corresponding directory rows are automatically removed from the Contacts Provider. Summary Constants String ACCOUNT_NAME The account with which this directory is associated. String ACCOUNT_TYPE The account type which this directory is associated. String CALLER_PACKAGE_PARAM_KEY A query parameter that's passed to directory providers which indicates the client
+ package name that has made the query requests. String CONTENT_ITEM_TYPE The MIME type of a CONTENT_URI item. String CONTENT_TYPE The MIME-type of CONTENT_URI providing a directory of
+ contact directories. long DEFAULT _ID of the default directory, which represents locally stored contacts. String DIRECTORY_AUTHORITY The authority of the Directory Provider. String DISPLAY_NAME An optional name that can be used in the UI to represent this directory,
+ e.g. "Acme Corp" TYPE: text long ENTERPRISE_DEFAULT _ID of the managed profile default directory, which represents locally stored contacts. long ENTERPRISE_LOCAL_INVISIBLE _ID of the managed profile directory that represents locally stored invisible contacts. String EXPORT_SUPPORT One of EXPORT_SUPPORT_NONE , EXPORT_SUPPORT_ANY_ACCOUNT , EXPORT_SUPPORT_SAME_ACCOUNT_ONLY . int EXPORT_SUPPORT_ANY_ACCOUNT An EXPORT_SUPPORT setting that indicates that the directory
+ allow its data copied to any contacts account. int EXPORT_SUPPORT_NONE An EXPORT_SUPPORT setting that indicates that the directory
+ does not allow any data to be copied out of it. int EXPORT_SUPPORT_SAME_ACCOUNT_ONLY An EXPORT_SUPPORT setting that indicates that the directory
+ allow its data copied only to the account specified by ACCOUNT_TYPE / ACCOUNT_NAME . long LOCAL_INVISIBLE _ID of the directory that represents locally stored invisible contacts. String PACKAGE_NAME The name of the package that owns this directory. String PHOTO_SUPPORT One of PHOTO_SUPPORT_NONE , PHOTO_SUPPORT_THUMBNAIL_ONLY , PHOTO_SUPPORT_FULL . int PHOTO_SUPPORT_FULL An PHOTO_SUPPORT setting that indicates that the directory
+ can produce thumbnails as well as full-size contact photos. int PHOTO_SUPPORT_FULL_SIZE_ONLY An PHOTO_SUPPORT setting that indicates that the directory
+ has full-size contact photos, but cannot provide scaled thumbnails. int PHOTO_SUPPORT_NONE An PHOTO_SUPPORT setting that indicates that the directory
+ does not provide any photos. int PHOTO_SUPPORT_THUMBNAIL_ONLY An PHOTO_SUPPORT setting that indicates that the directory
+ can only produce small size thumbnails of contact photos. String SHORTCUT_SUPPORT One of SHORTCUT_SUPPORT_NONE , SHORTCUT_SUPPORT_DATA_ITEMS_ONLY , SHORTCUT_SUPPORT_FULL . int SHORTCUT_SUPPORT_DATA_ITEMS_ONLY An SHORTCUT_SUPPORT setting that indicates that the directory
+ allow creation of shortcuts for data items like email, phone or postal address,
+ but not the entire contact. int SHORTCUT_SUPPORT_FULL An SHORTCUT_SUPPORT setting that indicates that the directory
+ allow creation of shortcuts for contact as well as their constituent elements. int SHORTCUT_SUPPORT_NONE An SHORTCUT_SUPPORT setting that indicates that the directory
+ does not allow any shortcuts created for its contacts. String TYPE_RESOURCE_ID The type of directory captured as a resource ID in the context of the
+ package PACKAGE_NAME , e.g. "Corporate Directory" TYPE: INTEGER Inherited constants From interface android.provider.BaseColumns String _COUNT The count of rows in a directory. String _ID The unique ID for a row. Fields public
+    static
+    final Uri CONTENT_URI The content:// style URI for this table. public
+    static
+    final Uri ENTERPRISE_CONTENT_URI URI used for getting all directories from both the calling user and the managed profile
+ that is linked to it. Public methods static
+        
+        
+        boolean isEnterpriseDirectoryId (long directoryId) Return TRUE if a directory ID is from the contacts provider on the enterprise profile. static
+        
+        
+        boolean isRemoteDirectoryId (long directoryId) Return TRUE if it is a remote stored directory. static
+        
+        
+        void notifyDirectoryChange ( ContentResolver resolver) Notifies the system of a change in the list of directories handled by
+ a particular directory provider. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants ACCOUNT_NAME Added in API level 11 public static final String ACCOUNT_NAME The account with which this directory is associated. If the account is later
+ removed, the directories it owns are automatically removed from this table. TYPE: text Constant Value:
+      
+          "accountName" ACCOUNT_TYPE Added in API level 11 public static final String ACCOUNT_TYPE The account type which this directory is associated. TYPE: text Constant Value:
+      
+          "accountType" CALLER_PACKAGE_PARAM_KEY Added in API level 26 public static final String CALLER_PACKAGE_PARAM_KEY A query parameter that's passed to directory providers which indicates the client
+ package name that has made the query requests. Constant Value:
+      
+          "callerPackage" CONTENT_ITEM_TYPE Added in API level 11 public static final String CONTENT_ITEM_TYPE The MIME type of a CONTENT_URI item. Constant Value:
+      
+          "vnd.android.cursor.item/contact_directory" CONTENT_TYPE Added in API level 11 public static final String CONTENT_TYPE The MIME-type of CONTENT_URI providing a directory of
+ contact directories. Constant Value:
+      
+          "vnd.android.cursor.dir/contact_directories" DEFAULT Added in API level 11 public static final long DEFAULT _ID of the default directory, which represents locally stored contacts. This is only supported by ContactsContract.Contacts.CONTENT_URI and ContactsContract.Contacts.CONTENT_FILTER_URI .
+ Other URLs do not support the concept of "visible" or "invisible" contacts. Constant Value:
+      
+          0
+          (0x0000000000000000) DIRECTORY_AUTHORITY Added in API level 11 public static final String DIRECTORY_AUTHORITY The authority of the Directory Provider. Contacts Provider will
+ use this authority to forward requests to the directory provider.
+ A directory provider can leave this column empty - Contacts Provider will fill it in. Clients of this API should not send requests directly to this authority.
+ All directory requests must be routed through Contacts Provider. TYPE: text Constant Value:
+      
+          "authority" DISPLAY_NAME Added in API level 11 public static final String DISPLAY_NAME An optional name that can be used in the UI to represent this directory,
+ e.g. "Acme Corp" TYPE: text Constant Value:
+      
+          "displayName" ENTERPRISE_DEFAULT Added in API level 24 public static final long ENTERPRISE_DEFAULT _ID of the managed profile default directory, which represents locally stored contacts. Constant Value:
+      
+          1000000000
+          (0x000000003b9aca00) ENTERPRISE_LOCAL_INVISIBLE Added in API level 24 public static final long ENTERPRISE_LOCAL_INVISIBLE _ID of the managed profile directory that represents locally stored invisible contacts. Constant Value:
+      
+          1000000001
+          (0x000000003b9aca01) EXPORT_SUPPORT Added in API level 11 public static final String EXPORT_SUPPORT One of EXPORT_SUPPORT_NONE , EXPORT_SUPPORT_ANY_ACCOUNT , EXPORT_SUPPORT_SAME_ACCOUNT_ONLY . This is the expectation the
+ directory has for data exported from it.  Clients must obey this setting. Constant Value:
+      
+          "exportSupport" EXPORT_SUPPORT_ANY_ACCOUNT Added in API level 11 public static final int EXPORT_SUPPORT_ANY_ACCOUNT An EXPORT_SUPPORT setting that indicates that the directory
+ allow its data copied to any contacts account. Constant Value:
+      
+          2
+          (0x00000002) EXPORT_SUPPORT_NONE Added in API level 11 public static final int EXPORT_SUPPORT_NONE An EXPORT_SUPPORT setting that indicates that the directory
+ does not allow any data to be copied out of it. Constant Value:
+      
+          0
+          (0x00000000) EXPORT_SUPPORT_SAME_ACCOUNT_ONLY Added in API level 11 public static final int EXPORT_SUPPORT_SAME_ACCOUNT_ONLY An EXPORT_SUPPORT setting that indicates that the directory
+ allow its data copied only to the account specified by ACCOUNT_TYPE / ACCOUNT_NAME . Constant Value:
+      
+          1
+          (0x00000001) LOCAL_INVISIBLE Added in API level 11 public static final long LOCAL_INVISIBLE _ID of the directory that represents locally stored invisible contacts. Constant Value:
+      
+          1
+          (0x0000000000000001) PACKAGE_NAME Added in API level 11 public static final String PACKAGE_NAME The name of the package that owns this directory. Contacts Provider
+ fill it in with the name of the package containing the directory provider.
+ If the package is later uninstalled, the directories it owns are
+ automatically removed from this table. TYPE: TEXT Constant Value:
+      
+          "packageName" PHOTO_SUPPORT Added in API level 11 public static final String PHOTO_SUPPORT One of PHOTO_SUPPORT_NONE , PHOTO_SUPPORT_THUMBNAIL_ONLY , PHOTO_SUPPORT_FULL . This is a feature flag indicating the extent
+ to which the directory supports contact photos. Constant Value:
+      
+          "photoSupport" PHOTO_SUPPORT_FULL Added in API level 11 public static final int PHOTO_SUPPORT_FULL An PHOTO_SUPPORT setting that indicates that the directory
+ can produce thumbnails as well as full-size contact photos. Constant Value:
+      
+          3
+          (0x00000003) PHOTO_SUPPORT_FULL_SIZE_ONLY Added in API level 11 public static final int PHOTO_SUPPORT_FULL_SIZE_ONLY An PHOTO_SUPPORT setting that indicates that the directory
+ has full-size contact photos, but cannot provide scaled thumbnails. Constant Value:
+      
+          2
+          (0x00000002) PHOTO_SUPPORT_NONE Added in API level 11 public static final int PHOTO_SUPPORT_NONE An PHOTO_SUPPORT setting that indicates that the directory
+ does not provide any photos. Constant Value:
+      
+          0
+          (0x00000000) PHOTO_SUPPORT_THUMBNAIL_ONLY Added in API level 11 public static final int PHOTO_SUPPORT_THUMBNAIL_ONLY An PHOTO_SUPPORT setting that indicates that the directory
+ can only produce small size thumbnails of contact photos. Constant Value:
+      
+          1
+          (0x00000001) SHORTCUT_SUPPORT Added in API level 11 public static final String SHORTCUT_SUPPORT One of SHORTCUT_SUPPORT_NONE , SHORTCUT_SUPPORT_DATA_ITEMS_ONLY , SHORTCUT_SUPPORT_FULL . This is the expectation the directory
+ has for shortcuts created for its elements. Clients must obey this setting. Constant Value:
+      
+          "shortcutSupport" SHORTCUT_SUPPORT_DATA_ITEMS_ONLY Added in API level 11 public static final int SHORTCUT_SUPPORT_DATA_ITEMS_ONLY An SHORTCUT_SUPPORT setting that indicates that the directory
+ allow creation of shortcuts for data items like email, phone or postal address,
+ but not the entire contact. Constant Value:
+      
+          1
+          (0x00000001) SHORTCUT_SUPPORT_FULL Added in API level 11 public static final int SHORTCUT_SUPPORT_FULL An SHORTCUT_SUPPORT setting that indicates that the directory
+ allow creation of shortcuts for contact as well as their constituent elements. Constant Value:
+      
+          2
+          (0x00000002) SHORTCUT_SUPPORT_NONE Added in API level 11 public static final int SHORTCUT_SUPPORT_NONE An SHORTCUT_SUPPORT setting that indicates that the directory
+ does not allow any shortcuts created for its contacts. Constant Value:
+      
+          0
+          (0x00000000) TYPE_RESOURCE_ID Added in API level 11 public static final String TYPE_RESOURCE_ID The type of directory captured as a resource ID in the context of the
+ package PACKAGE_NAME , e.g. "Corporate Directory" TYPE: INTEGER Constant Value:
+      
+          "typeResourceId" Fields CONTENT_URI Added in API level 11 public static final Uri CONTENT_URI The content:// style URI for this table.  Requests to this URI can be
+ performed on the UI thread because they are always unblocking. ENTERPRISE_CONTENT_URI Added in API level 24 public static final Uri ENTERPRISE_CONTENT_URI URI used for getting all directories from both the calling user and the managed profile
+ that is linked to it. It supports the same semantics as CONTENT_URI and returns the same columns. If the device has no managed profile that is linked to the calling user, it behaves
+ in the exact same way as CONTENT_URI . If there is a managed profile linked to the calling user, it will return merged results
+ from both. Note: this query returns the calling user results before the managed profile results,
+ and this order is not affected by the sorting parameter. Public methods isEnterpriseDirectoryId Added in API level 24 public static boolean isEnterpriseDirectoryId (long directoryId) Return TRUE if a directory ID is from the contacts provider on the enterprise profile. Parameters directoryId long Returns boolean isRemoteDirectoryId Added in API level 24 public static boolean isRemoteDirectoryId (long directoryId) Return TRUE if it is a remote stored directory. Parameters directoryId long Returns boolean notifyDirectoryChange Added in API level 11 public static void notifyDirectoryChange ( ContentResolver resolver) Notifies the system of a change in the list of directories handled by
+ a particular directory provider. The Contacts provider will turn around
+ and send a query to the directory provider for the full list of directories,
+ which will replace the previous list. Parameters resolver ContentResolver</body></html>

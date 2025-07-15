@@ -1,0 +1,928 @@
+<html><head><title>Class Documentation</title></head><body>UCharacter Kotlin | Java public
+  
+  final
+  
+  class
+  UCharacter extends Object implements UCharacterEnums.ECharacterCategory , UCharacterEnums.ECharacterDirection java.lang.Object ↳ android.icu.lang.UCharacter [icu enhancement] ICU's replacement for Character . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. The UCharacter class provides extensions to the Character class.
+ These extensions provide support for more Unicode properties.
+ Each ICU release supports the latest version of Unicode available at that time. For some time before Java 5 added support for supplementary Unicode code points,
+ The ICU UCharacter class and many other ICU classes already supported them.
+ Some UCharacter methods and constants were widened slightly differently than
+ how the Character class methods and constants were widened later.
+ In particular, Character.MAX_VALUE is still a char with the value U+FFFF,
+ while the UCharacter.MAX_VALUE is an int with the value U+10FFFF. Code points are represented in these API using ints. While it would be
+ more convenient in Java to have a separate primitive datatype for them,
+ ints suffice in the meantime. Aside from the additions for UTF-16 support, and the updated Unicode
+ properties, the main differences between UCharacter and Character are: UCharacter is not designed to be a char wrapper and does not have
+      APIs to which involves management of that single char. These include: char charValue(), int compareTo(java.lang.Character, java.lang.Character), etc. UCharacter does not include Character APIs that are deprecated, nor
+      does it include the Java-specific character information, such as
+      boolean isJavaIdentifierPart(char ch). Character maps characters 'A' - 'Z' and 'a' - 'z' to the numeric
+      values '10' - '35'. UCharacter also does this in digit and
+      getNumericValue, to adhere to the java semantics of these
+      methods.  New methods unicodeDigit, and
+      getUnicodeNumericValue do not treat the above code points
+      as having numeric values.  This is a semantic change from ICU4J 1.3.1. In addition to Java compatibility functions, which calculate derived properties,
+ this API provides low-level access to the Unicode Character Database. Unicode assigns each code point (not just assigned character) values for
+ many properties.
+ Most of them are simple boolean flags, or constants from a small enumerated list.
+ For some properties, values are strings or other relatively more complex types. For more information see "About the Unicode Character Database" (http://www.unicode.org/ucd/)
+ and the ICU
+ User Guide chapter on Properties (https://unicode-org.github.io/icu/userguide/strings/properties). There are also functions that provide easy migration from C/POSIX functions
+ like isblank(). Their use is generally discouraged because the C/POSIX
+ standards do not define their semantics beyond the ASCII range, which means
+ that different implementations exhibit very different behavior.
+ Instead, Unicode properties should be used directly. There are also only a few, broad C/POSIX character classes, and they tend
+ to be used for conflicting purposes. For example, the "isalpha()" class
+ is sometimes used to determine word boundaries, while a more sophisticated
+ approach would at least distinguish initial letters from continuation
+ characters (the latter including combining marks).
+ (In ICU, BreakIterator is the most sophisticated API for word boundaries.)
+ Another example: There is no "istitle()" class for titlecase characters. ICU 3.4 and later provides API access for all twelve C/POSIX character classes.
+ ICU implements them according to the Standard Recommendations in
+ Annex C: Compatibility Properties of UTS #18 Unicode Regular Expressions
+ (http://www.unicode.org/reports/tr18/#Compatibility_Properties). API access for C/POSIX character classes is as follows: - alpha:     isUAlphabetic(c) or hasBinaryProperty(c, UProperty.ALPHABETIC)
+ - lower:     isULowercase(c) or hasBinaryProperty(c, UProperty.LOWERCASE)
+ - upper:     isUUppercase(c) or hasBinaryProperty(c, UProperty.UPPERCASE)
+ - punct:     ((1<<getType(c)) & ((1<<DASH_PUNCTUATION)|(1<<START_PUNCTUATION)|
+               (1<<END_PUNCTUATION)|(1<<CONNECTOR_PUNCTUATION)|(1<<OTHER_PUNCTUATION)|
+               (1<<INITIAL_PUNCTUATION)|(1<<FINAL_PUNCTUATION)))!=0
+ - digit:     isDigit(c) or getType(c)==DECIMAL_DIGIT_NUMBER
+ - xdigit:    hasBinaryProperty(c, UProperty.POSIX_XDIGIT)
+ - alnum:     hasBinaryProperty(c, UProperty.POSIX_ALNUM)
+ - space:     isUWhiteSpace(c) or hasBinaryProperty(c, UProperty.WHITE_SPACE)
+ - blank:     hasBinaryProperty(c, UProperty.POSIX_BLANK)
+ - cntrl:     getType(c)==CONTROL
+ - graph:     hasBinaryProperty(c, UProperty.POSIX_GRAPH)
+ - print:     hasBinaryProperty(c, UProperty.POSIX_PRINT) The C/POSIX character classes are also available in UnicodeSet patterns,
+ using patterns like [:graph:] or \p{graph}. [icu] Note: There are several ICU (and Java) whitespace functions.
+ Comparison: isUWhiteSpace=UCHAR_WHITE_SPACE: Unicode White_Space property;
+       most of general categories "Z" (separators) + most whitespace ISO controls
+       (including no-break spaces, but excluding IS1..IS4) isWhitespace: Java isWhitespace; Z + whitespace ISO controls but excluding no-break spaces isSpaceChar: just Z (including no-break spaces) This class is not subclassable. See also: UCharacterEnums Summary Nested classes interface UCharacter.BidiPairedBracketType Bidi Paired Bracket Type constants. interface UCharacter.DecompositionType Decomposition Type constants. interface UCharacter.EastAsianWidth East Asian Width constants. interface UCharacter.GraphemeClusterBreak Grapheme Cluster Break constants. interface UCharacter.HangulSyllableType Hangul Syllable Type constants. interface UCharacter.IndicPositionalCategory Indic Positional Category constants. interface UCharacter.IndicSyllabicCategory Indic Syllabic Category constants. interface UCharacter.JoiningGroup Joining Group constants. interface UCharacter.JoiningType Joining Type constants. interface UCharacter.LineBreak Line Break constants. interface UCharacter.NumericType Numeric Type constants. interface UCharacter.SentenceBreak Sentence Break constants. class UCharacter.UnicodeBlock [icu enhancement] ICU's replacement for Character.UnicodeBlock . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. interface UCharacter.VerticalOrientation Vertical Orientation constants. interface UCharacter.WordBreak Word Break constants. Constants int FOLD_CASE_DEFAULT [icu] Option value for case folding: use default mappings defined in
+ CaseFolding.txt. int FOLD_CASE_EXCLUDE_SPECIAL_I [icu] Option value for case folding:
+ Use the modified set of mappings provided in CaseFolding.txt to handle dotted I
+ and dotless i appropriately for Turkic languages (tr, az). int MAX_CODE_POINT Constant U+10FFFF, same as Character.MAX_CODE_POINT . char MAX_HIGH_SURROGATE Constant U+DBFF, same as Character.MAX_HIGH_SURROGATE . char MAX_LOW_SURROGATE Constant U+DFFF, same as Character.MAX_LOW_SURROGATE . int MAX_RADIX Compatibility constant for Java Character's MAX_RADIX. char MAX_SURROGATE Constant U+DFFF, same as Character.MAX_SURROGATE . int MAX_VALUE The highest Unicode code point value (scalar value), constant U+10FFFF (uses 21 bits). int MIN_CODE_POINT Constant U+0000, same as Character.MIN_CODE_POINT . char MIN_HIGH_SURROGATE Constant U+D800, same as Character.MIN_HIGH_SURROGATE . char MIN_LOW_SURROGATE Constant U+DC00, same as Character.MIN_LOW_SURROGATE . int MIN_RADIX Compatibility constant for Java Character's MIN_RADIX. int MIN_SUPPLEMENTARY_CODE_POINT Constant U+10000, same as Character.MIN_SUPPLEMENTARY_CODE_POINT . char MIN_SURROGATE Constant U+D800, same as Character.MIN_SURROGATE . int MIN_VALUE The lowest Unicode code point value, constant 0. double NO_NUMERIC_VALUE Special value that is returned by getUnicodeNumericValue(int) when no
+ numeric value is defined for a code point. int REPLACEMENT_CHAR Unicode value used when translating into Unicode encoding form and there
+ is no existing character. int SUPPLEMENTARY_MIN_VALUE The minimum value for Supplementary code points, constant U+10000. int TITLECASE_NO_BREAK_ADJUSTMENT Do not adjust the titlecasing indexes from BreakIterator::next() indexes;
+ titlecase exactly the characters at breaks from the iterator. int TITLECASE_NO_LOWERCASE Do not lowercase non-initial parts of words when titlecasing. Inherited constants From interface android.icu.lang.UCharacterEnums.ECharacterCategory byte COMBINING_SPACING_MARK Character type Mc byte CONNECTOR_PUNCTUATION Character type Pc byte CONTROL Character type Cc byte CURRENCY_SYMBOL Character type Sc byte DASH_PUNCTUATION Character type Pd byte DECIMAL_DIGIT_NUMBER Character type Nd byte ENCLOSING_MARK Character type Me byte END_PUNCTUATION Character type Pe byte FINAL_PUNCTUATION Character type Pf byte FINAL_QUOTE_PUNCTUATION Character type Pf
+ This name is compatible with java.lang.Character's name for this type. byte FORMAT Character type Cf byte GENERAL_OTHER_TYPES Character type Cn
+ Not Assigned (no characters in [UnicodeData.txt] have this property) byte INITIAL_PUNCTUATION Character type Pi byte INITIAL_QUOTE_PUNCTUATION Character type Pi
+ This name is compatible with java.lang.Character's name for this type. byte LETTER_NUMBER Character type Nl byte LINE_SEPARATOR Character type Zl byte LOWERCASE_LETTER Character type Ll byte MATH_SYMBOL Character type Sm byte MODIFIER_LETTER Character type Lm byte MODIFIER_SYMBOL Character type Sk byte NON_SPACING_MARK Character type Mn byte OTHER_LETTER Character type Lo byte OTHER_NUMBER Character type No byte OTHER_PUNCTUATION Character type Po byte OTHER_SYMBOL Character type So byte PARAGRAPH_SEPARATOR Character type Zp byte PRIVATE_USE Character type Co byte SPACE_SEPARATOR Character type Zs byte START_PUNCTUATION Character type Ps byte SURROGATE Character type Cs byte TITLECASE_LETTER Character type Lt byte UNASSIGNED Unassigned character type byte UPPERCASE_LETTER Character type Lu From interface android.icu.lang.UCharacterEnums.ECharacterDirection int ARABIC_NUMBER Directional type AN int BLOCK_SEPARATOR Directional type B int BOUNDARY_NEUTRAL Directional type BN int COMMON_NUMBER_SEPARATOR Directional type CS byte DIRECTIONALITY_ARABIC_NUMBER Equivalent to Character.DIRECTIONALITY_ARABIC_NUMBER . byte DIRECTIONALITY_BOUNDARY_NEUTRAL Equivalent to Character.DIRECTIONALITY_BOUNDARY_NEUTRAL . byte DIRECTIONALITY_COMMON_NUMBER_SEPARATOR Equivalent to Character.DIRECTIONALITY_COMMON_NUMBER_SEPARATOR . byte DIRECTIONALITY_EUROPEAN_NUMBER Equivalent to Character.DIRECTIONALITY_EUROPEAN_NUMBER . byte DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR Equivalent to Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR . byte DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR Equivalent to Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR . byte DIRECTIONALITY_LEFT_TO_RIGHT Equivalent to Character.DIRECTIONALITY_LEFT_TO_RIGHT . byte DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING Equivalent to Character.DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING . byte DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE Equivalent to Character.DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE . byte DIRECTIONALITY_NONSPACING_MARK Equivalent to Character.DIRECTIONALITY_NONSPACING_MARK . byte DIRECTIONALITY_OTHER_NEUTRALS Equivalent to Character.DIRECTIONALITY_OTHER_NEUTRALS . byte DIRECTIONALITY_PARAGRAPH_SEPARATOR Equivalent to Character.DIRECTIONALITY_PARAGRAPH_SEPARATOR . byte DIRECTIONALITY_POP_DIRECTIONAL_FORMAT Equivalent to Character.DIRECTIONALITY_POP_DIRECTIONAL_FORMAT . byte DIRECTIONALITY_RIGHT_TO_LEFT Equivalent to Character.DIRECTIONALITY_RIGHT_TO_LEFT . byte DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC Equivalent to Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC . byte DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING Equivalent to Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING . byte DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE Equivalent to Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE . byte DIRECTIONALITY_SEGMENT_SEPARATOR Equivalent to Character.DIRECTIONALITY_SEGMENT_SEPARATOR . byte DIRECTIONALITY_UNDEFINED Undefined bidirectional character type. byte DIRECTIONALITY_WHITESPACE Equivalent to Character.DIRECTIONALITY_WHITESPACE . int DIR_NON_SPACING_MARK Directional type NSM int EUROPEAN_NUMBER Directional type EN int EUROPEAN_NUMBER_SEPARATOR Directional type ES int EUROPEAN_NUMBER_TERMINATOR Directional type ET byte FIRST_STRONG_ISOLATE Directional type FSI int LEFT_TO_RIGHT Directional type L int LEFT_TO_RIGHT_EMBEDDING Directional type LRE byte LEFT_TO_RIGHT_ISOLATE Directional type LRI int LEFT_TO_RIGHT_OVERRIDE Directional type LRO int OTHER_NEUTRAL Directional type ON int POP_DIRECTIONAL_FORMAT Directional type PDF byte POP_DIRECTIONAL_ISOLATE Directional type PDI int RIGHT_TO_LEFT Directional type R int RIGHT_TO_LEFT_ARABIC Directional type AL int RIGHT_TO_LEFT_EMBEDDING Directional type RLE byte RIGHT_TO_LEFT_ISOLATE Directional type RLI int RIGHT_TO_LEFT_OVERRIDE Directional type RLO int SEGMENT_SEPARATOR Directional type S int WHITE_SPACE_NEUTRAL Directional type WS Public methods static
+        
+        
+        int charCount (int cp) Same as Character.charCount . static
+        
+        
+        int codePointAt (char[] text, int index, int limit) Same as Character.codePointAt(char[], int, int) . static
+        
+        
+        int codePointAt (char[] text, int index) Same as Character.codePointAt(char[], int) . static
+        
+        
+        int codePointAt ( CharSequence seq, int index) Same as Character.codePointAt(CharSequence, int) . static
+        
+        
+        int codePointBefore (char[] text, int index) Same as Character.codePointBefore(char[], int) . static
+        
+        
+        int codePointBefore ( CharSequence seq, int index) Same as Character.codePointBefore(CharSequence, int) . static
+        
+        
+        int codePointBefore (char[] text, int index, int limit) Same as Character.codePointBefore(char[], int, int) . static
+        
+        
+        int codePointCount ( CharSequence text, int start, int limit) Equivalent to the Character.codePointCount(CharSequence, int, int) method, for convenience. static
+        
+        
+        int codePointCount (char[] text, int start, int limit) Equivalent to the Character.codePointCount(char[], int, int) method, for
+ convenience. static
+        
+        
+        int digit (int ch) Returnss the numeric value of a decimal digit code point. static
+        
+        
+        int digit (int ch, int radix) Returnss the numeric value of a decimal digit code point. static String foldCase ( String str, boolean defaultmapping) [icu] The given string is mapped to its case folding equivalent according to
+ UnicodeData.txt and CaseFolding.txt; if any character has no case
+ folding equivalent, the character itself is returned. static
+        
+        
+        int foldCase (int ch, boolean defaultmapping) [icu] The given character is mapped to its case folding equivalent according
+ to UnicodeData.txt and CaseFolding.txt; if the character has no case
+ folding equivalent, the character itself is returned. static
+        
+        
+        int foldCase (int ch, int options) [icu] The given character is mapped to its case folding equivalent according
+ to UnicodeData.txt and CaseFolding.txt; if the character has no case
+ folding equivalent, the character itself is returned. static String foldCase ( String str, int options) [icu] The given string is mapped to its case folding equivalent according to
+ UnicodeData.txt and CaseFolding.txt; if any character has no case
+ folding equivalent, the character itself is returned. static
+        
+        
+        char forDigit (int digit, int radix) Provide the java.lang.Character forDigit API, for convenience. static VersionInfo getAge (int ch) [icu] Returns the "age" of the code point. static
+        
+        
+        int getBidiPairedBracket (int c) [icu] Maps the specified character to its paired bracket character. static
+        
+        
+        int getCharFromExtendedName ( String name) [icu] Find a Unicode character by either its name and return its code
+ point value. static
+        
+        
+        int getCharFromName ( String name) [icu] Finds a Unicode code point by its most current Unicode name and
+ return its code point value. static
+        
+        
+        int getCharFromNameAlias ( String name) [icu] Find a Unicode character by its corrected name alias and return
+ its code point value. static
+        
+        
+        int getCodePoint (int lead, int trail) [icu] Returns a code point corresponding to the two surrogate code units. static
+        
+        
+        int getCodePoint (char char16) [icu] Returns the code point corresponding to the BMP code point. static
+        
+        
+        int getCodePoint (char lead, char trail) [icu] Returns a code point corresponding to the two surrogate code units. static
+        
+        
+        int getCombiningClass (int ch) [icu] Returns the combining class of the argument codepoint static
+        
+        
+        int getDirection (int ch) [icu] Returns the Bidirection property of a code point. static
+        
+        
+        byte getDirectionality (int cp) Equivalent to the Character.getDirectionality(char) method, for
+ convenience. static String getExtendedName (int ch) [icu] Returns a name for a valid codepoint. static ValueIterator getExtendedNameIterator () [icu] Returns an iterator for character names, iterating over codepoints. static
+        
+        
+        int getHanNumericValue (int ch) [icu] Returns the numeric value of a Han character. static
+        
+        
+        int getIntPropertyMaxValue (int type) [icu] Returns the maximum value for an integer/binary Unicode property. static
+        
+        
+        int getIntPropertyMinValue (int type) [icu] Returns the minimum value for an integer/binary Unicode property type. static
+        
+        
+        int getIntPropertyValue (int ch, int type) [icu] Returns the property value for a Unicode property type of a code point. static
+        
+        
+        int getMirror (int ch) [icu] Maps the specified code point to a "mirror-image" code point. static String getName (int ch) [icu] Returns the most current Unicode name of the argument code point, or
+ null if the character is unassigned or outside the range UCharacter.MIN_VALUE and UCharacter.MAX_VALUE or does not
+ have a name. static String getName ( String s, String separator) [icu] Returns the names for each of the characters in a string static String getNameAlias (int ch) [icu] Returns the corrected name from NameAliases.txt if there is one. static ValueIterator getNameIterator () [icu] Returns an iterator for character names, iterating over codepoints. static
+        
+        
+        int getNumericValue (int ch) Returns the numeric value of the code point as a nonnegative
+ integer. static
+        
+        
+        int getPropertyEnum ( CharSequence propertyAlias) [icu] Return the UProperty selector for a given property name, as
+ specified in the Unicode database file PropertyAliases.txt. static String getPropertyName (int property, int nameChoice) [icu] Return the Unicode name for a given property, as given in the
+ Unicode database file PropertyAliases.txt. static
+        
+        
+        int getPropertyValueEnum (int property, CharSequence valueAlias) [icu] Return the property value integer for a given value name, as
+ specified in the Unicode database file PropertyValueAliases.txt. static String getPropertyValueName (int property, int value, int nameChoice) [icu] Return the Unicode name for a given property value, as given in
+ the Unicode database file PropertyValueAliases.txt. static
+        
+        
+        int getType (int ch) Returns a value indicating a code point's Unicode category. static RangeValueIterator getTypeIterator () [icu] Returns an iterator for character types, iterating over codepoints. static
+        
+        
+        double getUnicodeNumericValue (int ch) [icu] Returns the numeric value for a Unicode code point as defined in the
+ Unicode Character Database. static VersionInfo getUnicodeVersion () [icu] Returns the version of Unicode data used. static
+        
+        
+        boolean hasBinaryProperty (int ch, int property) [icu] Check a binary Unicode property for a code point. static
+        
+        
+        boolean hasBinaryProperty ( CharSequence s, int property) [icu] Returns true if the property is true for the string. static
+        
+        
+        boolean isBMP (int ch) [icu] Determines if the code point is in the BMP plane. static
+        
+        
+        boolean isBaseForm (int ch) [icu] Determines whether the specified code point is of base form. static
+        
+        
+        boolean isDefined (int ch) Determines if a code point has a defined meaning in the up-to-date
+ Unicode standard. static
+        
+        
+        boolean isDigit (int ch) Determines if a code point is a Java digit. static
+        
+        
+        boolean isHighSurrogate (int codePoint) Same as Character.isHighSurrogate ,
+ except that the ICU version accepts int for code points. static
+        
+        
+        boolean isHighSurrogate (char ch) Same as Character.isHighSurrogate , static
+        
+        
+        boolean isISOControl (int ch) Determines if the specified code point is an ISO control character. static
+        
+        
+        boolean isIdentifierIgnorable (int ch) Determines if the specified code point should be regarded as an
+ ignorable character in a Java identifier. static
+        
+        
+        boolean isJavaIdentifierPart (int cp) Compatibility override of Java method, delegates to
+ java.lang.Character.isJavaIdentifierPart. static
+        
+        
+        boolean isJavaIdentifierStart (int cp) Compatibility override of Java method, delegates to
+ java.lang.Character.isJavaIdentifierStart. static
+        
+        
+        boolean isLegal (int ch) [icu] A code point is illegal if and only if Out of bounds, less than 0 or greater than UCharacter.MAX_VALUE A surrogate value, 0xD800 to 0xDFFF Not-a-character, having the form 0x xxFFFF or 0x xxFFFE Note: legal does not mean that it is assigned in this version of Unicode. static
+        
+        
+        boolean isLegal ( String str) [icu] A string is legal iff all its code points are legal. static
+        
+        
+        boolean isLetter (int ch) Determines if the specified code point is a letter. static
+        
+        
+        boolean isLetterOrDigit (int ch) Determines if the specified code point is a letter or digit. static
+        
+        
+        boolean isLowSurrogate (char ch) Same as Character.isLowSurrogate , static
+        
+        
+        boolean isLowSurrogate (int codePoint) Same as Character.isLowSurrogate ,
+ except that the ICU version accepts int for code points. static
+        
+        
+        boolean isLowerCase (int ch) Determines if the specified code point is a lowercase character. static
+        
+        
+        boolean isMirrored (int ch) Determines whether the code point has the "mirrored" property. static
+        
+        
+        boolean isPrintable (int ch) [icu] Determines whether the specified code point is a printable character
+ according to the Unicode standard. static
+        
+        
+        boolean isSpaceChar (int ch) Determines if the specified code point is a Unicode specified space
+ character, i.e. static
+        
+        
+        boolean isSupplementary (int ch) [icu] Determines if the code point is a supplementary character. static
+        
+        
+        boolean isSupplementaryCodePoint (int cp) Same as Character.isSupplementaryCodePoint . static
+        
+        
+        boolean isSurrogatePair (int high, int low) Same as Character.isSurrogatePair ,
+ except that the ICU version accepts int for code points. static
+        
+        
+        boolean isSurrogatePair (char high, char low) Same as Character.isSurrogatePair . static
+        
+        
+        boolean isTitleCase (int ch) Determines if the specified code point is a titlecase character. static
+        
+        
+        boolean isUAlphabetic (int ch) [icu] Check if a code point has the Alphabetic Unicode property. static
+        
+        
+        boolean isULowercase (int ch) [icu] Check if a code point has the Lowercase Unicode property. static
+        
+        
+        boolean isUUppercase (int ch) [icu] Check if a code point has the Uppercase Unicode property. static
+        
+        
+        boolean isUWhiteSpace (int ch) [icu] Check if a code point has the White_Space Unicode property. static
+        
+        
+        boolean isUnicodeIdentifierPart (int ch) Determines if the specified character is permissible as a
+ non-initial character of an identifier
+ according to UAX #31 Unicode Identifier and Pattern Syntax. static
+        
+        
+        boolean isUnicodeIdentifierStart (int ch) Determines if the specified character is permissible as the first character in an identifier
+ according to UAX #31 Unicode Identifier and Pattern Syntax. static
+        
+        
+        boolean isUpperCase (int ch) Determines if the specified code point is an uppercase character. static
+        
+        
+        boolean isValidCodePoint (int cp) Equivalent to Character.isValidCodePoint . static
+        
+        
+        boolean isWhitespace (int ch) Determines if the specified code point is a white space character. static
+        
+        
+        int offsetByCodePoints ( CharSequence text, int index, int codePointOffset) Equivalent to the Character.offsetByCodePoints(CharSequence, int, int) method, for convenience. static
+        
+        
+        int offsetByCodePoints (char[] text, int start, int count, int index, int codePointOffset) Equivalent to the Character.offsetByCodePoints(char[], int, int, int, int) method, for convenience. static
+        
+        
+        int toChars (int cp, char[] dst, int dstIndex) Same as Character.toChars(int, char[], int) . static
+        
+        
+        char[] toChars (int cp) Same as Character.toChars(int) . static
+        
+        
+        int toCodePoint (char high, char low) Same as Character.toCodePoint . static
+        
+        
+        int toCodePoint (int high, int low) Same as Character.toCodePoint ,
+ except that the ICU version accepts int for code points. static String toLowerCase ( String str) Returns the lowercase version of the argument string. static
+        
+        
+        int toLowerCase (int ch) The given code point is mapped to its lowercase equivalent; if the code
+ point has no lowercase equivalent, the code point itself is returned. static String toLowerCase ( ULocale locale, String str) Returns the lowercase version of the argument string. static String toLowerCase ( Locale locale, String str) Returns the lowercase version of the argument string. static String toString (int ch) Converts argument code point and returns a String object representing
+ the code point's value in UTF-16 format. static String toTitleCase ( Locale locale, String str, BreakIterator titleIter, int options) [icu] Returns the titlecase version of the argument string. static String toTitleCase ( ULocale locale, String str, BreakIterator titleIter) Returns the titlecase version of the argument string. static String toTitleCase ( String str, BreakIterator breakiter) Returns the titlecase version of the argument string. static String toTitleCase ( ULocale locale, String str, BreakIterator titleIter, int options) Returns the titlecase version of the argument string. static String toTitleCase ( Locale locale, String str, BreakIterator breakiter) Returns the titlecase version of the argument string. static
+        
+        
+        int toTitleCase (int ch) Converts the code point argument to titlecase. static String toUpperCase ( Locale locale, String str) Returns the uppercase version of the argument string. static String toUpperCase ( ULocale locale, String str) Returns the uppercase version of the argument string. static
+        
+        
+        int toUpperCase (int ch) Converts the character argument to uppercase. static String toUpperCase ( String str) Returns the uppercase version of the argument string. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants FOLD_CASE_DEFAULT Added in API level 24 public static final int FOLD_CASE_DEFAULT [icu] Option value for case folding: use default mappings defined in
+ CaseFolding.txt. Constant Value:
+      
+          0
+          (0x00000000) FOLD_CASE_EXCLUDE_SPECIAL_I Added in API level 24 public static final int FOLD_CASE_EXCLUDE_SPECIAL_I [icu] Option value for case folding:
+ Use the modified set of mappings provided in CaseFolding.txt to handle dotted I
+ and dotless i appropriately for Turkic languages (tr, az). Before Unicode 3.2, CaseFolding.txt contains mappings marked with 'I' that
+ are to be included for default mappings and
+ excluded for the Turkic-specific mappings. Unicode 3.2 CaseFolding.txt instead contains mappings marked with 'T' that
+ are to be excluded for default mappings and
+ included for the Turkic-specific mappings. Constant Value:
+      
+          1
+          (0x00000001) MAX_CODE_POINT Added in API level 24 public static final int MAX_CODE_POINT Constant U+10FFFF, same as Character.MAX_CODE_POINT . Constant Value:
+      
+          1114111
+          (0x0010ffff) MAX_HIGH_SURROGATE Added in API level 24 public static final char MAX_HIGH_SURROGATE Constant U+DBFF, same as Character.MAX_HIGH_SURROGATE . Constant Value:
+      
+          56319
+          (0x0000dbff) MAX_LOW_SURROGATE Added in API level 24 public static final char MAX_LOW_SURROGATE Constant U+DFFF, same as Character.MAX_LOW_SURROGATE . Constant Value:
+      
+          57343
+          (0x0000dfff) MAX_RADIX Added in API level 24 public static final int MAX_RADIX Compatibility constant for Java Character's MAX_RADIX. Constant Value:
+      
+          36
+          (0x00000024) MAX_SURROGATE Added in API level 24 public static final char MAX_SURROGATE Constant U+DFFF, same as Character.MAX_SURROGATE . Constant Value:
+      
+          57343
+          (0x0000dfff) MAX_VALUE Added in API level 24 public static final int MAX_VALUE The highest Unicode code point value (scalar value), constant U+10FFFF (uses 21 bits).
+ Same as Character.MAX_CODE_POINT . Up-to-date Unicode implementation of Character.MAX_VALUE which is still a char with the value U+FFFF. Constant Value:
+      
+          1114111
+          (0x0010ffff) MIN_CODE_POINT Added in API level 24 public static final int MIN_CODE_POINT Constant U+0000, same as Character.MIN_CODE_POINT . Constant Value:
+      
+          0
+          (0x00000000) MIN_HIGH_SURROGATE Added in API level 24 public static final char MIN_HIGH_SURROGATE Constant U+D800, same as Character.MIN_HIGH_SURROGATE . Constant Value:
+      
+          55296
+          (0x0000d800) MIN_LOW_SURROGATE Added in API level 24 public static final char MIN_LOW_SURROGATE Constant U+DC00, same as Character.MIN_LOW_SURROGATE . Constant Value:
+      
+          56320
+          (0x0000dc00) MIN_RADIX Added in API level 24 public static final int MIN_RADIX Compatibility constant for Java Character's MIN_RADIX. Constant Value:
+      
+          2
+          (0x00000002) MIN_SUPPLEMENTARY_CODE_POINT Added in API level 24 public static final int MIN_SUPPLEMENTARY_CODE_POINT Constant U+10000, same as Character.MIN_SUPPLEMENTARY_CODE_POINT . Constant Value:
+      
+          65536
+          (0x00010000) MIN_SURROGATE Added in API level 24 public static final char MIN_SURROGATE Constant U+D800, same as Character.MIN_SURROGATE . Constant Value:
+      
+          55296
+          (0x0000d800) MIN_VALUE Added in API level 24 public static final int MIN_VALUE The lowest Unicode code point value, constant 0.
+ Same as Character.MIN_CODE_POINT , same integer value as Character.MIN_VALUE . Constant Value:
+      
+          0
+          (0x00000000) NO_NUMERIC_VALUE Added in API level 24 public static final double NO_NUMERIC_VALUE Special value that is returned by getUnicodeNumericValue(int) when no
+ numeric value is defined for a code point. See also: getUnicodeNumericValue(int) Constant Value:
+      
+          -1.23456789E8 REPLACEMENT_CHAR Added in API level 24 public static final int REPLACEMENT_CHAR Unicode value used when translating into Unicode encoding form and there
+ is no existing character. Constant Value:
+      
+          65533
+          (0x0000fffd) SUPPLEMENTARY_MIN_VALUE Added in API level 24 public static final int SUPPLEMENTARY_MIN_VALUE The minimum value for Supplementary code points, constant U+10000.
+ Same as Character.MIN_SUPPLEMENTARY_CODE_POINT . Constant Value:
+      
+          65536
+          (0x00010000) TITLECASE_NO_BREAK_ADJUSTMENT Added in API level 24 public static final int TITLECASE_NO_BREAK_ADJUSTMENT Do not adjust the titlecasing indexes from BreakIterator::next() indexes;
+ titlecase exactly the characters at breaks from the iterator.
+ Option bit for titlecasing APIs that take an options bit set.
+
+ By default, titlecasing will take each break iterator index,
+ adjust it by looking for the next cased character, and titlecase that one.
+ Other characters are lowercased.
+
+ This follows Unicode 4 & 5 section 3.13 Default Case Operations:
+
+ R3  toTitlecase(X): Find the word boundaries based on Unicode Standard Annex
+ #29, "Text Boundaries." Between each pair of word boundaries, find the first
+ cased character F. If F exists, map F to default_title(F); then map each
+ subsequent character C to default_lower(C). See also: toTitleCase(ULocale, String, BreakIterator) TITLECASE_NO_LOWERCASE Constant Value:
+      
+          512
+          (0x00000200) TITLECASE_NO_LOWERCASE Added in API level 24 public static final int TITLECASE_NO_LOWERCASE Do not lowercase non-initial parts of words when titlecasing.
+ Option bit for titlecasing APIs that take an options bit set.
+
+ By default, titlecasing will titlecase the first cased character
+ of a word and lowercase all other characters.
+ With this option, the other characters will not be modified. See also: toTitleCase(ULocale, String, BreakIterator) Constant Value:
+      
+          256
+          (0x00000100) Public methods charCount Added in API level 24 public static int charCount (int cp) Same as Character.charCount .
+ Returns the number of chars needed to represent the code point (1 or 2).
+ This does not check the code point for validity. Parameters cp int : the code point to check Returns int the number of chars needed to represent the code point codePointAt Added in API level 24 public static int codePointAt (char[] text, 
+                int index, 
+                int limit) Same as Character.codePointAt(char[], int, int) .
+ Returns the code point at index.
+ This examines only the characters at index and index+1. Parameters text char : the characters to check index int : the index of the first or only char forming the code point limit int : the limit of the valid text Returns int the code point at the index codePointAt Added in API level 24 public static int codePointAt (char[] text, 
+                int index) Same as Character.codePointAt(char[], int) .
+ Returns the code point at index.
+ This examines only the characters at index and index+1. Parameters text char : the characters to check index int : the index of the first or only char forming the code point Returns int the code point at the index codePointAt Added in API level 24 public static int codePointAt ( CharSequence seq, 
+                int index) Same as Character.codePointAt(CharSequence, int) .
+ Returns the code point at index.
+ This examines only the characters at index and index+1. Parameters seq CharSequence : the characters to check index int : the index of the first or only char forming the code point Returns int the code point at the index codePointBefore Added in API level 24 public static int codePointBefore (char[] text, 
+                int index) Same as Character.codePointBefore(char[], int) .
+ Returns the code point before index.
+ This examines only the characters at index-1 and index-2. Parameters text char : the characters to check index int : the index after the last or only char forming the code point Returns int the code point before the index codePointBefore Added in API level 24 public static int codePointBefore ( CharSequence seq, 
+                int index) Same as Character.codePointBefore(CharSequence, int) .
+ Return the code point before index.
+ This examines only the characters at index-1 and index-2. Parameters seq CharSequence : the characters to check index int : the index after the last or only char forming the code point Returns int the code point before the index codePointBefore Added in API level 24 public static int codePointBefore (char[] text, 
+                int index, 
+                int limit) Same as Character.codePointBefore(char[], int, int) .
+ Return the code point before index.
+ This examines only the characters at index-1 and index-2. Parameters text char : the characters to check index int : the index after the last or only char forming the code point limit int : the start of the valid text Returns int the code point before the index codePointCount Added in API level 24 public static int codePointCount ( CharSequence text, 
+                int start, 
+                int limit) Equivalent to the Character.codePointCount(CharSequence, int, int) method, for convenience.  Counts the number of code points in the range
+ of text. Parameters text CharSequence : the characters to check start int : the start of the range limit int : the limit of the range Returns int the number of code points in the range codePointCount Added in API level 24 public static int codePointCount (char[] text, 
+                int start, 
+                int limit) Equivalent to the Character.codePointCount(char[], int, int) method, for
+ convenience. Counts the number of code points in the range of text. Parameters text char : the characters to check start int : the start of the range limit int : the limit of the range Returns int the number of code points in the range digit Added in API level 24 public static int digit (int ch) Returnss the numeric value of a decimal digit code point. This is a convenience overload of digit(int, int) that provides a decimal radix. Semantic Change: In release 1.3.1 and prior, this
+ treated numeric letters and other numbers as digits.  This has
+ been changed to conform to the java semantics. Parameters ch int : the code point to query Returns int the numeric value represented by the code point,
+ or -1 if the code point is not a decimal digit or if its
+ value is too large for a decimal radix digit Added in API level 24 public static int digit (int ch, 
+                int radix) Returnss the numeric value of a decimal digit code point. This method observes the semantics of java.lang.Character.digit() .  Note that this
+ will return positive values for code points for which isDigit
+ returns false, just like java.lang.Character. Semantic Change: In release 1.3.1 and
+ prior, this did not treat the European letters as having a
+ digit value, and also treated numeric letters and other numbers as
+ digits.
+ This has been changed to conform to the java semantics. A code point is a valid digit if and only if: ch is a decimal digit or one of the european letters, and the value of ch is less than the specified radix. Parameters ch int : the code point to query radix int : the radix Returns int the numeric value represented by the code point in the
+ specified radix, or -1 if the code point is not a decimal digit
+ or if its value is too large for the radix foldCase Added in API level 24 public static String foldCase ( String str, 
+                boolean defaultmapping) [icu] The given string is mapped to its case folding equivalent according to
+ UnicodeData.txt and CaseFolding.txt; if any character has no case
+ folding equivalent, the character itself is returned.
+ "Full", multiple-code point case folding mappings are returned here.
+ For "simple" single-code point mappings use the API
+ foldCase(int ch, boolean defaultmapping). Parameters str String : the String to be converted defaultmapping boolean : Indicates whether the default mappings defined in
+                       CaseFolding.txt are to be used, otherwise the
+                       mappings for dotted I and dotless i marked with
+                       'T' in CaseFolding.txt are included. Returns String the case folding equivalent of the character, if
+                       any; otherwise the character itself. See also: foldCase(int, boolean) foldCase Added in API level 24 public static int foldCase (int ch, 
+                boolean defaultmapping) [icu] The given character is mapped to its case folding equivalent according
+ to UnicodeData.txt and CaseFolding.txt; if the character has no case
+ folding equivalent, the character itself is returned. This function only returns the simple, single-code point case mapping.
+ Full case mappings should be used whenever possible because they produce
+ better results by working on whole strings.
+ They can map to a result string with a different length as appropriate.
+ Full case mappings are applied by the case mapping functions
+ that take String parameters rather than code points (int).
+ See also the User Guide chapter on C/POSIX migration:
+ https://unicode-org.github.io/icu/userguide/icu/posix#case-mappings Parameters ch int : the character to be converted defaultmapping boolean : Indicates whether the default mappings defined in
+                       CaseFolding.txt are to be used, otherwise the
+                       mappings for dotted I and dotless i marked with
+                       'T' in CaseFolding.txt are included. Returns int the case folding equivalent of the character, if
+                       any; otherwise the character itself. See also: foldCase(String, boolean) foldCase Added in API level 24 public static int foldCase (int ch, 
+                int options) [icu] The given character is mapped to its case folding equivalent according
+ to UnicodeData.txt and CaseFolding.txt; if the character has no case
+ folding equivalent, the character itself is returned. This function only returns the simple, single-code point case mapping.
+ Full case mappings should be used whenever possible because they produce
+ better results by working on whole strings.
+ They can map to a result string with a different length as appropriate.
+ Full case mappings are applied by the case mapping functions
+ that take String parameters rather than code points (int).
+ See also the User Guide chapter on C/POSIX migration:
+ https://unicode-org.github.io/icu/userguide/icu/posix#case-mappings Parameters ch int : the character to be converted options int : A bit set for special processing. Currently the recognised options
+ are FOLD_CASE_EXCLUDE_SPECIAL_I and FOLD_CASE_DEFAULT Returns int the case folding equivalent of the character, if any; otherwise the
+ character itself. See also: foldCase(String, boolean) foldCase Added in API level 24 public static String foldCase ( String str, 
+                int options) [icu] The given string is mapped to its case folding equivalent according to
+ UnicodeData.txt and CaseFolding.txt; if any character has no case
+ folding equivalent, the character itself is returned.
+ "Full", multiple-code point case folding mappings are returned here.
+ For "simple" single-code point mappings use the API
+ foldCase(int ch, boolean defaultmapping). Parameters str String : the String to be converted options int : A bit set for special processing. Currently the recognised options
+                are FOLD_CASE_EXCLUDE_SPECIAL_I and FOLD_CASE_DEFAULT Returns String the case folding equivalent of the character, if any; otherwise the
+         character itself. See also: foldCase(int, boolean) forDigit Added in API level 24 public static char forDigit (int digit, 
+                int radix) Provide the java.lang.Character forDigit API, for convenience. Parameters digit int radix int Returns char getAge Added in API level 24 public static VersionInfo getAge (int ch) [icu] Returns the "age" of the code point. The "age" is the Unicode version when the code point was first
+ designated (as a non-character or for Private Use) or assigned a
+ character. This can be useful to avoid emitting code points to receiving
+ processes that do not accept newer characters. The data is from the UCD file DerivedAge.txt. Parameters ch int : The code point. Returns VersionInfo the Unicode version number getBidiPairedBracket Added in API level 24 public static int getBidiPairedBracket (int c) [icu] Maps the specified character to its paired bracket character.
+ For Bidi_Paired_Bracket_Type!=None, this is the same as getMirror(int).
+ Otherwise c itself is returned.
+ See http://www.unicode.org/reports/tr9/ Parameters c int : the code point to be mapped Returns int the paired bracket code point,
+         or c itself if there is no such mapping
+         (Bidi_Paired_Bracket_Type=None) See also: UProperty.BIDI_PAIRED_BRACKET UProperty.BIDI_PAIRED_BRACKET_TYPE getMirror(int) getCharFromExtendedName Added in API level 24 public static int getCharFromExtendedName ( String name) [icu] Find a Unicode character by either its name and return its code
+ point value. All Unicode names are in uppercase.
+ Extended names are all lowercase except for numbers and are contained
+ within angle brackets.
+ The names are searched in the following order Most current Unicode name if there is any Unicode 1.0 name if there is any Extended name in the form of
+      "<codepoint_type-codepoint_hex_digits>". E.g. <noncharacter-FFFE> Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters name String : codepoint name Returns int code point associated with the name or -1 if the name is not
+         found. getCharFromName Added in API level 24 public static int getCharFromName ( String name) [icu] Finds a Unicode code point by its most current Unicode name and
+ return its code point value. All Unicode names are in uppercase.
+ Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters name String : most current Unicode character name whose code point is to
+        be returned Returns int code point or -1 if name is not found getCharFromNameAlias Added in API level 24 public static int getCharFromNameAlias ( String name) [icu] Find a Unicode character by its corrected name alias and return
+ its code point value. All Unicode names are in uppercase.
+ Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters name String : Unicode name alias whose code point is to be returned Returns int code point or -1 if name is not found getCodePoint Added in API level 33 public static int getCodePoint (int lead, 
+                int trail) [icu] Returns a code point corresponding to the two surrogate code units. Parameters lead int : the lead unit
+        (In ICU 2.1-69 the type of both parameters was char .) trail int : the trail unit Returns int code point if lead and trail form a valid surrogate pair. Throws IllegalArgumentException thrown when the code units do
+            not form a valid surrogate pair See also: toCodePoint(int, int) getCodePoint Added in API level 24 public static int getCodePoint (char char16) [icu] Returns the code point corresponding to the BMP code point. Parameters char16 char : the BMP code point Returns int code point if argument is a valid character. Throws IllegalArgumentException thrown when char16 is not a valid
+            code point getCodePoint Added in API level 24 public static int getCodePoint (char lead, 
+                char trail) [icu] Returns a code point corresponding to the two surrogate code units. Parameters lead char : the lead char trail char : the trail char Returns int code point if surrogate characters are valid. Throws IllegalArgumentException thrown when the code units do
+            not form a valid code point getCombiningClass Added in API level 24 public static int getCombiningClass (int ch) [icu] Returns the combining class of the argument codepoint Parameters ch int : code point whose combining is to be retrieved Returns int the combining class of the codepoint getDirection Added in API level 24 public static int getDirection (int ch) [icu] Returns the Bidirection property of a code point.
+ For example, 0x0041 (letter A) has the LEFT_TO_RIGHT directional
+ property. Result returned belongs to the interface UCharacterDirection Parameters ch int : the code point to be determined its direction Returns int direction constant from UCharacterDirection. getDirectionality Added in API level 24 public static byte getDirectionality (int cp) Equivalent to the Character.getDirectionality(char) method, for
+ convenience. Returns a byte representing the directionality of the
+ character. [icu] Note: Unlike Character.getDirectionality(char) , this returns
+ DIRECTIONALITY_LEFT_TO_RIGHT for undefined or out-of-bounds characters. [icu] Note: The return value must be tested using the constants defined in UCharacterDirection and its interface UCharacterEnums.ECharacterDirection since the values are different from the ones
+ defined by java.lang.Character . Parameters cp int : the code point to check Returns byte the directionality of the code point See also: getDirection(int) getExtendedName Added in API level 24 public static String getExtendedName (int ch) [icu] Returns a name for a valid codepoint. Unlike, getName(int) and
+ getName1_0(int), this method will return a name even for codepoints that
+ are not assigned a name in UnicodeData.txt. The names are returned in the following order. Most current Unicode name if there is any Unicode 1.0 name if there is any Extended name in the form of
+      "<codepoint_type-codepoint_hex_digits>". E.g., <noncharacter-fffe> Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters ch int : the code point for which to get the name Returns String a name for the argument codepoint getExtendedNameIterator Added in API level 24 public static ValueIterator getExtendedNameIterator () [icu] Returns an iterator for character names, iterating over codepoints. This API only gets the iterator for the extended names.
+ For modern, most up-to-date Unicode names use getNameIterator() or
+ for older 1.0 Unicode names use get1_0NameIterator(). Example of use: ValueIterator iterator = UCharacter.getExtendedNameIterator();
+ ValueIterator.Element element = new ValueIterator.Element();
+ while (iterator.next(element)) {
+     System.out.println("Codepoint \\u" +
+                        Integer.toHexString(element.codepoint) +
+                        " has the name " + (String)element.value);
+ } The maximal range which the name iterator iterates is from Returns ValueIterator an iterator getHanNumericValue Added in API level 24 public static int getHanNumericValue (int ch) [icu] Returns the numeric value of a Han character. This returns the value of Han 'numeric' code points,
+ including those for zero, ten, hundred, thousand, ten thousand,
+ and hundred million.
+ This includes both the standard and 'checkwriting'
+ characters, the 'big circle' zero character, and the standard
+ zero character. Note: The Unicode Standard has numeric values for more
+ Han characters recognized by this method
+ (see getNumericValue(int) and the UCD file DerivedNumericValues.txt),
+ and a NumberFormat can be used with
+ a Chinese NumberingSystem . Parameters ch int : code point to query Returns int value if it is a Han 'numeric character,' otherwise return -1. getIntPropertyMaxValue Added in API level 24 public static int getIntPropertyMaxValue (int type) [icu] Returns the maximum value for an integer/binary Unicode property.
+ Can be used together with UCharacter.getIntPropertyMinValue(int)
+ to allocate arrays of android.icu.text.UnicodeSet or similar.
+ Examples for min/max values (for Unicode 3.2): UProperty.BIDI_CLASS:    0/18
+ (UCharacterDirection.LEFT_TO_RIGHT/UCharacterDirection.BOUNDARY_NEUTRAL) UProperty.SCRIPT:        0/45 (UScript.COMMON/UScript.TAGBANWA) UProperty.IDEOGRAPHIC:   0/1  (false/true) For undefined UProperty constant values, min/max values will be 0/-1. Parameters type int : UProperty selector constant, identifies which binary
+        property to check. Must be
+        UProperty.BINARY_START <= type < UProperty.BINARY_LIMIT or
+        UProperty.INT_START <= type < UProperty.INT_LIMIT. Returns int Maximum value returned by u_getIntPropertyValue for a Unicode
+         property. <= 0 if the property selector 'type' is out of range. See also: UProperty hasBinaryProperty(int, int) getUnicodeVersion() getIntPropertyMaxValue(int) getIntPropertyValue(int, int) getIntPropertyMinValue Added in API level 24 public static int getIntPropertyMinValue (int type) [icu] Returns the minimum value for an integer/binary Unicode property type.
+ Can be used together with UCharacter.getIntPropertyMaxValue(int)
+ to allocate arrays of android.icu.text.UnicodeSet or similar. Parameters type int : UProperty selector constant, identifies which binary
+        property to check. Must be
+        UProperty.BINARY_START <= type < UProperty.BINARY_LIMIT or
+        UProperty.INT_START <= type < UProperty.INT_LIMIT. Returns int Minimum value returned by UCharacter.getIntPropertyValue(int)
+         for a Unicode property. 0 if the property
+         selector 'type' is out of range. See also: UProperty hasBinaryProperty(int, int) getUnicodeVersion() getIntPropertyMaxValue(int) getIntPropertyValue(int, int) getIntPropertyValue Added in API level 24 public static int getIntPropertyValue (int ch, 
+                int type) [icu] Returns the property value for a Unicode property type of a code point.
+ Also returns binary and mask property values. Unicode, especially in version 3.2, defines many more properties than
+ the original set in UnicodeData.txt. The properties APIs are intended to reflect Unicode properties as
+ defined in the Unicode Character Database (UCD) and Unicode Technical
+ Reports (UTR). For details about the properties see
+ http://www.unicode.org/. For names of Unicode properties see the UCD file PropertyAliases.txt. Sample usage:
+ int ea = UCharacter.getIntPropertyValue(c, UProperty.EAST_ASIAN_WIDTH);
+ int ideo = UCharacter.getIntPropertyValue(c, UProperty.IDEOGRAPHIC);
+ boolean b = (ideo == 1) ? true : false; Parameters ch int : code point to test. type int : UProperty selector constant, identifies which binary
+        property to check. Must be
+        UProperty.BINARY_START <= type < UProperty.BINARY_LIMIT or
+        UProperty.INT_START <= type < UProperty.INT_LIMIT or
+        UProperty.MASK_START <= type < UProperty.MASK_LIMIT. Returns int numeric value that is directly the property value or,
+         for enumerated properties, corresponds to the numeric value of
+         the enumerated constant of the respective property value type
+         ( ECharacterCategory , ECharacterDirection , DecompositionType , etc.).
+         Returns 0 or 1 (for false / true) for binary Unicode properties.
+         Returns a bit-mask for mask properties.
+         Returns 0 if 'type' is out of bounds or if the Unicode version
+         does not have data for the property at all, or not for this code
+         point. See also: UProperty hasBinaryProperty(int, int) getIntPropertyMinValue(int) getIntPropertyMaxValue(int) getUnicodeVersion() getMirror Added in API level 24 public static int getMirror (int ch) [icu] Maps the specified code point to a "mirror-image" code point.
+ For code points with the "mirrored" property, implementations sometimes
+ need a "poor man's" mapping to another code point such that the default
+ glyph may serve as the mirror-image of the default glyph of the
+ specified code point. This is useful for text conversion to and from codepages with visual
+ order, and for displays without glyph selection capabilities. Parameters ch int : code point whose mirror is to be retrieved Returns int another code point that may serve as a mirror-image substitute,
+         or ch itself if there is no such mapping or ch does not have the
+         "mirrored" property getName Added in API level 24 public static String getName (int ch) [icu] Returns the most current Unicode name of the argument code point, or
+ null if the character is unassigned or outside the range UCharacter.MIN_VALUE and UCharacter.MAX_VALUE or does not
+ have a name. Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters ch int : the code point for which to get the name Returns String most current Unicode name getName Added in API level 24 public static String getName ( String s, String separator) [icu] Returns the names for each of the characters in a string Parameters s String : string to format separator String : string to go between names Returns String string of names getNameAlias Added in API level 24 public static String getNameAlias (int ch) [icu] Returns the corrected name from NameAliases.txt if there is one.
+ Returns null if the character is unassigned or outside the range
+ UCharacter.MIN_VALUE and UCharacter.MAX_VALUE or does not have a name. Note calling any methods related to code point names, e.g. getName() incurs a one-time initialization cost to construct the name tables. Parameters ch int : the code point for which to get the name alias Returns String Unicode name alias, or null getNameIterator Added in API level 24 public static ValueIterator getNameIterator () [icu] Returns an iterator for character names, iterating over codepoints. This API only gets the iterator for the modern, most up-to-date
+ Unicode names. For older 1.0 Unicode names use get1_0NameIterator() or
+ for extended names use getExtendedNameIterator(). Example of use: ValueIterator iterator = UCharacter.getNameIterator();
+ ValueIterator.Element element = new ValueIterator.Element();
+ while (iterator.next(element)) {
+     System.out.println("Codepoint \\u" +
+                        Integer.toHexString(element.codepoint) +
+                        " has the name " + (String)element.value);
+ } The maximal range which the name iterator iterates is from
+ UCharacter.MIN_VALUE to UCharacter.MAX_VALUE. Returns ValueIterator an iterator getNumericValue Added in API level 24 public static int getNumericValue (int ch) Returns the numeric value of the code point as a nonnegative
+ integer. If the code point does not have a numeric value, then -1 is returned. If the code point has a numeric value that cannot be represented as a
+ nonnegative integer (for example, a fractional value), then -2 is
+ returned. Parameters ch int : the code point to query Returns int the numeric value of the code point, or -1 if it has no numeric
+ value, or -2 if it has a numeric value that cannot be represented as a
+ nonnegative integer getPropertyEnum Added in API level 24 public static int getPropertyEnum ( CharSequence propertyAlias) [icu] Return the UProperty selector for a given property name, as
+ specified in the Unicode database file PropertyAliases.txt.
+ Short, long, and any other variants are recognized.
+
+ In addition, this function maps the synthetic names "gcm" /
+ "General_Category_Mask" to the property
+ UProperty.GENERAL_CATEGORY_MASK.  These names are not in
+ PropertyAliases.txt. Parameters propertyAlias CharSequence : the property name to be matched.  The name
+ is compared using "loose matching" as described in
+ PropertyAliases.txt. Returns int a UProperty enum. Throws IllegalArgumentException thrown if propertyAlias
+ is not recognized. See also: UProperty getPropertyName Added in API level 24 public static String getPropertyName (int property, 
+                int nameChoice) [icu] Return the Unicode name for a given property, as given in the
+ Unicode database file PropertyAliases.txt.  Most properties
+ have more than one name.  The nameChoice determines which one
+ is returned.
+
+ In addition, this function maps the property
+ UProperty.GENERAL_CATEGORY_MASK to the synthetic names "gcm" /
+ "General_Category_Mask".  These names are not in
+ PropertyAliases.txt. Parameters property int : UProperty selector. nameChoice int : UProperty.NameChoice selector for which name
+ to get.  All properties have a long name.  Most have a short
+ name, but some do not.  Unicode allows for additional names; if
+ present these will be returned by UProperty.NameChoice.LONG + i,
+ where i=1, 2,... Returns String a name, or null if Unicode explicitly defines no name
+ ("n/a") for a given property/nameChoice.  If a given nameChoice
+ throws an exception, then all larger values of nameChoice will
+ throw an exception.  If null is returned for a given
+ nameChoice, then other nameChoice values may return non-null
+ results. Throws IllegalArgumentException thrown if property or
+ nameChoice are invalid. See also: UProperty UProperty.NameChoice getPropertyValueEnum Added in API level 24 public static int getPropertyValueEnum (int property, CharSequence valueAlias) [icu] Return the property value integer for a given value name, as
+ specified in the Unicode database file PropertyValueAliases.txt.
+ Short, long, and any other variants are recognized.
+
+ Note: Some of the names in PropertyValueAliases.txt will only be
+ recognized with UProperty.GENERAL_CATEGORY_MASK, not
+ UProperty.GENERAL_CATEGORY.  These include: "C" / "Other", "L" /
+ "Letter", "LC" / "Cased_Letter", "M" / "Mark", "N" / "Number", "P"
+ / "Punctuation", "S" / "Symbol", and "Z" / "Separator". Parameters property int : UProperty selector constant.
+ UProperty.INT_START <= property < UProperty.INT_LIMIT or
+ UProperty.BINARY_START <= property < UProperty.BINARY_LIMIT or
+ UProperty.MASK_START < = property < UProperty.MASK_LIMIT.
+ Only these properties can be enumerated. valueAlias CharSequence : the value name to be matched.  The name is
+ compared using "loose matching" as described in
+ PropertyValueAliases.txt. Returns int a value integer.  Note: UProperty.GENERAL_CATEGORY
+ values are mask values produced by left-shifting 1 by
+ UCharacter.getType().  This allows grouped categories such as
+ [:L:] to be represented. Throws IllegalArgumentException if property is not a valid UProperty
+         selector or valueAlias is not a value of this property See also: UProperty getPropertyValueName Added in API level 24 public static String getPropertyValueName (int property, 
+                int value, 
+                int nameChoice) [icu] Return the Unicode name for a given property value, as given in
+ the Unicode database file PropertyValueAliases.txt.  Most
+ values have more than one name.  The nameChoice determines
+ which one is returned.
+
+ Note: Some of the names in PropertyValueAliases.txt can only be
+ retrieved using UProperty.GENERAL_CATEGORY_MASK, not
+ UProperty.GENERAL_CATEGORY.  These include: "C" / "Other", "L" /
+ "Letter", "LC" / "Cased_Letter", "M" / "Mark", "N" / "Number", "P"
+ / "Punctuation", "S" / "Symbol", and "Z" / "Separator". Parameters property int : UProperty selector constant.
+ UProperty.INT_START <= property < UProperty.INT_LIMIT or
+ UProperty.BINARY_START <= property < UProperty.BINARY_LIMIT or
+ UProperty.MASK_START < = property < UProperty.MASK_LIMIT.
+ If out of range, null is returned. value int : selector for a value for the given property.  In
+ general, valid values range from 0 up to some maximum.  There
+ are a few exceptions: (1.) UProperty.BLOCK values begin at the
+ non-zero value BASIC_LATIN.getID().  (2.)
+ UProperty.CANONICAL_COMBINING_CLASS values are not contiguous
+ and range from 0..240.  (3.)  UProperty.GENERAL_CATEGORY_MASK values
+ are mask values produced by left-shifting 1 by
+ UCharacter.getType().  This allows grouped categories such as
+ [:L:] to be represented.  Mask values are non-contiguous. nameChoice int : UProperty.NameChoice selector for which name
+ to get.  All values have a long name.  Most have a short name,
+ but some do not.  Unicode allows for additional names; if
+ present these will be returned by UProperty.NameChoice.LONG + i,
+ where i=1, 2,... Returns String a name, or null if Unicode explicitly defines no name
+ ("n/a") for a given property/value/nameChoice.  If a given
+ nameChoice throws an exception, then all larger values of
+ nameChoice will throw an exception.  If null is returned for a
+ given nameChoice, then other nameChoice values may return
+ non-null results. Throws IllegalArgumentException thrown if property, value,
+ or nameChoice are invalid. See also: UProperty UProperty.NameChoice getType Added in API level 24 public static int getType (int ch) Returns a value indicating a code point's Unicode category.
+ Up-to-date Unicode implementation of java.lang.Character.getType()
+ except for the above mentioned code points that had their category
+ changed. Return results are constants from the interface UCharacterCategory NOTE: the UCharacterCategory values are not compatible with
+ those returned by java.lang.Character.getType.  UCharacterCategory values
+ match the ones used in ICU4C, while java.lang.Character type
+ values, though similar, skip the value 17. Parameters ch int : code point whose type is to be determined Returns int category which is a value of UCharacterCategory getTypeIterator Added in API level 24 public static RangeValueIterator getTypeIterator () [icu] Returns an iterator for character types, iterating over codepoints. Example of use: RangeValueIterator iterator = UCharacter.getTypeIterator();
+ RangeValueIterator.Element element = new RangeValueIterator.Element();
+ while (iterator.next(element)) {
+     System.out.println("Codepoint \\u" +
+                        Integer.toHexString(element.start) +
+                        " to codepoint \\u" +
+                        Integer.toHexString(element.limit - 1) +
+                        " has the character type " +
+                        element.value);
+ } Returns RangeValueIterator an iterator getUnicodeNumericValue Added in API level 24 public static double getUnicodeNumericValue (int ch) [icu] Returns the numeric value for a Unicode code point as defined in the
+ Unicode Character Database. A "double" return type is necessary because some numeric values are
+ fractions, negative, or too large for int. For characters without any numeric values in the Unicode Character
+ Database, this function will return NO_NUMERIC_VALUE.
+ Note: This is different from the Unicode Standard which specifies NaN as the default value. API Change: In release 2.2 and prior, this API has a
+ return type int and returns -1 when the argument ch does not have a
+ corresponding numeric value. This has been changed to synch with ICU4C
+
+ This corresponds to the ICU4C function u_getNumericValue. Parameters ch int : Code point to get the numeric value for. Returns double numeric value of ch, or NO_NUMERIC_VALUE if none is defined. getUnicodeVersion Added in API level 24 public static VersionInfo getUnicodeVersion () [icu] Returns the version of Unicode data used. Returns VersionInfo the unicode version number used hasBinaryProperty Added in API level 24 public static boolean hasBinaryProperty (int ch, 
+                int property) [icu] Check a binary Unicode property for a code point. Unicode, especially in version 3.2, defines many more properties
+ than the original set in UnicodeData.txt. This API is intended to reflect Unicode properties as defined in
+ the Unicode Character Database (UCD) and Unicode Technical Reports
+ (UTR). For details about the properties see http://www.unicode.org/ . For names of Unicode properties see the UCD file
+ PropertyAliases.txt. This API does not check the validity of the codepoint. Important: If ICU is built with UCD files from Unicode versions
+ below 3.2, then properties marked with "new" are not or
+ not fully available. Parameters ch int : code point to test. property int : selector constant from android.icu.lang.UProperty,
+        identifies which binary property to check. Returns boolean true or false according to the binary Unicode property value
+         for ch. Also false if property is out of bounds or if the
+         Unicode version does not have data for the property at all, or
+         not for this code point. See also: UProperty hasBinaryProperty Added in API level 34 public static boolean hasBinaryProperty ( CharSequence s, 
+                int property) [icu] Returns true if the property is true for the string.
+ Same as hasBinaryProperty(int, int) if the string contains exactly one code point. Most properties apply only to single code points. UTS #51 Unicode Emoji defines several properties of strings. Parameters s CharSequence : String to test. property int : UProperty selector constant, identifies which binary property to check.
+        Must be BINARY_START<=which<BINARY_LIMIT. Returns boolean true or false according to the binary Unicode property value for the string.
+         Also false if property is out of bounds or if the Unicode version
+         does not have data for the property at all. See also: UProperty isBMP Added in API level 24 public static boolean isBMP (int ch) [icu] Determines if the code point is in the BMP plane. Parameters ch int : code point to be determined if it is not a supplementary
+        character Returns boolean true if code point is not a supplementary character isBaseForm Added in API level 24 public static boolean isBaseForm (int ch) [icu] Determines whether the specified code point is of base form.
+ A code point of base form does not graphically combine with preceding
+ characters, and is neither a control nor a format character. Parameters ch int : code point to be determined if it is of base form Returns boolean true if the code point is of base form isDefined Added in API level 24 public static boolean isDefined (int ch) Determines if a code point has a defined meaning in the up-to-date
+ Unicode standard.
+ E.g. supplementary code points though allocated space are not defined in
+ Unicode yet. Up-to-date Unicode implementation of java.lang.Character.isDefined() Parameters ch int : code point to be determined if it is defined in the most
+        current version of Unicode Returns boolean true if this code point is defined in unicode isDigit Added in API level 24 public static boolean isDigit (int ch) Determines if a code point is a Java digit. This method observes the semantics of java.lang.Character.isDigit() . It returns true for decimal
+ digits only. Semantic Change: In release 1.3.1 and prior, this treated
+ numeric letters and other numbers as digits.
+ This has been changed to conform to the java semantics. Parameters ch int : code point to query Returns boolean true if this code point is a digit isHighSurrogate Added in API level 33 public static boolean isHighSurrogate (int codePoint) Same as Character.isHighSurrogate ,
+ except that the ICU version accepts int for code points. Parameters codePoint int : the code point to check
+        (In ICU 3.0-69 the type of this parameter was char .) Returns boolean true if codePoint is a high (lead) surrogate isHighSurrogate Added in API level 24 public static boolean isHighSurrogate (char ch) Same as Character.isHighSurrogate , Parameters ch char : the char to check Returns boolean true if ch is a high (lead) surrogate isISOControl Added in API level 24 public static boolean isISOControl (int ch) Determines if the specified code point is an ISO control character.
+ A code point is considered to be an ISO control character if it is in
+ the range \u0000 through \u001F or in the range \u007F through
+ \u009F. Up-to-date Unicode implementation of java.lang.Character.isISOControl() Parameters ch int : code point to determine if it is an ISO control character Returns boolean true if code point is a ISO control character isIdentifierIgnorable Added in API level 24 public static boolean isIdentifierIgnorable (int ch) Determines if the specified code point should be regarded as an
+ ignorable character in a Java identifier.
+ A character is Java-identifier-ignorable if it has the general category
+ Cf Formatting Control, or it is a non-Java-whitespace ISO control:
+ U+0000..U+0008, U+000E..U+001B, U+007F..U+009F. Up-to-date Unicode implementation of
+ java.lang.Character.isIdentifierIgnorable(). See UTR #8 . Note that Unicode just recommends to ignore Cf (format controls). Parameters ch int : code point to be determined if it can be ignored in a Unicode
+        identifier. Returns boolean true if the code point is ignorable isJavaIdentifierPart Added in API level 24 public static boolean isJavaIdentifierPart (int cp) Compatibility override of Java method, delegates to
+ java.lang.Character.isJavaIdentifierPart. Parameters cp int : the code point Returns boolean true if the code point can continue a java identifier. isJavaIdentifierStart Added in API level 24 public static boolean isJavaIdentifierStart (int cp) Compatibility override of Java method, delegates to
+ java.lang.Character.isJavaIdentifierStart. Parameters cp int : the code point Returns boolean true if the code point can start a java identifier. isLegal Added in API level 24 public static boolean isLegal (int ch) [icu] A code point is illegal if and only if Out of bounds, less than 0 or greater than UCharacter.MAX_VALUE A surrogate value, 0xD800 to 0xDFFF Not-a-character, having the form 0x xxFFFF or 0x xxFFFE Note: legal does not mean that it is assigned in this version of Unicode. Parameters ch int : code point to determine if it is a legal code point by itself Returns boolean true if and only if legal. isLegal Added in API level 24 public static boolean isLegal ( String str) [icu] A string is legal iff all its code points are legal.
+ A code point is illegal if and only if Out of bounds, less than 0 or greater than UCharacter.MAX_VALUE A surrogate value, 0xD800 to 0xDFFF Not-a-character, having the form 0x xxFFFF or 0x xxFFFE Note: legal does not mean that it is assigned in this version of Unicode. Parameters str String : containing code points to examin Returns boolean true if and only if legal. isLetter Added in API level 24 public static boolean isLetter (int ch) Determines if the specified code point is a letter.
+ Up-to-date Unicode implementation of java.lang.Character.isLetter() Parameters ch int : code point to determine if it is a letter Returns boolean true if code point is a letter isLetterOrDigit Added in API level 24 public static boolean isLetterOrDigit (int ch) Determines if the specified code point is a letter or digit. [icu] Note: This method, unlike java.lang.Character does not regard the ascii
+ characters 'A' - 'Z' and 'a' - 'z' as digits. Parameters ch int : code point to determine if it is a letter or a digit Returns boolean true if code point is a letter or a digit isLowSurrogate Added in API level 24 public static boolean isLowSurrogate (char ch) Same as Character.isLowSurrogate , Parameters ch char : the char to check Returns boolean true if ch is a low (trail) surrogate isLowSurrogate Added in API level 33 public static boolean isLowSurrogate (int codePoint) Same as Character.isLowSurrogate ,
+ except that the ICU version accepts int for code points. Parameters codePoint int : the code point to check
+        (In ICU 3.0-69 the type of this parameter was char .) Returns boolean true if codePoint is a low (trail) surrogate isLowerCase Added in API level 24 public static boolean isLowerCase (int ch) Determines if the specified code point is a lowercase character.
+ UnicodeData only contains case mappings for code points where they are
+ one-to-one mappings; it also omits information about context-sensitive
+ case mappings. For more information about Unicode case mapping
+ please refer to the Technical report
+ #21 . Up-to-date Unicode implementation of java.lang.Character.isLowerCase() Parameters ch int : code point to determine if it is in lowercase Returns boolean true if code point is a lowercase character isMirrored Added in API level 24 public static boolean isMirrored (int ch) Determines whether the code point has the "mirrored" property.
+ This property is set for characters that are commonly used in
+ Right-To-Left contexts and need to be displayed with a "mirrored"
+ glyph. Parameters ch int : code point whose mirror is to be determined Returns boolean true if the code point has the "mirrored" property isPrintable Added in API level 24 public static boolean isPrintable (int ch) [icu] Determines whether the specified code point is a printable character
+ according to the Unicode standard. Parameters ch int : code point to be determined if it is printable Returns boolean true if the code point is a printable character isSpaceChar Added in API level 24 public static boolean isSpaceChar (int ch) Determines if the specified code point is a Unicode specified space
+ character, i.e. if code point is in the category Zs, Zl and Zp.
+ Up-to-date Unicode implementation of java.lang.Character.isSpaceChar(). Parameters ch int : code point to determine if it is a space Returns boolean true if the specified code point is a space character isSupplementary Added in API level 24 public static boolean isSupplementary (int ch) [icu] Determines if the code point is a supplementary character.
+ A code point is a supplementary character if and only if it is greater
+ than SUPPLEMENTARY_MIN_VALUE Parameters ch int : code point to be determined if it is in the supplementary
+        plane Returns boolean true if code point is a supplementary character isSupplementaryCodePoint Added in API level 24 public static boolean isSupplementaryCodePoint (int cp) Same as Character.isSupplementaryCodePoint . Parameters cp int : the code point to check Returns boolean true if cp is a supplementary code point isSurrogatePair Added in API level 33 public static boolean isSurrogatePair (int high, 
+                int low) Same as Character.isSurrogatePair ,
+ except that the ICU version accepts int for code points. Parameters high int : the high (lead) unit
+        (In ICU 3.0-69 the type of both parameters was char .) low int : the low (trail) unit Returns boolean true if high, low form a surrogate pair isSurrogatePair Added in API level 24 public static boolean isSurrogatePair (char high, 
+                char low) Same as Character.isSurrogatePair . Parameters high char : the high (lead) char low char : the low (trail) char Returns boolean true if high, low form a surrogate pair isTitleCase Added in API level 24 public static boolean isTitleCase (int ch) Determines if the specified code point is a titlecase character.
+ UnicodeData only contains case mappings for code points where they are
+ one-to-one mappings; it also omits information about context-sensitive
+ case mappings. For more information about Unicode case mapping please refer to the Technical report #21 . Up-to-date Unicode implementation of java.lang.Character.isTitleCase(). Parameters ch int : code point to determine if it is in title case Returns boolean true if the specified code point is a titlecase character isUAlphabetic Added in API level 24 public static boolean isUAlphabetic (int ch) [icu] Check if a code point has the Alphabetic Unicode property. Same as UCharacter.hasBinaryProperty(ch, UProperty.ALPHABETIC). Different from UCharacter.isLetter(ch)! Parameters ch int : codepoint to be tested Returns boolean isULowercase Added in API level 24 public static boolean isULowercase (int ch) [icu] Check if a code point has the Lowercase Unicode property. Same as UCharacter.hasBinaryProperty(ch, UProperty.LOWERCASE). This is different from UCharacter.isLowerCase(ch)! Parameters ch int : codepoint to be tested Returns boolean isUUppercase Added in API level 24 public static boolean isUUppercase (int ch) [icu] Check if a code point has the Uppercase Unicode property. Same as UCharacter.hasBinaryProperty(ch, UProperty.UPPERCASE). This is different from UCharacter.isUpperCase(ch)! Parameters ch int : codepoint to be tested Returns boolean isUWhiteSpace Added in API level 24 public static boolean isUWhiteSpace (int ch) [icu] Check if a code point has the White_Space Unicode property. Same as UCharacter.hasBinaryProperty(ch, UProperty.WHITE_SPACE). This is different from both UCharacter.isSpace(ch) and
+ UCharacter.isWhitespace(ch)! Parameters ch int : codepoint to be tested Returns boolean isUnicodeIdentifierPart Added in API level 24 public static boolean isUnicodeIdentifierPart (int ch) Determines if the specified character is permissible as a
+ non-initial character of an identifier
+ according to UAX #31 Unicode Identifier and Pattern Syntax. Same as Unicode ID_Continue ( UProperty.ID_CONTINUE ). Note that this differs from Character.isUnicodeIdentifierPart(char) which implements a different identifier profile. Parameters ch int : the code point to be tested Returns boolean true if the code point may occur as a non-initial character of an identifier isUnicodeIdentifierStart Added in API level 24 public static boolean isUnicodeIdentifierStart (int ch) Determines if the specified character is permissible as the first character in an identifier
+ according to UAX #31 Unicode Identifier and Pattern Syntax. Same as Unicode ID_Start ( UProperty.ID_START ). Note that this differs from Character.isUnicodeIdentifierStart(char) which implements a different identifier profile. Parameters ch int : the code point to be tested Returns boolean true if the code point may start an identifier isUpperCase Added in API level 24 public static boolean isUpperCase (int ch) Determines if the specified code point is an uppercase character.
+ UnicodeData only contains case mappings for code point where they are
+ one-to-one mappings; it also omits information about context-sensitive
+ case mappings. For language specific case conversion behavior, use
+ toUpperCase(locale, str). For example, the case conversion for dot-less i and dotted I in Turkish,
+ or for final sigma in Greek.
+ For more information about Unicode case mapping please refer to the Technical report #21 . Up-to-date Unicode implementation of java.lang.Character.isUpperCase(). Parameters ch int : code point to determine if it is in uppercase Returns boolean true if the code point is an uppercase character isValidCodePoint Added in API level 24 public static boolean isValidCodePoint (int cp) Equivalent to Character.isValidCodePoint . Parameters cp int : the code point to check Returns boolean true if cp is a valid code point isWhitespace Added in API level 24 public static boolean isWhitespace (int ch) Determines if the specified code point is a white space character.
+ A code point is considered to be an whitespace character if and only
+ if it satisfies one of the following criteria: It is a Unicode Separator character (categories "Z" = "Zs" or "Zl" or "Zp"), but is not
+      also a non-breaking space (\u00A0 or \u2007 or \u202F). It is \u0009, HORIZONTAL TABULATION. It is \u000A, LINE FEED. It is \u000B, VERTICAL TABULATION. It is \u000C, FORM FEED. It is \u000D, CARRIAGE RETURN. It is \u001C, FILE SEPARATOR. It is \u001D, GROUP SEPARATOR. It is \u001E, RECORD SEPARATOR. It is \u001F, UNIT SEPARATOR. This API tries to sync with the semantics of Java's
+ java.lang.Character.isWhitespace(), but it may not return
+ the exact same results because of the Unicode version
+ difference. Note: Unicode 4.0.1 changed U+200B ZERO WIDTH SPACE from a Space Separator (Zs)
+ to a Format Control (Cf). Since then, isWhitespace(0x200b) returns false.
+ See http://www.unicode.org/versions/Unicode4.0.1/ Parameters ch int : code point to determine if it is a white space Returns boolean true if the specified code point is a white space character offsetByCodePoints Added in API level 24 public static int offsetByCodePoints ( CharSequence text, 
+                int index, 
+                int codePointOffset) Equivalent to the Character.offsetByCodePoints(CharSequence, int, int) method, for convenience.  Adjusts the char index by a code point offset. Parameters text CharSequence : the characters to check index int : the index to adjust codePointOffset int : the number of code points by which to offset the index Returns int the adjusted index offsetByCodePoints Added in API level 24 public static int offsetByCodePoints (char[] text, 
+                int start, 
+                int count, 
+                int index, 
+                int codePointOffset) Equivalent to the Character.offsetByCodePoints(char[], int, int, int, int) method, for convenience.  Adjusts the char index by a code point offset. Parameters text char : the characters to check start int : the start of the range to check count int : the length of the range to check index int : the index to adjust codePointOffset int : the number of code points by which to offset the index Returns int the adjusted index toChars Added in API level 24 public static int toChars (int cp, 
+                char[] dst, 
+                int dstIndex) Same as Character.toChars(int, char[], int) .
+ Writes the chars representing the
+ code point into the destination at the given index. Parameters cp int : the code point to convert dst char : the destination array into which to put the char(s) representing the code point dstIndex int : the index at which to put the first (or only) char Returns int the count of the number of chars written (1 or 2) Throws IllegalArgumentException if cp is not a valid code point toChars Added in API level 24 public static char[] toChars (int cp) Same as Character.toChars(int) .
+ Returns a char array representing the code point. Parameters cp int : the code point to convert Returns char[] an array containing the char(s) representing the code point Throws IllegalArgumentException if cp is not a valid code point toCodePoint Added in API level 24 public static int toCodePoint (char high, 
+                char low) Same as Character.toCodePoint .
+ Returns the code point represented by the two surrogate code units.
+ This does not check the surrogate pair for validity. Parameters high char : the high (lead) surrogate low char : the low (trail) surrogate Returns int the code point formed by the surrogate pair toCodePoint Added in API level 33 public static int toCodePoint (int high, 
+                int low) Same as Character.toCodePoint ,
+ except that the ICU version accepts int for code points.
+ Returns the code point represented by the two surrogate code units.
+ This does not check the surrogate pair for validity. Parameters high int : the high (lead) surrogate
+        (In ICU 3.0-69 the type of both parameters was char .) low int : the low (trail) surrogate Returns int the code point formed by the surrogate pair See also: getCodePoint(int, int) toLowerCase Added in API level 24 public static String toLowerCase ( String str) Returns the lowercase version of the argument string.
+ Casing is dependent on the default locale and context-sensitive Parameters str String : source string to be performed on Returns String lowercase version of the argument string toLowerCase Added in API level 24 public static int toLowerCase (int ch) The given code point is mapped to its lowercase equivalent; if the code
+ point has no lowercase equivalent, the code point itself is returned.
+ Up-to-date Unicode implementation of java.lang.Character.toLowerCase() This function only returns the simple, single-code point case mapping.
+ Full case mappings should be used whenever possible because they produce
+ better results by working on whole strings.
+ They take into account the string context and the language and can map
+ to a result string with a different length as appropriate.
+ Full case mappings are applied by the case mapping functions
+ that take String parameters rather than code points (int).
+ See also the User Guide chapter on C/POSIX migration:
+ https://unicode-org.github.io/icu/userguide/icu/posix#case-mappings Parameters ch int : code point whose lowercase equivalent is to be retrieved Returns int the lowercase equivalent code point toLowerCase Added in API level 24 public static String toLowerCase ( ULocale locale, String str) Returns the lowercase version of the argument string.
+ Casing is dependent on the argument locale and context-sensitive Parameters locale ULocale : which string is to be converted in str String : source string to be performed on Returns String lowercase version of the argument string toLowerCase Added in API level 24 public static String toLowerCase ( Locale locale, String str) Returns the lowercase version of the argument string.
+ Casing is dependent on the argument locale and context-sensitive Parameters locale Locale : which string is to be converted in str String : source string to be performed on Returns String lowercase version of the argument string toString Added in API level 24 public static String toString (int ch) Converts argument code point and returns a String object representing
+ the code point's value in UTF-16 format.
+ The result is a string whose length is 1 for BMP code points, 2 for supplementary ones. Up-to-date Unicode implementation of java.lang.Character.toString(). Parameters ch int : code point Returns String string representation of the code point, null if code point is not
+         defined in unicode toTitleCase Added in API level 24 public static String toTitleCase ( Locale locale, String str, BreakIterator titleIter, 
+                int options) [icu] Returns the titlecase version of the argument string. Position for titlecasing is determined by the argument break
+ iterator, hence the user can customize his break iterator for
+ a specialized titlecasing. In this case only the forward iteration
+ needs to be implemented.
+ If the break iterator passed in is null, the default Unicode algorithm
+ will be used to determine the titlecase positions. Only positions returned by the break iterator will be title cased,
+ character in between the positions will all be in lower case. Casing is dependent on the argument locale and context-sensitive Parameters locale Locale : which string is to be converted in str String : source string to be performed on titleIter BreakIterator : break iterator to determine the positions in which
+        the character should be title cased. options int : bit set to modify the titlecasing operation Returns String titlecase version of the argument string See also: TITLECASE_NO_LOWERCASE TITLECASE_NO_BREAK_ADJUSTMENT toTitleCase Added in API level 24 public static String toTitleCase ( ULocale locale, String str, BreakIterator titleIter) Returns the titlecase version of the argument string. Position for titlecasing is determined by the argument break
+ iterator, hence the user can customize his break iterator for
+ a specialized titlecasing. In this case only the forward iteration
+ needs to be implemented.
+ If the break iterator passed in is null, the default Unicode algorithm
+ will be used to determine the titlecase positions. Only positions returned by the break iterator will be title cased,
+ character in between the positions will all be in lower case. Casing is dependent on the argument locale and context-sensitive Parameters locale ULocale : which string is to be converted in str String : source string to be performed on titleIter BreakIterator : break iterator to determine the positions in which
+        the character should be title cased. Returns String titlecase version of the argument string toTitleCase Added in API level 24 public static String toTitleCase ( String str, BreakIterator breakiter) Returns the titlecase version of the argument string. Position for titlecasing is determined by the argument break
+ iterator, hence the user can customize his break iterator for
+ a specialized titlecasing. In this case only the forward iteration
+ needs to be implemented.
+ If the break iterator passed in is null, the default Unicode algorithm
+ will be used to determine the titlecase positions. Only positions returned by the break iterator will be title cased,
+ character in between the positions will all be in lower case. Casing is dependent on the default locale and context-sensitive Parameters str String : source string to be performed on breakiter BreakIterator : break iterator to determine the positions in which
+        the character should be title cased. Returns String titlecase version of the argument string toTitleCase Added in API level 24 public static String toTitleCase ( ULocale locale, String str, BreakIterator titleIter, 
+                int options) Returns the titlecase version of the argument string. Position for titlecasing is determined by the argument break
+ iterator, hence the user can customize his break iterator for
+ a specialized titlecasing. In this case only the forward iteration
+ needs to be implemented.
+ If the break iterator passed in is null, the default Unicode algorithm
+ will be used to determine the titlecase positions. Only positions returned by the break iterator will be title cased,
+ character in between the positions will all be in lower case. Casing is dependent on the argument locale and context-sensitive Parameters locale ULocale : which string is to be converted in str String : source string to be performed on titleIter BreakIterator : break iterator to determine the positions in which
+        the character should be title cased. options int : bit set to modify the titlecasing operation Returns String titlecase version of the argument string See also: TITLECASE_NO_LOWERCASE TITLECASE_NO_BREAK_ADJUSTMENT toTitleCase Added in API level 24 public static String toTitleCase ( Locale locale, String str, BreakIterator breakiter) Returns the titlecase version of the argument string. Position for titlecasing is determined by the argument break
+ iterator, hence the user can customize his break iterator for
+ a specialized titlecasing. In this case only the forward iteration
+ needs to be implemented.
+ If the break iterator passed in is null, the default Unicode algorithm
+ will be used to determine the titlecase positions. Only positions returned by the break iterator will be title cased,
+ character in between the positions will all be in lower case. Casing is dependent on the argument locale and context-sensitive Parameters locale Locale : which string is to be converted in str String : source string to be performed on breakiter BreakIterator : break iterator to determine the positions in which
+        the character should be title cased. Returns String titlecase version of the argument string toTitleCase Added in API level 24 public static int toTitleCase (int ch) Converts the code point argument to titlecase.
+ If no titlecase is available, the uppercase is returned. If no uppercase
+ is available, the code point itself is returned.
+ Up-to-date Unicode implementation of java.lang.Character.toTitleCase() This function only returns the simple, single-code point case mapping.
+ Full case mappings should be used whenever possible because they produce
+ better results by working on whole strings.
+ They take into account the string context and the language and can map
+ to a result string with a different length as appropriate.
+ Full case mappings are applied by the case mapping functions
+ that take String parameters rather than code points (int).
+ See also the User Guide chapter on C/POSIX migration:
+ https://unicode-org.github.io/icu/userguide/icu/posix#case-mappings Parameters ch int : code point  whose title case is to be retrieved Returns int titlecase code point toUpperCase Added in API level 24 public static String toUpperCase ( Locale locale, String str) Returns the uppercase version of the argument string.
+ Casing is dependent on the argument locale and context-sensitive. Parameters locale Locale : which string is to be converted in str String : source string to be performed on Returns String uppercase version of the argument string toUpperCase Added in API level 24 public static String toUpperCase ( ULocale locale, String str) Returns the uppercase version of the argument string.
+ Casing is dependent on the argument locale and context-sensitive. Parameters locale ULocale : which string is to be converted in str String : source string to be performed on Returns String uppercase version of the argument string toUpperCase Added in API level 24 public static int toUpperCase (int ch) Converts the character argument to uppercase.
+ If no uppercase is available, the character itself is returned.
+ Up-to-date Unicode implementation of java.lang.Character.toUpperCase() This function only returns the simple, single-code point case mapping.
+ Full case mappings should be used whenever possible because they produce
+ better results by working on whole strings.
+ They take into account the string context and the language and can map
+ to a result string with a different length as appropriate.
+ Full case mappings are applied by the case mapping functions
+ that take String parameters rather than code points (int).
+ See also the User Guide chapter on C/POSIX migration:
+ https://unicode-org.github.io/icu/userguide/icu/posix#case-mappings Parameters ch int : code point whose uppercase is to be retrieved Returns int uppercase code point toUpperCase Added in API level 24 public static String toUpperCase ( String str) Returns the uppercase version of the argument string.
+ Casing is dependent on the default locale and context-sensitive. Parameters str String : source string to be performed on Returns String uppercase version of the argument string</body></html>

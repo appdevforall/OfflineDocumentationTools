@@ -1,0 +1,342 @@
+<html><head><title>Class Documentation</title></head><body>SimpleDateFormat Kotlin | Java public
+  
+  
+  
+  class
+  SimpleDateFormat extends DateFormat java.lang.Object ↳ java.text.Format ↳ android.icu.text.UFormat ↳ android.icu.text.DateFormat ↳ android.icu.text.SimpleDateFormat [icu enhancement] ICU's replacement for SimpleDateFormat . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. SimpleDateFormat is a concrete class for formatting and
+ parsing dates in a locale-sensitive manner. It allows for formatting
+ (date -> text), parsing (text -> date), and normalization. Clients are encouraged to create a date-time formatter using DateFormat.getDateInstance() , DateFormat.getDateInstance() ,
+ or DateFormat.getDateTimeInstance() rather than
+ explicitly constructing an instance of SimpleDateFormat .  This way, the client
+ is guaranteed to get an appropriate formatting pattern for whatever locale the
+ program is running in.  If the client needs more control, they should consider using DateFormat.getInstanceForSkeleton() .
+ However, if the client needs something more unusual than
+ the default patterns in the locales, he can construct a SimpleDateFormat directly
+ and give it an appropriate pattern (or use one of the factory methods on DateFormat
+ and modify the pattern after the fact with toPattern() and applyPattern() .
+ For more information on using these methods, see DateFormat . Date and Time Patterns: Date and time formats are specified by date and time pattern strings.
+ The full syntax for date and time patterns can be found at https://unicode.org/reports/tr35/tr35-dates.html#Date_Format_Patterns . Within date and time pattern strings, all unquoted ASCII letters [A-Za-z] are reserved
+ as pattern letters representing calendar fields. Some of the most commonly used pattern letters are: Sym. No. Example Description G 1..3 AD Era - Replaced with the Era string for the current date. One to three letters for the
+         abbreviated form, four letters for the long (wide) form, five for the narrow form. y 1..n 1996 Year. Normally the length specifies the padding, but for two letters it also specifies the maximum
+         length. Example: Year y yy yyy yyyy yyyyy AD 1 1 01 001 0001 00001 AD 12 12 12 012 0012 00012 AD 123 123 23 123 0123 00123 AD 1234 1234 34 1234 1234 01234 AD 12345 12345 45 12345 12345 12345 Q 1..2 02 Quarter - Use one or two for the numerical quarter, three for the abbreviation, or four
+         for the full (wide) name (five for the narrow name is not yet supported). 3 Q2 4 2nd quarter M 1..2 09 Month - Use one or two for the numerical month, three for the abbreviation, four for
+         the full (wide) name, or five for the narrow name. With two ("MM"), the month number is zero-padded
+         if necessary (e.g. "08"). 3 Sep 4 September 5 S d 1..2 1 Date - Day of the month. Use "d" to show the minimum number of digits, or "dd" to always show
+         two digits (zero-padding if necessary, e.g. "08"). E 1..3 Tue Day of week - Use one through three letters for the short day, four for the full (wide) name,
+         five for the narrow name, or six for the short name. 4 Tuesday 5 T 6 Tu a 1 AM AM or PM h 1..2 11 Hour [1-12]. When used in skeleton data or in a skeleton passed in an API for flexible data pattern
+         generation, it should match the 12-hour-cycle format preferred by the locale (h or K); it should not match
+         a 24-hour-cycle format (H or k). Use hh for zero padding. H 1..2 13 Hour [0-23]. When used in skeleton data or in a skeleton passed in an API for flexible data pattern
+         generation, it should match the 24-hour-cycle format preferred by the locale (H or k); it should not match a
+         12-hour-cycle format (h or K). Use HH for zero padding. m 1..2 59 Minute. Use "m" to show the minimum number of digits, or "mm" to always show two digits
+         (zero-padding if necessary, e.g. "08").. s 1..2 12 Second. Use "s" to show the minimum number of digits, or "ss" to always show two digits
+         (zero-padding if necessary, e.g. "08"). z 1..3 PDT Time zone.  The short specific non-location format .
+         Where that is unavailable, falls back to the short localized GMT format ("O"). 4 Pacific Daylight Time The long specific non-location format .
+         Where that is unavailable, falls back to the long localized GMT format ("OOOO"). v 1 PT Time zone. The short generic non-location format .
+         Where that is unavailable, falls back to the generic location format ("VVVV"),
+         then the short localized GMT format as the final fallback. 4 Pacific Time The long generic non-location format .
+         Where that is unavailable, falls back to generic location format ("VVVV"). Any characters in the pattern that are not in the ranges of ['a'..'z']
+ and ['A'..'Z'] will be treated as quoted text. For instance, characters
+ like ':', '.', ' ', '#' and '@' will appear in the resulting time text
+ even they are not embraced within single quotes. A pattern containing any invalid pattern letter will result in a thrown
+ exception during formatting or parsing. Examples Using the US Locale: Format Pattern                         Result
+ --------------                         -------
+ "yyyy.MM.dd G 'at' HH:mm:ss vvvv" ->>  1996.07.10 AD at 15:08:56 Pacific Time
+ "EEE, MMM d, ''yy"                ->>  Wed, July 10, '96
+ "h:mm a"                          ->>  12:08 PM
+ "hh 'o''clock' a, zzzz"           ->>  12 o'clock PM, Pacific Daylight Time
+ "K:mm a, vvv"                     ->>  0:00 PM, PT
+ "yyyyy.MMMMM.dd GGG hh:mm aaa"    ->>  01996.July.10 AD 12:08 PM Code Sample: SimpleTimeZone pdt = new SimpleTimeZone(-8 * 60 * 60 * 1000, "PST");
+ pdt.setStartRule(Calendar.APRIL, 1, Calendar.SUNDAY, 2*60*60*1000);
+ pdt.setEndRule(Calendar.OCTOBER, -1, Calendar.SUNDAY, 2*60*60*1000); // Format the current time.
+ SimpleDateFormat formatter
+     = new SimpleDateFormat ("yyyy.MM.dd G 'at' hh:mm:ss a zzz");
+ Date currentTime_1 = new Date();
+ String dateString = formatter.format(currentTime_1); // Parse the previous string back into a Date.
+ ParsePosition pos = new ParsePosition(0);
+ Date currentTime_2 = formatter.parse(dateString, pos); In the example, the time value currentTime_2 obtained from
+ parsing will be equal to currentTime_1 . However, they may not be
+ equal if the am/pm marker 'a' is left out from the format pattern while
+ the "hour in am/pm" pattern symbol is used. This information loss can
+ happen when formatting the time in PM. When parsing a date string using the abbreviated year pattern ("yy"),
+ SimpleDateFormat must interpret the abbreviated year
+ relative to some century.  It does this by adjusting dates to be
+ within 80 years before and 20 years after the time the SimpleDateFormat
+ instance is created. For example, using a pattern of "MM/dd/yy" and a
+ SimpleDateFormat instance created on Jan 1, 1997,  the string
+ "01/11/12" would be interpreted as Jan 11, 2012 while the string "05/04/64"
+ would be interpreted as May 4, 1964.
+ During parsing, only strings consisting of exactly two digits, as defined by UCharacter.isDigit(int) , will be parsed into the default
+ century.
+ Any other numeric string, such as a one digit string, a three or more digit
+ string, or a two digit string that isn't all digits (for example, "-1"), is
+ interpreted literally.  So "01/02/3" or "01/02/003" are parsed, using the
+ same pattern, as Jan 2, 3 AD.  Likewise, "01/02/-3" is parsed as Jan 2, 4 BC. If the year pattern does not have exactly two 'y' characters, the year is
+ interpreted literally, regardless of the number of digits.  So using the
+ pattern "MM/dd/yyyy", "01/11/12" parses to Jan 11, 12 A.D. When numeric fields abut one another directly, with no intervening delimiter
+ characters, they constitute a run of abutting numeric fields.  Such runs are
+ parsed specially.  For example, the format "HHmmss" parses the input text
+ "123456" to 12:34:56, parses the input text "12345" to 1:23:45, and fails to
+ parse "1234".  In other words, the leftmost field of the run is flexible,
+ while the others keep a fixed width.  If the parse fails anywhere in the run,
+ then the leftmost field is shortened by one character, and the entire run is
+ parsed again. This is repeated until either the parse succeeds or the
+ leftmost field is one character in length.  If the parse still fails at that
+ point, the parse of the run fails. For time zones that have no names, use strings GMT+hours:minutes or
+ GMT-hours:minutes. The calendar defines what is the first day of the week, the first week
+ of the year, whether hours are zero based or not (0 vs 12 or 24), and the
+ time zone. There is one common decimal format to handle all the numbers;
+ the digit count is handled programmatically according to the pattern. Synchronization Date formats are not synchronized. It is recommended to create separate
+ format instances for each thread. If multiple threads access a format
+ concurrently, it must be synchronized externally. See also: Calendar GregorianCalendar TimeZone DateFormat DateFormatSymbols DecimalFormat TimeZoneFormat Summary Inherited constants From class android.icu.text.DateFormat String ABBR_GENERIC_TZ [icu] Constant for generic non-location format , abbreviated if possible, such as PT;
+ used in combinations date + time + zone, or time + zone. String ABBR_MONTH [icu] Constant for date skeleton with abbreviated month. String ABBR_MONTH_DAY [icu] Constant for date skeleton with abbreviated month and day. String ABBR_MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with abbreviated month, weekday, and day. String ABBR_QUARTER [icu] Constant for date skeleton with abbreviated quarter. String ABBR_SPECIFIC_TZ [icu] Constant for specific non-location format , abbreviated if possible, such as PDT;
+ used in combinations date + time + zone, or time + zone. String ABBR_UTC_TZ [icu] Constant for localized GMT/UTC format , such as GMT+8:00 or HPG-8:00;
+ used in combinations date + time + zone, or time + zone. String ABBR_WEEKDAY [icu] Constant for date skeleton with abbreviated weekday. int AM_PM_FIELD FieldPosition selector for 'a' field alignment,
+ corresponding to the Calendar.AM_PM field. int AM_PM_MIDNIGHT_NOON_FIELD [icu] FieldPosition selector for 'b' field alignment. int DATE_FIELD FieldPosition selector for 'd' field alignment,
+ corresponding to the Calendar.DATE field. String DAY [icu] Constant for date skeleton with day. int DAY_OF_WEEK_FIELD FieldPosition selector for 'E' field alignment,
+ corresponding to the Calendar.DAY_OF_WEEK field. int DAY_OF_WEEK_IN_MONTH_FIELD FieldPosition selector for 'F' field alignment,
+ corresponding to the Calendar.DAY_OF_WEEK_IN_MONTH field. int DAY_OF_YEAR_FIELD FieldPosition selector for 'D' field alignment,
+ corresponding to the Calendar.DAY_OF_YEAR field. int DEFAULT Constant for default style pattern. int DOW_LOCAL_FIELD [icu] FieldPosition selector for 'e' field alignment,
+ corresponding to the Calendar.DOW_LOCAL field. int ERA_FIELD FieldPosition selector for 'G' field alignment,
+ corresponding to the Calendar.ERA field. int EXTENDED_YEAR_FIELD [icu] FieldPosition selector for 'u' field alignment,
+ corresponding to the Calendar.EXTENDED_YEAR field. int FLEXIBLE_DAY_PERIOD_FIELD [icu] FieldPosition selector for 'B' field alignment. int FRACTIONAL_SECOND_FIELD [icu] FieldPosition selector for 'S' field alignment,
+ corresponding to the Calendar.MILLISECOND field. int FULL Constant for full style pattern. String GENERIC_TZ [icu] Constant for generic non-location format , such as Pacific Time;
+ used in combinations date + time + zone, or time + zone. String HOUR [icu] Constant for date skeleton with hour, with the locale's preferred hour format (12 or 24). int HOUR0_FIELD FieldPosition selector for 'K' field alignment,
+ corresponding to the Calendar.HOUR field. int HOUR1_FIELD FieldPosition selector for 'h' field alignment,
+ corresponding to the Calendar.HOUR field. String HOUR24 [icu] Constant for date skeleton with hour in 24-hour presentation. String HOUR24_MINUTE [icu] Constant for date skeleton with hour and minute in 24-hour presentation. String HOUR24_MINUTE_SECOND [icu] Constant for date skeleton with hour, minute, and second in
+ 24-hour presentation. String HOUR_MINUTE [icu] Constant for date skeleton with hour and minute, with the locale's preferred hour format (12 or 24). String HOUR_MINUTE_SECOND [icu] Constant for date skeleton with hour, minute, and second,
+ with the locale's preferred hour format (12 or 24). int HOUR_OF_DAY0_FIELD FieldPosition selector for 'H' field alignment,
+ corresponding to the Calendar.HOUR_OF_DAY field. int HOUR_OF_DAY1_FIELD FieldPosition selector for 'k' field alignment,
+ corresponding to the Calendar.HOUR_OF_DAY field. int JULIAN_DAY_FIELD [icu] FieldPosition selector for 'g' field alignment,
+ corresponding to the Calendar.JULIAN_DAY field. String LOCATION_TZ [icu] Constant for generic location format , such as Los Angeles Time;
+ used in combinations date + time + zone, or time + zone. int LONG Constant for long style pattern. int MEDIUM Constant for medium style pattern. int MILLISECONDS_IN_DAY_FIELD [icu] FieldPosition selector for 'A' field alignment,
+ corresponding to the Calendar.MILLISECONDS_IN_DAY field. int MILLISECOND_FIELD Alias for FRACTIONAL_SECOND_FIELD. String MINUTE [icu] Constant for date skeleton with minute. int MINUTE_FIELD FieldPosition selector for 'm' field alignment,
+ corresponding to the Calendar.MINUTE field. String MINUTE_SECOND [icu] Constant for date skeleton with minute and second. String MONTH [icu] Constant for date skeleton with month. String MONTH_DAY [icu] Constant for date skeleton with long month and day. int MONTH_FIELD FieldPosition selector for 'M' field alignment,
+ corresponding to the Calendar.MONTH field. String MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with month, weekday, and day. int NONE [icu] Constant for empty style pattern. String NUM_MONTH [icu] Constant for date skeleton with numeric month. String NUM_MONTH_DAY [icu] Constant for date skeleton with numeric month and day. String NUM_MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with numeric month, weekday, and day. String QUARTER [icu] Constant for date skeleton with quarter. int QUARTER_FIELD [icu] FieldPosition selector for 'Q' field alignment,
+ corresponding to the Calendar.MONTH field. int RELATIVE [icu] Constant for relative style mask. int RELATIVE_DEFAULT [icu] Constant for relative default style pattern. int RELATIVE_FULL [icu] Constant for relative full style pattern. int RELATIVE_LONG [icu] Constant for relative style pattern. int RELATIVE_MEDIUM [icu] Constant for relative style pattern. int RELATIVE_SHORT [icu] Constant for relative style pattern. String SECOND [icu] Constant for date skeleton with second. int SECOND_FIELD FieldPosition selector for 's' field alignment,
+ corresponding to the Calendar.SECOND field. int SHORT Constant for short style pattern. String SPECIFIC_TZ [icu] Constant for specific non-location format , such as Pacific Daylight Time;
+ used in combinations date + time + zone, or time + zone. int STANDALONE_DAY_FIELD [icu] FieldPosition selector for 'c' field alignment,
+ corresponding to the Calendar.DAY_OF_WEEK field. int STANDALONE_MONTH_FIELD [icu] FieldPosition selector for 'L' field alignment,
+ corresponding to the Calendar.MONTH field. int STANDALONE_QUARTER_FIELD [icu] FieldPosition selector for 'q' field alignment,
+ corresponding to the Calendar.MONTH field. int TIMEZONE_FIELD FieldPosition selector for 'z' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_GENERIC_FIELD [icu] FieldPosition selector for 'v' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_ISO_FIELD [icu] FieldPosition selector for 'X' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_ISO_LOCAL_FIELD [icu] FieldPosition selector for 'x' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_LOCALIZED_GMT_OFFSET_FIELD [icu] FieldPosition selector for 'O' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_RFC_FIELD [icu] FieldPosition selector for 'Z' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. int TIMEZONE_SPECIAL_FIELD [icu] FieldPosition selector for 'V' field alignment,
+ corresponding to the Calendar.ZONE_OFFSET and Calendar.DST_OFFSET fields. String WEEKDAY [icu] Constant for date skeleton with weekday. int WEEK_OF_MONTH_FIELD FieldPosition selector for 'W' field alignment,
+ corresponding to the Calendar.WEEK_OF_MONTH field. int WEEK_OF_YEAR_FIELD FieldPosition selector for 'w' field alignment,
+ corresponding to the Calendar.WEEK_OF_YEAR field. String YEAR [icu] Constant for date skeleton with year. String YEAR_ABBR_MONTH [icu] Constant for date skeleton with year and abbreviated month. String YEAR_ABBR_MONTH_DAY [icu] Constant for date skeleton with year, abbreviated month, and day. String YEAR_ABBR_MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with year, abbreviated month, weekday, and day. String YEAR_ABBR_QUARTER [icu] Constant for date skeleton with year and abbreviated quarter. int YEAR_FIELD FieldPosition selector for 'y' field alignment,
+ corresponding to the Calendar.YEAR field. String YEAR_MONTH [icu] Constant for date skeleton with year and month. String YEAR_MONTH_DAY [icu] Constant for date skeleton with year, month, and day. String YEAR_MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with year, month, weekday, and day. int YEAR_NAME_FIELD [icu] FieldPosition selector for 'U' field alignment,
+ corresponding to the Calendar.YEAR field. String YEAR_NUM_MONTH [icu] Constant for date skeleton with year and numeric month. String YEAR_NUM_MONTH_DAY [icu] Constant for date skeleton with year, numeric month, and day. String YEAR_NUM_MONTH_WEEKDAY_DAY [icu] Constant for date skeleton with year, numeric month, weekday, and day. String YEAR_QUARTER [icu] Constant for date skeleton with year and quarter. int YEAR_WOY_FIELD [icu] FieldPosition selector for 'Y' field alignment,
+ corresponding to the Calendar.YEAR_WOY field. Inherited fields From class android.icu.text.DateFormat protected Calendar calendar The calendar that DateFormat uses to produce the time field
+ values needed to implement date and time formatting. protected NumberFormat numberFormat The number formatter that DateFormat uses to format numbers
+ in dates and times. Public constructors SimpleDateFormat () Constructs a SimpleDateFormat using the default pattern for the default FORMAT locale. SimpleDateFormat ( String pattern) Constructs a SimpleDateFormat using the given pattern in the default FORMAT locale. SimpleDateFormat ( String pattern, DateFormatSymbols formatData) Constructs a SimpleDateFormat using the given pattern and
+ locale-specific symbol data. SimpleDateFormat ( String pattern, ULocale loc) Constructs a SimpleDateFormat using the given pattern and locale. SimpleDateFormat ( String pattern, String override, ULocale loc) Constructs a SimpleDateFormat using the given pattern , override and locale. SimpleDateFormat ( String pattern, Locale loc) Constructs a SimpleDateFormat using the given pattern and locale. Public methods void applyLocalizedPattern ( String pat) Apply the given localized pattern string to this date format. void applyPattern ( String pat) Apply the given unlocalized pattern string to this date format. Object clone () Overrides Cloneable boolean equals ( Object obj) Override equals. StringBuffer format ( Calendar cal, StringBuffer toAppendTo, FieldPosition pos) Formats a date or time, which is the standard millis
+ since January 1, 1970, 00:00:00 GMT. AttributedCharacterIterator formatToCharacterIterator ( Object obj) Format the object to an attributed string, and return the corresponding iterator
+ Overrides superclass method. Date get2DigitYearStart () Returns the beginning date of the 100-year period 2-digit years are interpreted
+ as being within. DateFormatSymbols getDateFormatSymbols () Gets the date/time formatting data. NumberFormat getNumberFormat (char field) give the NumberFormat used for the field like 'y'(year) and 'M'(year) TimeZoneFormat getTimeZoneFormat () [icu] Gets the time zone formatter which this date/time
+ formatter uses to format and parse a time zone. int hashCode () Override hashCode. void parse ( String text, Calendar cal, ParsePosition parsePos) Overrides DateFormat void set2DigitYearStart ( Date startDate) Sets the 100-year period 2-digit years will be interpreted as being in
+ to begin on the date the user specifies. void setContext ( DisplayContext context) [icu] Set a particular DisplayContext value in the formatter,
+ such as CAPITALIZATION_FOR_STANDALONE. void setDateFormatSymbols ( DateFormatSymbols newFormatSymbols) Allows you to set the date/time formatting data. void setNumberFormat ( String fields, NumberFormat overrideNF) allow the user to set the NumberFormat for several fields
+ It can be a single field like: "y"(year) or "M"(month)
+ It can be several field combined together: "yMd"(year, month and date)
+ Note:
+ 1 symbol field is enough for multiple symbol fields (so "y" will override "yy", "yyy")
+ If the field is not numeric, then override has no effect (like "MMM" will use abbreviation, not numerical field) void setNumberFormat ( NumberFormat newNumberFormat) Overrides superclass method and
+ This method also clears per field NumberFormat instances
+ previously set by setNumberFormat(java.lang.String, android.icu.text.NumberFormat) void setTimeZoneFormat ( TimeZoneFormat tzfmt) [icu] Allows you to set the time zone formatter. String toLocalizedPattern () Return a localized pattern string describing this date format. String toPattern () Return a pattern string describing this date format. Protected methods DateFormatSymbols getSymbols () Method for subclasses to access the DateFormatSymbols. int matchQuarterString ( String text, int start, int field, String[] data, Calendar cal) Attempt to match the text at a given position against an array of quarter
+ strings. int matchString ( String text, int start, int field, String[] data, Calendar cal) Attempt to match the text at a given position against an array of
+ strings. DateFormat.Field patternCharToDateFormatField (char ch) Returns a DateFormat.Field constant associated with the specified format pattern
+ character. String subFormat (char ch, int count, int beginOffset, FieldPosition pos, DateFormatSymbols fmtData, Calendar cal) Formats a single field, given its pattern character. int subParse ( String text, int start, char ch, int count, boolean obeyCount, boolean allowNegative, boolean[] ambiguousYear, Calendar cal) Protected method that converts one field of the input string into a
+ numeric field value in cal . String zeroPaddingNumber (long value, int minDigits, int maxDigits) Formats a number with the specified minimum and maximum number of digits. Inherited methods From class android.icu.text.DateFormat Object clone () Overrides clone. boolean equals ( Object obj) Overrides equals. final StringBuffer format ( Object obj, StringBuffer toAppendTo, FieldPosition fieldPosition) Formats a time object into a time string. StringBuffer format ( Date date, StringBuffer toAppendTo, FieldPosition fieldPosition) Formats a Date into a date/time string. final String format ( Date date) Formats a Date into a date/time string. abstract StringBuffer format ( Calendar cal, StringBuffer toAppendTo, FieldPosition fieldPosition) Formats a date into a date/time string. static Locale[] getAvailableLocales () Returns the set of locales for which DateFormats are installed. boolean getBooleanAttribute ( DateFormat.BooleanAttribute key) Returns the current value for the specified BooleanAttribute for this instance
+
+ if attribute is missing false is returned. Calendar getCalendar () Returns the calendar associated with this date/time formatter. DisplayContext getContext ( DisplayContext.Type type) [icu] Get the formatter's DisplayContext value for the specified DisplayContext.Type,
+ such as CAPITALIZATION. static
+        final DateFormat getDateInstance (int style, Locale aLocale) Returns the date formatter with the given formatting style
+ for the given locale. static
+        final DateFormat getDateInstance ( Calendar cal, int dateStyle) Creates a DateFormat object for the default locale that can be used
+ to format dates in the calendar system specified by cal . static
+        final DateFormat getDateInstance ( Calendar cal, int dateStyle, ULocale locale) Creates a DateFormat object that can be used to format dates in
+ the calendar system specified by cal . static
+        final DateFormat getDateInstance () Returns the date formatter with the default formatting style
+ for the default FORMAT locale. static
+        final DateFormat getDateInstance (int style, ULocale locale) Returns the date formatter with the given formatting style
+ for the given locale. static
+        final DateFormat getDateInstance ( Calendar cal, int dateStyle, Locale locale) Creates a DateFormat object that can be used to format dates in
+ the calendar system specified by cal . static
+        final DateFormat getDateInstance (int style) Returns the date formatter with the given formatting style
+ for the default FORMAT locale. static
+        final DateFormat getDateTimeInstance (int dateStyle, int timeStyle) Returns the date/time formatter with the given date and time
+ formatting styles for the default FORMAT locale. static
+        final DateFormat getDateTimeInstance () Returns the date/time formatter with the default formatting style
+ for the default FORMAT locale. static
+        final DateFormat getDateTimeInstance ( Calendar cal, int dateStyle, int timeStyle, ULocale locale) Creates a DateFormat object that can be used to format dates and times in
+ the calendar system specified by cal . static
+        final DateFormat getDateTimeInstance ( Calendar cal, int dateStyle, int timeStyle, Locale locale) Creates a DateFormat object that can be used to format dates and times in
+ the calendar system specified by cal . static
+        final DateFormat getDateTimeInstance (int dateStyle, int timeStyle, ULocale locale) Returns the date/time formatter with the given formatting styles
+ for the given locale. static
+        final DateFormat getDateTimeInstance (int dateStyle, int timeStyle, Locale aLocale) Returns the date/time formatter with the given formatting styles
+ for the given locale. static
+        final DateFormat getDateTimeInstance ( Calendar cal, int dateStyle, int timeStyle) Creates a DateFormat object for the default locale that can be used to format
+ dates and times in the calendar system specified by cal . static
+        final DateFormat getInstance ( Calendar cal, ULocale locale) Returns a date/time formatter that uses the SHORT style
+ for both the date and the time. static
+        final DateFormat getInstance ( Calendar cal) Returns a default date/time formatter that uses the SHORT style for both the
+ date and the time. static
+        final DateFormat getInstance ( Calendar cal, Locale locale) Returns a date/time formatter that uses the SHORT style
+ for both the date and the time. static
+        final DateFormat getInstance () Returns a default date/time formatter that uses the SHORT style for both the
+ date and the time. static
+        final DateFormat getInstanceForSkeleton ( Calendar cal, String skeleton, Locale locale) [icu] Creates a DateFormat object that can be used to format dates and
+ times in the calendar system specified by cal . static
+        final DateFormat getInstanceForSkeleton ( Calendar cal, String skeleton, ULocale locale) [icu] Creates a DateFormat object that can be used to format dates and
+ times in the calendar system specified by cal . static
+        final DateFormat getInstanceForSkeleton ( String skeleton, ULocale locale) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the given locale. static
+        final DateFormat getInstanceForSkeleton ( String skeleton, Locale locale) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the given locale. static
+        final DateFormat getInstanceForSkeleton ( String skeleton) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the default locale. NumberFormat getNumberFormat () Returns the number formatter which this date/time formatter uses to
+ format and parse a time. static
+        final DateFormat getPatternInstance ( String skeleton, Locale locale) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the given locale. static
+        final DateFormat getPatternInstance ( String skeleton, ULocale locale) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the given locale. static
+        final DateFormat getPatternInstance ( String skeleton) [icu] Returns a DateFormat object that can be used to format dates and times in
+ the default locale. static
+        final DateFormat getPatternInstance ( Calendar cal, String skeleton, Locale locale) [icu] Creates a DateFormat object that can be used to format dates and
+ times in the calendar system specified by cal . static
+        final DateFormat getPatternInstance ( Calendar cal, String skeleton, ULocale locale) [icu] Creates a DateFormat object that can be used to format dates and
+ times in the calendar system specified by cal . static
+        final DateFormat getTimeInstance ( Calendar cal, int timeStyle) Creates a DateFormat object that can be used to format times in
+ the calendar system specified by cal . static
+        final DateFormat getTimeInstance () Gets the time formatter with the default formatting style
+ for the default FORMAT locale. static
+        final DateFormat getTimeInstance (int style, ULocale locale) Returns the time formatter with the given formatting style
+ for the given locale. static
+        final DateFormat getTimeInstance ( Calendar cal, int timeStyle, ULocale locale) Creates a DateFormat object that can be used to format times in
+ the calendar system specified by cal . static
+        final DateFormat getTimeInstance ( Calendar cal, int timeStyle, Locale locale) Creates a DateFormat object that can be used to format times in
+ the calendar system specified by cal . static
+        final DateFormat getTimeInstance (int style) Returns the time formatter with the given formatting style
+ for the default FORMAT locale. static
+        final DateFormat getTimeInstance (int style, Locale aLocale) Returns the time formatter with the given formatting style
+ for the given locale. TimeZone getTimeZone () Returns the time zone. int hashCode () Overrides hashCode. boolean isCalendarLenient () Returns whether date/time parsing in the encapsulated Calendar object is lenient. boolean isLenient () Returns whether both date/time parsing in the encapsulated Calendar object and DateFormat whitespace &
+ numeric processing is lenient. Date parse ( String text) Parses a date/time string. Date parse ( String text, ParsePosition pos) Parses a date/time string according to the given parse position. abstract
+        
+        
+        
+        
+        void parse ( String text, Calendar cal, ParsePosition pos) Parses a date/time string according to the given parse position. Object parseObject ( String source, ParsePosition pos) Parses a date/time string into an Object. DateFormat setBooleanAttribute ( DateFormat.BooleanAttribute key, boolean value) Sets a boolean attribute for this instance. void setCalendar ( Calendar newCalendar) Sets the calendar to be used by this date format. void setCalendarLenient (boolean lenient) Specifies whether date/time parsing in the encapsulated Calendar object should be lenient. void setContext ( DisplayContext context) [icu] Set a particular DisplayContext value in the formatter,
+ such as CAPITALIZATION_FOR_STANDALONE. void setLenient (boolean lenient) Specifies whether date/time parsing is to be lenient. void setNumberFormat ( NumberFormat newNumberFormat) Sets the number formatter. void setTimeZone ( TimeZone zone) Sets the time zone for the calendar of this DateFormat object. From class java.text.Format Object clone () Creates and returns a copy of this object. final String format ( Object obj) Formats an object to produce a string. abstract StringBuffer format ( Object obj, StringBuffer toAppendTo, FieldPosition pos) Formats an object and appends the resulting text to a given string
+ buffer. AttributedCharacterIterator formatToCharacterIterator ( Object obj) Formats an Object producing an AttributedCharacterIterator . Object parseObject ( String source) Parses text from the beginning of the given string to produce an object. abstract Object parseObject ( String source, ParsePosition pos) Parses text from a string to produce an object. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors SimpleDateFormat Added in API level 24 public SimpleDateFormat () Constructs a SimpleDateFormat using the default pattern for the default FORMAT locale. Note: Not all locales support SimpleDateFormat; for full
+ generality, use the factory methods in the DateFormat class. See also: DateFormat ULocale.Category.FORMAT SimpleDateFormat Added in API level 24 public SimpleDateFormat ( String pattern) Constructs a SimpleDateFormat using the given pattern in the default FORMAT locale. Note: Not all locales support SimpleDateFormat; for full
+ generality, use the factory methods in the DateFormat class. Parameters pattern String See also: ULocale.Category.FORMAT SimpleDateFormat Added in API level 24 public SimpleDateFormat ( String pattern, DateFormatSymbols formatData) Constructs a SimpleDateFormat using the given pattern and
+ locale-specific symbol data.
+ Warning: uses default FORMAT locale for digits! Parameters pattern String formatData DateFormatSymbols SimpleDateFormat Added in API level 24 public SimpleDateFormat ( String pattern, ULocale loc) Constructs a SimpleDateFormat using the given pattern and locale. Note: Not all locales support SimpleDateFormat; for full
+ generality, use the factory methods in the DateFormat class. Parameters pattern String loc ULocale SimpleDateFormat Added in API level 24 public SimpleDateFormat ( String pattern, String override, ULocale loc) Constructs a SimpleDateFormat using the given pattern , override and locale. Parameters pattern String : The pattern to be used override String : The override string.  A numbering system override string can take one of the following forms:
+     1). If just a numbering system name is specified, it applies to all numeric fields in the date format pattern.
+     2). To specify an alternate numbering system on a field by field basis, use the field letters from the pattern
+         followed by an = sign, followed by the numbering system name.  For example, to specify that just the year
+         be formatted using Hebrew digits, use the override "y=hebr".  Multiple overrides can be specified in a single
+         string by separating them with a semi-colon. For example, the override string "m=thai;y=deva" would format using
+         Thai digits for the month and Devanagari digits for the year. loc ULocale : The locale to be used SimpleDateFormat Added in API level 24 public SimpleDateFormat ( String pattern, Locale loc) Constructs a SimpleDateFormat using the given pattern and locale. Note: Not all locales support SimpleDateFormat; for full
+ generality, use the factory methods in the DateFormat class. Parameters pattern String loc Locale Public methods applyLocalizedPattern Added in API level 24 public void applyLocalizedPattern ( String pat) Apply the given localized pattern string to this date format. Parameters pat String applyPattern Added in API level 24 public void applyPattern ( String pat) Apply the given unlocalized pattern string to this date format. Parameters pat String clone Added in API level 24 public Object clone () Overrides Cloneable Returns Object a clone of this instance. equals Added in API level 24 public boolean equals ( Object obj) Override equals. Parameters obj Object : the reference object with which to compare. Returns boolean true if this object is the same as the obj
+          argument; false otherwise. format Added in API level 24 public StringBuffer format ( Calendar cal, StringBuffer toAppendTo, FieldPosition pos) Formats a date or time, which is the standard millis
+ since January 1, 1970, 00:00:00 GMT. Example: using the US locale:
+ "yyyy.MM.dd G 'at' HH:mm:ss zzz" ->> 1996.07.10 AD at 15:08:56 PDT Parameters cal Calendar : the calendar whose date-time value is to be formatted into a date-time string toAppendTo StringBuffer : where the new date-time text is to be appended pos FieldPosition : the formatting position. On input: an alignment field,
+ if desired. On output: the offsets of the alignment field. Returns StringBuffer the formatted date-time string. See also: DateFormat formatToCharacterIterator Added in API level 24 public AttributedCharacterIterator formatToCharacterIterator ( Object obj) Format the object to an attributed string, and return the corresponding iterator
+ Overrides superclass method. Parameters obj Object : The object to format Returns AttributedCharacterIterator AttributedCharacterIterator describing the formatted value. get2DigitYearStart Added in API level 24 public Date get2DigitYearStart () Returns the beginning date of the 100-year period 2-digit years are interpreted
+ as being within. Returns Date the start of the 100-year period into which two digit years are
+ parsed getDateFormatSymbols Added in API level 24 public DateFormatSymbols getDateFormatSymbols () Gets the date/time formatting data. Returns DateFormatSymbols a copy of the date-time formatting data associated
+ with this date-time formatter. getNumberFormat Added in API level 24 public NumberFormat getNumberFormat (char field) give the NumberFormat used for the field like 'y'(year) and 'M'(year) Parameters field char : the field the user wants Returns NumberFormat override NumberFormat used for the field getTimeZoneFormat Added in API level 24 public TimeZoneFormat getTimeZoneFormat () [icu] Gets the time zone formatter which this date/time
+ formatter uses to format and parse a time zone. Returns TimeZoneFormat the time zone formatter which this date/time
+ formatter uses. hashCode Added in API level 24 public int hashCode () Override hashCode.
+ Generates the hash code for the SimpleDateFormat object Returns int a hash code value for this object. parse Added in API level 24 public void parse ( String text, Calendar cal, ParsePosition parsePos) Overrides DateFormat Parameters text String : The date/time string to be parsed cal Calendar : The calendar set on input to the date and time to be used
+              for missing values in the date/time string being parsed,
+              and set on output to the parsed date/time. In general, this
+              should be initialized before calling this method - either
+              cleared or set to the current date, depending on desired
+              behavior. If this parse fails, the calendar may still
+              have been modified. When the calendar type is different
+              from the internal calendar held by this DateFormat
+              instance, calendar field values will be parsed based
+              on the internal calendar initialized with the time and
+              the time zone taken from this calendar, then the
+              parse result (time in milliseconds and time zone) will
+              be set back to this calendar. parsePos ParsePosition : On input, the position at which to start parsing; on
+              output, the position at which parsing terminated, or the
+              start position if the parse failed. See also: DateFormat set2DigitYearStart Added in API level 24 public void set2DigitYearStart ( Date startDate) Sets the 100-year period 2-digit years will be interpreted as being in
+ to begin on the date the user specifies. Parameters startDate Date : During parsing, two digit years will be placed in the range startDate to startDate + 100 years . setContext Added in API level 24 public void setContext ( DisplayContext context) [icu] Set a particular DisplayContext value in the formatter,
+ such as CAPITALIZATION_FOR_STANDALONE. Note: For getContext, see
+ DateFormat. Parameters context DisplayContext : The DisplayContext value to set. setDateFormatSymbols Added in API level 24 public void setDateFormatSymbols ( DateFormatSymbols newFormatSymbols) Allows you to set the date/time formatting data. Parameters newFormatSymbols DateFormatSymbols : the new symbols setNumberFormat Added in API level 24 public void setNumberFormat ( String fields, NumberFormat overrideNF) allow the user to set the NumberFormat for several fields
+ It can be a single field like: "y"(year) or "M"(month)
+ It can be several field combined together: "yMd"(year, month and date)
+ Note:
+ 1 symbol field is enough for multiple symbol fields (so "y" will override "yy", "yyy")
+ If the field is not numeric, then override has no effect (like "MMM" will use abbreviation, not numerical field) Parameters fields String : the fields to override overrideNF NumberFormat : the NumbeferFormat used Throws IllegalArgumentException when the fields contain invalid field setNumberFormat Added in API level 24 public void setNumberFormat ( NumberFormat newNumberFormat) Overrides superclass method and
+ This method also clears per field NumberFormat instances
+ previously set by setNumberFormat(java.lang.String, android.icu.text.NumberFormat) Parameters newNumberFormat NumberFormat : the given new NumberFormat. setTimeZoneFormat Added in API level 24 public void setTimeZoneFormat ( TimeZoneFormat tzfmt) [icu] Allows you to set the time zone formatter. Parameters tzfmt TimeZoneFormat : the new time zone formatter toLocalizedPattern Added in API level 24 public String toLocalizedPattern () Return a localized pattern string describing this date format. Note: This implementation depends on DateFormatSymbols.getLocalPatternChars() to get localized format pattern characters. ICU does not include
+ localized pattern character data, therefore, unless user sets localized
+ pattern characters manually, this method returns the same result as toPattern() . Returns String toPattern Added in API level 24 public String toPattern () Return a pattern string describing this date format. Returns String Protected methods getSymbols Added in API level 24 protected DateFormatSymbols getSymbols () Method for subclasses to access the DateFormatSymbols. Returns DateFormatSymbols matchQuarterString Added in API level 24 protected int matchQuarterString ( String text, 
+                int start, 
+                int field, String[] data, Calendar cal) Attempt to match the text at a given position against an array of quarter
+ strings.  Since multiple strings in the array may match (for
+ example, if the array contains "a", "ab", and "abc", all will match
+ the input string "abcd") the longest match is returned.  As a side
+ effect, the given field of cal is set to the index
+ of the best match, if there is one. Parameters text String : the time text being parsed. start int : where to start parsing. field int : the date field being parsed. data String : the string array to parsed. cal Calendar Returns int the new start position if matching succeeded; a negative
+ number indicating matching failure, otherwise.  As a side effect,
+ sets the cal field field to the index
+ of the best match, if matching succeeded. matchString Added in API level 24 protected int matchString ( String text, 
+                int start, 
+                int field, String[] data, Calendar cal) Attempt to match the text at a given position against an array of
+ strings.  Since multiple strings in the array may match (for
+ example, if the array contains "a", "ab", and "abc", all will match
+ the input string "abcd") the longest match is returned.  As a side
+ effect, the given field of cal is set to the index
+ of the best match, if there is one. Parameters text String : the time text being parsed. start int : where to start parsing. field int : the date field being parsed. data String : the string array to parsed. Returns int the new start position if matching succeeded; a negative
+ number indicating matching failure, otherwise.  As a side effect,
+ sets the cal field field to the index
+ of the best match, if matching succeeded. patternCharToDateFormatField Added in API level 24 protected DateFormat.Field patternCharToDateFormatField (char ch) Returns a DateFormat.Field constant associated with the specified format pattern
+ character. Parameters ch char : The pattern character Returns DateFormat.Field DateFormat.Field associated with the pattern character subFormat Added in API level 24 protected String subFormat (char ch, 
+                int count, 
+                int beginOffset, FieldPosition pos, DateFormatSymbols fmtData, Calendar cal) Formats a single field, given its pattern character.  Subclasses may
+ override this method in order to modify or add formatting
+ capabilities. Parameters ch char : the pattern character count int : the number of times ch is repeated in the pattern beginOffset int : the offset of the output string at the start of
+ this field; used to set pos when appropriate pos FieldPosition : receives the position of a field, when appropriate fmtData DateFormatSymbols : the symbols for this formatter cal Calendar Returns String Throws IllegalArgumentException subParse Added in API level 24 protected int subParse ( String text, 
+                int start, 
+                char ch, 
+                int count, 
+                boolean obeyCount, 
+                boolean allowNegative, 
+                boolean[] ambiguousYear, Calendar cal) Protected method that converts one field of the input string into a
+ numeric field value in cal .  Returns -start (for
+ ParsePosition) if failed.  Subclasses may override this method to
+ modify or add parsing capabilities. Parameters text String : the time text to be parsed. start int : where to start parsing. ch char : the pattern character for the date field text to be parsed. count int : the count of a pattern character. obeyCount boolean : if true, then the next field directly abuts this one,
+ and we should use the count to know when to stop parsing. allowNegative boolean ambiguousYear boolean : return parameter; upon return, if ambiguousYear[0]
+ is true, then a two-digit year was parsed and may need to be readjusted. Returns int the new start position if matching succeeded; a negative
+ number indicating matching failure, otherwise.  As a side effect,
+ set the appropriate field of cal with the parsed
+ value. zeroPaddingNumber Added in API level 24 protected String zeroPaddingNumber (long value, 
+                int minDigits, 
+                int maxDigits) Formats a number with the specified minimum and maximum number of digits. Parameters value long minDigits int maxDigits int Returns String</body></html>

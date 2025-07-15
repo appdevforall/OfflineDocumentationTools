@@ -1,0 +1,197 @@
+<html><head><title>Class Documentation</title></head><body>RuntimeShader Kotlin | Java public
+  
+  
+  
+  class
+  RuntimeShader extends Shader java.lang.Object ↳ android.graphics.Shader ↳ android.graphics.RuntimeShader A RuntimeShader calculates a per-pixel color based on the output of a user defined
+ Android Graphics Shading Language (AGSL) function. Android Graphics Shading Language The AGSL syntax is very similar to OpenGL ES Shading Language, but there are some important
+ differences that are highlighted here. Most of these differences are summed up in one basic fact: With GPU shading languages, you are programming a stage of the GPU pipeline. With AGSL, you
+ are programming a stage of the Canvas or RenderNode drawing pipeline. In particular, a GLSL fragment shader controls the entire behavior of the GPU between the
+ rasterizer and the blending hardware. That shader does all of the work to compute a color, and
+ the color it generates is exactly what is fed to the blending stage of the pipeline. In contrast, AGSL functions exist as part of a larger pipeline. When you issue a Canvas drawing operation, Android (generally) assembles a single GPU fragment shader to
+ do all of the required work. This shader typically includes several pieces. For example, it might
+ include: Evaluating whether a pixel falls inside or outside of the shape being drawn (or on the
+  border, where it might apply antialiasing). Evaluating whether a pixel falls inside or outside of the clipping region (again, with
+  possible antialiasing logic for border pixels). Logic for the Shader , ColorFilter , and BlendMode on the Paint . Color space conversion code, as part of Android's color management. A RuntimeShader , like other Shader types, effectively contributes a function
+ to the GPU's fragment shader. AGSL Shader Execution Just like a GLSL shader, an AGSL shader begins execution in a main function. Unlike GLSL, the
+ function receives as an input parameter the position of the pixel within the Canvas or RenderNode coordinate space (similar to gl_fragCoord) and returns the color to be shaded
+ as a vec4 (similar to out vec4 color or gl_FragColor in GLSL). vec4 main(vec2 canvas_coordinates); AGSL and GLSL use different coordinate spaces by default. In GLSL, the fragment coordinate
+ (fragCoord) is relative to the lower left. AGSL matches the screen coordinate system of the
+ Android Canvas which has its origin as the upper left corner. This means that the
+ coordinates provided as a parameter in the main function are local to the canvas with the
+ exception of any Shader.getLocalMatrix(Matrix) transformations applied to this shader.
+ Additionally, if the shader is invoked by another using setInputShader(java.lang.String, android.graphics.Shader) ,
+ then that parent shader may modify the input coordinates arbitrarily. AGSL and Color Spaces Android Graphics and by extension RuntimeShader are color managed.  The working ColorSpace for an AGSL shader is defined to be the color space of the destination, which
+ in most cases is determined by Window.setColorMode(int) . When authoring an AGSL shader, you won't know what the working color space is. For many
+ effects, this is fine because by default color inputs are automatically converted into the
+ working color space. For certain effects, it may be important to do some math in a fixed, known
+ color space. A common example is lighting - to get physically accurate lighting, math should be
+ done in a linear color space. To help with this, AGSL provides two intrinsic functions that
+ convert colors between the working color space and the ColorSpace.Named.LINEAR_EXTENDED_SRGB color space: vec3 toLinearSrgb(vec3 color);
+ vec3 fromLinearSrgb(vec3 color); AGSL and Premultiplied Alpha When dealing with transparent colors, there are two (common) possible representations:
+ straight (unassociated) alpha and premultiplied (associated) alpha. In ASGL the color returned
+ by the main function is expected to be premultiplied.  AGSL's use of premultiplied alpha
+ implies: If your AGSL shader will return transparent colors, be sure to multiply the RGB by A.  The
+  resulting color should be [R*A, G*A, B*A, A], not [R, G, B, A]. For more complex shaders, you must understand which of your colors are premultiplied vs.
+  straight. Many operations don't make sense if you mix both kinds of color together. Uniforms AGSL, like GLSL, exposes the concept of uniforms. An AGSL uniform is defined as a read-only,
+ global variable that is accessible by the AGSL code and is initialized by a number of setter
+ methods on RuntimeShader . AGSL exposes two primitive uniform data types (float, int) and
+ two specialized types (colors, shaders) that are outlined below. Primitive Uniforms There are two primitive uniform types supported by AGSL, float and int. For these types and
+ uniforms representing a grouping of these types, like arrays and matrices, there are
+ corresponding RuntimeShader methods to initialize them. Java Type AGSL Type Method Floats float RuntimeShader.setFloatUniform(String, float) vec2 RuntimeShader.setFloatUniform(String, float, float) vec3 RuntimeShader.setFloatUniform(String, float, float, float) vec4 RuntimeShader.setFloatUniform(String, float, float, float, float) Integers int RuntimeShader.setIntUniform(String, int) ivec2 RuntimeShader.setIntUniform(String, int, int) ivec3 RuntimeShader.setIntUniform(String, int, int, int) ivec4 RuntimeShader.setIntUniform(String, int, int, int, int) Matrices and Arrays mat2, mat3, and mat4, and float[] RuntimeShader.setFloatUniform(String, float[]) int[] RuntimeShader.setIntUniform(String, int[]) For example, a simple AGSL shader making use of a float uniform to modulate the transparency
+ of the output color would look like: uniform float alpha;
+ vec4 main(vec2 canvas_coordinates) {
+     vec3 red = vec3(1.0, 0.0, 0.0);
+     return vec4(red * alpha, alpha);
+ } After creating a RuntimeShader with that program the uniform can then be initialized
+ and updated per frame by calling RuntimeShader.setFloatUniform(String, float) with the
+ value of alpha.  The value of a primitive uniform defaults to 0 if it is declared in the AGSL
+ shader but not initialized. Color Uniforms AGSL doesn't know if uniform variables contain colors, it won't automatically convert them to
+ the working colorspace of the shader at runtime.  However, you can label your vec4 uniform with
+ the "layout(color)" qualifier which lets Android know that the uniform will be used as a color.
+ Doing so allows AGSL to transform the uniform value to the working color space. In AGSL, declare
+ the uniform like this: layout(color) uniform vec4 inputColorA;
+ layout(color) uniform vec4 inputColorB;
+ vec4 main(vec2 canvas_coordinates) {
+     // blend the two colors together and return the resulting color
+     return mix(inputColorA, inputColorB, 0.5);
+ } After creating a RuntimeShader with that program the uniforms can
+ then be initialized and updated per frame by calling RuntimeShader.setColorUniform(String, int) , RuntimeShader.setColorUniform(String, long) , or RuntimeShader.setColorUniform(String, Color) with the desired colors.  The value of a
+ color uniform is undefined if it is declared in the AGSL shader but not initialized. Shader Uniforms In GLSL, a fragment shader can sample a texture. For AGSL instead of sampling textures you can
+ sample from any Shader , which includes but is not limited to BitmapShader . To
+ make it clear that you are operating on an Shader object there is no "sample"
+ method. Instead, the shader uniform has an "eval()" method. This distinction enables AGSL shaders
+ to sample from existing bitmap and gradient shaders as well as other RuntimeShader objects.  In AGSL, declare the uniform like this: uniform shader myShader;
+ vec4 main(vec2 canvas_coordinates) {
+     // swap the red and blue color channels when sampling from myShader
+     return myShader.eval(canvas_coordinates).bgra;
+ } After creating a RuntimeShader with that program the shader uniform can
+ then be initialized and updated per frame by calling RuntimeShader.setInputShader(String, Shader) with the desired shader. The value of a
+ shader uniform is undefined if it is declared in the AGSL shader but not initialized. Although most BitmapShader s contain colors that should be color managed, some contain
+ data that isn't actually colors. This includes bitmaps storing normals, material properties
+ (e.g. roughness), heightmaps, or any other purely mathematical data that happens to be stored in
+ a bitmap. When using these kinds of shaders in AGSL, you probably want to initialize them with setInputBuffer(java.lang.String, android.graphics.BitmapShader) . Shaders initialized this way work much like
+ a regular BitmapShader (including filtering and tiling), with a few major differences: No color space transformation is applied (the color space of the bitmap is ignored). Bitmaps that return false for Bitmap.isPremultiplied() are not automatically
+  premultiplied. In addition, when sampling from a BitmapShader be aware that the shader does not use
+ normalized coordinates (like a texture in GLSL). It uses (0, 0) in the upper-left corner, and
+ (width, height) in the bottom-right corner. Normally, this is exactly what you want. If you're
+ evaluating the shader with coordinates based on the ones passed to your AGSL program, the scale
+ is correct. However, if you want to adjust those coordinates (to do some kind of re-mapping of
+ the bitmap), remember that the coordinates are local to the canvas. Summary Public constructors RuntimeShader ( String shader) Creates a new RuntimeShader. Public methods void setColorUniform ( String uniformName, int color) Sets the uniform color value corresponding to this shader. void setColorUniform ( String uniformName, long color) Sets the uniform color value corresponding to this shader. void setColorUniform ( String uniformName, Color color) Sets the uniform color value corresponding to this shader. void setFloatUniform ( String uniformName, float[] values) Sets the uniform value corresponding to this shader. void setFloatUniform ( String uniformName, float value) Sets the uniform value corresponding to this shader. void setFloatUniform ( String uniformName, float value1, float value2, float value3, float value4) Sets the uniform value corresponding to this shader. void setFloatUniform ( String uniformName, float value1, float value2) Sets the uniform value corresponding to this shader. void setFloatUniform ( String uniformName, float value1, float value2, float value3) Sets the uniform value corresponding to this shader. void setInputBuffer ( String shaderName, BitmapShader shader) Assigns the uniform shader to the provided shader parameter. void setInputColorFilter ( String filterName, ColorFilter colorFilter) Assigns the uniform color filter to the provided color filter parameter. void setInputShader ( String shaderName, Shader shader) Assigns the uniform shader to the provided shader parameter. void setInputXfermode ( String xfermodeName, RuntimeXfermode xfermode) Assigns the uniform xfermode to the provided xfermode parameter. void setIntUniform ( String uniformName, int value) Sets the uniform value corresponding to this shader. void setIntUniform ( String uniformName, int value1, int value2, int value3) Sets the uniform value corresponding to this shader. void setIntUniform ( String uniformName, int value1, int value2, int value3, int value4) Sets the uniform value corresponding to this shader. void setIntUniform ( String uniformName, int[] values) Sets the uniform value corresponding to this shader. void setIntUniform ( String uniformName, int value1, int value2) Sets the uniform value corresponding to this shader. Inherited methods From class android.graphics.Shader boolean getLocalMatrix ( Matrix localM) Return true if the shader has a non-identity local matrix. void setLocalMatrix ( Matrix localM) Set the shader's local matrix. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors RuntimeShader Added in API level 33 public RuntimeShader ( String shader) Creates a new RuntimeShader. Parameters shader String : The text of AGSL shader program to run.
+
+ This value cannot be null . Public methods setColorUniform Added in API level 33 public void setColorUniform ( String uniformName, 
+                int color) Sets the uniform color value corresponding to this shader.  If the shader does not have a
+ uniform with that name or if the uniform is declared with a type other than vec3 or vec4 and
+ corresponding layout(color) annotation then an IllegalArgumentException is thrown. Parameters uniformName String : name matching the color uniform declared in the AGSL shader program
+ This value cannot be null . color int : the provided sRGB color will be transformed into the shader program's output
+              colorspace and will be available as a vec4 uniform in the program. setColorUniform Added in API level 33 public void setColorUniform ( String uniformName, 
+                long color) Sets the uniform color value corresponding to this shader.  If the shader does not have a
+ uniform with that name or if the uniform is declared with a type other than vec3 or vec4 and
+ corresponding layout(color) annotation then an IllegalArgumentException is thrown. Parameters uniformName String : name matching the color uniform declared in the AGSL shader program
+ This value cannot be null . color long : the provided sRGB color will be transformed into the shader program's output
+              colorspace and will be available as a vec4 uniform in the program. setColorUniform Added in API level 33 public void setColorUniform ( String uniformName, Color color) Sets the uniform color value corresponding to this shader.  If the shader does not have a
+ uniform with that name or if the uniform is declared with a type other than vec3 or vec4 and
+ corresponding layout(color) annotation then an IllegalArgumentException is thrown. Parameters uniformName String : name matching the color uniform declared in the AGSL shader program
+ This value cannot be null . color Color : the provided sRGB color will be transformed into the shader program's output
+              colorspace and will be available as a vec4 uniform in the program.
+
+ This value cannot be null . setFloatUniform Added in API level 33 public void setFloatUniform ( String uniformName, 
+                float[] values) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than a float (for N=1), vecN,
+ or float[N] where N is the length of the values param then an IllegalArgumentException is
+ thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . values float : This value cannot be null . setFloatUniform Added in API level 33 public void setFloatUniform ( String uniformName, 
+                float value) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than a float or float[1]
+ then an IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value float setFloatUniform Added in API level 33 public void setFloatUniform ( String uniformName, 
+                float value1, 
+                float value2, 
+                float value3, 
+                float value4) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than vec4 or float[4] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 float value2 float value3 float value4 float setFloatUniform Added in API level 33 public void setFloatUniform ( String uniformName, 
+                float value1, 
+                float value2) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than vec2 or float[2] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 float value2 float setFloatUniform Added in API level 33 public void setFloatUniform ( String uniformName, 
+                float value1, 
+                float value2, 
+                float value3) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than vec3 or float[3] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 float value2 float value3 float setInputBuffer Added in API level 33 public void setInputBuffer ( String shaderName, BitmapShader shader) Assigns the uniform shader to the provided shader parameter.  If the shader program does not
+ have a uniform shader with that name then an IllegalArgumentException is thrown.
+
+ Unlike setInputShader this method returns samples directly from the bitmap's buffer. This
+ means that there will be no transformation of the sampled pixels, such as colorspace
+ conversion or alpha premultiplication. Parameters shaderName String : This value cannot be null . shader BitmapShader : This value cannot be null . setInputColorFilter Added in API level 36 public void setInputColorFilter ( String filterName, ColorFilter colorFilter) Assigns the uniform color filter to the provided color filter parameter.  If the shader
+ program does not have a uniform color filter with that name then an IllegalArgumentException
+ is thrown. Parameters filterName String : name matching the uniform declared in the AGSL program
+ This value cannot be null . colorFilter ColorFilter : filter passed into the AGSL program for sampling
+
+ This value cannot be null . setInputShader Added in API level 33 public void setInputShader ( String shaderName, Shader shader) Assigns the uniform shader to the provided shader parameter.  If the shader program does not
+ have a uniform shader with that name then an IllegalArgumentException is thrown. Parameters shaderName String : name matching the uniform declared in the AGSL shader program
+ This value cannot be null . shader Shader : shader passed into the AGSL shader program for sampling
+
+ This value cannot be null . setInputXfermode Added in API level 36 public void setInputXfermode ( String xfermodeName, RuntimeXfermode xfermode) Assigns the uniform xfermode to the provided xfermode parameter.  If the shader program does
+ not have a uniform xfermode with that name then an IllegalArgumentException is thrown. Parameters xfermodeName String : name matching the uniform declared in the AGSL program
+ This value cannot be null . xfermode RuntimeXfermode : filter passed into the AGSL program for sampling
+
+ This value cannot be null . setIntUniform Added in API level 33 public void setIntUniform ( String uniformName, 
+                int value) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than an int or int[1]
+ then an IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value int setIntUniform Added in API level 33 public void setIntUniform ( String uniformName, 
+                int value1, 
+                int value2, 
+                int value3) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than ivec3 or int[3] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 int value2 int value3 int setIntUniform Added in API level 33 public void setIntUniform ( String uniformName, 
+                int value1, 
+                int value2, 
+                int value3, 
+                int value4) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than ivec4 or int[4] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 int value2 int value3 int value4 int setIntUniform Added in API level 33 public void setIntUniform ( String uniformName, 
+                int[] values) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than an int (for N=1), ivecN,
+ or int[N] where N is the length of the values param then an IllegalArgumentException is
+ thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . values int : This value cannot be null . setIntUniform Added in API level 33 public void setIntUniform ( String uniformName, 
+                int value1, 
+                int value2) Sets the uniform value corresponding to this shader.  If the shader does not have a uniform
+ with that name or if the uniform is declared with a type other than ivec2 or int[2] then an
+ IllegalArgumentException is thrown. Parameters uniformName String : name matching the uniform declared in the AGSL shader program
+
+ This value cannot be null . value1 int value2 int</body></html>

@@ -1,0 +1,103 @@
+<html><head><title>Class Documentation</title></head><body>AppSearchManager Kotlin | Java public
+  
+  
+  
+  class
+  AppSearchManager extends Object java.lang.Object ↳ android.app.appsearch.AppSearchManager Provides access to the centralized AppSearch index maintained by the system. AppSearch is an offline, on-device search library for managing structured data featuring: APIs to index and retrieve data via full-text search. An API for applications to explicitly grant read-access permission of their data to other
+       applications. See: SetSchemaRequest.Builder.setSchemaTypeVisibilityForPackage(String, boolean, PackageIdentifier) An API for applications to opt into or out of having their data displayed on System UI
+       surfaces by the System-designated global querier. See: SetSchemaRequest.Builder.setSchemaTypeDisplayedBySystem(String, boolean) Applications create a database by opening an AppSearchSession . Example: AppSearchManager appSearchManager = context.getSystemService(AppSearchManager.class);
+
+ AppSearchManager.SearchContext searchContext = new AppSearchManager.SearchContext.Builder().
+    setDatabaseName(dbName).build());
+ appSearchManager.createSearchSession(searchContext, mExecutor, appSearchSessionResult -> {
+      mAppSearchSession = appSearchSessionResult.getResultValue();
+ }); After opening the session, a schema must be set in order to define the organizational
+ structure of data. The schema is set by calling AppSearchSession.setSchema . The schema is
+ composed of a collection of AppSearchSchema objects, each of which defines a unique type
+ of data. Example: AppSearchSchema emailSchemaType = new AppSearchSchema.Builder("Email")
+     .addProperty(new StringPropertyConfig.Builder("subject")
+        .setCardinality(PropertyConfig.CARDINALITY_OPTIONAL)
+        .setIndexingType(PropertyConfig.INDEXING_TYPE_PREFIXES)
+        .setTokenizerType(PropertyConfig.TOKENIZER_TYPE_PLAIN)
+    .build()
+ ).build();
+
+ SetSchemaRequest request = new SetSchemaRequest.Builder().addSchema(emailSchemaType).build();
+ mAppSearchSession.set(request, mExecutor, appSearchResult -> {
+      if (appSearchResult.isSuccess()) {
+           // Schema has been successfully set.
+      }
+ }); The basic unit of data in AppSearch is represented as a GenericDocument object,
+ containing an ID, namespace, time-to-live, score, and properties. A namespace organizes a logical
+ group of documents. For example, a namespace can be created to group documents on a per-account
+ basis. An ID identifies a single document within a namespace. The combination of namespace and ID
+ uniquely identifies a GenericDocument in the database. Once the schema has been set, GenericDocument objects can be put into the database and
+ indexed by calling AppSearchSession.put . Example: // Although for this example we use GenericDocument directly, we recommend extending
+ // GenericDocument to create specific types (i.e. Email) with specific setters/getters.
+ GenericDocument email = new GenericDocument.Builder<>(NAMESPACE, ID, EMAIL_SCHEMA_TYPE)
+     .setPropertyString(\u201csubject\u201d, EMAIL_SUBJECT)
+     .setScore(EMAIL_SCORE)
+     .build();
+
+ PutDocumentsRequest request = new PutDocumentsRequest.Builder().addGenericDocuments(email)
+     .build();
+ mAppSearchSession.put(request, mExecutor, appSearchBatchResult -> {
+      if (appSearchBatchResult.isSuccess()) {
+           // All documents have been successfully indexed.
+      }
+ }); Searching within the database is done by calling AppSearchSession.search and providing
+ the query string to search for, as well as a SearchSpec . Alternatively, AppSearchSession.getByDocumentId can be called to retrieve documents by
+ namespace and ID. Document removal is done either by time-to-live expiration, or explicitly calling a remove
+ operation. Remove operations can be done by namespace and ID via AppSearchSession.remove(android.app.appsearch.RemoveByDocumentIdRequest, java.util.concurrent.Executor, android.app.appsearch.BatchResultCallback) , or by query
+ via AppSearchSession.remove(String, SearchSpec, Executor, Consumer) . Summary Nested classes class AppSearchManager.SearchContext Contains information about how to create the search session. Public methods void createEnterpriseGlobalSearchSession ( Executor executor, Consumer < AppSearchResult < EnterpriseGlobalSearchSession >> callback) Creates a new EnterpriseGlobalSearchSession EnterpriseGlobalSearchSession queries data from the user\u2019s work profile, allowing apps
+ running on the personal profile to access a limited subset of work profile data. void createGlobalSearchSession ( Executor executor, Consumer < AppSearchResult < GlobalSearchSession >> callback) Creates a new GlobalSearchSession . void createSearchSession ( AppSearchManager.SearchContext searchContext, Executor executor, Consumer < AppSearchResult < AppSearchSession >> callback) Creates a new AppSearchSession . Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public methods createEnterpriseGlobalSearchSession Added in API level 35 Also in T Extensions 13 public void createEnterpriseGlobalSearchSession ( Executor executor, Consumer < AppSearchResult < EnterpriseGlobalSearchSession >> callback) Creates a new EnterpriseGlobalSearchSession EnterpriseGlobalSearchSession queries data from the user\u2019s work profile, allowing apps
+ running on the personal profile to access a limited subset of work profile data. Enterprise
+ access must be explicitly enabled on schemas, and schemas may also specify additional
+ permissions required for enterprise access. This process requires an AppSearch native indexing file system. If it's not created, the
+ initialization process will create one under the user's credential encrypted directory. Parameters executor Executor : Executor on which to invoke the callback.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback Consumer : The AppSearchResult < EnterpriseGlobalSearchSession > of
+     performing this operation. Or a AppSearchResult with failure reason code and
+     error information.
+
+ This value cannot be null . createGlobalSearchSession Added in API level 31 public void createGlobalSearchSession ( Executor executor, Consumer < AppSearchResult < GlobalSearchSession >> callback) Creates a new GlobalSearchSession . This process requires an AppSearch native indexing file system. If it's not created, the
+ initialization process will create one under the user's credential encrypted directory. Parameters executor Executor : Executor on which to invoke the callback.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback Consumer : The AppSearchResult < GlobalSearchSession > of performing
+     this operation. Or a AppSearchResult with failure reason code and error
+     information.
+
+ This value cannot be null . createSearchSession Added in API level 31 public void createSearchSession ( AppSearchManager.SearchContext searchContext, Executor executor, Consumer < AppSearchResult < AppSearchSession >> callback) Creates a new AppSearchSession . This process requires an AppSearch native indexing file system. If it's not created, the
+ initialization process will create one under the user's credential encrypted directory. Parameters searchContext AppSearchManager.SearchContext : The SearchContext contains all information to create a new AppSearchSession This value cannot be null . executor Executor : Executor on which to invoke the callback.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback Consumer : The AppSearchResult < AppSearchSession > of performing
+     this operation. Or a AppSearchResult with failure reason code and error
+     information.
+
+ This value cannot be null .</body></html>

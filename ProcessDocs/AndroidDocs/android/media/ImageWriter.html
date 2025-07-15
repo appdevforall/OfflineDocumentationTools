@@ -1,0 +1,169 @@
+<html><head><title>Class Documentation</title></head><body>ImageWriter Kotlin | Java public
+  
+  
+  
+  class
+  ImageWriter extends Object implements AutoCloseable java.lang.Object ↳ android.media.ImageWriter The ImageWriter class allows an application to produce Image data into a Surface , and have it be consumed by another component
+ like CameraDevice . Several Android API classes can provide input Surface objects for ImageWriter to produce data into, including MediaCodec (encoder), CameraCaptureSession (reprocessing input), ImageReader , etc. The input Image data is encapsulated in Image objects. To produce
+ Image data into a destination Surface , the
+ application can get an input Image via dequeueInputImage() then write
+ Image data into it. Multiple such Image objects can be dequeued at
+ the same time and queued back in any order, up to the number specified by the maxImages constructor parameter. If the application already has an Image from ImageReader , the
+ application can directly queue this Image into the ImageWriter (via queueInputImage(Image) ), potentially with zero buffer copies. This
+ even works if the image format of the ImageWriter is PRIVATE , and prior to Android P is the only
+ way to enqueue images into such an ImageWriter. Starting in Android P
+ private images may also be accessed through their hardware buffers
+ (when available) through the Image.getHardwareBuffer() method.
+ Attempting to access the planes of a private image, will return an
+ empty array. Once new input Images are queued into an ImageWriter, it's up to the
+ downstream components (e.g. ImageReader or CameraDevice ) to consume the Images. If the
+ downstream components cannot consume the Images at least as fast as the
+ ImageWriter production rate, the dequeueInputImage() call will
+ eventually block and the application will have to drop input frames. If the consumer component that provided the input Surface abandons the Surface , queueing or dequeueing an Image will throw an IllegalStateException . Summary Nested classes class ImageWriter.Builder Builder class for ImageWriter objects. interface ImageWriter.OnImageReleasedListener ImageWriter callback interface, used to to asynchronously notify the
+ application of various ImageWriter events. Public methods void close () Free up all the resources associated with this ImageWriter. Image dequeueInputImage () Dequeue the next available input Image for the application to produce
+ data into. int getDataSpace () Get the ImageWriter dataspace. int getFormat () Get the ImageWriter format. int getHardwareBufferFormat () Get the ImageWriter hardwareBuffer format. int getHeight () The height of Images , in pixels. int getMaxImages () Maximum number of Images that can be dequeued from the ImageWriter
+ simultaneously (for example, with dequeueInputImage() ). long getUsage () Get the ImageWriter usage flag. int getWidth () The width of Images , in pixels. static ImageWriter newInstance ( Surface surface, int maxImages, int format) Create a new ImageWriter with given number of max Images and format. static ImageWriter newInstance ( Surface surface, int maxImages) Create a new ImageWriter. void queueInputImage ( Image image) Queue an input Image back to ImageWriter for the downstream
+ consumer to access. void setOnImageReleasedListener ( ImageWriter.OnImageReleasedListener listener, Handler handler) Register a listener to be invoked when an input Image is returned to the
+ ImageWriter. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public methods close Added in API level 23 public void close () Free up all the resources associated with this ImageWriter. After calling this method, this ImageWriter cannot be used. Calling any
+ methods on this ImageWriter and Images previously provided by dequeueInputImage() will result in an IllegalStateException , and attempting to write into ByteBuffers returned by an earlier Plane#getBuffer call will have undefined
+ behavior. dequeueInputImage Added in API level 23 public Image dequeueInputImage () Dequeue the next available input Image for the application to produce
+ data into. This method requests a new input Image from ImageWriter. The application
+ owns this Image after this call. Once the application fills the Image
+ data, it is expected to return this Image back to ImageWriter for
+ downstream consumer components (e.g. CameraDevice ) to consume. The Image can
+ be returned to ImageWriter via queueInputImage(Image) or Image.close() . This call will block if all available input images have been queued by
+ the application and the downstream consumer has not yet consumed any.
+ When an Image is consumed by the downstream consumer and released, an OnImageReleasedListener.onImageReleased callback will be fired,
+ which indicates that there is one input Image available. For non- PRIVATE formats ( ImageWriter.getFormat() != ImageFormat.PRIVATE ), it is
+ recommended to dequeue the next Image only after this callback is fired,
+ in the steady state. If the format of ImageWriter is PRIVATE ( ImageWriter.getFormat() == ImageFormat.PRIVATE ), the
+ image buffer is accessible to the application only through the hardware
+ buffer obtained through Image.getHardwareBuffer() . (On Android
+ versions prior to P, dequeueing private buffers will cause an IllegalStateException to be thrown). Alternatively,
+ the application can acquire images from some other component (e.g. an ImageReader ), and queue them directly to this ImageWriter via the queueInputImage() method. Returns Image The next available input Image from this ImageWriter. Throws IllegalStateException if maxImages Images are currently
+             dequeued, or the input Surface has been abandoned by the consumer component that provided
+             the Surface . Prior to Android
+             P, throws if the ImageWriter format is PRIVATE . See also: queueInputImage(Image) Image.close() getDataSpace Added in API level 33 public int getDataSpace () Get the ImageWriter dataspace. Use this function if the ImageWriter instance is created by builder pattern ImageWriter.Builder and Builder.setDataSpace . Returns int The ImageWriter dataspace.
+
+ Value is either 0 or a combination of DataSpace.DATASPACE_DEPTH , DataSpace.DATASPACE_DYNAMIC_DEPTH , DataSpace.DATASPACE_HEIF , DataSpace.DATASPACE_HEIF_ULTRAHDR , DataSpace.DATASPACE_JPEG_R , DataSpace.DATASPACE_UNKNOWN , DataSpace.DATASPACE_SCRGB_LINEAR , DataSpace.DATASPACE_SRGB , DataSpace.DATASPACE_SCRGB , DataSpace.DATASPACE_DISPLAY_P3 , DataSpace.DATASPACE_BT2020_HLG , DataSpace.DATASPACE_BT2020_PQ , DataSpace.DATASPACE_ADOBE_RGB , DataSpace.DATASPACE_JFIF , DataSpace.DATASPACE_BT601_625 , DataSpace.DATASPACE_BT601_525 , DataSpace.DATASPACE_BT2020 , DataSpace.DATASPACE_BT709 , DataSpace.DATASPACE_DCI_P3 , DataSpace.DATASPACE_SRGB_LINEAR , and android.hardware.DataSpace.DATASPACE_DISPLAY_BT2020 getFormat Added in API level 23 public int getFormat () Get the ImageWriter format. This format may be different than the Image format returned by Image.getFormat() . However, if the ImageWriter format is PRIVATE , calling dequeueInputImage() will result in an IllegalStateException . Returns int The ImageWriter format. getHardwareBufferFormat Added in API level 33 public int getHardwareBufferFormat () Get the ImageWriter hardwareBuffer format. Use this function if the ImageWriter instance is created by builder pattern ImageWriter.Builder and using Builder.setHardwareBufferFormat and Builder.setDataSpace . Returns int The ImageWriter hardwareBuffer format.
+
+ Value is HardwareBuffer.RGBA_8888 , HardwareBuffer.RGBA_FP16 , HardwareBuffer.RGBA_1010102 , HardwareBuffer.RGBX_8888 , HardwareBuffer.RGB_888 , HardwareBuffer.RGB_565 , HardwareBuffer.BLOB , HardwareBuffer.YCBCR_420_888 , HardwareBuffer.D_16 , HardwareBuffer.D_24 , HardwareBuffer.DS_24UI8 , HardwareBuffer.D_FP32 , HardwareBuffer.DS_FP32UI8 , HardwareBuffer.S_UI8 , HardwareBuffer.YCBCR_P010 , HardwareBuffer.YCBCR_P210 , HardwareBuffer.R_8 , HardwareBuffer.R_16 , HardwareBuffer.RG_1616 , or HardwareBuffer.RGBA_10101010 getHeight Added in API level 33 public int getHeight () The height of Images , in pixels. If Builder.setWidthAndHeight is not called, the default height of the Image
+ depends on the Surface provided by customer end-point. Returns int the expected height of an Image. getMaxImages Added in API level 23 public int getMaxImages () Maximum number of Images that can be dequeued from the ImageWriter
+ simultaneously (for example, with dequeueInputImage() ). An Image is considered dequeued after it's returned by dequeueInputImage() from ImageWriter, and until the Image is
+ sent back to ImageWriter via queueInputImage(Image) , or Image.close() . Attempting to dequeue more than maxImages concurrently will
+ result in the dequeueInputImage() function throwing an IllegalStateException . Returns int Maximum number of Images that can be dequeued from this
+         ImageWriter. See also: dequeueInputImage() queueInputImage(Image) Image.close() getUsage Added in API level 33 public long getUsage () Get the ImageWriter usage flag. It is not recommended to use this function if Builder.setUsage is not called.
+ Invalid usage value will be returned if so. Returns long The ImageWriter usage flag.
+
+ Value is either 0 or a combination of HardwareBuffer.USAGE_CPU_READ_RARELY , HardwareBuffer.USAGE_CPU_READ_OFTEN , HardwareBuffer.USAGE_CPU_WRITE_RARELY , HardwareBuffer.USAGE_CPU_WRITE_OFTEN , HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE , HardwareBuffer.USAGE_GPU_COLOR_OUTPUT , HardwareBuffer.USAGE_COMPOSER_OVERLAY , HardwareBuffer.USAGE_PROTECTED_CONTENT , HardwareBuffer.USAGE_VIDEO_ENCODE , HardwareBuffer.USAGE_GPU_DATA_BUFFER , HardwareBuffer.USAGE_SENSOR_DIRECT_DATA , HardwareBuffer.USAGE_GPU_CUBE_MAP , HardwareBuffer.USAGE_GPU_MIPMAP_COMPLETE , and HardwareBuffer.USAGE_FRONT_BUFFER getWidth Added in API level 33 public int getWidth () The width of Images , in pixels. If Builder.setWidthAndHeight is not called, the default width of the Image
+ depends on the Surface provided by customer end-point. Returns int the expected actual width of an Image. newInstance Added in API level 29 public static ImageWriter newInstance ( Surface surface, 
+                int maxImages, 
+                int format) Create a new ImageWriter with given number of max Images and format. The maxImages parameter determines the maximum number of Image objects that can be be dequeued from the ImageWriter simultaneously. Requesting more buffers will use up
+ more memory, so it is important to use only the minimum number necessary. The format specifies the image format of this ImageWriter. The format
+ from the surface will be overridden with this format. For example,
+ if the surface is obtained from a SurfaceTexture , the default
+ format may be PixelFormat.RGBA_8888 . If the application creates an ImageWriter
+ with this surface and ImageFormat.PRIVATE , this ImageWriter will be able to operate
+ with ImageFormat.PRIVATE Images. Note that the consumer end-point may or may not be able to support Images with different
+ format, for such case, the application should only use this method if the consumer is able
+ to consume such images. The input Image size depends on the Surface that is provided by
+ the downstream consumer end-point. Parameters surface Surface : The destination Surface this writer produces Image data
+            into.
+ This value cannot be null . maxImages int : The maximum number of Images the user will want to
+            access simultaneously for producing Image data. This should be
+            as small as possible to limit memory use. Once maxImages
+            Images are dequeued by the user, one of them has to be queued
+            back before a new Image can be dequeued for access via dequeueInputImage() .
+ Value is 1 or greater format int : The format of this ImageWriter. It can be any valid format specified by ImageFormat or PixelFormat .
+
+ Value is ImageFormat.UNKNOWN , PixelFormat.RGBA_8888 , PixelFormat.RGBX_8888 , PixelFormat.RGB_888 , ImageFormat.RGB_565 , ImageFormat.YV12 , ImageFormat.Y8 , android.graphics.ImageFormat.Y16, ImageFormat.YCBCR_P010 , ImageFormat.YCBCR_P210 , ImageFormat.NV16 , ImageFormat.NV21 , ImageFormat.YUY2 , ImageFormat.JPEG , ImageFormat.DEPTH_JPEG , ImageFormat.YUV_420_888 , ImageFormat.YUV_422_888 , ImageFormat.YUV_444_888 , ImageFormat.FLEX_RGB_888 , ImageFormat.FLEX_RGBA_8888 , ImageFormat.RAW_SENSOR , ImageFormat.RAW_PRIVATE , ImageFormat.RAW10 , ImageFormat.RAW12 , ImageFormat.DEPTH16 , ImageFormat.DEPTH_POINT_CLOUD , android.graphics.ImageFormat.RAW_DEPTH, android.graphics.ImageFormat.RAW_DEPTH10, ImageFormat.PRIVATE , ImageFormat.HEIC , ImageFormat.HEIC_ULTRAHDR , or ImageFormat.JPEG_R Returns ImageWriter a new ImageWriter instance.
+
+ This value cannot be null . newInstance Added in API level 23 public static ImageWriter newInstance ( Surface surface, 
+                int maxImages) Create a new ImageWriter. The maxImages parameter determines the maximum number of Image objects that can be be dequeued from the ImageWriter simultaneously. Requesting more buffers will use up
+ more memory, so it is important to use only the minimum number necessary. The input Image size and format depend on the Surface that is provided by
+ the downstream consumer end-point. Parameters surface Surface : The destination Surface this writer produces Image data
+            into.
+ This value cannot be null . maxImages int : The maximum number of Images the user will want to
+            access simultaneously for producing Image data. This should be
+            as small as possible to limit memory use. Once maxImages
+            Images are dequeued by the user, one of them has to be queued
+            back before a new Image can be dequeued for access via dequeueInputImage() .
+ Value is 1 or greater Returns ImageWriter a new ImageWriter instance.
+
+ This value cannot be null . queueInputImage Added in API level 23 public void queueInputImage ( Image image) Queue an input Image back to ImageWriter for the downstream
+ consumer to access. The input Image could be from ImageReader (acquired via ImageReader.acquireNextImage or ImageReader.acquireLatestImage ), or from this ImageWriter
+ (acquired via dequeueInputImage() ). In the former case, the Image
+ data will be moved to this ImageWriter. Note that the Image properties
+ (size, format, strides, etc.) must be the same as the properties of the
+ images dequeued from this ImageWriter. In the latter case, the application has
+ filled the input image with data. This method then passes the filled
+ buffer to the downstream consumer. In both cases, it's up to the caller
+ to ensure that the Image timestamp (in nanoseconds) is correctly set, as
+ the downstream component may want to use it to indicate the Image data
+ capture time. After this method is called and the downstream consumer consumes and
+ releases the Image, an OnImageReleasedListener.onImageReleased callback will fire. The application can use this callback to avoid
+ sending Images faster than the downstream consumer processing rate in
+ steady state. Passing in an Image from some other component (e.g. an ImageReader ) requires a free input Image from this ImageWriter as
+ the destination. In this case, this call will block, as dequeueInputImage() does, if there are no free Images available.
+ To avoid blocking, the application should ensure that there is at least
+ one free Image available in this ImageWriter before calling this method. After this call, the input Image is no longer valid for further access,
+ as if the Image is closed . Attempting to access the ByteBuffers returned by an earlier Plane#getBuffer call will result in an IllegalStateException . Parameters image Image : The Image to be queued back to ImageWriter for future
+            consumption. Throws IllegalStateException if the image was already queued previously,
+            or the image was aborted previously, or the input Surface has been abandoned by the
+            consumer component that provided the Surface . See also: dequeueInputImage() setOnImageReleasedListener Added in API level 23 public void setOnImageReleasedListener ( ImageWriter.OnImageReleasedListener listener, Handler handler) Register a listener to be invoked when an input Image is returned to the
+ ImageWriter. Parameters listener ImageWriter.OnImageReleasedListener : The listener that will be run. handler Handler : The handler on which the listener should be invoked, or
+            null if the listener should be invoked on the calling thread's
+            looper. Throws IllegalArgumentException If no handler specified and the calling
+             thread has no looper. Protected methods finalize Added in API level 23 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored. Throws Throwable</body></html>

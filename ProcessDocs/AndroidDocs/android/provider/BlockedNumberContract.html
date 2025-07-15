@@ -1,0 +1,73 @@
+<html><head><title>Class Documentation</title></head><body>BlockedNumberContract Kotlin | Java public
+  
+  
+  
+  class
+  BlockedNumberContract extends Object java.lang.Object ↳ android.provider.BlockedNumberContract The contract between the blockednumber provider and applications. Contains definitions for
+ the supported URIs and columns. Overview The content provider exposes a table containing blocked numbers. The columns and URIs for
+ accessing this table are defined by the BlockedNumbers class. Messages, and calls from
+ blocked numbers are discarded by the platform. Notifications upon provider changes can be
+ received using a ContentObserver . The platform will not block messages, and calls from emergency numbers as defined by PhoneNumberUtils.isEmergencyNumber(String) . If the user contacts
+ emergency services, number blocking is disabled by the platform for a duration defined by CarrierConfigManager.KEY_DURATION_BLOCKING_DISABLED_AFTER_EMERGENCY_INT . Permissions Only the system, the default SMS application, and the default phone app
+ (See TelecomManager.getDefaultDialerPackage() ), and carrier apps
+ (See CarrierService ) can read, and write to the blockednumber
+ provider. However, canCurrentUserBlockNumbers(android.content.Context) can be accessed by any
+ application. Data Other than regular phone numbers, the blocked number provider can also store addresses (such
+ as email) from which a user can receive messages, and calls. The blocked numbers are stored
+ in the BlockedNumbers.COLUMN_ORIGINAL_NUMBER column. A normalized version of phone
+ numbers (if normalization is possible) is stored in BlockedNumbers.COLUMN_E164_NUMBER column. The platform blocks calls, and messages from an address if it is present in in the BlockedNumbers.COLUMN_ORIGINAL_NUMBER column or if the E164 version of the address
+ matches the BlockedNumbers.COLUMN_E164_NUMBER column. Operations Insert BlockedNumbers.COLUMN_ORIGINAL_NUMBER is a required column that needs to be populated.
+ Apps can optionally provide the BlockedNumbers.COLUMN_E164_NUMBER which is the phone
+ number's E164 representation. The provider automatically populates this column if the app does
+ not provide it. Note that this column is not populated if normalization fails or if the address
+ is not a phone number (eg: email). Attempting to insert an existing blocked number (same BlockedNumbers.COLUMN_ORIGINAL_NUMBER column) will result in replacing the existing
+ blocked number. Examples: ContentValues values = new ContentValues();
+ values.put(BlockedNumbers.COLUMN_ORIGINAL_NUMBER, "1234567890");
+ Uri uri = getContentResolver().insert(BlockedNumbers.CONTENT_URI, values); ContentValues values = new ContentValues();
+ values.put(BlockedNumbers.COLUMN_ORIGINAL_NUMBER, "1234567890");
+ values.put(BlockedNumbers.COLUMN_E164_NUMBER, "+11234567890");
+ Uri uri = getContentResolver().insert(BlockedNumbers.CONTENT_URI, values); ContentValues values = new ContentValues();
+ values.put(BlockedNumbers.COLUMN_ORIGINAL_NUMBER, "12345@abdcde.com");
+ Uri uri = getContentResolver().insert(BlockedNumbers.CONTENT_URI, values); Update Updates are not supported. Use Delete, and Insert instead. Delete Deletions can be performed as follows: ContentValues values = new ContentValues();
+ values.put(BlockedNumbers.COLUMN_ORIGINAL_NUMBER, "1234567890");
+ Uri uri = getContentResolver().insert(BlockedNumbers.CONTENT_URI, values);
+ getContentResolver().delete(uri, null, null); To check if a particular number is blocked, use the method isBlocked(android.content.Context, java.lang.String) . Query All blocked numbers can be enumerated as follows: Cursor c = getContentResolver().query(BlockedNumbers.CONTENT_URI,
+          new String[]{BlockedNumbers.COLUMN_ID, BlockedNumbers.COLUMN_ORIGINAL_NUMBER,
+          BlockedNumbers.COLUMN_E164_NUMBER}, null, null, null); Unblock Use the method unblock(android.content.Context, java.lang.String) to unblock numbers. Multi-user Apps must use the method canCurrentUserBlockNumbers(android.content.Context) before performing any
+ operation on the blocked number provider. If canCurrentUserBlockNumbers(android.content.Context) returns false , all operations on the provider will fail with a SecurityException . The
+ platform will block calls, and messages from numbers in the provider independent of the current
+ user. Summary Nested classes class BlockedNumberContract.BlockedNumbers Constants to interact with the blocked numbers list. Constants String AUTHORITY The authority for the blocked number provider Fields public
+    static
+    final Uri AUTHORITY_URI A content:// style uri to the authority for the blocked number provider Public methods static
+        
+        
+        boolean canCurrentUserBlockNumbers ( Context context) Checks if blocking numbers is supported for the current user. static
+        
+        
+        boolean isBlocked ( Context context, String phoneNumber) Returns whether a given number is in the blocked list. static
+        
+        
+        int unblock ( Context context, String phoneNumber) Unblocks the phoneNumber if it is blocked. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants AUTHORITY Added in API level 24 public static final String AUTHORITY The authority for the blocked number provider Constant Value:
+      
+          "com.android.blockednumber" Fields AUTHORITY_URI Added in API level 24 public static final Uri AUTHORITY_URI A content:// style uri to the authority for the blocked number provider Public methods canCurrentUserBlockNumbers Added in API level 24 public static boolean canCurrentUserBlockNumbers ( Context context) Checks if blocking numbers is supported for the current user. Typically, blocking numbers is only supported for one user at a time. Parameters context Context Returns boolean true if the current user can block numbers. isBlocked Added in API level 24 public static boolean isBlocked ( Context context, String phoneNumber) Returns whether a given number is in the blocked list. This matches the phoneNumber against the BlockedNumbers.COLUMN_ORIGINAL_NUMBER column, and the E164 representation of the phoneNumber with the BlockedNumbers.COLUMN_E164_NUMBER column. Note that if the canCurrentUserBlockNumbers(Context) is false for the user
+ context context , this method will throw a SecurityException . This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters context Context phoneNumber String Returns boolean true if the phoneNumber is blocked. unblock Added in API level 24 public static int unblock ( Context context, String phoneNumber) Unblocks the phoneNumber if it is blocked. This deletes all rows where the phoneNumber matches the BlockedNumbers.COLUMN_ORIGINAL_NUMBER column or the E164 representation of the phoneNumber matches the BlockedNumbers.COLUMN_E164_NUMBER column. To delete rows based on exact match with specific columns such as BlockedNumbers.COLUMN_ID use ContentProvider.delete(Uri, String, String[]) with BlockedNumbers.CONTENT_URI URI. Note that if the canCurrentUserBlockNumbers(Context) is false for the user
+ context context , this method will throw a SecurityException . This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters context Context phoneNumber String Returns int the number of rows deleted in the blocked number provider as a result of unblock.</body></html>

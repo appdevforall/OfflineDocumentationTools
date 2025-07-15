@@ -1,0 +1,469 @@
+<html><head><title>Class Documentation</title></head><body>UnicodeSet Kotlin | Java public
+  
+  
+  
+  class
+  UnicodeSet extends UnicodeFilter implements Comparable < UnicodeSet >, Freezable < UnicodeSet >, Iterable < String > java.lang.Object ↳ android.icu.text.UnicodeFilter ↳ android.icu.text.UnicodeSet A mutable set of Unicode characters and multicharacter strings.
+ Objects of this class represent character classes used
+ in regular expressions. A character specifies a subset of Unicode
+ code points.  Legal code points are U+0000 to U+10FFFF, inclusive.
+
+ Note: method freeze() will not only make the set immutable, but
+ also makes important methods much higher performance:
+ contains(c), containsNone(...), span(...), spanBack(...) etc.
+ After the object is frozen, any subsequent call that wants to change
+ the object will throw UnsupportedOperationException. The UnicodeSet class is not designed to be subclassed. UnicodeSet supports two APIs. The first is the operand API that allows the caller to modify the value of
+ a UnicodeSet object. It conforms to Java 2's java.util.Set interface, although UnicodeSet does not actually implement that
+ interface. All methods of Set are supported, with the
+ modification that they take a character range or single character
+ instead of an Object , and they take a UnicodeSet instead of a Collection .  The
+ operand API may be thought of in terms of boolean logic: a boolean
+ OR is implemented by add , a boolean AND is implemented
+ by retain , a boolean XOR is implemented by complement taking an argument, and a boolean NOT is
+ implemented by complement with no argument.  In terms
+ of traditional set theory function names, add is a
+ union, retain is an intersection, remove is an asymmetric difference, and complement with no
+ argument is a set complement with respect to the superset range MIN_VALUE-MAX_VALUE The second API is the applyPattern() / toPattern() API from the java.text.Format -derived classes.  Unlike the
+ methods that add characters, add categories, and control the logic
+ of the set, the method applyPattern() sets all
+ attributes of a UnicodeSet at once, based on a
+ string pattern. Pattern syntax Patterns are accepted by the constructors and the applyPattern() methods and returned by the toPattern() method.  These patterns follow a syntax
+ similar to that employed by version 8 regular expression character
+ classes.  Here are some simple examples: [] No characters [a] The character 'a' [ae] The characters 'a' and 'e' [a-e] The characters 'a' through 'e' inclusive, in Unicode code
+       point order [\\u4E01] The character U+4E01 [a{ab}{ac}] The character 'a' and the multicharacter strings "ab" and
+       "ac" [\p{Lu}] All characters in the general category Uppercase Letter Any character may be preceded by a backslash in order to remove any special
+ meaning.  White space characters, as defined by the Unicode Pattern_White_Space property, are
+ ignored, unless they are escaped. Property patterns specify a set of characters having a certain
+ property as defined by the Unicode standard.  Both the POSIX-like
+ "[:Lu:]" and the Perl-like syntax "\p{Lu}" are recognized.  For a
+ complete list of supported property patterns, see the User's Guide
+ for UnicodeSet at https://unicode-org.github.io/icu/userguide/strings/unicodeset .
+ Actual determination of property data is defined by the underlying
+ Unicode database as implemented by UCharacter. Patterns specify individual characters, ranges of characters, and
+ Unicode property sets.  When elements are concatenated, they
+ specify their union.  To complement a set, place a '^' immediately
+ after the opening '['.  Property patterns are inverted by modifying
+ their delimiters; "[:^foo]" and "\P{foo}".  In any other location,
+ '^' has no special meaning. Since ICU 70, "[^...]", "[:^foo]", "\P{foo}", and "[:binaryProperty=No:]"
+ perform a \u201ccode point complement\u201d (all code points minus the original set),
+ removing all multicharacter strings,
+ equivalent to . complement() . removeAllStrings() .
+ The complement() API function continues to perform a
+ symmetric difference with all code points and thus retains all multicharacter strings. Ranges are indicated by placing two a '-' between two
+ characters, as in "a-z".  This specifies the range of all
+ characters from the left to the right, in Unicode order.  If the
+ left character is greater than or equal to the
+ right character it is a syntax error.  If a '-' occurs as the first
+ character after the opening '[' or '[^', or if it occurs as the
+ last character before the closing ']', then it is taken as a
+ literal.  Thus "[a\\-b]", "[-ab]", and "[ab-]" all indicate the same
+ set of three characters, 'a', 'b', and '-'. Sets may be intersected using the '&' operator or the asymmetric
+ set difference may be taken using the '-' operator, for example,
+ "[[:L:]&[\\u0000-\\u0FFF]]" indicates the set of all Unicode letters
+ with values less than 4096.  Operators ('&' and '|') have equal
+ precedence and bind left-to-right.  Thus
+ "[[:L:]-[a-z]-[\\u0100-\\u01FF]]" is equivalent to
+ "[[[:L:]-[a-z]]-[\\u0100-\\u01FF]]".  This only really matters for
+ difference; intersection is commutative. [a] The set containing 'a' [a-z] The set containing 'a'
+ through 'z' and all letters in between, in Unicode order [^a-z] The set containing
+ all characters but 'a' through 'z',
+ that is, U+0000 through 'a'-1 and 'z'+1 through U+10FFFF [[ pat1 ][ pat2 ]] The union of sets specified by pat1 and pat2 [[ pat1 ]&[ pat2 ]] The intersection of sets specified by pat1 and pat2 [[ pat1 ]-[ pat2 ]] The asymmetric difference of sets specified by pat1 and pat2 [:Lu:] or \p{Lu} The set of characters having the specified
+ Unicode property; in
+ this case, Unicode uppercase letters [:^Lu:] or \P{Lu} The set of characters not having the given
+ Unicode property Formal syntax pattern := ('[' '^'? item* ']') |
+       property item := char | (char '-' char) | pattern-expr pattern-expr := pattern | pattern-expr pattern |
+       pattern-expr op pattern op := '&' | '-' special := '[' | ']' | '-' char := any character that is not special | ('\\' any character ) | ('\u' hex hex hex hex) hex := '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' property := a Unicode property set pattern Legend: a := b a may be replaced by b a? zero or one instance of a a* one or more instances of a a | b either a or b 'a' the literal string between the quotes To iterate over contents of UnicodeSet , the following are available: to iterate over the ranges: ranges() , ERROR(/#rangeStream()) to iterate over the strings: strings() , ERROR(/#stringStream()) to iterate over the code points: ERROR(/#codePoints()) , ERROR(/#codePointStream()) to iterate over the entire contents in a single loop: this class itself is Iterable ,
+       or use ERROR(/#stream()) . All of these method are, however, not particularly efficient,
+       since they convert each individual code point to a String . The iterators and streams methods work as expected in idiomatic Java usage. The UnicodeSetIterator cannot be used in for loops, and it is not very Java-idiomatic, because it is old.
+ But it might be faster in certain use cases. We recommend that you measure in performance sensitive code. To replace, count elements, or delete spans, see UnicodeSetSpanner . See also: UnicodeSetIterator UnicodeSetSpanner Summary Nested classes class UnicodeSet.EntryRange A struct-like class used for iteration through ranges, for faster iteration than by String. Constants int ADD_CASE_MAPPINGS Adds all case mappings for each element in the set. int CASE This constant was deprecated
+      in API level 35.
+    ICU 73 Use CASE_INSENSITIVE instead. int CASE_INSENSITIVE Enable case insensitive matching. int IGNORE_SPACE Bitmask for constructor and applyPattern() indicating that
+ white space should be ignored. int MAX_VALUE Maximum value that can be stored in a UnicodeSet. int MIN_VALUE Minimum value that can be stored in a UnicodeSet. int SIMPLE_CASE_INSENSITIVE Enable case insensitive matching. Inherited constants From interface android.icu.text.UnicodeMatcher char ETHER The character at index i, where i < contextStart || i >= contextLimit,
+ is ETHER. int U_MATCH Constant returned by matches() indicating a
+ complete match between the text and this matcher. int U_MISMATCH Constant returned by matches() indicating a
+ mismatch between the text and this matcher. int U_PARTIAL_MATCH Constant returned by matches() indicating a
+ partial match between the text and this matcher. Fields public
+    static
+    final UnicodeSet ALL_CODE_POINTS Constant for the set of all code points. public
+    static
+    final UnicodeSet EMPTY Constant for the empty set. Public constructors UnicodeSet () Constructs an empty set. UnicodeSet ( UnicodeSet other) Constructs a copy of an existing set. UnicodeSet (int start, int end) Constructs a set containing the given range. UnicodeSet (int... pairs) Quickly constructs a set from a set of ranges <s0, e0, s1, e1, s2, e2, ..., sn, en>. UnicodeSet ( String pattern) Constructs a set from the given pattern. UnicodeSet ( String pattern, boolean ignoreWhitespace) Constructs a set from the given pattern. UnicodeSet ( String pattern, int options) Constructs a set from the given pattern. UnicodeSet ( String pattern, ParsePosition pos, SymbolTable symbols) Constructs a set from the given pattern. UnicodeSet ( String pattern, ParsePosition pos, SymbolTable symbols, int options) Constructs a set from the given pattern. Public methods StringBuffer _generatePattern ( StringBuffer result, boolean escapeUnprintable) Generate and append a string representation of this set to result. StringBuffer _generatePattern ( StringBuffer result, boolean escapeUnprintable, boolean includeStrings) Generate and append a string representation of this set to result. final UnicodeSet add (int c) Adds the specified character to this set if it is not already
+ present. final UnicodeSet add ( CharSequence s) Adds the specified multicharacter to this set if it is not already
+ present. UnicodeSet add ( Iterable <?> source) Add the contents of the collection (as strings) into this UnicodeSet. UnicodeSet add (int start, int end) Adds the specified range to this set if it is not already
+ present. <T extends CharSequence > UnicodeSet addAll (T... collection) UnicodeSet addAll (int start, int end) Adds all characters in range (uses preferred naming convention). UnicodeSet addAll ( UnicodeSet c) Adds all of the elements in the specified set to this set if
+ they're not already present. final UnicodeSet addAll ( CharSequence s) Adds each of the characters in this string to the set. UnicodeSet addAll ( Iterable <?> source) Add a collection (as strings) into this UnicodeSet. <T extends Collection < String >>
+        T addAllTo (T target) Add the contents of the UnicodeSet (as strings) into a collection. void addMatchSetTo ( UnicodeSet toUnionTo) Implementation of UnicodeMatcher API. UnicodeSet applyIntPropertyValue (int prop, int value) Modifies this set to contain those code points which have the
+ given value for the given binary or enumerated property, as
+ returned by UCharacter.getIntPropertyValue. final UnicodeSet applyPattern ( String pattern) Modifies this set to represent the set specified by the given pattern. UnicodeSet applyPattern ( String pattern, int options) Modifies this set to represent the set specified by the given pattern,
+ optionally ignoring whitespace. UnicodeSet applyPattern ( String pattern, boolean ignoreWhitespace) Modifies this set to represent the set specified by the given pattern,
+ optionally ignoring whitespace. UnicodeSet applyPropertyAlias ( String propertyAlias, String valueAlias) Modifies this set to contain those code points which have the
+ given value for the given property. UnicodeSet applyPropertyAlias ( String propertyAlias, String valueAlias, SymbolTable symbols) Modifies this set to contain those code points which have the
+ given value for the given property. int charAt (int index) Returns the character at the given index within this set, where
+ the set is ordered by ascending code point. UnicodeSet clear () Removes all of the elements from this set. Object clone () Return a new set that is equivalent to this one. UnicodeSet cloneAsThawed () Clone a thawed version of this class, according to the Freezable interface. UnicodeSet closeOver (int attribute) Close this set over the given attribute. UnicodeSet compact () Reallocate this objects internal structures to take up the least
+ possible space, without changing this object's value. int compareTo ( UnicodeSet o) Compares UnicodeSets, where shorter come first, and otherwise lexicographically
+ (according to the comparison of the first characters that differ). int compareTo ( UnicodeSet o, UnicodeSet.ComparisonStyle style) Compares UnicodeSets, in three different ways. int compareTo ( Iterable < String > other) UnicodeSet complement (int start, int end) Complements the specified range in this set. UnicodeSet complement () This is equivalent to complement(MIN_VALUE, MAX_VALUE) . final UnicodeSet complement ( CharSequence s) Complement the specified string in this set. final UnicodeSet complement (int c) Complements the specified character in this set. final UnicodeSet complementAll ( CharSequence s) Complement EACH of the characters in this string. UnicodeSet complementAll ( UnicodeSet c) Complements in this set all elements contained in the specified
+ set. boolean contains (int c) Returns true if this set contains the given character. boolean contains (int start, int end) Returns true if this set contains every character
+ of the given range. final
+        
+        boolean contains ( CharSequence s) Returns true if this set contains the given
+ multicharacter string. boolean containsAll ( UnicodeSet b) Returns true if this set contains all the characters and strings
+ of the given set. <T extends CharSequence >
+        boolean containsAll ( Iterable <T> collection) boolean containsAll ( String s) Returns true if there is a partition of the string such that this set contains each of the partitioned strings. <T extends CharSequence >
+        boolean containsNone ( Iterable <T> collection) boolean containsNone ( UnicodeSet b) Returns true if none of the characters or strings in this UnicodeSet appears in the string. boolean containsNone ( CharSequence s) Returns true if this set contains none of the characters
+ of the given string. boolean containsNone (int start, int end) Returns true if this set contains none of the characters
+ of the given range. final
+        
+        boolean containsSome ( UnicodeSet s) Returns true if this set contains one or more of the characters
+ and strings of the given set. final
+        
+        boolean containsSome ( CharSequence s) Returns true if this set contains one or more of the characters
+ of the given string. final
+        <T extends CharSequence >
+        boolean containsSome ( Iterable <T> collection) final
+        
+        boolean containsSome (int start, int end) Returns true if this set contains one or more of the characters
+ in the given range. boolean equals ( Object o) Compares the specified object with this set for equality. UnicodeSet freeze () Freeze this class, according to the Freezable interface. static UnicodeSet from ( CharSequence s) Makes a set from a multicharacter string. static UnicodeSet fromAll ( CharSequence s) Makes a set from each of the characters in the string. int getRangeCount () Iteration method that returns the number of ranges contained in
+ this set. int getRangeEnd (int index) Iteration method that returns the last character in the
+ specified range of this set. int getRangeStart (int index) Iteration method that returns the first character in the
+ specified range of this set. boolean hasStrings () int hashCode () Returns the hash code value for this set. int indexOf (int c) Returns the index of the given character within this set, where
+ the set is ordered by ascending code point. boolean isEmpty () Returns true if this set contains no elements. boolean isFrozen () Is this frozen, according to the Freezable interface? Iterator < String > iterator () Returns a string iterator. int matches ( Replaceable text, int[] offset, int limit, boolean incremental) Implementation of UnicodeMatcher.matches(). boolean matchesIndexValue (int v) Implementation of UnicodeMatcher API. Iterable < UnicodeSet.EntryRange > ranges () Provide for faster iteration than by String. UnicodeSet remove (int start, int end) Removes the specified range from this set if it is present. final UnicodeSet remove ( CharSequence s) Removes the specified string from this set if it is present. final UnicodeSet remove (int c) Removes the specified character from this set if it is present. <T extends CharSequence > UnicodeSet removeAll ( Iterable <T> collection) UnicodeSet removeAll ( UnicodeSet c) Removes from this set all of its elements that are contained in the
+ specified set. final UnicodeSet removeAll ( CharSequence s) Remove EACH of the characters in this string. final UnicodeSet removeAllStrings () Remove all strings from this UnicodeSet UnicodeSet retain (int start, int end) Retain only the elements in this set that are contained in the
+ specified range. final UnicodeSet retain ( CharSequence cs) Retain the specified string in this set if it is present. final UnicodeSet retain (int c) Retain the specified character from this set if it is present. final UnicodeSet retainAll ( CharSequence s) Retains EACH of the characters in this string. UnicodeSet retainAll ( UnicodeSet c) Retains only the elements in this set that are contained in the
+ specified set. <T extends CharSequence > UnicodeSet retainAll ( Iterable <T> collection) UnicodeSet set ( UnicodeSet other) Make this object represent the same set as other . UnicodeSet set (int start, int end) Make this object represent the range start - end . int size () Returns the number of elements in this set (its cardinality)
+ Note than the elements of a set may include both individual
+ codepoints and strings. int span ( CharSequence s, int start, UnicodeSet.SpanCondition spanCondition) Span a string using this UnicodeSet. int span ( CharSequence s, UnicodeSet.SpanCondition spanCondition) Span a string using this UnicodeSet. int spanBack ( CharSequence s, UnicodeSet.SpanCondition spanCondition) Span a string backwards (from the end) using this UnicodeSet. int spanBack ( CharSequence s, int fromIndex, UnicodeSet.SpanCondition spanCondition) Span a string backwards (from the fromIndex) using this UnicodeSet. Collection < String > strings () For iterating through the strings in the set. String toPattern (boolean escapeUnprintable) Returns a string representation of this set. String toString () Return a programmer-readable string representation of this object. Inherited methods From class android.icu.text.UnicodeFilter abstract
+        
+        
+        
+        
+        boolean contains (int c) Returns true for characters that are in the selected
+ subset. int matches ( Replaceable text, int[] offset, int limit, boolean incremental) Default implementation of UnicodeMatcher::matches() for Unicode
+ filters. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface android.icu.text.UnicodeMatcher abstract
+        
+        
+        
+        
+        void addMatchSetTo ( UnicodeSet toUnionTo) Union the set of all characters that may be matched by this object
+ into the given set. abstract
+        
+        
+        
+        
+        int matches ( Replaceable text, int[] offset, int limit, boolean incremental) Return a UMatchDegree value indicating the degree of match for
+ the given text at the given offset. abstract
+        
+        
+        
+        
+        boolean matchesIndexValue (int v) Returns true if this matcher will match a character c, where c
+ & 0xFF == v, at offset, in the forward direction (with limit >
+ offset). abstract String toPattern (boolean escapeUnprintable) Returns a string representation of this matcher. From interface java.lang.Comparable abstract
+        
+        
+        
+        
+        int compareTo ( UnicodeSet o) Compares this object with the specified object for order. From interface android.icu.util.Freezable abstract UnicodeSet cloneAsThawed () Provides for the clone operation. abstract UnicodeSet freeze () Freezes the object. abstract
+        
+        
+        
+        
+        boolean isFrozen () Determines whether the object has been frozen or not. From interface java.lang.Iterable default
+        
+        
+        
+        void forEach ( Consumer <? super T> action) Performs the given action for each element of the Iterable until all elements have been processed or the action throws an
+ exception. abstract Iterator < String > iterator () Returns an iterator over elements of type T . default Spliterator < String > spliterator () Creates a Spliterator over the elements described by this Iterable . Constants ADD_CASE_MAPPINGS Added in API level 24 public static final int ADD_CASE_MAPPINGS Adds all case mappings for each element in the set.
+ This adds the full lower-, title-, and uppercase mappings as well as the full case folding
+ of each existing element in the set. This value is an options bit set value for some
+ constructors, applyPattern(), and closeOver().
+ It can be ORed together with other, unrelated options. Unlike the \u201ccase insensitive\u201d options, this does not perform a closure.
+ For example, it does not add '\u017f' (U+017F long s) for 's',
+ 'K' (U+212A Kelvin sign) for 'k', or replace set strings by their case-folded versions. Constant Value:
+      
+          4
+          (0x00000004) CASE Added in API level 24 Deprecated in API level
+      35 public static final int CASE This constant was deprecated
+      in API level 35. ICU 73 Use CASE_INSENSITIVE instead. Alias for CASE_INSENSITIVE . Constant Value:
+      
+          2
+          (0x00000002) CASE_INSENSITIVE Added in API level 24 public static final int CASE_INSENSITIVE Enable case insensitive matching.  E.g., "[ab]" with this flag
+ will match 'a', 'A', 'b', and 'B'.  "[^ab]" with this flag will
+ match all except 'a', 'A', 'b', and 'B'. This performs a full
+ closure over case mappings, e.g. '\u017f' (U+017F long s) for 's'. This value is an options bit set value for some
+ constructors, applyPattern(), and closeOver().
+ It can be ORed together with other, unrelated options. The resulting set is a superset of the input for the code points but
+ not for the strings.
+ It performs a case mapping closure of the code points and adds
+ full case folding strings for the code points, and reduces strings of
+ the original set to their full case folding equivalents. This is designed for case-insensitive matches, for example
+ in regular expressions. The full code point case closure allows checking of
+ an input character directly against the closure set.
+ Strings are matched by comparing the case-folded form from the closure
+ set with an incremental case folding of the string in question. The closure set will also contain single code points if the original
+ set contained case-equivalent strings (like U+00DF for "ss" or "Ss" etc.).
+ This is not necessary (that is, redundant) for the above matching method
+ but results in the same closure sets regardless of whether the original
+ set contained the code point or a string. Constant Value:
+      
+          2
+          (0x00000002) IGNORE_SPACE Added in API level 24 public static final int IGNORE_SPACE Bitmask for constructor and applyPattern() indicating that
+ white space should be ignored.  If set, ignore Unicode Pattern_White_Space characters,
+ unless they are quoted or escaped.  This may be ORed together
+ with other selectors. Constant Value:
+      
+          1
+          (0x00000001) MAX_VALUE Added in API level 24 public static final int MAX_VALUE Maximum value that can be stored in a UnicodeSet. Constant Value:
+      
+          1114111
+          (0x0010ffff) MIN_VALUE Added in API level 24 public static final int MIN_VALUE Minimum value that can be stored in a UnicodeSet. Constant Value:
+      
+          0
+          (0x00000000) SIMPLE_CASE_INSENSITIVE Added in API level 36 public static final int SIMPLE_CASE_INSENSITIVE Enable case insensitive matching.
+ Same as CASE_INSENSITIVE but using only Simple_Case_Folding (scf) mappings,
+ which map each code point to one code point,
+ not full Case_Folding (cf) mappings, which map some code points to multiple code points. This is designed for case-insensitive matches, for example in certain
+ regular expression implementations where only Simple_Case_Folding mappings are used,
+ such as in ECMAScript (JavaScript) regular expressions. This value is an options bit set value for some
+ constructors, applyPattern(), and closeOver().
+ It can be ORed together with other, unrelated options. Constant Value:
+      
+          6
+          (0x00000006) Fields ALL_CODE_POINTS Added in API level 24 public static final UnicodeSet ALL_CODE_POINTS Constant for the set of all code points. (Since UnicodeSets can include strings, does not include everything that a UnicodeSet can.) EMPTY Added in API level 24 public static final UnicodeSet EMPTY Constant for the empty set. Public constructors UnicodeSet Added in API level 24 public UnicodeSet () Constructs an empty set. UnicodeSet Added in API level 24 public UnicodeSet ( UnicodeSet other) Constructs a copy of an existing set. Parameters other UnicodeSet UnicodeSet Added in API level 24 public UnicodeSet (int start, 
+                int end) Constructs a set containing the given range. If end >
+ start then an empty set is created. Parameters start int : first character, inclusive, of range end int : last character, inclusive, of range UnicodeSet Added in API level 24 public UnicodeSet (int... pairs) Quickly constructs a set from a set of ranges <s0, e0, s1, e1, s2, e2, ..., sn, en>.
+ There must be an even number of integers, and they must be all greater than zero,
+ all less than or equal to Character.MAX_CODE_POINT.
+ In each pair (..., si, ei, ...) it must be true that si <= ei
+ Between adjacent pairs (...ei, sj...), it must be true that ei+1 < sj Parameters pairs int : pairs of character representing ranges UnicodeSet Added in API level 24 public UnicodeSet ( String pattern) Constructs a set from the given pattern.  See the class description
+ for the syntax of the pattern language.  Whitespace is ignored. Parameters pattern String : a string specifying what characters are in the set Throws IllegalArgumentException if the pattern contains
+ a syntax error. UnicodeSet Added in API level 24 public UnicodeSet ( String pattern, 
+                boolean ignoreWhitespace) Constructs a set from the given pattern.  See the class description
+ for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set ignoreWhitespace boolean : if true, ignore Unicode Pattern_White_Space characters Throws IllegalArgumentException if the pattern contains
+ a syntax error. UnicodeSet Added in API level 24 public UnicodeSet ( String pattern, 
+                int options) Constructs a set from the given pattern.  See the class description
+ for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set options int : a bitmask indicating which options to apply.
+ Valid options are IGNORE_SPACE and
+ at most one of CASE_INSENSITIVE , ADD_CASE_MAPPINGS , SIMPLE_CASE_INSENSITIVE . These case options are mutually exclusive. Throws IllegalArgumentException if the pattern contains
+ a syntax error. UnicodeSet Added in API level 24 public UnicodeSet ( String pattern, ParsePosition pos, SymbolTable symbols) Constructs a set from the given pattern.  See the class description
+ for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set pos ParsePosition : on input, the position in pattern at which to start parsing.
+ On output, the position after the last character parsed. symbols SymbolTable : a symbol table mapping variables to char[] arrays
+ and chars to UnicodeSets Throws IllegalArgumentException if the pattern
+ contains a syntax error. UnicodeSet Added in API level 24 public UnicodeSet ( String pattern, ParsePosition pos, SymbolTable symbols, 
+                int options) Constructs a set from the given pattern.  See the class description
+ for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set pos ParsePosition : on input, the position in pattern at which to start parsing.
+ On output, the position after the last character parsed. symbols SymbolTable : a symbol table mapping variables to char[] arrays
+ and chars to UnicodeSets options int : a bitmask indicating which options to apply.
+ Valid options are IGNORE_SPACE and
+ at most one of CASE_INSENSITIVE , ADD_CASE_MAPPINGS , SIMPLE_CASE_INSENSITIVE . These case options are mutually exclusive. Throws IllegalArgumentException if the pattern
+ contains a syntax error. Public methods _generatePattern Added in API level 24 public StringBuffer _generatePattern ( StringBuffer result, 
+                boolean escapeUnprintable) Generate and append a string representation of this set to result.
+ This does not use this.pat, the cleaned up copy of the string
+ passed to applyPattern(). Parameters result StringBuffer : the buffer into which to generate the pattern escapeUnprintable boolean : escape unprintable characters if true Returns StringBuffer _generatePattern Added in API level 24 public StringBuffer _generatePattern ( StringBuffer result, 
+                boolean escapeUnprintable, 
+                boolean includeStrings) Generate and append a string representation of this set to result.
+ This does not use this.pat, the cleaned up copy of the string
+ passed to applyPattern(). Parameters result StringBuffer : the buffer into which to generate the pattern escapeUnprintable boolean : escape unprintable characters if true includeStrings boolean : if false, doesn't include the strings. Returns StringBuffer add Added in API level 24 public final UnicodeSet add (int c) Adds the specified character to this set if it is not already
+ present.  If this set already contains the specified character,
+ the call leaves this set unchanged. Parameters c int Returns UnicodeSet add Added in API level 24 public final UnicodeSet add ( CharSequence s) Adds the specified multicharacter to this set if it is not already
+ present.  If this set already contains the multicharacter,
+ the call leaves this set unchanged.
+ Thus "ch" => {"ch"} Parameters s CharSequence : the source string Returns UnicodeSet this object, for chaining add Added in API level 24 public UnicodeSet add ( Iterable <?> source) Add the contents of the collection (as strings) into this UnicodeSet.
+ The collection must not contain null. Parameters source Iterable : the collection to add Returns UnicodeSet a reference to this object add Added in API level 24 public UnicodeSet add (int start, 
+                int end) Adds the specified range to this set if it is not already
+ present.  If this set already contains the specified range,
+ the call leaves this set unchanged.  If start > end then an empty range is added, leaving the set unchanged. Parameters start int : first character, inclusive, of range to be added
+ to this set. end int : last character, inclusive, of range to be added
+ to this set. Returns UnicodeSet addAll Added in API level 24 public UnicodeSet addAll (T... collection) Parameters collection T Returns UnicodeSet See also: addAll(android.icu.text.UnicodeSet) addAll Added in API level 24 public UnicodeSet addAll (int start, 
+                int end) Adds all characters in range (uses preferred naming convention). Parameters start int : The index of where to start on adding all characters. end int : The index of where to end on adding all characters. Returns UnicodeSet a reference to this object addAll Added in API level 24 public UnicodeSet addAll ( UnicodeSet c) Adds all of the elements in the specified set to this set if
+ they're not already present.  This operation effectively
+ modifies this set so that its value is the union of the two
+ sets.  The behavior of this operation is unspecified if the specified
+ collection is modified while the operation is in progress. Parameters c UnicodeSet : set whose elements are to be added to this set. Returns UnicodeSet addAll Added in API level 24 public final UnicodeSet addAll ( CharSequence s) Adds each of the characters in this string to the set. Thus "ch" => {"c", "h"}
+ If this set already any particular character, it has no effect on that character. Parameters s CharSequence : the source string Returns UnicodeSet this object, for chaining addAll Added in API level 24 public UnicodeSet addAll ( Iterable <?> source) Add a collection (as strings) into this UnicodeSet.
+ Uses standard naming convention. Parameters source Iterable : collection to add into Returns UnicodeSet a reference to this object addAllTo Added in API level 24 public T addAllTo (T target) Add the contents of the UnicodeSet (as strings) into a collection. Parameters target T : collection to add into Returns T addMatchSetTo Added in API level 24 public void addMatchSetTo ( UnicodeSet toUnionTo) Implementation of UnicodeMatcher API.  Union the set of all
+ characters that may be matched by this object into the given
+ set. Parameters toUnionTo UnicodeSet : the set into which to union the source characters applyIntPropertyValue Added in API level 24 public UnicodeSet applyIntPropertyValue (int prop, 
+                int value) Modifies this set to contain those code points which have the
+ given value for the given binary or enumerated property, as
+ returned by UCharacter.getIntPropertyValue.  Prior contents of
+ this set are lost. Parameters prop int : a property in the range
+ UProperty.BIN_START..UProperty.BIN_LIMIT-1 or
+ UProperty.INT_START..UProperty.INT_LIMIT-1 or.
+ UProperty.MASK_START..UProperty.MASK_LIMIT-1. value int : a value in the range
+ UCharacter.getIntPropertyMinValue(prop)..
+ UCharacter.getIntPropertyMaxValue(prop), with one exception.
+ If prop is UProperty.GENERAL_CATEGORY_MASK, then value should not be
+ a UCharacter.getType() result, but rather a mask value produced
+ by logically ORing (1 << UCharacter.getType()) values together.
+ This allows grouped categories such as [:L:] to be represented. Returns UnicodeSet a reference to this set applyPattern Added in API level 24 public final UnicodeSet applyPattern ( String pattern) Modifies this set to represent the set specified by the given pattern.
+ See the class description for the syntax of the pattern language.
+ Whitespace is ignored. Parameters pattern String : a string specifying what characters are in the set Returns UnicodeSet Throws IllegalArgumentException if the pattern
+ contains a syntax error. applyPattern Added in API level 24 public UnicodeSet applyPattern ( String pattern, 
+                int options) Modifies this set to represent the set specified by the given pattern,
+ optionally ignoring whitespace.
+ See the class description for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set options int : a bitmask indicating which options to apply.
+ Valid options are IGNORE_SPACE and
+ at most one of CASE_INSENSITIVE , ADD_CASE_MAPPINGS , SIMPLE_CASE_INSENSITIVE . These case options are mutually exclusive. Returns UnicodeSet Throws IllegalArgumentException if the pattern
+ contains a syntax error. applyPattern Added in API level 24 public UnicodeSet applyPattern ( String pattern, 
+                boolean ignoreWhitespace) Modifies this set to represent the set specified by the given pattern,
+ optionally ignoring whitespace.
+ See the class description for the syntax of the pattern language. Parameters pattern String : a string specifying what characters are in the set ignoreWhitespace boolean : if true then Unicode Pattern_White_Space characters are ignored Returns UnicodeSet Throws IllegalArgumentException if the pattern
+ contains a syntax error. applyPropertyAlias Added in API level 24 public UnicodeSet applyPropertyAlias ( String propertyAlias, String valueAlias) Modifies this set to contain those code points which have the
+ given value for the given property.  Prior contents of this
+ set are lost. Parameters propertyAlias String : a property alias, either short or long.
+ The name is matched loosely.  See PropertyAliases.txt for names
+ and a description of loose matching.  If the value string is
+ empty, then this string is interpreted as either a
+ General_Category value alias, a Script value alias, a binary
+ property alias, or a special ID.  Special IDs are matched
+ loosely and correspond to the following sets:
+
+ "ANY" = [\\u0000-\\U0010FFFF],
+ "ASCII" = [\\u0000-\\u007F]. valueAlias String : a value alias, either short or long.  The
+ name is matched loosely.  See PropertyValueAliases.txt for
+ names and a description of loose matching.  In addition to
+ aliases listed, numeric values and canonical combining classes
+ may be expressed numerically, e.g., ("nv", "0.5") or ("ccc",
+ "220").  The value string may also be empty. Returns UnicodeSet a reference to this set applyPropertyAlias Added in API level 24 public UnicodeSet applyPropertyAlias ( String propertyAlias, String valueAlias, SymbolTable symbols) Modifies this set to contain those code points which have the
+ given value for the given property.  Prior contents of this
+ set are lost. Parameters propertyAlias String : A string of the property alias. valueAlias String : A string of the value alias. symbols SymbolTable : if not null, then symbols are first called to see if a property
+ is available. If true, then everything else is skipped. Returns UnicodeSet this set charAt Added in API level 24 public int charAt (int index) Returns the character at the given index within this set, where
+ the set is ordered by ascending code point.  If the index is
+ out of range, return -1.  The inverse of this method is indexOf() . Parameters index int : an index from 0..size()-1 Returns int the character at the given index, or -1. clear Added in API level 24 public UnicodeSet clear () Removes all of the elements from this set.  This set will be
+ empty after this call returns. Returns UnicodeSet clone Added in API level 24 public Object clone () Return a new set that is equivalent to this one. Returns Object a clone of this instance. cloneAsThawed Added in API level 24 public UnicodeSet cloneAsThawed () Clone a thawed version of this class, according to the Freezable interface. Returns UnicodeSet the clone, not frozen closeOver Added in API level 24 public UnicodeSet closeOver (int attribute) Close this set over the given attribute.  For the attribute CASE_INSENSITIVE , the result is to modify this set so that: For each character or string 'a' in this set, all strings
+ 'b' such that foldCase(a) == foldCase(b) are added to this set.
+ (For most 'a' that are single characters, 'b' will have
+ b.length() == 1.) For each string 'e' in the resulting set, if e !=
+ foldCase(e), 'e' will be removed. Example: [aqß{Bc}{bC}{Fi}] => [aAqQß\ufb01{ss}{bc}{fi}] (Here foldCase(x) refers to the operation
+ UCharacter.foldCase(x, true), and a == b actually denotes
+ a.equals(b), not pointer comparison.) Parameters attribute int : bitmask for attributes to close over.
+ Valid options:
+ At most one of CASE_INSENSITIVE , ADD_CASE_MAPPINGS , SIMPLE_CASE_INSENSITIVE . These case options are mutually exclusive.
+ Unrelated options bits are ignored. Returns UnicodeSet a reference to this set. compact Added in API level 24 public UnicodeSet compact () Reallocate this objects internal structures to take up the least
+ possible space, without changing this object's value. Returns UnicodeSet compareTo Added in API level 24 public int compareTo ( UnicodeSet o) Compares UnicodeSets, where shorter come first, and otherwise lexicographically
+ (according to the comparison of the first characters that differ). Parameters o UnicodeSet Returns int See also: Comparable.compareTo(java.lang.Object) compareTo Added in API level 24 public int compareTo ( UnicodeSet o, UnicodeSet.ComparisonStyle style) Compares UnicodeSets, in three different ways. Parameters o UnicodeSet style UnicodeSet.ComparisonStyle Returns int See also: Comparable.compareTo(java.lang.Object) compareTo Added in API level 24 public int compareTo ( Iterable < String > other) Parameters other Iterable Returns int complement Added in API level 24 public UnicodeSet complement (int start, 
+                int end) Complements the specified range in this set.  Any character in
+ the range will be removed if it is in this set, or will be
+ added if it is not in this set.  If start > end then an empty range is complemented, leaving the set unchanged. Parameters start int : first character, inclusive, of range end int : last character, inclusive, of range Returns UnicodeSet complement Added in API level 24 public UnicodeSet complement () This is equivalent to complement(MIN_VALUE, MAX_VALUE) . Note: This performs a symmetric difference with all code points and thus retains all multicharacter strings .
+ In order to achieve a \u201ccode point complement\u201d (all code points minus this set),
+ the easiest is to . complement() . removeAllStrings() . Returns UnicodeSet complement Added in API level 24 public final UnicodeSet complement ( CharSequence s) Complement the specified string in this set.
+ The set will not contain the specified string once the call
+ returns. Parameters s CharSequence : the string to complement Returns UnicodeSet this object, for chaining complement Added in API level 24 public final UnicodeSet complement (int c) Complements the specified character in this set.  The character
+ will be removed if it is in this set, or will be added if it is
+ not in this set. Parameters c int Returns UnicodeSet complementAll Added in API level 24 public final UnicodeSet complementAll ( CharSequence s) Complement EACH of the characters in this string. Note: "ch" == {"c", "h"}
+ If this set already any particular character, it has no effect on that character. Parameters s CharSequence : the source string Returns UnicodeSet this object, for chaining complementAll Added in API level 24 public UnicodeSet complementAll ( UnicodeSet c) Complements in this set all elements contained in the specified
+ set.  Any character in the other set will be removed if it is
+ in this set, or will be added if it is not in this set. Parameters c UnicodeSet : set that defines which elements will be complemented from
+          this set. Returns UnicodeSet contains Added in API level 24 public boolean contains (int c) Returns true if this set contains the given character. Parameters c int : character to be checked for containment Returns boolean true if the test condition is met contains Added in API level 24 public boolean contains (int start, 
+                int end) Returns true if this set contains every character
+ of the given range. Parameters start int : first character, inclusive, of the range end int : last character, inclusive, of the range Returns boolean true if the test condition is met contains Added in API level 24 public final boolean contains ( CharSequence s) Returns true if this set contains the given
+ multicharacter string. Parameters s CharSequence : string to be checked for containment Returns boolean true if this set contains the specified string containsAll Added in API level 24 public boolean containsAll ( UnicodeSet b) Returns true if this set contains all the characters and strings
+ of the given set. Parameters b UnicodeSet : set to be checked for containment Returns boolean true if the test condition is met containsAll Added in API level 24 public boolean containsAll ( Iterable <T> collection) Parameters collection Iterable Returns boolean See also: containsAll(android.icu.text.UnicodeSet) containsAll Added in API level 24 public boolean containsAll ( String s) Returns true if there is a partition of the string such that this set contains each of the partitioned strings.
+ For example, for the Unicode set [a{bc}{cd}] containsAll is true for each of: "a", "bc", ""cdbca" containsAll is false for each of: "acb", "bcda", "bcx" Parameters s String : string containing characters to be checked for containment Returns boolean true if the test condition is met containsNone Added in API level 24 public boolean containsNone ( Iterable <T> collection) Parameters collection Iterable Returns boolean See also: containsNone(android.icu.text.UnicodeSet) containsNone Added in API level 24 public boolean containsNone ( UnicodeSet b) Returns true if none of the characters or strings in this UnicodeSet appears in the string.
+ For example, for the Unicode set [a{bc}{cd}] containsNone is true for: "xy", "cb" containsNone is false for: "a", "bc", "bcd" Parameters b UnicodeSet : set to be checked for containment Returns boolean true if the test condition is met containsNone Added in API level 24 public boolean containsNone ( CharSequence s) Returns true if this set contains none of the characters
+ of the given string. Parameters s CharSequence : string containing characters to be checked for containment Returns boolean true if the test condition is met containsNone Added in API level 24 public boolean containsNone (int start, 
+                int end) Returns true if this set contains none of the characters
+ of the given range. Parameters start int : first character, inclusive, of the range end int : last character, inclusive, of the range Returns boolean true if the test condition is met containsSome Added in API level 24 public final boolean containsSome ( UnicodeSet s) Returns true if this set contains one or more of the characters
+ and strings of the given set. Parameters s UnicodeSet : set to be checked for containment Returns boolean true if the condition is met containsSome Added in API level 24 public final boolean containsSome ( CharSequence s) Returns true if this set contains one or more of the characters
+ of the given string. Parameters s CharSequence : string containing characters to be checked for containment Returns boolean true if the condition is met containsSome Added in API level 24 public final boolean containsSome ( Iterable <T> collection) Parameters collection Iterable Returns boolean See also: containsAll(android.icu.text.UnicodeSet) containsSome Added in API level 24 public final boolean containsSome (int start, 
+                int end) Returns true if this set contains one or more of the characters
+ in the given range. Parameters start int : first character, inclusive, of the range end int : last character, inclusive, of the range Returns boolean true if the condition is met equals Added in API level 24 public boolean equals ( Object o) Compares the specified object with this set for equality.  Returns true if the specified object is also a set, the two sets
+ have the same size, and every member of the specified set is
+ contained in this set (or equivalently, every member of this set is
+ contained in the specified set). Parameters o Object : Object to be compared for equality with this set. Returns boolean true if the specified Object is equal to this set. freeze Added in API level 24 public UnicodeSet freeze () Freeze this class, according to the Freezable interface. Returns UnicodeSet this from Added in API level 24 public static UnicodeSet from ( CharSequence s) Makes a set from a multicharacter string. Thus "ch" => {"ch"} Parameters s CharSequence : the source string Returns UnicodeSet a newly created set containing the given string fromAll Added in API level 24 public static UnicodeSet fromAll ( CharSequence s) Makes a set from each of the characters in the string. Thus "ch" => {"c", "h"} Parameters s CharSequence : the source string Returns UnicodeSet a newly created set containing the given characters getRangeCount Added in API level 24 public int getRangeCount () Iteration method that returns the number of ranges contained in
+ this set. Returns int See also: getRangeStart(int) getRangeEnd(int) getRangeEnd Added in API level 24 public int getRangeEnd (int index) Iteration method that returns the last character in the
+ specified range of this set. Parameters index int Returns int Throws ArrayIndexOutOfBoundsException if index is outside
+ the range 0..getRangeCount()-1 See also: getRangeStart(int) getRangeEnd(int) getRangeStart Added in API level 24 public int getRangeStart (int index) Iteration method that returns the first character in the
+ specified range of this set. Parameters index int Returns int Throws ArrayIndexOutOfBoundsException if index is outside
+ the range 0..getRangeCount()-1 See also: getRangeCount() getRangeEnd(int) hasStrings Added in API level 34 public boolean hasStrings () Returns boolean true if this set contains multi-character strings or the empty string. hashCode Added in API level 24 public int hashCode () Returns the hash code value for this set. Returns int the hash code value for this set. See also: Object.hashCode() indexOf Added in API level 24 public int indexOf (int c) Returns the index of the given character within this set, where
+ the set is ordered by ascending code point.  If the character
+ is not in this set, return -1.  The inverse of this method is charAt() . Parameters c int Returns int an index from 0..size()-1, or -1 isEmpty Added in API level 24 public boolean isEmpty () Returns true if this set contains no elements. Returns boolean true if this set contains no elements. isFrozen Added in API level 24 public boolean isFrozen () Is this frozen, according to the Freezable interface? Returns boolean value iterator Added in API level 24 public Iterator < String > iterator () Returns a string iterator. Uses the same order of iteration as UnicodeSetIterator . Warning: For speed, UnicodeSet iteration does not check for concurrent modification.
+ Do not alter the UnicodeSet while iterating. Returns Iterator < String > an Iterator. See also: Set.iterator() matches Added in API level 24 public int matches ( Replaceable text, 
+                int[] offset, 
+                int limit, 
+                boolean incremental) Implementation of UnicodeMatcher.matches().  Always matches the
+ longest possible multichar string. Parameters text Replaceable : the text to be matched offset int : on input, the index into text at which to begin
+ matching.  On output, the limit of the matched text.  The
+ number of matched characters is the output value of offset
+ minus the input value.  Offset should always point to the
+ HIGH SURROGATE (leading code unit) of a pair of surrogates,
+ both on entry and upon return. limit int : the limit index of text to be matched.  Greater
+ than offset for a forward direction match, less than offset for
+ a backward direction match.  The last character to be
+ considered for matching will be text.charAt(limit-1) in the
+ forward direction or text.charAt(limit+1) in the backward
+ direction. incremental boolean : if true, then assume further characters may
+ be inserted at limit and check for partial matching.  Otherwise
+ assume the text as given is complete. Returns int a match degree value indicating a full match, a partial
+ match, or a mismatch.  If incremental is false then
+ U_PARTIAL_MATCH should never be returned. matchesIndexValue Added in API level 24 public boolean matchesIndexValue (int v) Implementation of UnicodeMatcher API.  Returns true if
+ this set contains any character whose low byte is the given
+ value.  This is used by RuleBasedTransliterator for
+ indexing. Parameters v int Returns boolean ranges Added in API level 24 public Iterable < UnicodeSet.EntryRange > ranges () Provide for faster iteration than by String. Returns an Iterable/Iterator over ranges of code points.
+ The UnicodeSet must not be altered during the iteration.
+ The EntryRange instance is the same each time; the contents are just reset. Warning: To iterate over the full contents, you have to also iterate over the strings. Warning: For speed, UnicodeSet iteration does not check for concurrent modification.
+ Do not alter the UnicodeSet while iterating. // Sample code
+ for (EntryRange range : us1.ranges()) {
+     // do something with code points between range.codepoint and range.codepointEnd;
+ }
+ for (String s : us1.strings()) {
+     // do something with each string;
+ } Returns Iterable < UnicodeSet.EntryRange > remove Added in API level 24 public UnicodeSet remove (int start, 
+                int end) Removes the specified range from this set if it is present.
+ The set will not contain the specified range once the call
+ returns.  If start > end then an empty range is
+ removed, leaving the set unchanged. Parameters start int : first character, inclusive, of range to be removed
+ from this set. end int : last character, inclusive, of range to be removed
+ from this set. Returns UnicodeSet remove Added in API level 24 public final UnicodeSet remove ( CharSequence s) Removes the specified string from this set if it is present.
+ The set will not contain the specified string once the call
+ returns. Parameters s CharSequence : the string to be removed Returns UnicodeSet this object, for chaining remove Added in API level 24 public final UnicodeSet remove (int c) Removes the specified character from this set if it is present.
+ The set will not contain the specified character once the call
+ returns. Parameters c int : the character to be removed Returns UnicodeSet this object, for chaining removeAll Added in API level 24 public UnicodeSet removeAll ( Iterable <T> collection) Parameters collection Iterable Returns UnicodeSet See also: removeAll(android.icu.text.UnicodeSet) removeAll Added in API level 24 public UnicodeSet removeAll ( UnicodeSet c) Removes from this set all of its elements that are contained in the
+ specified set.  This operation effectively modifies this
+ set so that its value is the asymmetric set difference of
+ the two sets. Parameters c UnicodeSet : set that defines which elements will be removed from
+          this set. Returns UnicodeSet removeAll Added in API level 24 public final UnicodeSet removeAll ( CharSequence s) Remove EACH of the characters in this string. Note: "ch" == {"c", "h"}
+ If this set already any particular character, it has no effect on that character. Parameters s CharSequence : the source string Returns UnicodeSet this object, for chaining removeAllStrings Added in API level 24 public final UnicodeSet removeAllStrings () Remove all strings from this UnicodeSet Returns UnicodeSet this object, for chaining retain Added in API level 24 public UnicodeSet retain (int start, 
+                int end) Retain only the elements in this set that are contained in the
+ specified range.  If start > end then an empty range is
+ retained, leaving the set empty. Parameters start int : first character, inclusive, of range end int : last character, inclusive, of range Returns UnicodeSet retain Added in API level 24 public final UnicodeSet retain ( CharSequence cs) Retain the specified string in this set if it is present.
+ Upon return this set will be empty if it did not contain s, or
+ will only contain s if it did contain s. Parameters cs CharSequence : the string to be retained Returns UnicodeSet this object, for chaining retain Added in API level 24 public final UnicodeSet retain (int c) Retain the specified character from this set if it is present.
+ Upon return this set will be empty if it did not contain c, or
+ will only contain c if it did contain c. Parameters c int : the character to be retained Returns UnicodeSet this object, for chaining retainAll Added in API level 24 public final UnicodeSet retainAll ( CharSequence s) Retains EACH of the characters in this string. Note: "ch" == {"c", "h"}
+ If this set already any particular character, it has no effect on that character. Parameters s CharSequence : the source string Returns UnicodeSet this object, for chaining retainAll Added in API level 24 public UnicodeSet retainAll ( UnicodeSet c) Retains only the elements in this set that are contained in the
+ specified set.  In other words, removes from this set all of
+ its elements that are not contained in the specified set.  This
+ operation effectively modifies this set so that its value is
+ the intersection of the two sets. Parameters c UnicodeSet : set that defines which elements this set will retain. Returns UnicodeSet retainAll Added in API level 24 public UnicodeSet retainAll ( Iterable <T> collection) Parameters collection Iterable Returns UnicodeSet See also: retainAll(android.icu.text.UnicodeSet) set Added in API level 24 public UnicodeSet set ( UnicodeSet other) Make this object represent the same set as other . Parameters other UnicodeSet : a UnicodeSet whose value will be
+ copied to this object Returns UnicodeSet set Added in API level 24 public UnicodeSet set (int start, 
+                int end) Make this object represent the range start - end .
+ If start > end then this object is set to an empty range. Parameters start int : first character in the set, inclusive end int : last character in the set, inclusive Returns UnicodeSet size Added in API level 24 public int size () Returns the number of elements in this set (its cardinality)
+ Note than the elements of a set may include both individual
+ codepoints and strings. Returns int the number of elements in this set (its cardinality). span Added in API level 24 public int span ( CharSequence s, 
+                int start, UnicodeSet.SpanCondition spanCondition) Span a string using this UnicodeSet.
+   If the start index is less than 0, span will start from 0.
+   If the start index is greater than the string length, span returns the string length. To replace, count elements, or delete spans, see UnicodeSetSpanner . Parameters s CharSequence : The string to be spanned start int : The start index that the span begins spanCondition UnicodeSet.SpanCondition : The span condition Returns int the string index which ends the span (i.e. exclusive) span Added in API level 24 public int span ( CharSequence s, UnicodeSet.SpanCondition spanCondition) Span a string using this UnicodeSet. To replace, count elements, or delete spans, see UnicodeSetSpanner . Parameters s CharSequence : The string to be spanned spanCondition UnicodeSet.SpanCondition : The span condition Returns int the length of the span spanBack Added in API level 24 public int spanBack ( CharSequence s, UnicodeSet.SpanCondition spanCondition) Span a string backwards (from the end) using this UnicodeSet. To replace, count elements, or delete spans, see UnicodeSetSpanner . Parameters s CharSequence : The string to be spanned spanCondition UnicodeSet.SpanCondition : The span condition Returns int The string index which starts the span (i.e. inclusive). spanBack Added in API level 24 public int spanBack ( CharSequence s, 
+                int fromIndex, UnicodeSet.SpanCondition spanCondition) Span a string backwards (from the fromIndex) using this UnicodeSet.
+ If the fromIndex is less than 0, spanBack will return 0.
+ If fromIndex is greater than the string length, spanBack will start from the string length. To replace, count elements, or delete spans, see UnicodeSetSpanner . Parameters s CharSequence : The string to be spanned fromIndex int : The index of the char (exclusive) that the string should be spanned backwards spanCondition UnicodeSet.SpanCondition : The span condition Returns int The string index which starts the span (i.e. inclusive). strings Added in API level 24 public Collection < String > strings () For iterating through the strings in the set. Example: for (String key : myUnicodeSet.strings()) {
+   doSomethingWith(key);
+ } Returns Collection < String > toPattern Added in API level 24 public String toPattern (boolean escapeUnprintable) Returns a string representation of this set.  If the result of
+ calling this function is passed to a UnicodeSet constructor, it
+ will produce another set that is equal to this one. Parameters escapeUnprintable boolean Returns String toString Added in API level 24 public String toString () Return a programmer-readable string representation of this object. Returns String a string representation of the object.</body></html>

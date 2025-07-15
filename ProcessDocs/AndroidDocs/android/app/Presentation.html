@@ -1,0 +1,1063 @@
+<html><head><title>Class Documentation</title></head><body>Presentation Kotlin | Java public
+  
+  
+  
+  class
+  Presentation extends Dialog java.lang.Object ↳ android.app.Dialog ↳ android.app.Presentation Base class for presentations. A presentation is a special kind of dialog whose purpose is to present
+ content on a secondary display.  A Presentation is associated with
+ the target Display at creation time and configures its context and
+ resource configuration according to the display's metrics. Notably, the Context of a presentation is different from the context
+ of its containing Activity .  It is important to inflate the layout
+ of a presentation and load other resources using the presentation's own context
+ to ensure that assets of the correct size and density for the target display
+ are loaded. A presentation is automatically canceled (see Dialog.cancel() ) when
+ the display to which it is attached is removed.  An activity should take
+ care of pausing and resuming whatever content is playing within the presentation
+ whenever the activity itself is paused or resumed. Choosing a presentation display Before showing a Presentation it's important to choose the Display on which it will appear.  Choosing a presentation display is sometimes difficult
+ because there may be multiple displays attached.  Rather than trying to guess
+ which display is best, an application should let the system choose a suitable
+ presentation display. There are two main ways to choose a Display . Using the media router to choose a presentation display The easiest way to choose a presentation display is to use the MediaRouter API.  The media router service keeps
+ track of which audio and video routes are available on the system.
+ The media router sends notifications whenever routes are selected or unselected
+ or when the preferred presentation display of a route changes.
+ So an application can simply watch for these notifications and show or dismiss
+ a presentation on the preferred presentation display automatically. The preferred presentation display is the display that the media router recommends
+ that the application should use if it wants to show content on the secondary display.
+ Sometimes there may not be a preferred presentation display in which
+ case the application should show its content locally without using a presentation. Here's how to use the media router to create and show a presentation on the preferred
+ presentation display using MediaRouter.RouteInfo.getPresentationDisplay() . MediaRouter mediaRouter = (MediaRouter) context.getSystemService(Context.MEDIA_ROUTER_SERVICE);
+ MediaRouter.RouteInfo route = mediaRouter.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_VIDEO);
+ if (route != null) {
+     Display presentationDisplay = route.getPresentationDisplay();
+     if (presentationDisplay != null) {
+         Presentation presentation = new MyPresentation(context, presentationDisplay);
+         presentation.show();
+     }
+ } The following sample code from ApiDemos demonstrates how to use the media
+ router to automatically switch between showing content in the main activity and showing
+ the content in a presentation when a presentation display is available. /**
+ * <h3>Presentation Activity</h3>
+ *
+ * <p>
+ * This demonstrates how to create an activity that shows some content
+ * on a secondary display using a {@link Presentation}.
+ * </p><p>
+ * The activity uses the {@link MediaRouter} API to automatically detect when
+ * a presentation display is available and to allow the user to control the
+ * media routes using a menu item.  When a presentation display is available,
+ * we stop showing content in the main activity and instead open up a
+ * {@link Presentation} on the preferred presentation display.  When a presentation
+ * display is removed, we revert to showing content in the main activity.
+ * We also write information about displays and display-related events to
+ * the Android log which you can read using <code>adb logcat</code>.
+ * </p><p>
+ * You can try this out using an HDMI or Wifi display or by using the
+ * "Simulate secondary displays" feature in Development Settings to create a few
+ * simulated secondary displays.  Each display will appear in the list along with a
+ * checkbox to show a presentation on that display.
+ * </p><p>
+ * See also the {@link PresentationActivity} sample which
+ * uses the low-level display manager to enumerate displays and to show multiple
+ * simultaneous presentations on different displays.
+ * </p>
+ */
+public class PresentationWithMediaRouterActivity extends Activity {
+    private final String TAG = "PresentationWithMediaRouterActivity";
+
+    private MediaRouter mMediaRouter;
+    private DemoPresentation mPresentation;
+    private GLSurfaceView mSurfaceView;
+    private TextView mInfoTextView;
+    private boolean mPaused;
+
+    /**
+     * Initialization of the Activity after it is first created.  Must at least
+     * call {@link android.app.Activity#setContentView setContentView()} to
+     * describe what is to be displayed in the screen.
+     */
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // Be sure to call the super class.
+        super.onCreate(savedInstanceState);
+
+        // Get the media router service.
+        mMediaRouter = (MediaRouter)getSystemService(Context.MEDIA_ROUTER_SERVICE);
+
+        // See assets/res/any/layout/presentation_with_media_router_activity.xml for this
+        // view layout definition, which is being set here as
+        // the content of our screen.
+        setContentView(R.layout.presentation_with_media_router_activity);
+
+        // Set up the surface view for visual interest.
+        mSurfaceView = (GLSurfaceView)findViewById(R.id.surface_view);
+        mSurfaceView.setRenderer(new CubeRenderer(false));
+
+        // Get a text view where we will show information about what's happening.
+        mInfoTextView = (TextView)findViewById(R.id.info);
+    }
+
+    @Override
+    protected void onResume() {
+        // Be sure to call the super class.
+        super.onResume();
+
+        // Listen for changes to media routes.
+        mMediaRouter.addCallback(MediaRouter.ROUTE_TYPE_LIVE_VIDEO, mMediaRouterCallback);
+
+        // Update the presentation based on the currently selected route.
+        mPaused = false;
+        updatePresentation();
+    }
+
+    @Override
+    protected void onPause() {
+        // Be sure to call the super class.
+        super.onPause();
+
+        // Stop listening for changes to media routes.
+        mMediaRouter.removeCallback(mMediaRouterCallback);
+
+        // Pause rendering.
+        mPaused = true;
+        updateContents();
+    }
+
+    @Override
+    protected void onStop() {
+        // Be sure to call the super class.
+        super.onStop();
+
+        // Dismiss the presentation when the activity is not visible.
+        if (mPresentation != null) {
+            Log.i(TAG, "Dismissing presentation because the activity is no longer visible.");
+            mPresentation.dismiss();
+            mPresentation = null;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Be sure to call the super class.
+        super.onCreateOptionsMenu(menu);
+
+        // Inflate the menu and configure the media router action provider.
+        getMenuInflater().inflate(R.menu.presentation_with_media_router_menu, menu);
+
+        MenuItem mediaRouteMenuItem = menu.findItem(R.id.menu_media_route);
+        MediaRouteActionProvider mediaRouteActionProvider =
+                (MediaRouteActionProvider)mediaRouteMenuItem.getActionProvider();
+        mediaRouteActionProvider.setRouteTypes(MediaRouter.ROUTE_TYPE_LIVE_VIDEO);
+
+        // Return true to show the menu.
+        return true;
+    }
+
+    private void updatePresentation() {
+        // Get the current route and its presentation display.
+        MediaRouter.RouteInfo route = mMediaRouter.getSelectedRoute(
+                MediaRouter.ROUTE_TYPE_LIVE_VIDEO);
+        Display presentationDisplay = route != null ? route.getPresentationDisplay() : null;
+
+        // Dismiss the current presentation if the display has changed.
+        if (mPresentation != null && mPresentation.getDisplay() != presentationDisplay) {
+            Log.i(TAG, "Dismissing presentation because the current route no longer "
+                    + "has a presentation display.");
+            mPresentation.dismiss();
+            mPresentation = null;
+        }
+
+        // Show a new presentation if needed.
+        if (mPresentation == null && presentationDisplay != null) {
+            Log.i(TAG, "Showing presentation on display: " + presentationDisplay);
+            mPresentation = new DemoPresentation(this, presentationDisplay);
+            mPresentation.setOnDismissListener(mOnDismissListener);
+            try {
+                mPresentation.show();
+            } catch (WindowManager.InvalidDisplayException ex) {
+                Log.w(TAG, "Couldn't show presentation!  Display was removed in "
+                        + "the meantime.", ex);
+                mPresentation = null;
+            }
+        }
+
+        // Update the contents playing in this activity.
+        updateContents();
+    }
+
+    private void updateContents() {
+        // Show either the content in the main activity or the content in the presentation
+        // along with some descriptive text about what is happening.
+        if (mPresentation != null) {
+            mInfoTextView.setText(getResources().getString(
+                    R.string.presentation_with_media_router_now_playing_remotely,
+                    mPresentation.getDisplay().getName()));
+            mSurfaceView.setVisibility(View.INVISIBLE);
+            mSurfaceView.onPause();
+            if (mPaused) {
+                mPresentation.getSurfaceView().onPause();
+            } else {
+                mPresentation.getSurfaceView().onResume();
+            }
+        } else {
+            mInfoTextView.setText(getResources().getString(
+                    R.string.presentation_with_media_router_now_playing_locally,
+                    getWindowManager().getDefaultDisplay().getName()));
+            mSurfaceView.setVisibility(View.VISIBLE);
+            if (mPaused) {
+                mSurfaceView.onPause();
+            } else {
+                mSurfaceView.onResume();
+            }
+        }
+    }
+
+    private final MediaRouter.SimpleCallback mMediaRouterCallback =
+            new MediaRouter.SimpleCallback() {
+        @Override
+        public void onRouteSelected(MediaRouter router, int type, RouteInfo info) {
+            Log.d(TAG, "onRouteSelected: type=" + type + ", info=" + info);
+            updatePresentation();
+        }
+
+        @Override
+        public void onRouteUnselected(MediaRouter router, int type, RouteInfo info) {
+            Log.d(TAG, "onRouteUnselected: type=" + type + ", info=" + info);
+            updatePresentation();
+        }
+
+        @Override
+        public void onRoutePresentationDisplayChanged(MediaRouter router, RouteInfo info) {
+            Log.d(TAG, "onRoutePresentationDisplayChanged: info=" + info);
+            updatePresentation();
+        }
+    };
+
+    /**
+     * Listens for when presentations are dismissed.
+     */
+    private final DialogInterface.OnDismissListener mOnDismissListener =
+            new DialogInterface.OnDismissListener() {
+        @Override
+        public void onDismiss(DialogInterface dialog) {
+            if (dialog == mPresentation) {
+                Log.i(TAG, "Presentation was dismissed.");
+                mPresentation = null;
+                updateContents();
+            }
+        }
+    };
+
+    /**
+     * The presentation to show on the secondary display.
+     * <p>
+     * Note that this display may have different metrics from the display on which
+     * the main activity is showing so we must be careful to use the presentation's
+     * own {@link Context} whenever we load resources.
+     * </p>
+     */
+    private final static class DemoPresentation extends Presentation {
+        private GLSurfaceView mSurfaceView;
+
+        public DemoPresentation(Context context, Display display) {
+            super(context, display);
+        }
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            // Be sure to call the super class.
+            super.onCreate(savedInstanceState);
+
+            // Get the resources for the context of the presentation.
+            // Notice that we are getting the resources from the context of the presentation.
+            Resources r = getContext().getResources();
+
+            // Inflate the layout.
+            setContentView(R.layout.presentation_with_media_router_content);
+
+            // Set up the surface view for visual interest.
+            mSurfaceView = (GLSurfaceView)findViewById(R.id.surface_view);
+            mSurfaceView.setRenderer(new CubeRenderer(false));
+        }
+
+        public GLSurfaceView getSurfaceView() {
+            return mSurfaceView;
+        }
+    }
+} Using the display manager to choose a presentation display Another way to choose a presentation display is to use the DisplayManager API
+ directly.  The display manager service provides functions to enumerate and describe all
+ displays that are attached to the system including displays that may be used
+ for presentations. The display manager keeps track of all displays in the system.  However, not all
+ displays are appropriate for showing presentations.  For example, if an activity
+ attempted to show a presentation on the main display it might obscure its own content
+ (it's like opening a dialog on top of your activity).  Creating a presentation on the main
+ display will result in WindowManager.InvalidDisplayException being thrown
+ when invoking show() . Here's how to identify suitable displays for showing presentations using DisplayManager.getDisplays(String) and the DisplayManager.DISPLAY_CATEGORY_PRESENTATION category. DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+ Display[] presentationDisplays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
+ if (presentationDisplays.length > 0) {
+     // If there is more than one suitable presentation display, then we could consider
+     // giving the user a choice.  For this example, we simply choose the first display
+     // which is the one the system recommends as the preferred presentation display.
+     Display display = presentationDisplays[0];
+     Presentation presentation = new MyPresentation(context, presentationDisplay);
+     presentation.show();
+ } The following sample code from ApiDemos demonstrates how to use the display
+ manager to enumerate displays and show content on multiple presentation displays
+ simultaneously. /**
+ * <h3>Presentation Activity</h3>
+ *
+ * <p>
+ * This demonstrates how to create an activity that shows some content
+ * on a secondary display using a {@link Presentation}.
+ * </p><p>
+ * The activity uses the {@link DisplayManager} API to enumerate displays.
+ * When the user selects a display, the activity opens a {@link Presentation}
+ * on that display.  We show a different photograph in each presentation
+ * on a unique background along with a label describing the display.
+ * We also write information about displays and display-related events to
+ * the Android log which you can read using <code>adb logcat</code>.
+ * </p><p>
+ * You can try this out using an HDMI or Wifi display or by using the
+ * "Simulate secondary displays" feature in Development Settings to create a few
+ * simulated secondary displays.  Each display will appear in the list along with a
+ * checkbox to show a presentation on that display.
+ * </p><p>
+ * See also the {@link PresentationWithMediaRouterActivity} sample which
+ * uses the media router to automatically select a secondary display
+ * on which to show content based on the currently selected route.
+ * </p>
+ */
+public class PresentationActivity extends Activity
+        implements OnCheckedChangeListener, OnClickListener, OnItemSelectedListener {
+    private final String TAG = "PresentationActivity";
+
+    // Key for storing saved instance state.
+    private static final String PRESENTATION_KEY = "presentation";
+
+    // The content that we want to show on the presentation.
+    private static final int[] PHOTOS = new int[] {
+        R.drawable.frantic,
+        R.drawable.photo1, R.drawable.photo2, R.drawable.photo3,
+        R.drawable.photo4, R.drawable.photo5, R.drawable.photo6,
+        R.drawable.sample_4,
+    };
+
+    private DisplayManager mDisplayManager;
+    private DisplayListAdapter mDisplayListAdapter;
+    private CheckBox mShowAllDisplaysCheckbox;
+    private ListView mListView;
+    private int mNextImageNumber;
+
+    // List of presentation contents indexed by displayId.
+    // This state persists so that we can restore the old presentation
+    // contents when the activity is paused or resumed.
+    private SparseArray<DemoPresentationContents> mSavedPresentationContents;
+
+    // List of all currently visible presentations indexed by display id.
+    private final SparseArray<DemoPresentation> mActivePresentations =
+            new SparseArray<DemoPresentation>();
+
+    /**
+     * Initialization of the Activity after it is first created.  Must at least
+     * call {@link android.app.Activity#setContentView setContentView()} to
+     * describe what is to be displayed in the screen.
+     */
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // Be sure to call the super class.
+        super.onCreate(savedInstanceState);
+
+        // Restore saved instance state.
+        if (savedInstanceState != null) {
+            mSavedPresentationContents =
+                    savedInstanceState.getSparseParcelableArray(PRESENTATION_KEY);
+        } else {
+            mSavedPresentationContents = new SparseArray<DemoPresentationContents>();
+        }
+
+        // Get the display manager service.
+        mDisplayManager = (DisplayManager)getSystemService(Context.DISPLAY_SERVICE);
+
+        // See assets/res/any/layout/presentation_activity.xml for this
+        // view layout definition, which is being set here as
+        // the content of our screen.
+        setContentView(R.layout.presentation_activity);
+
+        // Set up checkbox to toggle between showing all displays or only presentation displays.
+        mShowAllDisplaysCheckbox = (CheckBox)findViewById(R.id.show_all_displays);
+        mShowAllDisplaysCheckbox.setOnCheckedChangeListener(this);
+
+        // Set up the list of displays.
+        mDisplayListAdapter = new DisplayListAdapter(this);
+        mListView = (ListView)findViewById(R.id.display_list);
+        mListView.setAdapter(mDisplayListAdapter);
+    }
+
+    @Override
+    protected void onResume() {
+        // Be sure to call the super class.
+        super.onResume();
+
+        // Update our list of displays on resume.
+        mDisplayListAdapter.updateContents();
+
+        // Restore presentations from before the activity was paused.
+        final int numDisplays = mDisplayListAdapter.getCount();
+        for (int i = 0; i < numDisplays; i++) {
+            final Display display = mDisplayListAdapter.getItem(i);
+            final DemoPresentationContents contents =
+                    mSavedPresentationContents.get(display.getDisplayId());
+            if (contents != null) {
+                showPresentation(display, contents);
+            }
+        }
+        mSavedPresentationContents.clear();
+
+        // Register to receive events from the display manager.
+        mDisplayManager.registerDisplayListener(mDisplayListener, null);
+    }
+
+    @Override
+    protected void onPause() {
+        // Be sure to call the super class.
+        super.onPause();
+
+        // Unregister from the display manager.
+        mDisplayManager.unregisterDisplayListener(mDisplayListener);
+
+        // Dismiss all of our presentations but remember their contents.
+        Log.d(TAG, "Activity is being paused.  Dismissing all active presentation.");
+        for (int i = 0; i < mActivePresentations.size(); i++) {
+            DemoPresentation presentation = mActivePresentations.valueAt(i);
+            int displayId = mActivePresentations.keyAt(i);
+            mSavedPresentationContents.put(displayId, presentation.mContents);
+            presentation.dismiss();
+        }
+        mActivePresentations.clear();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        // Be sure to call the super class.
+        super.onSaveInstanceState(outState);
+        outState.putSparseParcelableArray(PRESENTATION_KEY, mSavedPresentationContents);
+    }
+
+    /**
+     * Shows a {@link Presentation} on the specified display.
+     */
+    private void showPresentation(Display display, DemoPresentationContents contents) {
+        final int displayId = display.getDisplayId();
+        if (mActivePresentations.get(displayId) != null) {
+            return;
+        }
+
+        Log.d(TAG, "Showing presentation photo #" + contents.photo
+                + " on display #" + displayId + ".");
+
+        DemoPresentation presentation = new DemoPresentation(this, display, contents);
+        presentation.show();
+        presentation.setOnDismissListener(mOnDismissListener);
+        mActivePresentations.put(displayId, presentation);
+    }
+
+    /**
+     * Hides a {@link Presentation} on the specified display.
+     */
+    private void hidePresentation(Display display) {
+        final int displayId = display.getDisplayId();
+        DemoPresentation presentation = mActivePresentations.get(displayId);
+        if (presentation == null) {
+            return;
+        }
+
+        Log.d(TAG, "Dismissing presentation on display #" + displayId + ".");
+
+        presentation.dismiss();
+        mActivePresentations.delete(displayId);
+    }
+
+    /**
+     * Sets the display mode of the {@link Presentation} on the specified display
+     * if it is already shown.
+     */
+    private void setPresentationDisplayMode(Display display, int displayModeId) {
+        final int displayId = display.getDisplayId();
+        DemoPresentation presentation = mActivePresentations.get(displayId);
+        if (presentation == null) {
+            return;
+        }
+
+        presentation.setPreferredDisplayMode(displayModeId);
+    }
+
+    private int getNextPhoto() {
+        final int photo = mNextImageNumber;
+        mNextImageNumber = (mNextImageNumber + 1) % PHOTOS.length;
+        return photo;
+    }
+
+    /**
+     * Called when the show all displays checkbox is toggled or when
+     * an item in the list of displays is checked or unchecked.
+     */
+    @Override
+    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        if (buttonView == mShowAllDisplaysCheckbox) {
+            // Show all displays checkbox was toggled.
+            mDisplayListAdapter.updateContents();
+        } else {
+            // Display item checkbox was toggled.
+            final Display display = (Display)buttonView.getTag();
+            if (isChecked) {
+                DemoPresentationContents contents = new DemoPresentationContents(getNextPhoto());
+                showPresentation(display, contents);
+            } else {
+                hidePresentation(display);
+            }
+            mDisplayListAdapter.updateContents();
+        }
+    }
+
+    /**
+     * Called when the Info button next to a display is clicked to show information
+     * about the display.
+     */
+    @Override
+    public void onClick(View v) {
+        Context context = v.getContext();
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        final Display display = (Display)v.getTag();
+        Resources r = context.getResources();
+        AlertDialog alert = builder
+                .setTitle(r.getString(
+                        R.string.presentation_alert_info_text, display.getDisplayId()))
+                .setMessage(display.toString())
+                .setNeutralButton(R.string.presentation_alert_dismiss_text,
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                dialog.dismiss();
+                            }
+                    })
+                .create();
+        alert.show();
+    }
+
+    /**
+     * Called when a display mode has been selected.
+     */
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        final Display display = (Display)parent.getTag();
+        final Display.Mode[] modes = display.getSupportedModes();
+        setPresentationDisplayMode(display, position >= 1 && position <= modes.length ?
+                modes[position - 1].getModeId() : 0);
+    }
+
+    /**
+     * Called when a display mode has been unselected.
+     */
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+        final Display display = (Display)parent.getTag();
+        setPresentationDisplayMode(display, 0);
+    }
+
+    /**
+     * Listens for displays to be added, changed or removed.
+     * We use it to update the list and show a new {@link Presentation} when a
+     * display is connected.
+     *
+     * Note that we don't bother dismissing the {@link Presentation} when a
+     * display is removed, although we could.  The presentation API takes care
+     * of doing that automatically for us.
+     */
+    private final DisplayManager.DisplayListener mDisplayListener =
+            new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int displayId) {
+            Log.d(TAG, "Display #" + displayId + " added.");
+            mDisplayListAdapter.updateContents();
+        }
+
+        @Override
+        public void onDisplayChanged(int displayId) {
+            Log.d(TAG, "Display #" + displayId + " changed.");
+            mDisplayListAdapter.updateContents();
+        }
+
+        @Override
+        public void onDisplayRemoved(int displayId) {
+            Log.d(TAG, "Display #" + displayId + " removed.");
+            mDisplayListAdapter.updateContents();
+        }
+    };
+
+    /**
+     * Listens for when presentations are dismissed.
+     */
+    private final DialogInterface.OnDismissListener mOnDismissListener =
+            new DialogInterface.OnDismissListener() {
+        @Override
+        public void onDismiss(DialogInterface dialog) {
+            DemoPresentation presentation = (DemoPresentation)dialog;
+            int displayId = presentation.getDisplay().getDisplayId();
+            Log.d(TAG, "Presentation on display #" + displayId + " was dismissed.");
+            mActivePresentations.delete(displayId);
+            mDisplayListAdapter.notifyDataSetChanged();
+        }
+    };
+
+    /**
+     * List adapter.
+     * Shows information about all displays.
+     */
+    private final class DisplayListAdapter extends ArrayAdapter<Display> {
+        final Context mContext;
+
+        public DisplayListAdapter(Context context) {
+            super(context, R.layout.presentation_list_item);
+            mContext = context;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            final View v;
+            if (convertView == null) {
+                v = ((Activity) mContext).getLayoutInflater().inflate(
+                        R.layout.presentation_list_item, null);
+            } else {
+                v = convertView;
+            }
+
+            final Display display = getItem(position);
+            final int displayId = display.getDisplayId();
+
+            DemoPresentation presentation = mActivePresentations.get(displayId);
+            DemoPresentationContents contents = presentation != null ?
+                    presentation.mContents : null;
+            if (contents == null) {
+                contents = mSavedPresentationContents.get(displayId);
+            }
+
+            CheckBox cb = (CheckBox)v.findViewById(R.id.checkbox_presentation);
+            cb.setTag(display);
+            cb.setOnCheckedChangeListener(PresentationActivity.this);
+            cb.setChecked(contents != null);
+            cb.setEnabled((display.getFlags() & Display.FLAG_PRESENTATION) != 0);
+
+            TextView tv = (TextView)v.findViewById(R.id.display_id);
+            tv.setText(v.getContext().getResources().getString(
+                    R.string.presentation_display_id_text, displayId, display.getName()));
+
+            Button b = (Button)v.findViewById(R.id.info);
+            b.setTag(display);
+            b.setOnClickListener(PresentationActivity.this);
+
+            Spinner s = (Spinner)v.findViewById(R.id.modes);
+            Display.Mode[] modes = display.getSupportedModes();
+            if (contents == null || modes.length == 1) {
+                s.setVisibility(View.GONE);
+                s.setAdapter(null);
+            } else {
+                ArrayAdapter<String> modeAdapter = new ArrayAdapter<String>(mContext,
+                        android.R.layout.simple_list_item_1);
+                s.setVisibility(View.VISIBLE);
+                s.setAdapter(modeAdapter);
+                s.setTag(display);
+                s.setOnItemSelectedListener(PresentationActivity.this);
+
+                modeAdapter.add("<default mode>");
+
+                for (Display.Mode mode : modes) {
+                    modeAdapter.add(String.format("Mode %d: %dx%d/%.1ffps",
+                            mode.getModeId(),
+                            mode.getPhysicalWidth(), mode.getPhysicalHeight(),
+                            mode.getRefreshRate()));
+                    if (contents.displayModeId == mode.getModeId()) {
+                        s.setSelection(modeAdapter.getCount() - 1);
+                    }
+                }
+            }
+
+            return v;
+        }
+
+        /**
+         * Update the contents of the display list adapter to show
+         * information about all current displays.
+         */
+        public void updateContents() {
+            clear();
+
+            String displayCategory = getDisplayCategory();
+            Display[] displays = mDisplayManager.getDisplays(displayCategory);
+            addAll(displays);
+
+            Log.d(TAG, "There are currently " + displays.length + " displays connected.");
+            for (Display display : displays) {
+                Log.d(TAG, "  " + display);
+            }
+        }
+
+        private String getDisplayCategory() {
+            return mShowAllDisplaysCheckbox.isChecked() ? null :
+                DisplayManager.DISPLAY_CATEGORY_PRESENTATION;
+        }
+    }
+
+    /**
+     * The presentation to show on the secondary display.
+     *
+     * Note that the presentation display may have different metrics from the display on which
+     * the main activity is showing so we must be careful to use the presentation's
+     * own {@link Context} whenever we load resources.
+     */
+    private final class DemoPresentation extends Presentation {
+
+        final DemoPresentationContents mContents;
+
+        public DemoPresentation(Context context, Display display,
+                DemoPresentationContents contents) {
+            super(context, display);
+            mContents = contents;
+        }
+
+        /**
+         * Sets the preferred display mode id for the presentation.
+         */
+        public void setPreferredDisplayMode(int modeId) {
+            mContents.displayModeId = modeId;
+
+            WindowManager.LayoutParams params = getWindow().getAttributes();
+            params.preferredDisplayModeId = modeId;
+            getWindow().setAttributes(params);
+        }
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            // Be sure to call the super class.
+            super.onCreate(savedInstanceState);
+
+            // Get the resources for the context of the presentation.
+            // Notice that we are getting the resources from the context of the presentation.
+            Resources r = getContext().getResources();
+
+            // Inflate the layout.
+            setContentView(R.layout.presentation_content);
+
+            final Display display = getDisplay();
+            final int displayId = display.getDisplayId();
+            final int photo = mContents.photo;
+
+            // Show a caption to describe what's going on.
+            TextView text = (TextView)findViewById(R.id.text);
+            text.setText(r.getString(R.string.presentation_photo_text,
+                    photo, displayId, display.getName()));
+
+            // Show a n image for visual interest.
+            ImageView image = (ImageView)findViewById(R.id.image);
+            image.setImageDrawable(r.getDrawable(PHOTOS[photo]));
+
+            GradientDrawable drawable = new GradientDrawable();
+            drawable.setShape(GradientDrawable.RECTANGLE);
+            drawable.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+
+            // Set the background to a random gradient.
+            Point p = new Point();
+            getDisplay().getSize(p);
+            drawable.setGradientRadius(Math.max(p.x, p.y) / 2);
+            drawable.setColors(mContents.colors);
+            findViewById(android.R.id.content).setBackground(drawable);
+        }
+    }
+
+    /**
+     * Information about the content we want to show in the presentation.
+     */
+    private final static class DemoPresentationContents implements Parcelable {
+        final int photo;
+        final int[] colors;
+        int displayModeId;
+
+        public static final Creator<DemoPresentationContents> CREATOR =
+                new Creator<DemoPresentationContents>() {
+            @Override
+            public DemoPresentationContents createFromParcel(Parcel in) {
+                return new DemoPresentationContents(in);
+            }
+
+            @Override
+            public DemoPresentationContents[] newArray(int size) {
+                return new DemoPresentationContents[size];
+            }
+        };
+
+        public DemoPresentationContents(int photo) {
+            this.photo = photo;
+            colors = new int[] {
+                    ((int) (Math.random() * Integer.MAX_VALUE)) | 0xFF000000,
+                    ((int) (Math.random() * Integer.MAX_VALUE)) | 0xFF000000 };
+        }
+
+        private DemoPresentationContents(Parcel in) {
+            photo = in.readInt();
+            colors = new int[] { in.readInt(), in.readInt() };
+            displayModeId = in.readInt();
+        }
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        @Override
+        public void writeToParcel(Parcel dest, int flags) {
+            dest.writeInt(photo);
+            dest.writeInt(colors[0]);
+            dest.writeInt(colors[1]);
+            dest.writeInt(displayModeId);
+        }
+    }
+} See also: for information on about live
+ video routes and how to obtain the preferred presentation display for the
+ current media route. for information on how to enumerate displays and receive
+ notifications when displays are added or removed. Summary Inherited constants From interface android.content.DialogInterface int BUTTON1 This constant was deprecated
+      in API level 15.
+    Use BUTTON_POSITIVE int BUTTON2 This constant was deprecated
+      in API level 15.
+    Use BUTTON_NEGATIVE int BUTTON3 This constant was deprecated
+      in API level 15.
+    Use BUTTON_NEUTRAL int BUTTON_NEGATIVE The identifier for the negative button. int BUTTON_NEUTRAL The identifier for the neutral button. int BUTTON_POSITIVE The identifier for the positive button. Public constructors Presentation ( Context outerContext, Display display) Creates a new presentation that is attached to the specified display
+ using the default theme. Presentation ( Context outerContext, Display display, int theme) Creates a new presentation that is attached to the specified display
+ using the optionally specified theme. Public methods Display getDisplay () Gets the Display that this presentation appears on. Resources getResources () Gets the Resources that should be used to inflate the layout of this presentation. void onDisplayChanged () Called by the system when the properties of the Display to which
+ the presentation is attached have changed. void onDisplayRemoved () Called by the system when the Display to which the presentation
+ is attached has been removed. void show () Inherited from Dialog.show . Protected methods void onStart () Called when the dialog is starting. void onStop () Called to tell you that you're stopping. Inherited methods From class android.app.Dialog void addContentView ( View view, ViewGroup.LayoutParams params) Add an additional content view to the screen. void cancel () Cancel the dialog. void closeOptionsMenu () void create () Forces immediate creation of the dialog. void dismiss () Dismiss this dialog, removing it from the screen. boolean dispatchGenericMotionEvent ( MotionEvent ev) Called to process generic motion events. boolean dispatchKeyEvent ( KeyEvent event) Called to process key events. boolean dispatchKeyShortcutEvent ( KeyEvent event) Called to process a key shortcut event. boolean dispatchPopulateAccessibilityEvent ( AccessibilityEvent event) Called to process population of AccessibilityEvent s. boolean dispatchTouchEvent ( MotionEvent ev) Called to process touch screen events. boolean dispatchTrackballEvent ( MotionEvent ev) Called to process trackball events. <T extends View >
+        T findViewById (int id) Finds the first descendant view with the given ID or null if the
+ ID is invalid (< 0), there is no matching view in the hierarchy, or the
+ dialog has not yet been fully created (for example, via show() or create() ). ActionBar getActionBar () Retrieve the ActionBar attached to this dialog, if present. final Context getContext () Retrieve the Context this Dialog is running in. View getCurrentFocus () Call Window.getCurrentFocus() on the
+ Window if this Activity to return the currently focused view. LayoutInflater getLayoutInflater () OnBackInvokedDispatcher getOnBackInvokedDispatcher () Returns the OnBackInvokedDispatcher instance associated with the window that this
+ dialog is attached to. final Activity getOwnerActivity () Returns the Activity that owns this Dialog. final SearchEvent getSearchEvent () During the onSearchRequested() callbacks, this function will return the SearchEvent that triggered the callback, if it exists. final
+        
+        int getVolumeControlStream () Window getWindow () Retrieve the current Window for the activity. void hide () Hide the dialog, but do not dismiss it. void invalidateOptionsMenu () boolean isShowing () void onActionModeFinished ( ActionMode mode) Called when an action mode has been finished.
+
+ Note that if you override this method you should always call through
+ to the superclass implementation by calling super.onActionModeFinished(mode). void onActionModeStarted ( ActionMode mode) Called when an action mode has been started.
+
+ Note that if you override this method you should always call through
+ to the superclass implementation by calling super.onActionModeStarted(mode). void onAttachedToWindow () Called when the window has been attached to the window manager. void onBackPressed () This method was deprecated
+      in API level 33.
+    Use OnBackInvokedCallback or androidx.activity.OnBackPressedCallback to handle back navigation instead. Starting from Android 13 (API level 33), back event handling is
+ moving to an ahead-of-time model and onBackPressed() and KeyEvent.KEYCODE_BACK should not be used to handle back events (back gesture or
+ back button click). Instead, an OnBackInvokedCallback should be registered using Dialog.getOnBackInvokedDispatcher() .registerOnBackInvokedCallback(priority, callback) . void onContentChanged () This hook is called whenever the content view of the screen changes
+ (due to a call to Window.setContentView or Window.addContentView ). boolean onContextItemSelected ( MenuItem item) void onContextMenuClosed ( Menu menu) void onCreate ( Bundle savedInstanceState) Similar to Activity.onCreate , you should initialize your dialog
+ in this method, including calling setContentView(View) . void onCreateContextMenu ( ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) Called when the context menu for this view is being built. boolean onCreateOptionsMenu ( Menu menu) It is usually safe to proxy this call to the owner activity's Activity.onCreateOptionsMenu(Menu) if the client desires the same
+ menu for this Dialog. boolean onCreatePanelMenu (int featureId, Menu menu) Initialize the contents of the menu for panel 'featureId'. View onCreatePanelView (int featureId) Instantiate the view to display in the panel for 'featureId'. void onDetachedFromWindow () Called when the window has been detached from the window manager. boolean onGenericMotionEvent ( MotionEvent event) Called when a generic motion event was not handled by any of the
+ views inside of the dialog. boolean onKeyDown (int keyCode, KeyEvent event) A key was pressed down. boolean onKeyLongPress (int keyCode, KeyEvent event) Default implementation of KeyEvent.Callback.onKeyLongPress() : always returns false (doesn't handle
+ the event). boolean onKeyMultiple (int keyCode, int repeatCount, KeyEvent event) Default implementation of KeyEvent.Callback.onKeyMultiple() : always returns false (doesn't handle
+ the event). boolean onKeyShortcut (int keyCode, KeyEvent event) Called when a key shortcut event is not handled by any of the views in the Dialog. boolean onKeyUp (int keyCode, KeyEvent event) A key was released. boolean onMenuItemSelected (int featureId, MenuItem item) Called when a panel's menu item has been selected by the user. boolean onMenuOpened (int featureId, Menu menu) Called when a panel's menu is opened by the user. boolean onOptionsItemSelected ( MenuItem item) void onOptionsMenuClosed ( Menu menu) void onPanelClosed (int featureId, Menu menu) Called when a panel is being closed. boolean onPrepareOptionsMenu ( Menu menu) It is usually safe to proxy this call to the owner activity's Activity.onPrepareOptionsMenu(Menu) if the client desires the
+ same menu for this Dialog. boolean onPreparePanel (int featureId, View view, Menu menu) Prepare a panel to be displayed. void onRestoreInstanceState ( Bundle savedInstanceState) Restore the state of the dialog from a previously saved bundle. Bundle onSaveInstanceState () Saves the state of the dialog into a bundle. boolean onSearchRequested ( SearchEvent searchEvent) This hook is called when the user signals the desire to start a search. boolean onSearchRequested () This hook is called when the user signals the desire to start a search. void onStart () Called when the dialog is starting. void onStop () Called to tell you that you're stopping. boolean onTouchEvent ( MotionEvent event) Called when a touch screen event was not handled by any of the views
+ under it. boolean onTrackballEvent ( MotionEvent event) Called when the trackball was moved and not handled by any of the
+ views inside of the activity. void onWindowAttributesChanged ( WindowManager.LayoutParams params) This is called whenever the current window attributes change. void onWindowFocusChanged (boolean hasFocus) This hook is called whenever the window focus changes. ActionMode onWindowStartingActionMode ( ActionMode.Callback callback) Called when an action mode is being started for this window. ActionMode onWindowStartingActionMode ( ActionMode.Callback callback, int type) Called when an action mode is being started for this window. void openContextMenu ( View view) void openOptionsMenu () void registerForContextMenu ( View view) final
+        
+        boolean requestWindowFeature (int featureId) Enable extended window features. final
+        <T extends View >
+        T requireViewById (int id) Finds the first descendant view with the given ID or throws an IllegalArgumentException if
+ the ID is invalid (< 0), there is no matching view in the hierarchy, or the dialog has not
+ yet been fully created (for example, via show() or create() ). void setCancelMessage ( Message msg) Set a message to be sent when the dialog is canceled. void setCancelable (boolean flag) Sets whether this dialog is cancelable with the BACK key. void setCanceledOnTouchOutside (boolean cancel) Sets whether this dialog is canceled when touched outside the window's
+ bounds. void setContentView (int layoutResID) Set the screen content from a layout resource. void setContentView ( View view, ViewGroup.LayoutParams params) Set the screen content to an explicit view. void setContentView ( View view) Set the screen content to an explicit view. void setDismissMessage ( Message msg) Set a message to be sent when the dialog is dismissed. final
+        
+        void setFeatureDrawable (int featureId, Drawable drawable) Convenience for calling Window.setFeatureDrawable(int, Drawable) . final
+        
+        void setFeatureDrawableAlpha (int featureId, int alpha) Convenience for calling Window.setFeatureDrawableAlpha(int, int) . final
+        
+        void setFeatureDrawableResource (int featureId, int resId) Convenience for calling Window.setFeatureDrawableResource(int, int) . final
+        
+        void setFeatureDrawableUri (int featureId, Uri uri) Convenience for calling Window.setFeatureDrawableUri(int, Uri) . void setOnCancelListener ( DialogInterface.OnCancelListener listener) Set a listener to be invoked when the dialog is canceled. void setOnDismissListener ( DialogInterface.OnDismissListener listener) Set a listener to be invoked when the dialog is dismissed. void setOnKeyListener ( DialogInterface.OnKeyListener onKeyListener) Sets the callback that will be called if a key is dispatched to the dialog. void setOnShowListener ( DialogInterface.OnShowListener listener) Sets a listener to be invoked when the dialog is shown. final
+        
+        void setOwnerActivity ( Activity activity) Sets the Activity that owns this dialog. void setTitle ( CharSequence title) Set the title text for this dialog's window. void setTitle (int titleId) Set the title text for this dialog's window. final
+        
+        void setVolumeControlStream (int streamType) By default, this will use the owner Activity's suggested stream type. void show () Start the dialog and display it on screen. void takeKeyEvents (boolean get) Request that key events come to this dialog. void unregisterForContextMenu ( View view) From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface android.content.DialogInterface abstract
+        
+        
+        
+        
+        void cancel () Cancels the dialog, invoking the OnCancelListener . abstract
+        
+        
+        
+        
+        void dismiss () Dismisses the dialog, invoking the OnDismissListener . From interface android.view.KeyEvent.Callback abstract
+        
+        
+        
+        
+        boolean onKeyDown (int keyCode, KeyEvent event) Called when a key down event has occurred. abstract
+        
+        
+        
+        
+        boolean onKeyLongPress (int keyCode, KeyEvent event) Called when a long press has occurred. abstract
+        
+        
+        
+        
+        boolean onKeyMultiple (int keyCode, int count, KeyEvent event) Called when a user's interaction with an analog control, such as
+ flinging a trackball, generates simulated down/up events for the same
+ key multiple times in quick succession. abstract
+        
+        
+        
+        
+        boolean onKeyUp (int keyCode, KeyEvent event) Called when a key up event has occurred. From interface android.view.View.OnCreateContextMenuListener abstract
+        
+        
+        
+        
+        void onCreateContextMenu ( ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) Called when the context menu for this view is being built. From interface android.view.Window.Callback abstract
+        
+        
+        
+        
+        boolean dispatchGenericMotionEvent ( MotionEvent event) Called to process generic motion events. abstract
+        
+        
+        
+        
+        boolean dispatchKeyEvent ( KeyEvent event) Called to process key events. abstract
+        
+        
+        
+        
+        boolean dispatchKeyShortcutEvent ( KeyEvent event) Called to process a key shortcut event. abstract
+        
+        
+        
+        
+        boolean dispatchPopulateAccessibilityEvent ( AccessibilityEvent event) Called to process population of AccessibilityEvent s. abstract
+        
+        
+        
+        
+        boolean dispatchTouchEvent ( MotionEvent event) Called to process touch screen events. abstract
+        
+        
+        
+        
+        boolean dispatchTrackballEvent ( MotionEvent event) Called to process trackball events. abstract
+        
+        
+        
+        
+        void onActionModeFinished ( ActionMode mode) Called when an action mode has been finished. abstract
+        
+        
+        
+        
+        void onActionModeStarted ( ActionMode mode) Called when an action mode has been started. abstract
+        
+        
+        
+        
+        void onAttachedToWindow () Called when the window has been attached to the window manager. abstract
+        
+        
+        
+        
+        void onContentChanged () This hook is called whenever the content view of the screen changes
+ (due to a call to Window.setContentView or Window.addContentView ). abstract
+        
+        
+        
+        
+        boolean onCreatePanelMenu (int featureId, Menu menu) Initialize the contents of the menu for panel 'featureId'. abstract View onCreatePanelView (int featureId) Instantiate the view to display in the panel for 'featureId'. abstract
+        
+        
+        
+        
+        void onDetachedFromWindow () Called when the window has been detached from the window manager. abstract
+        
+        
+        
+        
+        boolean onMenuItemSelected (int featureId, MenuItem item) Called when a panel's menu item has been selected by the user. abstract
+        
+        
+        
+        
+        boolean onMenuOpened (int featureId, Menu menu) Called when a panel's menu is opened by the user. abstract
+        
+        
+        
+        
+        void onPanelClosed (int featureId, Menu menu) Called when a panel is being closed. default
+        
+        
+        
+        void onPointerCaptureChanged (boolean hasCapture) Called when pointer capture is enabled or disabled for the current window. abstract
+        
+        
+        
+        
+        boolean onPreparePanel (int featureId, View view, Menu menu) Prepare a panel to be displayed. default
+        
+        
+        
+        void onProvideKeyboardShortcuts ( List < KeyboardShortcutGroup > data, Menu menu, int deviceId) Called when Keyboard Shortcuts are requested for the current window. abstract
+        
+        
+        
+        
+        boolean onSearchRequested () Called when the user signals the desire to start a search. abstract
+        
+        
+        
+        
+        boolean onSearchRequested ( SearchEvent searchEvent) Called when the user signals the desire to start a search. abstract
+        
+        
+        
+        
+        void onWindowAttributesChanged ( WindowManager.LayoutParams attrs) This is called whenever the current window attributes change. abstract
+        
+        
+        
+        
+        void onWindowFocusChanged (boolean hasFocus) This hook is called whenever the window focus changes. abstract ActionMode onWindowStartingActionMode ( ActionMode.Callback callback) Called when an action mode is being started for this window. abstract ActionMode onWindowStartingActionMode ( ActionMode.Callback callback, int type) Called when an action mode is being started for this window. Public constructors Presentation Added in API level 17 public Presentation ( Context outerContext, Display display) Creates a new presentation that is attached to the specified display
+ using the default theme. Parameters outerContext Context : The context of the application that is showing the presentation.
+ The presentation will create its own context (see Dialog.getContext() ) based
+ on this context and information about the associated display. display Display : The display to which the presentation should be attached. Presentation Added in API level 17 public Presentation ( Context outerContext, Display display, 
+                int theme) Creates a new presentation that is attached to the specified display
+ using the optionally specified theme. Parameters outerContext Context : The context of the application that is showing the presentation.
+ The presentation will create its own context (see Dialog.getContext() ) based
+ on this context and information about the associated display.
+ From Build.VERSION_CODES.S , the presentation will create its own window
+ context based on this context, information about the associated display. Customizing window
+ type by #getWindow#setType(int) causes the mismatch of the window
+ and the created window context, which leads to WindowManager.InvalidDisplayException when invoking show() . display Display : The display to which the presentation should be attached. theme int : A style resource describing the theme to use for the window.
+ See Style and Theme Resources for more information about defining and using
+ styles.  This theme is applied on top of the current theme in outerContext .  If 0, the default presentation theme will be used. Public methods getDisplay Added in API level 17 public Display getDisplay () Gets the Display that this presentation appears on. Returns Display The display. getResources Added in API level 17 public Resources getResources () Gets the Resources that should be used to inflate the layout of this presentation.
+ This resources object has been configured according to the metrics of the
+ display that the presentation appears on. Returns Resources The presentation resources object. onDisplayChanged Added in API level 17 public void onDisplayChanged () Called by the system when the properties of the Display to which
+ the presentation is attached have changed. See also: getDisplay() onDisplayRemoved Added in API level 17 public void onDisplayRemoved () Called by the system when the Display to which the presentation
+ is attached has been removed.
+
+ The system automatically calls Dialog.cancel() to dismiss the presentation
+ after sending this event. See also: getDisplay() show Added in API level 17 public void show () Inherited from Dialog.show . Will throw WindowManager.InvalidDisplayException if the specified secondary Display can't be found or if it does not have Display.FLAG_PRESENTATION set. Protected methods onStart Added in API level 17 protected void onStart () Called when the dialog is starting. onStop Added in API level 17 protected void onStop () Called to tell you that you're stopping.</body></html>

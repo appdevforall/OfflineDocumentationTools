@@ -1,0 +1,597 @@
+<html><head><title>Class Documentation</title></head><body>InputMethodManager Kotlin | Java public
+  
+  final
+  
+  class
+  InputMethodManager extends Object java.lang.Object ↳ android.view.inputmethod.InputMethodManager Central system API to the overall input method framework (IMF) architecture,
+ which arbitrates interaction between applications and the current input method. Topics covered here: Architecture Overview Applications Input Methods Security Architecture Overview There are three primary parties involved in the input method
+ framework (IMF) architecture: The input method manager as expressed by this class
+ is the central point of the system that manages interaction between all
+ other parts.  It is expressed as the client-side API here which exists
+ in each application context and communicates with a global system service
+ that manages the interaction across all processes. An input method (IME) implements a particular
+ interaction model allowing the user to generate text.  The system binds
+ to the current input method that is in use, causing it to be created and run,
+ and tells it when to hide and show its UI.  Only one IME is running at a time. Multiple client applications arbitrate with the input
+ method manager for input focus and control over the state of the IME.  Only
+ one such client is ever active (working with the IME) at a time. Applications In most cases, applications that are using the standard TextView or its subclasses will have little they need
+ to do to work well with soft input methods.  The main things you need to
+ be aware of are: Properly set the R.attr.inputType in your editable
+ text views, so that the input method will have enough context to help the
+ user in entering text into them. Deal well with losing screen space when the input method is
+ displayed.  Ideally an application should handle its window being resized
+ smaller, but it can rely on the system performing panning of the window
+ if needed.  You should set the R.attr.windowSoftInputMode attribute on your activity or the corresponding values on windows you
+ create to help the system determine whether to pan or resize (it will
+ try to determine this automatically but may get it wrong). You can also control the preferred soft input state (open, closed, etc)
+ for your window using the same R.attr.windowSoftInputMode attribute. More finer-grained control is available through the APIs here to directly
+ interact with the IMF and its IME -- either showing or hiding the input
+ area, letting the user pick an input method, etc. For the rare people amongst us writing their own text editors, you
+ will need to implement View.onCreateInputConnection(EditorInfo) to return a new instance of your own InputConnection interface
+ allowing the IME to interact with your editor. Input Methods An input method (IME) is implemented
+ as a Service , typically deriving from InputMethodService .  It must provide
+ the core InputMethod interface, though this is normally handled by InputMethodService and implementors will
+ only need to deal with the higher-level API there. See the InputMethodService class for
+ more information on implementing IMEs. Security There are a lot of security issues associated with input methods,
+ since they essentially have freedom to completely drive the UI and monitor
+ everything the user enters.  The Android input method framework also allows
+ arbitrary third party IMEs, so care must be taken to restrict their
+ selection and interactions. Here are some key points about the security architecture behind the
+ IMF: Only the system is allowed to directly access an IME's InputMethod interface, via the Manifest.permission.BIND_INPUT_METHOD permission.  This is
+ enforced in the system by not binding to an input method service that does
+ not require this permission, so the system can guarantee no other untrusted
+ clients are accessing the current input method outside of its control. There may be many client processes of the IMF, but only one may
+ be active at a time.  The inactive clients can not interact with key
+ parts of the IMF through the mechanisms described below. Clients of an input method are only given access to its InputMethodSession interface.  One instance of this interface is
+ created for each client, and only calls from the session associated with
+ the active client will be processed by the current IME.  This is enforced
+ by AbstractInputMethodService for normal
+ IMEs, but must be explicitly handled by an IME that is customizing the
+ raw InputMethodSession implementation. Only the active client's InputConnection will accept
+ operations.  The IMF tells each client process whether it is active, and
+ the framework enforces that in inactive processes calls on to the current
+ InputConnection will be ignored.  This ensures that the current IME can
+ only deliver events and text edits to the UI that the user sees as
+ being in focus. An IME can never interact with an InputConnection while
+ the screen is off.  This is enforced by making all clients inactive while
+ the screen is off, and prevents bad IMEs from driving the UI when the user
+ can not be aware of its behavior. A client application can ask that the system let the user pick a
+ new IME, but can not programmatically switch to one itself.  This avoids
+ malicious applications from switching the user to their own IME, which
+ remains running when the user navigates away to another application.  An
+ IME, on the other hand, is allowed to programmatically switch
+ the system to another IME, since it already has full control of user
+ input. The user must explicitly enable a new IME in settings before
+ they can switch to it, to confirm with the system that they know about it
+ and want to make it available for use. If your app targets Android 11 (API level 30) or higher, the methods in
+ this class each return a filtered result by the rules of package visibility ,
+ except for the currently connected IME. Apps having a query for the InputMethod.SERVICE_INTERFACE see all IMEs. Requires the PackageManager#FEATURE_INPUT_METHODS feature which can be detected using PackageManager.hasSystemFeature(String) . Summary Constants int HANDWRITING_DELEGATE_FLAG_HOME_DELEGATOR_ALLOWED Flag indicating that views from the default home screen ( Intent.CATEGORY_HOME ) may
+ act as a handwriting delegator for the delegate editor view. int HIDE_IMPLICIT_ONLY Flag for hideSoftInputFromWindow(IBinder, int) and InputMethodService.requestHideSelf(int) to indicate that the soft input window should only be hidden if it was not explicitly shown
+ by the user. int HIDE_NOT_ALWAYS Flag for hideSoftInputFromWindow(IBinder, int) and InputMethodService.requestShowSelf(int) to indicate that the soft input window should normally be hidden, unless it was originally
+ shown with SHOW_FORCED . int RESULT_HIDDEN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window changed from shown to hidden. int RESULT_SHOWN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window changed from hidden to shown. int RESULT_UNCHANGED_HIDDEN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window was unchanged and remains hidden. int RESULT_UNCHANGED_SHOWN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window was unchanged and remains shown. int SHOW_FORCED This constant was deprecated
+      in API level 33.
+    Use showSoftInput(View, int) without this flag instead. Using this flag can lead
+ to the soft input remaining visible even when the calling application is closed. The
+ use of this flag can make the soft input remain visible globally. Starting in Android T , this flag only has an effect while the
+ caller is currently focused. int SHOW_IMPLICIT Flag for showSoftInput(View, int) to indicate that this is an implicit
+ request to show the input window, not as the result of a direct request
+ by the user. Public methods void acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName, Executor executor, Consumer < Boolean > callback) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view
+ belongs to a specified delegate package. boolean acceptStylusHandwritingDelegation ( View delegateView) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View) from the delegator. boolean acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view
+ belongs to a specified delegate package. void acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName, int flags, Executor executor, Consumer < Boolean > callback) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view belongs to
+ a specified delegate package. void dispatchKeyEventFromInputMethod ( View targetView, KeyEvent event) Provides the default implementation of InputConnection.sendKeyEvent(KeyEvent) , which
+ is expected to dispatch an keyboard event sent from the IME to an appropriate event target
+ depending on the given View and the current focus state. void displayCompletions ( View view, CompletionInfo[] completions) InputMethodInfo getCurrentInputMethodInfo () Returns the InputMethodInfo of the currently selected input method (for the process's
+ user). InputMethodSubtype getCurrentInputMethodSubtype () Returns the current input method subtype. List < InputMethodInfo > getEnabledInputMethodList () Returns the list of enabled input methods. List < InputMethodSubtype > getEnabledInputMethodSubtypeList ( InputMethodInfo imi, boolean allowsImplicitlyEnabledSubtypes) Returns a list of enabled input method subtypes for the specified input method info. List < InputMethodInfo > getInputMethodList () Returns the list of installed input methods. InputMethodSubtype getLastInputMethodSubtype () Returns the last used InputMethodSubtype in system history. Map < InputMethodInfo , List < InputMethodSubtype >> getShortcutInputMethodsAndSubtypes () Returns a map of all shortcut input method info and their subtypes. void hideSoftInputFromInputMethod ( IBinder token, int flags) This method was deprecated
+      in API level 28.
+    Use InputMethodService.requestHideSelf(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. boolean hideSoftInputFromWindow ( IBinder windowToken, int flags, ResultReceiver resultReceiver) This method was deprecated
+      in API level 36.
+    The ResultReceiver is not a reliable way of determining whether the
+ Input Method is actually shown or hidden. If result is needed, use WindowInsetsController.hide(int) instead and set a View.OnApplyWindowInsetsListener and verify the provided WindowInsets for
+ the visibility of IME. If result is not needed, use ERROR(/#hideSoftInputFromView(android.view.View,int)) instead. boolean hideSoftInputFromWindow ( IBinder windowToken, int flags) Synonym for hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) without a result: request to hide the soft input window from the
+ context of the window that is currently accepting input. void hideStatusIcon ( IBinder imeToken) This method was deprecated
+      in API level 28.
+    Use InputMethodService.hideStatusIcon() instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in
+ this class are intended for app developers interacting with the IME. void invalidateInput ( View view) Gives a hint to the system that the text associated with view is updated by something
+ that is not an input method editor (IME), so that the system can cancel any pending text
+ editing requests from the IME until it receives the new editing context such as surrounding
+ text provided by InputConnection.takeSnapshot() . boolean isAcceptingText () Return true if the currently served view is accepting full text edits. boolean isActive ( View view) Return true if the given view is the currently active view for the input method. boolean isActive () Return true if any view is currently active for the input method. boolean isConnectionlessStylusHandwritingAvailable () Returns true if the currently selected IME supports connectionless stylus handwriting
+ sessions and is enabled. boolean isFullscreenMode () Allows you to discover whether the attached input method is running
+ in fullscreen mode. boolean isInputMethodSuppressingSpellChecker () Return true if the input method is suppressing system spell checker. boolean isStylusHandwritingAvailable () Returns true if currently selected IME supports Stylus handwriting & is enabled. boolean isWatchingCursor ( View view) This method was deprecated
+      in API level 21.
+    Use InputConnection.requestCursorUpdates(int) instead. void prepareStylusHandwritingDelegation ( View delegatorView) Prepares delegation of starting stylus handwriting session to a different editor in same
+ or different window than the view on which initial handwriting stroke was detected. void prepareStylusHandwritingDelegation ( View delegatorView, String delegatePackageName) Prepares delegation of starting stylus handwriting session to a different editor in same or a
+ different window in a different package than the view on which initial handwriting stroke
+ was detected. void restartInput ( View view) If the input method is currently connected to the given view,
+ restart it with its new contents. void sendAppPrivateCommand ( View view, String action, Bundle data) Call InputMethodSession.appPrivateCommand() on the current Input Method. void setAdditionalInputMethodSubtypes ( String imiId, InputMethodSubtype[] subtypes) This method was deprecated
+      in API level 29.
+    For IMEs that have already implemented features like customizable/downloadable
+             keyboard layouts/languages, please start migration to other approaches. One idea
+             would be exposing only one unified InputMethodSubtype then implement
+             IME's own language switching mechanism within that unified subtype. The support
+             of "Additional Subtype" may be completely dropped in a future version of Android. boolean setCurrentInputMethodSubtype ( InputMethodSubtype subtype) This method was deprecated
+      in API level 29.
+    If the calling process is an IME, use InputMethodService.switchInputMethod(String, InputMethodSubtype) , which
+             does not require any permission as long as the caller is the current IME.
+             If the calling process is some privileged app that already has Manifest.permission.WRITE_SECURE_SETTINGS permission, just
+             directly update Settings.Secure.SELECTED_INPUT_METHOD_SUBTYPE . void setExplicitlyEnabledInputMethodSubtypes ( String imiId, int[] subtypeHashCodes) Updates the list of explicitly enabled InputMethodSubtype for a given IME owned by
+ the calling process. void setInputMethod ( IBinder token, String id) This method was deprecated
+      in API level 28.
+    Use InputMethodService.switchInputMethod(String) instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. void setInputMethodAndSubtype ( IBinder token, String id, InputMethodSubtype subtype) This method was deprecated
+      in API level 28.
+    Use InputMethodService.switchInputMethod(String, InputMethodSubtype) instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. boolean shouldOfferSwitchingToNextInputMethod ( IBinder imeToken) This method was deprecated
+      in API level 28.
+    Use InputMethodService.shouldOfferSwitchingToNextInputMethod() instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. void showInputMethodAndSubtypeEnabler ( String imiId) Show the settings for enabling subtypes of the specified input method. void showInputMethodPicker () Show IME picker popup window. boolean showSoftInput ( View view, int flags, ResultReceiver resultReceiver) This method was deprecated
+      in API level 36.
+    The ResultReceiver is not a reliable way of determining whether the
+ Input Method is actually shown or hidden. If result is needed, use WindowInsetsController.show(int) instead and set a View.OnApplyWindowInsetsListener and verify the provided WindowInsets for
+ the visibility of IME. If result is not needed, use showSoftInput(android.view.View, int) instead. boolean showSoftInput ( View view, int flags) Synonym for showSoftInput(android.view.View, int, android.os.ResultReceiver) without
+ a result receiver: explicitly request that the current input method's
+ soft input area be shown to the user, if needed. void showSoftInputFromInputMethod ( IBinder token, int flags) This method was deprecated
+      in API level 28.
+    Use InputMethodService.requestShowSelf(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. void showStatusIcon ( IBinder imeToken, String packageName, int iconId) This method was deprecated
+      in API level 28.
+    Use InputMethodService.showStatusIcon(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. void startConnectionlessStylusHandwriting ( View view, CursorAnchorInfo cursorAnchorInfo, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session. void startConnectionlessStylusHandwritingForDelegation ( View delegatorView, CursorAnchorInfo cursorAnchorInfo, String delegatePackageName, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session (see startConnectionlessStylusHandwriting(View, CursorAnchorInfo, Executor, ConnectionlessHandwritingCallback) ) and additionally enables the recognised handwritten
+ text to be later committed to a text editor using acceptStylusHandwritingDelegation(android.view.View, java.lang.String) . void startConnectionlessStylusHandwritingForDelegation ( View delegatorView, CursorAnchorInfo cursorAnchorInfo, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session (see startConnectionlessStylusHandwriting(View, CursorAnchorInfo, Executor, ConnectionlessHandwritingCallback) ) and additionally enables the recognised handwritten
+ text to be later committed to a text editor using acceptStylusHandwritingDelegation(android.view.View) . void startStylusHandwriting ( View view) Start stylus handwriting session. boolean switchToLastInputMethod ( IBinder imeToken) This method was deprecated
+      in API level 28.
+    Use InputMethodService.switchToPreviousInputMethod() instead. This method
+ was intended for IME developers who should be accessing APIs through the service. APIs in
+ this class are intended for app developers interacting with the IME. boolean switchToNextInputMethod ( IBinder imeToken, boolean onlyCurrentIme) This method was deprecated
+      in API level 28.
+    Use InputMethodService.switchToNextInputMethod(boolean) instead. This
+ method was intended for IME developers who should be accessing APIs through the service.
+ APIs in this class are intended for app developers interacting with the IME. void toggleSoftInput (int showFlags, int hideFlags) This method was deprecated
+      in API level 31.
+    Use showSoftInput(android.view.View, int) or hideSoftInputFromWindow(android.os.IBinder, int) explicitly instead.
+ In particular during focus changes, the current visibility of the IME is not
+ well defined. Starting in Android S , this only
+ has an effect if the calling app is the current IME focus. void toggleSoftInputFromWindow ( IBinder windowToken, int showFlags, int hideFlags) This method was deprecated
+      in API level 31.
+    Use showSoftInput(android.view.View, int) or hideSoftInputFromWindow(android.os.IBinder, int) explicitly instead.
+ In particular during focus changes, the current visibility of the IME is not
+ well defined. Starting in Android S , this only
+ has an effect if the calling app is the current IME focus. void updateCursor ( View view, int left, int top, int right, int bottom) This method was deprecated
+      in API level 21.
+    Use updateCursorAnchorInfo(android.view.View, android.view.inputmethod.CursorAnchorInfo) instead. void updateCursorAnchorInfo ( View view, CursorAnchorInfo cursorAnchorInfo) Report positional change of the text insertion point and/or characters in the composition
+ string. void updateExtractedText ( View view, int token, ExtractedText text) void updateSelection ( View view, int selStart, int selEnd, int candidatesStart, int candidatesEnd) Report the current selection range. void viewClicked ( View view) This method was deprecated
+      in API level 29.
+    The semantics of this method can never be defined well for composite View that works as a giant "Canvas", which can host its own UI hierarchy and sub focus
+             state. WebView is a good example. Application / IME
+             developers should not rely on this method. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants HANDWRITING_DELEGATE_FLAG_HOME_DELEGATOR_ALLOWED Added in API level 35 public static final int HANDWRITING_DELEGATE_FLAG_HOME_DELEGATOR_ALLOWED Flag indicating that views from the default home screen ( Intent.CATEGORY_HOME ) may
+ act as a handwriting delegator for the delegate editor view. If set, views from the home
+ screen package will be trusted for handwriting delegation, in addition to views in the delegatorPackageName passed to acceptStylusHandwritingDelegation(android.view.View, java.lang.String, int, java.util.concurrent.Executor, java.util.function.Consumer) . Constant Value:
+      
+          1
+          (0x00000001) HIDE_IMPLICIT_ONLY Added in API level 3 public static final int HIDE_IMPLICIT_ONLY Flag for hideSoftInputFromWindow(IBinder, int) and InputMethodService.requestHideSelf(int) to indicate that the soft input window should only be hidden if it was not explicitly shown
+ by the user. Constant Value:
+      
+          1
+          (0x00000001) HIDE_NOT_ALWAYS Added in API level 3 public static final int HIDE_NOT_ALWAYS Flag for hideSoftInputFromWindow(IBinder, int) and InputMethodService.requestShowSelf(int) to indicate that the soft input window should normally be hidden, unless it was originally
+ shown with SHOW_FORCED . Constant Value:
+      
+          2
+          (0x00000002) RESULT_HIDDEN Added in API level 3 public static final int RESULT_HIDDEN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window changed from shown to hidden. Constant Value:
+      
+          3
+          (0x00000003) RESULT_SHOWN Added in API level 3 public static final int RESULT_SHOWN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window changed from hidden to shown. Constant Value:
+      
+          2
+          (0x00000002) RESULT_UNCHANGED_HIDDEN Added in API level 3 public static final int RESULT_UNCHANGED_HIDDEN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window was unchanged and remains hidden. Constant Value:
+      
+          1
+          (0x00000001) RESULT_UNCHANGED_SHOWN Added in API level 3 public static final int RESULT_UNCHANGED_SHOWN Flag for the ResultReceiver result code from showSoftInput(android.view.View, int, android.os.ResultReceiver) and hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) : the
+ state of the soft input window was unchanged and remains shown. Constant Value:
+      
+          0
+          (0x00000000) SHOW_FORCED Added in API level 3 Deprecated in API level
+      33 public static final int SHOW_FORCED This constant was deprecated
+      in API level 33. Use showSoftInput(View, int) without this flag instead. Using this flag can lead
+ to the soft input remaining visible even when the calling application is closed. The
+ use of this flag can make the soft input remain visible globally. Starting in Android T , this flag only has an effect while the
+ caller is currently focused. Flag for showSoftInput(View, int) to indicate that the user has forced
+ the input method open (such as by long-pressing menu) so it should
+ not be closed until they explicitly do so. Constant Value:
+      
+          2
+          (0x00000002) SHOW_IMPLICIT Added in API level 3 public static final int SHOW_IMPLICIT Flag for showSoftInput(View, int) to indicate that this is an implicit
+ request to show the input window, not as the result of a direct request
+ by the user.  The window may not be shown in this case. Constant Value:
+      
+          1
+          (0x00000001) Public methods acceptStylusHandwritingDelegation Added in API level 35 public void acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName, Executor executor, Consumer < Boolean > callback) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view
+ belongs to a specified delegate package. Otherwise, if the delegator view previously started delegation using startConnectionlessStylusHandwritingForDelegation(android.view.View, android.view.inputmethod.CursorAnchorInfo, java.lang.String, java.util.concurrent.Executor, android.view.inputmethod.ConnectionlessHandwritingCallback) , requests the IME to commit the recognised handwritten
+ text from the connectionless session to the delegate view. Parameters delegateView View : delegate view capable of receiving input via InputConnection on which startStylusHandwriting(android.view.View) will be called.
+ This value cannot be null . delegatorPackageName String : package name of the delegator that handled initial stylus stroke.
+ This value cannot be null . executor Executor : The executor to run the callback on.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback Consumer : Consumer callback that provides true if view belongs to allowed
+                delegate package declared in prepareStylusHandwritingDelegation(android.view.View, java.lang.String) and handwriting
+                session can start. Note: The caller should hold a reference to the callback.
+                The framework only holds a weak reference.
+ This value cannot be null . See also: prepareStylusHandwritingDelegation(View, String) acceptStylusHandwritingDelegation(View) startConnectionlessStylusHandwritingForDelegation(View, CursorAnchorInfo, String, Executor, ConnectionlessHandwritingCallback) acceptStylusHandwritingDelegation Added in API level 34 public boolean acceptStylusHandwritingDelegation ( View delegateView) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View) from the delegator. Otherwise, if the delegator view previously started delegation using startConnectionlessStylusHandwritingForDelegation(android.view.View, android.view.inputmethod.CursorAnchorInfo, java.util.concurrent.Executor, android.view.inputmethod.ConnectionlessHandwritingCallback) , requests the IME to commit the recognised handwritten
+ text from the connectionless session to the delegate view. Note: If delegator and delegate are in different application packages, use acceptStylusHandwritingDelegation(android.view.View, java.lang.String) instead. Parameters delegateView View : delegate view capable of receiving input via InputConnection This value cannot be null . Returns boolean true if view belongs to same application package as used in prepareStylusHandwritingDelegation(android.view.View) and delegation is accepted See also: prepareStylusHandwritingDelegation(View) acceptStylusHandwritingDelegation(View, String) startConnectionlessStylusHandwritingForDelegation(View, CursorAnchorInfo, Executor, ConnectionlessHandwritingCallback) acceptStylusHandwritingDelegation Added in API level 34 public boolean acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view
+ belongs to a specified delegate package. Otherwise, if the delegator view previously started delegation using startConnectionlessStylusHandwritingForDelegation(android.view.View, android.view.inputmethod.CursorAnchorInfo, java.lang.String, java.util.concurrent.Executor, android.view.inputmethod.ConnectionlessHandwritingCallback) , requests the IME to commit the recognised handwritten
+ text from the connectionless session to the delegate view. Note: If delegator and delegate are in the same application package, use acceptStylusHandwritingDelegation(android.view.View) instead. Parameters delegateView View : delegate view capable of receiving input via InputConnection This value cannot be null . delegatorPackageName String : package name of the delegator that handled initial stylus stroke.
+ This value cannot be null . Returns boolean true if view belongs to allowed delegate package declared in prepareStylusHandwritingDelegation(android.view.View, java.lang.String) and delegation is accepted See also: prepareStylusHandwritingDelegation(View, String) acceptStylusHandwritingDelegation(View) TODO (b/293640003): deprecate this method once flag is enabled. acceptStylusHandwritingDelegation Added in API level 35 public void acceptStylusHandwritingDelegation ( View delegateView, String delegatorPackageName, 
+                int flags, Executor executor, Consumer < Boolean > callback) Accepts and starts a stylus handwriting session on the delegate view, if handwriting
+ initiation delegation was previously requested using prepareStylusHandwritingDelegation(android.view.View, java.lang.String) from the delegator and the view belongs to
+ a specified delegate package. Otherwise, if the delegator view previously started delegation using startConnectionlessStylusHandwritingForDelegation(android.view.View, android.view.inputmethod.CursorAnchorInfo, java.lang.String, java.util.concurrent.Executor, android.view.inputmethod.ConnectionlessHandwritingCallback) , requests the IME to commit the recognised handwritten
+ text from the connectionless session to the delegate view. Note: If delegator and delegate are in the same application package, use acceptStylusHandwritingDelegation(android.view.View) instead. Parameters delegateView View : delegate view capable of receiving input via InputConnection This value cannot be null . delegatorPackageName String : package name of the delegator that handled initial stylus stroke.
+ This value cannot be null . flags int : HANDWRITING_DELEGATE_FLAG_HOME_DELEGATOR_ALLOWED or 0 Value is either 0 or HANDWRITING_DELEGATE_FLAG_HOME_DELEGATOR_ALLOWED executor Executor : The executor to run the callback on.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback Consumer : true would be received if delegation was accepted. The caller should
+                 hold a reference to the callback. The framework only holds a weak reference.
+ This value cannot be null . See also: prepareStylusHandwritingDelegation(View, String) acceptStylusHandwritingDelegation(View) startConnectionlessStylusHandwritingForDelegation(View, CursorAnchorInfo, String, Executor, ConnectionlessHandwritingCallback) dispatchKeyEventFromInputMethod Added in API level 24 public void dispatchKeyEventFromInputMethod ( View targetView, KeyEvent event) Provides the default implementation of InputConnection.sendKeyEvent(KeyEvent) , which
+ is expected to dispatch an keyboard event sent from the IME to an appropriate event target
+ depending on the given View and the current focus state. CAUTION: This method is provided only for the situation where InputConnection.sendKeyEvent(KeyEvent) needs to be implemented without relying on BaseInputConnection . Do not use this API for anything else. Parameters targetView View : the default target view. If null is specified, then this method
+ tries to find a good event target based on the current focus state. event KeyEvent : the key event to be dispatched.
+
+ This value cannot be null . displayCompletions Added in API level 3 public void displayCompletions ( View view, CompletionInfo[] completions) Parameters view View completions CompletionInfo getCurrentInputMethodInfo Added in API level 34 public InputMethodInfo getCurrentInputMethodInfo () Returns the InputMethodInfo of the currently selected input method (for the process's
+ user). On multi user environment, this API returns a result for the calling process user. Returns InputMethodInfo This value may be null . getCurrentInputMethodSubtype Added in API level 11 public InputMethodSubtype getCurrentInputMethodSubtype () Returns the current input method subtype. This subtype is one of the subtypes in
+ the current input method. This method returns null when the current input method doesn't
+ have any input method subtype. Returns InputMethodSubtype getEnabledInputMethodList Added in API level 3 public List < InputMethodInfo > getEnabledInputMethodList () Returns the list of enabled input methods. On multi user environment, this API returns a result for the calling process user. Returns List < InputMethodInfo > List of InputMethodInfo .
+
+ This value cannot be null . getEnabledInputMethodSubtypeList Added in API level 11 public List < InputMethodSubtype > getEnabledInputMethodSubtypeList ( InputMethodInfo imi, 
+                boolean allowsImplicitlyEnabledSubtypes) Returns a list of enabled input method subtypes for the specified input method info. On multi user environment, this API returns a result for the calling process user. Parameters imi InputMethodInfo : The InputMethodInfo whose subtypes list will be returned. If null ,
+ returns enabled subtypes for the currently selected InputMethodInfo . allowsImplicitlyEnabledSubtypes boolean : A boolean flag to allow to return the implicitly
+ enabled subtypes. If an input method info doesn't have enabled subtypes, the framework
+ will implicitly enable subtypes according to the current system language. Returns List < InputMethodSubtype > This value cannot be null . getInputMethodList Added in API level 3 public List < InputMethodInfo > getInputMethodList () Returns the list of installed input methods. On multi user environment, this API returns a result for the calling process user. Returns List < InputMethodInfo > List of InputMethodInfo .
+
+ This value cannot be null . getLastInputMethodSubtype Added in API level 14 public InputMethodSubtype getLastInputMethodSubtype () Returns the last used InputMethodSubtype in system history. Returns InputMethodSubtype the last InputMethodSubtype , null if last IME have no subtype. getShortcutInputMethodsAndSubtypes Added in API level 11 public Map < InputMethodInfo , List < InputMethodSubtype >> getShortcutInputMethodsAndSubtypes () Returns a map of all shortcut input method info and their subtypes. Returns Map < InputMethodInfo , List < InputMethodSubtype >> hideSoftInputFromInputMethod Added in API level 3 Deprecated in API level
+      28 public void hideSoftInputFromInputMethod ( IBinder token, 
+                int flags) This method was deprecated
+      in API level 28. Use InputMethodService.requestHideSelf(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. Close/hide the input method's soft input area, so the user no longer
+ sees it or can interact with it.  This can only be called
+ from the currently active input method, as validated by the given token. Parameters token IBinder : Supplies the identifying token given to an input method
+ when it was started, which allows it to perform this operation on
+ itself. flags int : Value is either 0 or a combination of HIDE_IMPLICIT_ONLY , and HIDE_NOT_ALWAYS hideSoftInputFromWindow Added in API level 3 Deprecated in API level
+      36 public boolean hideSoftInputFromWindow ( IBinder windowToken, 
+                int flags, ResultReceiver resultReceiver) This method was deprecated
+      in API level 36. The ResultReceiver is not a reliable way of determining whether the
+ Input Method is actually shown or hidden. If result is needed, use WindowInsetsController.hide(int) instead and set a View.OnApplyWindowInsetsListener and verify the provided WindowInsets for
+ the visibility of IME. If result is not needed, use ERROR(/#hideSoftInputFromView(android.view.View,int)) instead. Request to hide the soft input window from the context of the window
+ that is currently accepting input.  This should be called as a result
+ of the user doing some actually than fairly explicitly requests to
+ have the input window hidden. Caveat: ResultReceiver instance passed to
+ this method can be a long-lived object, because it may not be
+ garbage-collected until all the corresponding ResultReceiver objects transferred to different processes get garbage-collected.
+ Follow the general patterns to avoid memory leaks in Android.
+ Consider to use WeakReference so that application
+ logic objects such as Activity and Context can be garbage collected regardless of the lifetime of ResultReceiver . Parameters windowToken IBinder : The token of the window that is making the request,
+ as returned by View.getWindowToken() . flags int : Value is either 0 or a combination of HIDE_IMPLICIT_ONLY , and HIDE_NOT_ALWAYS resultReceiver ResultReceiver : If non-null, this will be called by the IME when
+ it has processed your request to tell you what it has done.  The result
+ code you receive may be either RESULT_UNCHANGED_SHOWN , RESULT_UNCHANGED_HIDDEN , RESULT_SHOWN , or RESULT_HIDDEN . Returns boolean true if a request was sent to system_server, false otherwise. Note:
+ This does not return the result of that request (i.e. whether the IME was actually hidden).
+ For result use  instead. hideSoftInputFromWindow Added in API level 3 public boolean hideSoftInputFromWindow ( IBinder windowToken, 
+                int flags) Synonym for hideSoftInputFromWindow(android.os.IBinder, int, android.os.ResultReceiver) without a result: request to hide the soft input window from the
+ context of the window that is currently accepting input. Parameters windowToken IBinder : The token of the window that is making the request,
+ as returned by View.getWindowToken() . flags int : Value is either 0 or a combination of HIDE_IMPLICIT_ONLY , and HIDE_NOT_ALWAYS Returns boolean For apps targeting Android ERROR(/Build.VERSION_CODES.BAKLAVA) , onwards, it
+ will always return true . To see when the IME is hidden, use View.OnApplyWindowInsetsListener and verify the provided WindowInsets for
+ the visibility of IME. For apps targeting releases before Android Baklava: returns true if a request
+ was sent to system_server, false otherwise. Note: This does not return the result
+ of that request (i.e. whether the IME was actually hidden). hideStatusIcon Added in API level 3 Deprecated in API level
+      28 public void hideStatusIcon ( IBinder imeToken) This method was deprecated
+      in API level 28. Use InputMethodService.hideStatusIcon() instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in
+ this class are intended for app developers interacting with the IME. Parameters imeToken IBinder invalidateInput Added in API level 33 public void invalidateInput ( View view) Gives a hint to the system that the text associated with view is updated by something
+ that is not an input method editor (IME), so that the system can cancel any pending text
+ editing requests from the IME until it receives the new editing context such as surrounding
+ text provided by InputConnection.takeSnapshot() . When view does not support InputConnection.takeSnapshot() protocol,
+ calling this method may trigger View.onCreateInputConnection(EditorInfo) . Unlike restartInput(android.view.View) , this API does not immediately interact with InputConnection .  Instead, the application may later receive InputConnection.takeSnapshot() as needed so that the system can capture new editing
+ context for the IME.  For instance, successive invocations of this API can be coerced into a
+ single (or zero) callback of InputConnection.takeSnapshot() . Parameters view View : The view whose text has changed.
+ This value cannot be null . See also: restartInput(View) isAcceptingText Added in API level 3 public boolean isAcceptingText () Return true if the currently served view is accepting full text edits.
+ If false , it has no input connection, so it can only handle raw key events. Returns boolean isActive Added in API level 3 public boolean isActive ( View view) Return true if the given view is the currently active view for the input method. Parameters view View Returns boolean isActive Added in API level 3 public boolean isActive () Return true if any view is currently active for the input method. Returns boolean isConnectionlessStylusHandwritingAvailable Added in API level 35 public boolean isConnectionlessStylusHandwritingAvailable () Returns true if the currently selected IME supports connectionless stylus handwriting
+ sessions and is enabled. Returns boolean isFullscreenMode Added in API level 3 public boolean isFullscreenMode () Allows you to discover whether the attached input method is running
+ in fullscreen mode.  Return true if it is fullscreen, entirely covering
+ your UI, else returns false. Returns boolean isInputMethodSuppressingSpellChecker Added in API level 31 public boolean isInputMethodSuppressingSpellChecker () Return true if the input method is suppressing system spell checker. Returns boolean isStylusHandwritingAvailable Added in API level 34 public boolean isStylusHandwritingAvailable () Returns true if currently selected IME supports Stylus handwriting & is enabled.
+ If the method returns false , startStylusHandwriting(android.view.View) shouldn't be
+ called and Stylus touch should continue as normal touch input. Returns boolean See also: startStylusHandwriting(View) isWatchingCursor Added in API level 3 Deprecated in API level
+      21 public boolean isWatchingCursor ( View view) This method was deprecated
+      in API level 21. Use InputConnection.requestCursorUpdates(int) instead. Return true if the current input method wants to watch the location
+ of the input editor's cursor in its window. Parameters view View Returns boolean prepareStylusHandwritingDelegation Added in API level 34 public void prepareStylusHandwritingDelegation ( View delegatorView) Prepares delegation of starting stylus handwriting session to a different editor in same
+ or different window than the view on which initial handwriting stroke was detected.
+
+ Delegation can be used to start stylus handwriting session before the Editor view or
+ its InputConnection is started. Calling this method starts buffering of stylus
+ motion events until acceptStylusHandwritingDelegation(android.view.View) is called, at which
+ point the handwriting session can be started and the buffered stylus motion events will be
+ delivered to the IME.
+ e.g. Delegation can be used when initial handwriting stroke is
+ on a pseudo Editor like widget (with no InputConnection ) but actual Editor is on a different window. Note: If an actual Editor capable of InputConnection is being scribbled
+ upon using stylus, use startStylusHandwriting(android.view.View) instead. Parameters delegatorView View : the view that receives initial stylus stroke and delegates it to the
+  actual editor. Its window must have focus .
+ This value cannot be null . See also: prepareStylusHandwritingDelegation(View, String) acceptStylusHandwritingDelegation(View) startStylusHandwriting(View) prepareStylusHandwritingDelegation Added in API level 34 public void prepareStylusHandwritingDelegation ( View delegatorView, String delegatePackageName) Prepares delegation of starting stylus handwriting session to a different editor in same or a
+ different window in a different package than the view on which initial handwriting stroke
+ was detected.
+
+ Delegation can be used to start stylus handwriting session before the Editor view or
+ its InputConnection is started. Calling this method starts buffering of stylus
+ motion events until acceptStylusHandwritingDelegation(android.view.View, java.lang.String) is called, at
+ which point the handwriting session can be started and the buffered stylus motion events will
+ be delivered to the IME.
+ e.g. Delegation can be used when initial handwriting stroke is
+ on a pseudo Editor like widget (with no InputConnection ) but actual Editor is on a different window in the given package. Note: If delegator and delegate are in same package use prepareStylusHandwritingDelegation(android.view.View) instead. Parameters delegatorView View : the view that receives initial stylus stroke and delegates it to the
+ actual editor. Its window must have focus .
+ This value cannot be null . delegatePackageName String : package name that contains actual Editor which should
+  start stylus handwriting session by calling acceptStylusHandwritingDelegation(View) .
+ This value cannot be null . See also: prepareStylusHandwritingDelegation(View) acceptStylusHandwritingDelegation(View, String) restartInput Added in API level 3 public void restartInput ( View view) If the input method is currently connected to the given view,
+ restart it with its new contents.  You should call this when the text
+ within your view changes outside of the normal input method or key
+ input flow, such as when an application calls TextView.setText(). Parameters view View : The view whose text has changed. sendAppPrivateCommand Added in API level 3 public void sendAppPrivateCommand ( View view, String action, Bundle data) Call InputMethodSession.appPrivateCommand() on the current Input Method. Parameters view View : Optional View that is sending the command, or null if
+ you want to send the command regardless of the view that is attached
+ to the input method. action String : Name of the command to be performed.  This must be a scoped name, i.e. prefixed with a package name you own, so that
+ different developers will not create conflicting commands. data Bundle : Any data to include with the command. setAdditionalInputMethodSubtypes Added in API level 14 Deprecated in API level
+      29 public void setAdditionalInputMethodSubtypes ( String imiId, InputMethodSubtype[] subtypes) This method was deprecated
+      in API level 29. For IMEs that have already implemented features like customizable/downloadable
+             keyboard layouts/languages, please start migration to other approaches. One idea
+             would be exposing only one unified InputMethodSubtype then implement
+             IME's own language switching mechanism within that unified subtype. The support
+             of "Additional Subtype" may be completely dropped in a future version of Android. Set additional input method subtypes. Only a process which shares the same uid with the IME
+ can add additional input method subtypes to the IME.
+ Please note that a subtype's status is stored in the system.
+ For example, enabled subtypes are remembered by the framework even after they are removed
+ by using this method. If you re-add the same subtypes again,
+ they will just get enabled. If you want to avoid such conflicts, for instance, you may
+ want to create a "different" new subtype even with the same locale and mode,
+ by changing its extra value. The different subtype won't get affected by the stored past
+ status. (You may want to take a look at InputMethodSubtype.hashCode() to refer
+ to the current implementation.) NOTE: If the same subtype exists in both the manifest XML file and additional subtypes
+ specified by subtypes , those multiple instances are automatically merged into one
+ instance. CAVEAT: In API Level 23 and prior, the system may do nothing if an empty InputMethodSubtype is specified in subtypes , which prevents you from removing
+ the last one entry of additional subtypes. If your IME statically defines one or more
+ subtypes in the manifest XML file, you may be able to work around this limitation by
+ specifying one of those statically defined subtypes in subtypes . Parameters imiId String : Id of InputMethodInfo which additional input method subtypes will be added to.
+ If the imiId is null , system would do nothing for this operation. subtypes InputMethodSubtype : subtypes will be added as additional subtypes of the current input method.
+ If the subtypes is null , system would do nothing for this operation. setCurrentInputMethodSubtype Added in API level 11 Deprecated in API level
+      29 public boolean setCurrentInputMethodSubtype ( InputMethodSubtype subtype) This method was deprecated
+      in API level 29. If the calling process is an IME, use InputMethodService.switchInputMethod(String, InputMethodSubtype) , which
+             does not require any permission as long as the caller is the current IME.
+             If the calling process is some privileged app that already has Manifest.permission.WRITE_SECURE_SETTINGS permission, just
+             directly update Settings.Secure.SELECTED_INPUT_METHOD_SUBTYPE . Switch to a new input method subtype of the current input method. Requires Manifest.permission.WRITE_SECURE_SETTINGS Parameters subtype InputMethodSubtype : A new input method subtype to switch. Returns boolean true if the current subtype was successfully switched. When the specified subtype is
+ null, this method returns false. setExplicitlyEnabledInputMethodSubtypes Added in API level 34 public void setExplicitlyEnabledInputMethodSubtypes ( String imiId, 
+                int[] subtypeHashCodes) Updates the list of explicitly enabled InputMethodSubtype for a given IME owned by
+ the calling process. By default each IME has no explicitly enabled InputMethodSubtype .  In this state
+ the system will decide what InputMethodSubtype should be enabled by using information
+ available at runtime as per-user language settings.  Users can, however, manually pick up one
+ or more InputMethodSubtype to be enabled on an Activity shown by showInputMethodAndSubtypeEnabler(java.lang.String) . Such a manual change is stored in Settings.Secure.ENABLED_INPUT_METHODS so that the change can persist across reboots. Settings.Secure.ENABLED_INPUT_METHODS stores InputMethodSubtype.hashCode() as
+ the identifier of InputMethodSubtype for historical reasons. This API provides a safe and managed way for IME developers to modify what InputMethodSubtype are referenced in Settings.Secure.ENABLED_INPUT_METHODS for their own IME.  One use case is when IME developers want to use their own Activity for
+ users to pick up InputMethodSubtype . Another use case is for IME developers to fix up
+ any stale and/or invalid value stored in Settings.Secure.ENABLED_INPUT_METHODS without bothering users. Passing an empty subtypeHashCodes is guaranteed to reset
+ the state to default. To control the return value of InputMethodSubtype.hashCode() R.attr.subtypeId and InputMethodSubtype.InputMethodSubtypeBuilder.setSubtypeId(int) are
+ available for IME developers to control the return value of InputMethodSubtype.hashCode() . Beware that -1 is not a valid value of InputMethodSubtype.hashCode() for historical reasons. Note for Direct Boot support While IME developers can call this API even before UserManager.isUserUnlocked() becomes true , such a change is
+ volatile thus remains effective only until UserManager.isUserUnlocked() becomes true or the device is rebooted. To make the change persistent IME developers
+ need to call this API again after receiving Intent.ACTION_USER_UNLOCKED . Parameters imiId String : IME ID. The specified IME and the calling process need to belong to the same
+              package.  Otherwise SecurityException will be thrown.
+ This value cannot be null . subtypeHashCodes int : An arrays of InputMethodSubtype.hashCode() to be explicitly
+                         enabled. Entries that are found in the specified IME will be silently
+                         ignored. Pass an empty array to reset the state to default.
+ This value cannot be null . Throws NullPointerException if subtypeHashCodes is null . SecurityException if the specified IME and the calling process do not belong to the
+                           same package. setInputMethod Added in API level 3 Deprecated in API level
+      28 public void setInputMethod ( IBinder token, String id) This method was deprecated
+      in API level 28. Use InputMethodService.switchInputMethod(String) instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. Force switch to a new input method component. This can only be called
+ from an application or a service which has a token of the currently active input method. On Android Build.VERSION_CODES.Q and later devices, the undocumented behavior that
+ token can be null when the caller has Manifest.permission.WRITE_SECURE_SETTINGS is deprecated. Instead, update Settings.Secure.DEFAULT_INPUT_METHOD and Settings.Secure.SELECTED_INPUT_METHOD_SUBTYPE directly. Parameters token IBinder : Supplies the identifying token given to an input method
+ when it was started, which allows it to perform this operation on
+ itself. id String : The unique identifier for the new input method to be switched to. Throws IllegalArgumentException if the input method is unknown or filtered by the rules of package visibility . setInputMethodAndSubtype Added in API level 11 Deprecated in API level
+      28 public void setInputMethodAndSubtype ( IBinder token, String id, InputMethodSubtype subtype) This method was deprecated
+      in API level 28. Use InputMethodService.switchInputMethod(String, InputMethodSubtype) instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. Force switch to a new input method and subtype. This can only be called
+ from an application or a service which has a token of the currently active input method. On Android Build.VERSION_CODES.Q and later devices, token cannot be null even with Manifest.permission.WRITE_SECURE_SETTINGS . Instead,
+ update Settings.Secure.DEFAULT_INPUT_METHOD and Settings.Secure.SELECTED_INPUT_METHOD_SUBTYPE directly. Parameters token IBinder : Supplies the identifying token given to an input method
+ when it was started, which allows it to perform this operation on
+ itself.
+ This value cannot be null . id String : The unique identifier for the new input method to be switched to. subtype InputMethodSubtype : The new subtype of the new input method to be switched to. Throws IllegalArgumentException if the input method is unknown or filtered by the rules of package visibility . shouldOfferSwitchingToNextInputMethod Added in API level 19 Deprecated in API level
+      28 public boolean shouldOfferSwitchingToNextInputMethod ( IBinder imeToken) This method was deprecated
+      in API level 28. Use InputMethodService.shouldOfferSwitchingToNextInputMethod() instead. This method was intended for IME developers who should be accessing APIs through
+ the service. APIs in this class are intended for app developers interacting with the IME. Returns true if the current IME needs to offer the users ways to switch to a next input
+ method (e.g. a globe key.).
+ When an IME sets supportsSwitchingToNextInputMethod and this method returns true,
+ the IME has to offer ways to to invoke switchToNextInputMethod(IBinder, boolean) accordingly. Note that the system determines the most appropriate next input method
+ and subtype in order to provide the consistent user experience in switching
+ between IMEs and subtypes. Parameters imeToken IBinder : Supplies the identifying token given to an input method when it was started,
+ which allows it to perform this operation on itself. Returns boolean showInputMethodAndSubtypeEnabler Added in API level 11 public void showInputMethodAndSubtypeEnabler ( String imiId) Show the settings for enabling subtypes of the specified input method. Parameters imiId String : An input method, whose subtypes settings will be shown. If imiId is null,
+ subtypes of all input methods will be shown. showInputMethodPicker Added in API level 3 public void showInputMethodPicker () Show IME picker popup window. Requires the PackageManager.FEATURE_INPUT_METHODS feature which can be detected
+ using PackageManager.hasSystemFeature(String) . showSoftInput Added in API level 3 Deprecated in API level
+      36 public boolean showSoftInput ( View view, 
+                int flags, ResultReceiver resultReceiver) This method was deprecated
+      in API level 36. The ResultReceiver is not a reliable way of determining whether the
+ Input Method is actually shown or hidden. If result is needed, use WindowInsetsController.show(int) instead and set a View.OnApplyWindowInsetsListener and verify the provided WindowInsets for
+ the visibility of IME. If result is not needed, use showSoftInput(android.view.View, int) instead. Explicitly request that the current input method's soft input area be
+ shown to the user, if needed.  Call this if the user interacts with
+ your view in such a way that they have expressed they would like to
+ start performing input into it. Caveat: ResultReceiver instance passed to
+ this method can be a long-lived object, because it may not be
+ garbage-collected until all the corresponding ResultReceiver objects transferred to different processes get garbage-collected.
+ Follow the general patterns to avoid memory leaks in Android.
+ Consider to use WeakReference so that application
+ logic objects such as Activity and Context can be garbage collected regardless of the lifetime of ResultReceiver . Parameters view View : The currently focused view, which would like to receive soft keyboard input.
+             Note that this view is only considered focused here if both it itself has view focus , and its containing window has window focus . Otherwise the call fails and
+             returns false . flags int : Value is either 0 or a combination of SHOW_IMPLICIT , and SHOW_FORCED resultReceiver ResultReceiver : If non-null, this will be called by the IME when
+ it has processed your request to tell you what it has done.  The result
+ code you receive may be either RESULT_UNCHANGED_SHOWN , RESULT_UNCHANGED_HIDDEN , RESULT_SHOWN , or RESULT_HIDDEN . Returns boolean true if a request was sent to system_server, false otherwise. Note:
+ this does not return result of the request. For result use  instead. showSoftInput Added in API level 3 public boolean showSoftInput ( View view, 
+                int flags) Synonym for showSoftInput(android.view.View, int, android.os.ResultReceiver) without
+ a result receiver: explicitly request that the current input method's
+ soft input area be shown to the user, if needed. Parameters view View : The currently focused view, which would like to receive soft keyboard input.
+             Note that this view is only considered focused here if both it itself has view focus , and its containing window has window focus . Otherwise the call fails and
+             returns false . flags int : Value is either 0 or a combination of SHOW_IMPLICIT , and SHOW_FORCED Returns boolean true if a request was sent to system_server, false otherwise. Note:
+ this does not return result of the request. For result use  instead. showSoftInputFromInputMethod Added in API level 3 Deprecated in API level
+      28 public void showSoftInputFromInputMethod ( IBinder token, 
+                int flags) This method was deprecated
+      in API level 28. Use InputMethodService.requestShowSelf(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. Show the input method's soft input area, so the user
+ sees the input method window and can interact with it.
+ This can only be called from the currently active input method,
+ as validated by the given token. Parameters token IBinder : Supplies the identifying token given to an input method
+ when it was started, which allows it to perform this operation on
+ itself. flags int : Value is either 0 or a combination of SHOW_IMPLICIT , and SHOW_FORCED showStatusIcon Added in API level 3 Deprecated in API level
+      28 public void showStatusIcon ( IBinder imeToken, String packageName, 
+                int iconId) This method was deprecated
+      in API level 28. Use InputMethodService.showStatusIcon(int) instead. This method was
+ intended for IME developers who should be accessing APIs through the service. APIs in this
+ class are intended for app developers interacting with the IME. Parameters imeToken IBinder packageName String iconId int startConnectionlessStylusHandwriting Added in API level 35 public void startConnectionlessStylusHandwriting ( View view, CursorAnchorInfo cursorAnchorInfo, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session. A connectionless session differs from a
+ regular stylus handwriting session in that the IME does not use an input connection to
+ communicate with a text editor. Instead, the IME directly returns recognised handwritten text
+ via a callback. The {code cursorAnchorInfo} may be used by the IME to improve the handwriting recognition
+ accuracy and user experience of the handwriting session. Usually connectionless handwriting
+ is used for a view which appears like a text editor but does not really support text editing.
+ For best results, the {code cursorAnchorInfo} should be populated as it would be for a real
+ text editor (for example, the insertion marker location can be set to where the user would
+ expect it to be, even if there is no visible cursor). Parameters view View : the view receiving stylus events
+ This value cannot be null . cursorAnchorInfo CursorAnchorInfo : positional information about the view receiving stylus events
+ This value may be null . callbackExecutor Executor : the executor to run the callback on
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback ConnectionlessHandwritingCallback : the callback to receive the result
+
+ This value cannot be null . startConnectionlessStylusHandwritingForDelegation Added in API level 35 public void startConnectionlessStylusHandwritingForDelegation ( View delegatorView, CursorAnchorInfo cursorAnchorInfo, String delegatePackageName, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session (see startConnectionlessStylusHandwriting(View, CursorAnchorInfo, Executor, ConnectionlessHandwritingCallback) ) and additionally enables the recognised handwritten
+ text to be later committed to a text editor using acceptStylusHandwritingDelegation(android.view.View, java.lang.String) . After a connectionless session started using this method completes successfully, a text
+ editor view, called the delegate view, may call acceptStylusHandwritingDelegation(android.view.View, java.lang.String) which will request the IME to commit the
+ recognised handwritten text from the connectionless session to the delegate view. The delegate view must belong to delegatePackageName for the delegation to
+ succeed. Parameters delegatorView View : the view receiving stylus events
+ This value cannot be null . cursorAnchorInfo CursorAnchorInfo : positional information about the view receiving stylus events
+ This value may be null . delegatePackageName String : name of the package containing the delegate view which will accept
+     the delegation
+ This value cannot be null . callbackExecutor Executor : the executor to run the callback on
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback ConnectionlessHandwritingCallback : the callback to receive the result
+
+ This value cannot be null . startConnectionlessStylusHandwritingForDelegation Added in API level 35 public void startConnectionlessStylusHandwritingForDelegation ( View delegatorView, CursorAnchorInfo cursorAnchorInfo, Executor callbackExecutor, ConnectionlessHandwritingCallback callback) Starts a connectionless stylus handwriting session (see startConnectionlessStylusHandwriting(View, CursorAnchorInfo, Executor, ConnectionlessHandwritingCallback) ) and additionally enables the recognised handwritten
+ text to be later committed to a text editor using acceptStylusHandwritingDelegation(android.view.View) . After a connectionless session started using this method completes successfully, a text
+ editor view, called the delegate view, may call acceptStylusHandwritingDelegation(android.view.View) which will request the IME to commit the recognised
+ handwritten text from the connectionless session to the delegate view. The delegate view must belong to the same package as the delegator view for the delegation
+ to succeed. If the delegate view belongs to a different package, use startConnectionlessStylusHandwritingForDelegation(android.view.View, android.view.inputmethod.CursorAnchorInfo, java.lang.String, java.util.concurrent.Executor, android.view.inputmethod.ConnectionlessHandwritingCallback) instead. Parameters delegatorView View : the view receiving stylus events
+ This value cannot be null . cursorAnchorInfo CursorAnchorInfo : positional information about the view receiving stylus events
+ This value may be null . callbackExecutor Executor : the executor to run the callback on
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback ConnectionlessHandwritingCallback : the callback to receive the result
+
+ This value cannot be null . startStylusHandwriting Added in API level 33 public void startStylusHandwriting ( View view) Start stylus handwriting session.
+
+ If supported by the current input method, a stylus handwriting session is started on the
+ given View, capturing all stylus input and converting it to InputConnection commands.
+
+ If handwriting mode is started successfully by the IME, any currently dispatched stylus
+ pointers will be android.view.MotionEvent#FLAG_CANCELED cancelled.
+
+ If Stylus handwriting mode is not supported or cannot be fulfilled for any reason by IME,
+ request will be ignored and Stylus touch will continue as normal touch input. Ideally, isStylusHandwritingAvailable() should be called first to determine if stylus
+ handwriting is supported by IME. Parameters view View : the View for which stylus handwriting is requested. It and its window must be focused .
+ This value cannot be null . See also: isStylusHandwritingAvailable() switchToLastInputMethod Added in API level 11 Deprecated in API level
+      28 public boolean switchToLastInputMethod ( IBinder imeToken) This method was deprecated
+      in API level 28. Use InputMethodService.switchToPreviousInputMethod() instead. This method
+ was intended for IME developers who should be accessing APIs through the service. APIs in
+ this class are intended for app developers interacting with the IME. Force switch to the last used input method and subtype. If the last input method didn't have
+ any subtypes, the framework will simply switch to the last input method with no subtype
+ specified. Parameters imeToken IBinder : Supplies the identifying token given to an input method when it was started,
+ which allows it to perform this operation on itself. Returns boolean true if the current input method and subtype was successfully switched to the last
+ used input method and subtype. switchToNextInputMethod Added in API level 16 Deprecated in API level
+      28 public boolean switchToNextInputMethod ( IBinder imeToken, 
+                boolean onlyCurrentIme) This method was deprecated
+      in API level 28. Use InputMethodService.switchToNextInputMethod(boolean) instead. This
+ method was intended for IME developers who should be accessing APIs through the service.
+ APIs in this class are intended for app developers interacting with the IME. Force switch to the next input method and subtype. If there is no IME enabled except
+ current IME and subtype, do nothing. Parameters imeToken IBinder : Supplies the identifying token given to an input method when it was started,
+ which allows it to perform this operation on itself. onlyCurrentIme boolean : if true, the framework will find the next subtype which
+ belongs to the current IME Returns boolean true if the current input method and subtype was successfully switched to the next
+ input method and subtype. toggleSoftInput Added in API level 3 Deprecated in API level
+      31 public void toggleSoftInput (int showFlags, 
+                int hideFlags) This method was deprecated
+      in API level 31. Use showSoftInput(android.view.View, int) or hideSoftInputFromWindow(android.os.IBinder, int) explicitly instead.
+ In particular during focus changes, the current visibility of the IME is not
+ well defined. Starting in Android S , this only
+ has an effect if the calling app is the current IME focus. This method toggles the input method window display.
+
+ If the input window is already displayed, it gets hidden.
+ If not the input window will be displayed. Parameters showFlags int : Value is either 0 or a combination of SHOW_IMPLICIT , and SHOW_FORCED hideFlags int : Value is either 0 or a combination of HIDE_IMPLICIT_ONLY , and HIDE_NOT_ALWAYS toggleSoftInputFromWindow Added in API level 3 Deprecated in API level
+      31 public void toggleSoftInputFromWindow ( IBinder windowToken, 
+                int showFlags, 
+                int hideFlags) This method was deprecated
+      in API level 31. Use showSoftInput(android.view.View, int) or hideSoftInputFromWindow(android.os.IBinder, int) explicitly instead.
+ In particular during focus changes, the current visibility of the IME is not
+ well defined. Starting in Android S , this only
+ has an effect if the calling app is the current IME focus. This method toggles the input method window display.
+ If the input window is already displayed, it gets hidden.
+ If not the input window will be displayed. Parameters windowToken IBinder : The token of the window that is making the request,
+ as returned by View.getWindowToken() . showFlags int : Value is either 0 or a combination of SHOW_IMPLICIT , and SHOW_FORCED hideFlags int : Value is either 0 or a combination of HIDE_IMPLICIT_ONLY , and HIDE_NOT_ALWAYS updateCursor Added in API level 3 Deprecated in API level
+      21 public void updateCursor ( View view, 
+                int left, 
+                int top, 
+                int right, 
+                int bottom) This method was deprecated
+      in API level 21. Use updateCursorAnchorInfo(android.view.View, android.view.inputmethod.CursorAnchorInfo) instead. Report the current cursor location in its window. Parameters view View left int top int right int bottom int updateCursorAnchorInfo Added in API level 21 public void updateCursorAnchorInfo ( View view, CursorAnchorInfo cursorAnchorInfo) Report positional change of the text insertion point and/or characters in the composition
+ string. Parameters view View cursorAnchorInfo CursorAnchorInfo updateExtractedText Added in API level 3 public void updateExtractedText ( View view, 
+                int token, ExtractedText text) Parameters view View token int text ExtractedText updateSelection Added in API level 3 public void updateSelection ( View view, 
+                int selStart, 
+                int selEnd, 
+                int candidatesStart, 
+                int candidatesEnd) Report the current selection range. Editor authors , you need to call this method whenever
+ the cursor moves in your editor. Remember that in addition to doing this, your
+ editor needs to always supply current cursor values in EditorInfo.initialSelStart and EditorInfo.initialSelEnd every
+ time View.onCreateInputConnection(EditorInfo) is
+ called, which happens whenever the keyboard shows up or the focus changes
+ to a text field, among other cases. Parameters view View selStart int selEnd int candidatesStart int candidatesEnd int viewClicked Added in API level 14 Deprecated in API level
+      29 public void viewClicked ( View view) This method was deprecated
+      in API level 29. The semantics of this method can never be defined well for composite View that works as a giant "Canvas", which can host its own UI hierarchy and sub focus
+             state. WebView is a good example. Application / IME
+             developers should not rely on this method. Notify the event when the user tapped or clicked the text view. Parameters view View : View which is being clicked. See also: InputMethodService.onViewClicked(boolean)</body></html>

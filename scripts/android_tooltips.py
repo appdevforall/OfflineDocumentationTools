@@ -4,12 +4,10 @@ import json
 import re
 import time
 import argparse
-from tooltips import TooltipDatabase
-import sqlite3
+import pickle
 from tqdm_loggable.auto import tqdm
 import logging
 from android_html_page import AndroidHtmlPage
-from DocumentationDatabase import DocumentationDatabase
 
 def generate_tooltip_tag(class_name, class_url):
     """
@@ -86,6 +84,61 @@ def analyze_classes(directory_path):
                         description = description.replace('&nbsp;', ' ').strip()
                         
                         class_map[class_name] = (description, class_url)
+    
+    return class_map
+
+def analyze_androidx_classes(directory_path):
+    """
+    Parse androidx classes.html to create a mapping of class names to their descriptions and URLs.
+    Handles the AndroidX documentation format with tables containing class links and descriptions.
+    
+    Args:
+        directory_path (str): Path to the directory containing androidx/classes.html
+        
+    Returns:
+        dict: Mapping of class names to (description, url) tuples
+    """
+    class_map = {}
+    classes_path = os.path.join(directory_path, 'androidx', 'classes.html')
+    
+    if not os.path.exists(classes_path):
+        logging.warning(f"androidx classes.html not found at: {classes_path}")
+        return class_map
+    
+    with open(classes_path, 'r', encoding='utf-8') as f:
+        soup = BeautifulSoup(f.read(), 'html.parser')
+        
+        # Find all table rows in the document
+        rows = soup.find_all('tr')
+        
+        for row in rows:
+            # Find the link column and description column
+            cells = row.find_all('td')
+            if len(cells) < 2:
+                continue
+            
+            # First cell contains the link
+            link_cell = cells[0]
+            # Second cell contains the description
+            desc_cell = cells[1]
+            
+            # Extract the link from the first cell
+            link = link_cell.find('a')
+            if link and 'href' in link.attrs:
+                class_url = link['href']
+                class_name = link.get_text(strip=True)
+                
+                # Filter: only include classes from /reference/androidx
+                if not class_url.startswith('/reference/androidx/'):
+                    continue
+                
+                # Extract the description text from the second cell
+                description = desc_cell.get_text(strip=True)
+                
+                # Clean up the description - remove extra whitespace
+                description = re.sub(r'\s+', ' ', description).strip()
+                
+                class_map[class_name] = (description, class_url)
     
     return class_map
 
@@ -344,75 +397,46 @@ def get_all_file_data(file_path):
         logging.error(f"Error reading file {file_path}: {str(e)}")
         return (f"No detail found - error reading file: {str(e)}", [], 'unknown', 'android')
 
-def traverse(directory_path, db_path, debug_mode=False):
+def traverse(directory_path, output_path, output_root=None, debug_mode=False):
     """
-    Traverse the Android documentation directory and populate the tooltip database.
+    Traverse the Android documentation directory and create tooltip records.
     
     Args:
         directory_path (str): Path to the Android documentation directory
-        db_path (str): Path to the SQLite database file
+        output_path (str): Path to the output pickle file
+        output_root (str): Root directory for output HTML files (optional)
         debug_mode (bool): If True, only process the first 10 items
     """
-    # First, analyze the classes.html to get class mappings
-    class_map = analyze_classes(directory_path)
+    # First, analyze the android classes.html to get class mappings
+    android_class_map = analyze_classes(directory_path)
+    
+    # Then, analyze the androidx classes.html to get class mappings
+    androidx_class_map = analyze_androidx_classes(directory_path)
+    
+    # Combine both class maps
+    class_map = {**android_class_map, **androidx_class_map}
     
     # In debug mode, limit to first 10 items
     if debug_mode:
         class_map = dict(list(class_map.items())[:10])
-        print(f"DEBUG MODE: Processing only first 10 items out of {len(analyze_classes(directory_path))} total")
+        print(f"DEBUG MODE: Processing only first 10 items out of {len(android_class_map) + len(androidx_class_map)} total")
+        print(f"  Android classes: {len(android_class_map)}")
+        print(f"  AndroidX classes: {len(androidx_class_map)}")
     
-    # Ensure database schema is properly initialized
-    doc_db = None
-    try:
-        # Try to initialize DocumentationDatabase
-        doc_db = DocumentationDatabase(db_path)
-        print(f"Content database initialized: {db_path}")
-    except ValueError as e:
-        # Database exists but has missing tables - create missing tables using DocumentationDatabase methods
-        print(f"Database schema incomplete, creating missing tables: {e}")
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Use DocumentationDatabase methods to create tables and populate data
-            temp_db = DocumentationDatabase.__new__(DocumentationDatabase)
-            temp_db.database_path = db_path
-            temp_db.create_tables(cursor)
-            temp_db.populate_content_types(cursor)
-            temp_db.populate_languages(cursor)
-            
-            conn.commit()
-        
-        # Now try to initialize DocumentationDatabase again
-        doc_db = DocumentationDatabase(db_path)
-        print(f"Content database schema completed: {db_path}")
-    except Exception as e:
-        print(f"Warning: Could not initialize content database: {e}")
-        print("HTML content will not be stored in Content table")
+    # Initialize output directory
+    os.makedirs(output_root, exist_ok=True)
+    print(f"Output directory initialized: {output_root}")
     
-    # Create the tooltip table if it doesn't exist
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS `ide_tooltip_table` (
-            `tooltipCategory` TEXT NOT NULL, 
-            `tooltipTag` TEXT NOT NULL, 
-            `tooltipSummary` TEXT NOT NULL, 
-            `tooltipDetail` TEXT NOT NULL, 
-            `tooltipButtons` TEXT NOT NULL, 
-            PRIMARY KEY(`tooltipCategory`, `tooltipTag`));
-        """)
-        conn.commit()
-    
-    # Process all classes with proper connection management
+    # Initialize tooltip records dictionary
+    tooltip_records = {}
     processed_count = 0
     error_count = 0
     
-    # Prepare batch insert data
-    batch_data = []
-    batch_size = 100  # Process in batches of 100
+    print(f"Found {len(android_class_map)} Android classes and {len(androidx_class_map)} AndroidX classes")
+    print(f"Total classes to process: {len(class_map)}")
 
-    # Process each class in the mapping
-    for class_name, (description, class_url) in tqdm(class_map.items(), desc="Processing Android classes"):
+    # Process Android classes
+    for class_name, (description, class_url) in tqdm(android_class_map.items(), desc="Processing Android classes"):
         try:
             # Construct the full file path
             if class_url.startswith('/reference/'):
@@ -452,83 +476,126 @@ def traverse(directory_path, db_path, debug_mode=False):
             # Generate tooltipTag
             tooltip_tag = generate_tooltip_tag(class_name, class_url)
             
-            # Add to batch data
-            batch_data.append((doc_type, tooltip_tag, description, detail, button_json))
+            # Add to tooltip records dictionary
+            tooltip_records[tooltip_tag] = {
+                'tooltipSummary': description,
+                'tooltipDetail': detail,
+                'tooltipButtons': button_json
+            }
             
-            # Create AndroidHtmlPage and add to Content table
-            if doc_db:
-                try:
-                    android_page = AndroidHtmlPage(full_path)
-                    html_content = android_page.get_html_page()
+            # Create AndroidHtmlPage and write to filesystem
+            try:
+                android_page = AndroidHtmlPage(full_path)
+                html_content = android_page.get_html_page()
+                
+                if html_content and not html_content.strip().startswith("<html><head><title>Class Documentation</title></head><body><p>File not found"):
+                    # Calculate the relative path from the input directory
+                    rel_path = os.path.relpath(full_path, directory_path)
                     
-                    if html_content and not html_content.strip().startswith("<html><head><title>Class Documentation</title></head><body><p>File not found"):
-                        # Create a path for the content table
-                        # Extract the android path from the full_path
-                        # Example: /path/to/SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference/android/widget/AbsListView.html
-                        # We want: AndroidDocs/android/widget/AbsListView.html
-                        
-                        # Find the reference directory in the path
-                        ref_index = full_path.find('/reference/')
-                        if ref_index != -1:
-                            # Extract everything after /reference/
-                            android_path = full_path[ref_index + 10:]  # Skip '/reference/'
-                            # Remove .html extension if present
-                            if android_path.endswith('.html'):
-                                android_path = android_path[:-5]
-                            # Ensure no leading slash to avoid double slashes
-                            if android_path.startswith('/'):
-                                android_path = android_path[1:]
-                            # Construct the content path
-                            content_path = f"AndroidDocs/{android_path}.html"
-                        else:
-                            # Fallback: use relative path from directory
-                            content_path = os.path.relpath(full_path, directory_path)
-                        
-                        # Add the cleaned HTML content to the Content table
-                        doc_db.add_file(content_path, html_content.encode('utf-8'), 'en-US')
-                except Exception as e:
-                    logging.warning(f"Failed to add HTML content for {class_name}: {str(e)}")
+                    # Construct the HTML output path
+                    html_output_path = os.path.join(output_root, rel_path)
+                    
+                    # Create the output directory if it doesn't exist
+                    output_dir = os.path.dirname(html_output_path)
+                    os.makedirs(output_dir, exist_ok=True)
+                    
+                    # Write the cleaned HTML content to the filesystem
+                    with open(html_output_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    
+                    logging.debug(f"Wrote cleaned HTML to: {html_output_path}")
+            except Exception as e:
+                logging.warning(f"Failed to write HTML content for {class_name}: {str(e)}")
             
-            # Process batch when it reaches the batch size
-            if len(batch_data) >= batch_size:
-                with sqlite3.connect(db_path) as conn:
-                    cursor = conn.cursor()
-                    cursor.executemany("""
-                        INSERT OR REPLACE INTO ide_tooltip_table 
-                        (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons) 
-                        VALUES (?, ?, ?, ?, ?)
-                    """, batch_data)
-                    conn.commit()
-                processed_count += len(batch_data)
-                batch_data = []
-                logging.debug(f"Processed batch of {batch_size} items")
+            processed_count += 1
             
         except Exception as e:
             logging.error(f"Error processing {class_name}: {str(e)}")
             error_count += 1
             continue
     
-    # Process any remaining batch data
-    if batch_data:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            cursor.executemany("""
-                INSERT OR REPLACE INTO ide_tooltip_table 
-                (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons) 
-                VALUES (?, ?, ?, ?, ?)
-            """, batch_data)
-            conn.commit()
-        processed_count += len(batch_data)
-        logging.debug(f"Processed final batch of {len(batch_data)} items")
+    # Process AndroidX classes
+    for class_name, (description, class_url) in tqdm(androidx_class_map.items(), desc="Processing AndroidX classes"):
+        try:
+            # Construct the full file path
+            if class_url.startswith('/reference/'):
+                # Remove the /reference/ prefix and any leading slash, then add .html extension
+                relative_path = class_url[10:]  # Remove '/reference/' (10 characters)
+                if relative_path.startswith('/'):
+                    relative_path = relative_path[1:]
+                relative_path += '.html'
+                full_path = os.path.join(directory_path, relative_path)
+            else:
+                full_path = os.path.join(directory_path, class_url + '.html')
+            
+            # Check if the file exists at the expected path
+            if not os.path.exists(full_path):
+                print(f"Skipping missing file for class '{class_name}': {full_path}")
+                logging.warning(f"File not found for class '{class_name}': {full_path}")
+                error_count += 1
+                continue
+            
+            # Use the fast AndroidX plain text extraction method
+            android_page = AndroidHtmlPage(full_path)
+            detail = android_page.get_androidx_article_text()
+            
+            # Use the same button logic as before
+            detail_buttons, buttons, doc_type, tag = get_all_file_data(full_path)
+            button_data = []
+            for button in buttons[:3]:  # Limit to 3 buttons
+                if len(button) >= 2:
+                    button_data.append({
+                        "first": button[0],
+                        "second": button[1]
+                    })
+            button_json = json.dumps(button_data)
+            
+            # Generate tooltipTag
+            tooltip_tag = generate_tooltip_tag(class_name, class_url)
+            
+            # Add to tooltip records dictionary
+            tooltip_records[tooltip_tag] = {
+                'tooltipSummary': description,
+                'tooltipDetail': detail,
+                'tooltipButtons': button_json
+            }
+            
+            # Create AndroidHtmlPage and write to filesystem
+            try:
+                html_content = android_page.get_androidx_html_page()
+                if html_content and not html_content.strip().startswith("<html><head><title>Class Documentation</title></head><body><p>File not found"):
+                    # Calculate the relative path from the input directory
+                    rel_path = os.path.relpath(full_path, directory_path)
+                    # Construct the HTML output path
+                    html_output_path = os.path.join(output_root, rel_path)
+                    # Create the output directory if it doesn't exist
+                    output_dir = os.path.dirname(html_output_path)
+                    os.makedirs(output_dir, exist_ok=True)
+                    # Write the cleaned HTML content to the filesystem
+                    with open(html_output_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    logging.debug(f"Wrote cleaned HTML to: {html_output_path}")
+            except Exception as e:
+                logging.warning(f"Failed to write HTML content for {class_name}: {str(e)}")
+            
+            processed_count += 1
+            
+        except Exception as e:
+            logging.error(f"Error processing {class_name}: {str(e)}")
+            error_count += 1
+            continue
     
-    print(f"Database commit completed. Processed: {processed_count}, Errors: {error_count}")
+    # Save the tooltip records to pickle file
+    try:
+        with open(output_path, 'wb') as f:
+            pickle.dump(tooltip_records, f)
+        print(f"Tooltip records saved to: {output_path}")
+        print(f"Total records: {len(tooltip_records)}")
+    except Exception as e:
+        print(f"Error saving tooltip records: {str(e)}")
+        raise
     
-    # Verify the records were actually inserted
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM ide_tooltip_table")
-        total_records = cursor.fetchone()[0]
-        print(f"Total records in database: {total_records}")
+    print(f"Processing completed. Processed: {processed_count}, Errors: {error_count}")
 
 def main():
     """
@@ -536,7 +603,8 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Process Android documentation for tooltips')
     parser.add_argument('--input', required=True, help='Path to the directory containing Android classes.html (e.g., SourceDocs/AndroidDocs/API/Classes/developer.android.com/reference)')
-    parser.add_argument('--output', required=True, help='Path to the output SQLite database file to create or update (e.g., tooltips_android.db)')
+    parser.add_argument('--output', required=True, help='Path to the output pickle file (e.g., tooltips_android.pkl)')
+    parser.add_argument('--html-output', required=True, help='Root directory for output HTML files')
     parser.add_argument('--debug', action='store_true', help='Debug mode: only process first 10 items')
     
     args = parser.parse_args()
@@ -546,11 +614,12 @@ def main():
         return 1
     
     print(f"Processing Android documentation from {args.input}")
-    print(f"Output database: {args.output}")
+    print(f"Output pickle file: {args.output}")
+    print(f"HTML output directory: {args.html_output}")
     if args.debug:
         print("DEBUG MODE ENABLED: Processing only first 10 items")
     
-    traverse(args.input, args.output, debug_mode=args.debug)
+    traverse(args.input, args.output, output_root=args.html_output, debug_mode=args.debug)
     
     print("Android tooltip processing completed!")
     return 0

@@ -1,0 +1,78 @@
+<html><head><title>Class Documentation</title></head><body>AppOpsManager.OnOpNotedCallback Kotlin | Java public
+  static
+  
+  abstract
+  class
+  AppOpsManager.OnOpNotedCallback extends Object java.lang.Object ↳ android.app.AppOpsManager.OnOpNotedCallback Callback an app can set to monitor the app-ops the
+ system has tracked for it. I.e. each time any app calls AppOpsManager.noteOp(String, int, String) or AppOpsManager.startOp(String, int, String) one of a method of this object is called. There will be a call for all app-ops related to runtime permissions, but not
+ necessarily for all other app-ops. setOnOpNotedCallback(getMainExecutor(), new OnOpNotedCallback() {
+     ArraySet > opsNotedForThisProcess = new ArraySet<>();
+
+     private synchronized void addAccess(String op, String accessLocation) {
+         // Ops are often noted when runtime permission protected APIs were called.
+         // In this case permissionToOp() allows to resolve the permission<->op
+         opsNotedForThisProcess.add(new Pair(accessType, accessLocation));
+     }
+
+     public void onNoted(SyncNotedAppOp op) {
+         // Accesses is currently happening, hence stack trace describes location of access
+         addAccess(op.getOp(), Arrays.toString(Thread.currentThread().getStackTrace()));
+     }
+
+     public void onSelfNoted(SyncNotedAppOp op) {
+         onNoted(op);
+     }
+
+     public void onAsyncNoted(AsyncNotedAppOp asyncOp) {
+         // Stack trace is not useful for async ops as accessed happened on different thread
+         addAccess(asyncOp.getOp(), asyncOp.getMessage());
+     }
+ }); See also: AppOpsManager.setOnOpNotedCallback(Executor, OnOpNotedCallback) Summary Public constructors OnOpNotedCallback () Public methods abstract
+        
+        
+        
+        
+        void onAsyncNoted ( AsyncNotedAppOp asyncOp) Called when an app-op was noted for this package which cannot be delivered via the other
+ two mechanisms. abstract
+        
+        
+        
+        
+        void onNoted ( SyncNotedAppOp op) Called when an app-op was noted for this package inside of a synchronous
+ API call, i.e. abstract
+        
+        
+        
+        
+        void onSelfNoted ( SyncNotedAppOp op) Called when this app noted an app-op for its own package, This is very similar to onNoted(SyncNotedAppOp) only that the tracking was not caused by the
+ API provider in a separate process, but by one in the app's own process. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors OnOpNotedCallback public OnOpNotedCallback () Public methods onAsyncNoted Added in API level 30 public abstract void onAsyncNoted ( AsyncNotedAppOp asyncOp) Called when an app-op was noted for this package which cannot be delivered via the other
+ two mechanisms. Called as soon as possible after the app-op was noted, but the delivery delay is not
+ guaranteed. Due to how async calls work in Android this might even be delivered slightly
+ before the private data is delivered to the app. If the app is not running or no OnOpNotedCallback is registered a small amount
+ of noted app-ops are buffered and then delivered as soon as a listener is registered. Parameters asyncOp AsyncNotedAppOp : op noted
+
+ This value cannot be null . onNoted Added in API level 30 public abstract void onNoted ( SyncNotedAppOp op) Called when an app-op was noted for this package inside of a synchronous
+ API call, i.e. a API call that returned data or waited until the action was performed. Called on the calling thread before the API returns. This allows the app to e.g.
+ collect stack traces to figure out where the access came from. Parameters op SyncNotedAppOp : op noted
+
+ This value cannot be null . onSelfNoted Added in API level 30 public abstract void onSelfNoted ( SyncNotedAppOp op) Called when this app noted an app-op for its own package, This is very similar to onNoted(SyncNotedAppOp) only that the tracking was not caused by the
+ API provider in a separate process, but by one in the app's own process. Parameters op SyncNotedAppOp : op noted
+
+ This value cannot be null .</body></html>

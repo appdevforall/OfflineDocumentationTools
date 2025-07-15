@@ -69,6 +69,17 @@ jobs:
         run: |
           PYTHONPATH=scripts uv run python scripts/java_tooltips.py -i SourceDocs/JavaDocs/html/api -d build/documentation-${{ github.ref_name }}.sqlite
 
+      - name: Store Android tooltips and content
+        run: |
+          # Load Android tooltips with java category
+          PYTHONPATH=scripts uv run python scripts/load_android_data.py -d build/documentation-${{ github.ref_name }}.sqlite -p ProcessDocs/AndroidDocs/android-tooltips.pkl -c java
+          # Load Android tooltips with kotlin category
+          PYTHONPATH=scripts uv run python scripts/load_android_data.py -d build/documentation-${{ github.ref_name }}.sqlite -p ProcessDocs/AndroidDocs/android-tooltips.pkl -c kotlin
+          # Load Android content directory
+          PYTHONPATH=scripts uv run python scripts/load_android_data.py -d build/documentation-${{ github.ref_name }}.sqlite --android ProcessDocs/AndroidDocs/android
+          # Load AndroidX content directory
+          PYTHONPATH=scripts uv run python scripts/load_android_data.py -d build/documentation-${{ github.ref_name }}.sqlite --androidx ProcessDocs/AndroidDocs/androidx
+
       - name: Verify database
         run: |
           if [ ! -f "build/documentation-${{ github.ref_name }}.sqlite" ]; then

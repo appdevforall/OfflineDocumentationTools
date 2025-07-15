@@ -1,0 +1,174 @@
+<html><head><title>Class Documentation</title></head><body>StringSearch Kotlin | Java public
+  
+  final
+  
+  class
+  StringSearch extends SearchIterator java.lang.Object ↳ android.icu.text.SearchIterator ↳ android.icu.text.StringSearch StringSearch is a SearchIterator that provides
+ language-sensitive text searching based on the comparison rules defined
+ in a RuleBasedCollator object.
+ StringSearch ensures that language eccentricity can be
+ handled, e.g. for the German collator, characters ß and SS will be matched
+ if case is chosen to be ignored.
+ See the "ICU Collation Design Document" for more information. There are 2 match options for selection: Let S' be the sub-string of a text string S between the offsets start and
+ end [start, end]. A pattern string P matches a text string S at the offsets [start, end]
+ if option 1. Some canonical equivalent of P matches some canonical equivalent
+           of S'
+ option 2. P matches S' and if P starts or ends with a combining mark,
+           there exists no non-ignorable combining mark before or after S?
+           in S respectively. Option 2. is the default. This search has APIs similar to that of other text iteration mechanisms
+ such as the break iterators in BreakIterator . Using these
+ APIs, it is easy to scan through text looking for all occurrences of
+ a given pattern. This search iterator allows changing of direction by
+ calling a reset() followed by a SearchIterator.next() or SearchIterator.previous() .
+ Though a direction change can occur without calling reset() first,
+ this operation comes with some speed penalty.
+ Match results in the forward direction will match the result matches in
+ the backwards direction in the reverse order SearchIterator provides APIs to specify the starting position
+ within the text string to be searched, e.g. setIndex , preceding and following .
+ Since the starting position will be set as it is specified, please take note that
+ there are some danger points at which the search may render incorrect
+ results: In the midst of a substring that requires normalization. If the following match is to be found, the position should not be the
+      second character which requires swapping with the preceding
+      character. Vice versa, if the preceding match is to be found, the
+      position to search from should not be the first character which
+      requires swapping with the next character. E.g certain Thai and
+      Lao characters require swapping. If a following pattern match is to be found, any position within a
+      contracting sequence except the first will fail. Vice versa if a
+      preceding pattern match is to be found, an invalid starting point
+      would be any character within a contracting sequence except the last. A BreakIterator can be used if only matches at logical breaks are desired.
+ Using a BreakIterator will only give you results that exactly matches the
+ boundaries given by the BreakIterator . For instance the pattern "e" will
+ not be found in the string "é" if a character break iterator is used. Options are provided to handle overlapping matches.
+ E.g. In English, overlapping matches produces the result 0 and 2
+ for the pattern "abab" in the text "ababab", where mutually
+ exclusive matches only produces the result of 0. Options are also provided to implement "asymmetric search" as described in UTS #10 Unicode Collation Algorithm , specifically the ElementComparisonType
+ values. Though collator attributes will be taken into consideration while
+ performing matches, there are no APIs here for setting and getting the
+ attributes. These attributes can be set by getting the collator
+ from getCollator() and using the APIs in RuleBasedCollator .
+ Lastly to update StringSearch to the new collator attributes, reset() has to be called. Restriction: Currently there are no composite characters that consists of a
+ character with combining class > 0 before a character with combining
+ class == 0. However, if such a character exists in the future, StringSearch does not guarantee the results for option 1. Consult the SearchIterator documentation for information on
+ and examples of how to use instances of this class to implement text
+ searching. Note, StringSearch is not to be subclassed. See also: SearchIterator RuleBasedCollator Summary Inherited constants From class android.icu.text.SearchIterator int DONE DONE is returned by previous() and next() after all valid matches have
+ been returned, and by first() and last() if there are no matches at all. Inherited fields From class android.icu.text.SearchIterator protected BreakIterator breakIterator The BreakIterator to define the boundaries of a logical match. protected
+    
+    
+    int matchLength Length of the most current match in target text. protected CharacterIterator targetText Target text for searching. Public constructors StringSearch ( String pattern, String target) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the default locale to search for
+ argument pattern in the argument target text. StringSearch ( String pattern, CharacterIterator target, RuleBasedCollator collator) Initializes the iterator to use the language-specific rules defined in
+ the argument collator to search for argument pattern in the argument
+ target text. StringSearch ( String pattern, CharacterIterator target, RuleBasedCollator collator, BreakIterator breakiter) Initializes the iterator to use the language-specific rules defined in
+ the argument collator to search for argument pattern in the argument
+ target text. StringSearch ( String pattern, CharacterIterator target, ULocale locale) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the argument locale to search for
+ argument pattern in the argument target text. StringSearch ( String pattern, CharacterIterator target, Locale locale) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the argument locale to search for
+ argument pattern in the argument target text. Public methods RuleBasedCollator getCollator () Gets the RuleBasedCollator used for the language rules. int getIndex () Return the current index in the text being searched. String getPattern () Returns the pattern for which StringSearch is searching for. boolean isCanonical () Determines whether canonical matches (option 1, as described in the
+ class documentation) is set. void reset () Resets the iteration. void setCanonical (boolean allowCanonical) Set the canonical match mode. void setCollator ( RuleBasedCollator collator) Sets the RuleBasedCollator to be used for language-specific searching. void setIndex (int position) Sets the position in the target text at which the next search will start. void setPattern ( String pattern) Set the pattern to search for. void setTarget ( CharacterIterator text) Set the target text to be searched. Protected methods int handleNext (int position) Abstract method which subclasses override to provide the mechanism
+ for finding the next match in the target text. int handlePrevious (int position) Abstract method which subclasses override to provide the mechanism for
+ finding the previous match in the target text. Inherited methods From class android.icu.text.SearchIterator final
+        
+        int first () Returns the first index at which the string text matches the search
+ pattern. final
+        
+        int following (int position) Returns the first index equal or greater than position at which the
+ string text matches the search pattern. BreakIterator getBreakIterator () Returns the BreakIterator that is used to restrict the indexes at which
+ matches are detected. SearchIterator.ElementComparisonType getElementComparisonType () Returns the collation element comparison type. abstract
+        
+        
+        
+        
+        int getIndex () Return the current index in the text being searched. int getMatchLength () Returns the length of text in the string which matches the search
+ pattern. int getMatchStart () Returns the index to the match in the text string that was searched. String getMatchedText () Returns the text that was matched by the most recent call to first() , next() , previous() , or last() . CharacterIterator getTarget () Return the string text to be searched. abstract
+        
+        
+        
+        
+        int handleNext (int start) Abstract method which subclasses override to provide the mechanism
+ for finding the next match in the target text. abstract
+        
+        
+        
+        
+        int handlePrevious (int startAt) Abstract method which subclasses override to provide the mechanism for
+ finding the previous match in the target text. boolean isOverlapping () Return true if the overlapping property has been set. final
+        
+        int last () Returns the last index in the target text at which it matches the
+ search pattern. int next () Returns the index of the next point at which the text matches the
+ search pattern, starting from the current position
+ The iterator is adjusted so that its current index (as returned by getIndex() ) is the match position if one was found. final
+        
+        int preceding (int position) Returns the first index less than position at which the string
+ text matches the search pattern. int previous () Returns the index of the previous point at which the string text
+ matches the search pattern, starting at the current position. void reset () Resets the iteration. void setBreakIterator ( BreakIterator breakiter) Set the BreakIterator that will be used to restrict the points
+ at which matches are detected. void setElementComparisonType ( SearchIterator.ElementComparisonType type) Sets the collation element comparison type. void setIndex (int position) Sets the position in the target text at which the next search will start. void setMatchLength (int length) Sets the length of the most recent match in the target text. void setOverlapping (boolean allowOverlap) Determines whether overlapping matches are returned. void setTarget ( CharacterIterator text) Set the target text to be searched. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors StringSearch Added in API level 24 public StringSearch ( String pattern, String target) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the default locale to search for
+ argument pattern in the argument target text. Parameters pattern String : text to look for. target String : target text to search for pattern. Throws IllegalArgumentException thrown when argument target is null,
+            or of length 0. ClassCastException thrown if the collator for
+            the default locale is not a RuleBasedCollator. StringSearch Added in API level 24 public StringSearch ( String pattern, CharacterIterator target, RuleBasedCollator collator) Initializes the iterator to use the language-specific rules defined in
+ the argument collator to search for argument pattern in the argument
+ target text. No BreakIterator s are set to test for logical matches. Parameters pattern String : text to look for. target CharacterIterator : target text to search for pattern. collator RuleBasedCollator : RuleBasedCollator that defines the language rules Throws IllegalArgumentException thrown when argument target is null,
+            or of length 0 See also: RuleBasedCollator StringSearch Added in API level 24 public StringSearch ( String pattern, CharacterIterator target, RuleBasedCollator collator, BreakIterator breakiter) Initializes the iterator to use the language-specific rules defined in
+ the argument collator to search for argument pattern in the argument
+ target text. The argument breakiter is used to define logical matches.
+ See super class documentation for more details on the use of the target
+ text and BreakIterator . Parameters pattern String : text to look for. target CharacterIterator : target text to search for pattern. collator RuleBasedCollator : RuleBasedCollator that defines the language rules breakiter BreakIterator : A BreakIterator that is used to determine the
+                boundaries of a logical match. This argument can be null. Throws IllegalArgumentException thrown when argument target is null,
+            or of length 0 See also: BreakIterator RuleBasedCollator StringSearch Added in API level 24 public StringSearch ( String pattern, CharacterIterator target, ULocale locale) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the argument locale to search for
+ argument pattern in the argument target text.
+ See super class documentation for more details on the use of the target
+ text and BreakIterator . Parameters pattern String : text to look for. target CharacterIterator : target text to search for pattern. locale ULocale : locale to use for language and break iterator rules Throws IllegalArgumentException thrown when argument target is null,
+            or of length 0. ClassCastException thrown if the collator for
+            the specified locale is not a RuleBasedCollator. See also: BreakIterator RuleBasedCollator SearchIterator StringSearch Added in API level 24 public StringSearch ( String pattern, CharacterIterator target, Locale locale) Initializes the iterator to use the language-specific rules and
+ break iterator rules defined in the argument locale to search for
+ argument pattern in the argument target text. Parameters pattern String : text to look for. target CharacterIterator : target text to search for pattern. locale Locale : locale to use for language and break iterator rules Throws IllegalArgumentException thrown when argument target is null,
+            or of length 0. ClassCastException thrown if the collator for
+            the specified locale is not a RuleBasedCollator. Public methods getCollator Added in API level 24 public RuleBasedCollator getCollator () Gets the RuleBasedCollator used for the language rules. Since StringSearch depends on the returned RuleBasedCollator , any
+ changes to the RuleBasedCollator result should follow with a call to
+ either reset() or setCollator(android.icu.text.RuleBasedCollator) to ensure the correct
+ search behavior. Returns RuleBasedCollator RuleBasedCollator used by this StringSearch See also: RuleBasedCollator setCollator(RuleBasedCollator) getIndex Added in API level 24 public int getIndex () Return the current index in the text being searched.
+ If the iteration has gone past the end of the text
+ (or past the beginning for a backwards search), DONE is returned. Returns int current index in the text being searched. getPattern Added in API level 24 public String getPattern () Returns the pattern for which StringSearch is searching for. Returns String the pattern searched for isCanonical Added in API level 24 public boolean isCanonical () Determines whether canonical matches (option 1, as described in the
+ class documentation) is set.
+ See setCanonical(boolean) for more information. Returns boolean true if canonical matches is set, false otherwise See also: setCanonical(boolean) reset Added in API level 24 public void reset () Resets the iteration.
+ Search will begin at the start of the text string if a forward
+ iteration is initiated before a backwards iteration. Otherwise if a
+ backwards iteration is initiated before a forwards iteration, the
+ search will begin at the end of the text string. setCanonical Added in API level 24 public void setCanonical (boolean allowCanonical) Set the canonical match mode. See class documentation for details.
+ The default setting for this property is false. Parameters allowCanonical boolean : flag indicator if canonical matches are allowed See also: isCanonical() setCollator Added in API level 24 public void setCollator ( RuleBasedCollator collator) Sets the RuleBasedCollator to be used for language-specific searching. The iterator's position will not be changed by this method. Parameters collator RuleBasedCollator : to use for this StringSearch Throws IllegalArgumentException thrown when collator is null See also: getCollator() setIndex Added in API level 24 public void setIndex (int position) Sets the position in the target text at which the next search will start.
+ This method clears any previous match. Parameters position int : position from which to start the next search setPattern Added in API level 24 public void setPattern ( String pattern) Set the pattern to search for.
+ The iterator's position will not be changed by this method. Parameters pattern String : for searching Throws IllegalArgumentException thrown if pattern is null or of
+               length 0 See also: getPattern() setTarget Added in API level 24 public void setTarget ( CharacterIterator text) Set the target text to be searched. Text iteration will then begin at
+ the start of the text string. This method is useful if you want to
+ reuse an iterator to search within a different body of text. Parameters text CharacterIterator : new text iterator to look for match, Protected methods handleNext Added in API level 24 protected int handleNext (int position) Abstract method which subclasses override to provide the mechanism
+ for finding the next match in the target text. This allows different
+ subclasses to provide different search algorithms. If a match is found, the implementation should return the index at
+ which the match starts and should call setMatchLength(int) with the number of characters
+ in the target text that make up the match. If no match is found, the
+ method should return DONE . Parameters position int : The index in the target text at which the search
+              should start. Returns int index at which the match starts, else if match is not found DONE is returned handlePrevious Added in API level 24 protected int handlePrevious (int position) Abstract method which subclasses override to provide the mechanism for
+ finding the previous match in the target text. This allows different
+ subclasses to provide different search algorithms. If a match is found, the implementation should return the index at
+ which the match starts and should call setMatchLength(int) with the number of characters
+ in the target text that make up the match. If no match is found, the
+ method should return DONE . Parameters position int : The index in the target text at which the search
+                  should start. Returns int index at which the match starts, else if match is not found DONE is returned</body></html>

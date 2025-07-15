@@ -1,0 +1,124 @@
+<html><head><title>Class Documentation</title></head><body>Gainmap Kotlin | Java public
+  
+  final
+  
+  class
+  Gainmap extends Object implements Parcelable java.lang.Object ↳ android.graphics.Gainmap Gainmap represents a mechanism for augmenting an SDR image to produce an HDR one with variable
+ display adjustment capability. It is a combination of a set of metadata describing how to apply
+ the gainmap, as well as either a 1 (such as Bitmap.Config.ALPHA_8 or 3
+ (such as Bitmap.Config.ARGB_8888 with the alpha channel ignored)
+ channel Bitmap that represents the gainmap data itself. When rendering to an ActivityInfo.COLOR_MODE_HDR activity, the
+ hardware accelerated Canvas will automatically apply the gainmap when sufficient
+ HDR headroom is available. Gainmap Structure The logical whole of a gainmap'd image consists of a base Bitmap that represents the original
+ image as would be displayed without gainmap support in addition to a gainmap with a second
+ enhancement image. In the case of a JPEG, the base image would be the typical 8-bit SDR image
+ that the format is commonly associated with. The gainmap image is embedded alongside the base
+ image, often at a lower resolution (such as 1/4th), along with some metadata to describe
+ how to apply the gainmap. The gainmap image itself is then a greyscale image representing
+ the transformation to apply onto the base image to reconstruct an HDR rendition of it. As such these "gainmap images" consist of 3 parts - a base Bitmap with a Bitmap.getGainmap() that returns an instance of this class which in turn contains
+ the enhancement layer represented as another Bitmap, accessible via getGainmapContents() Applying a gainmap manually When doing custom rendering such as to an OpenGL ES or Vulkan context, the gainmap is not
+ automatically applied. In such situations, the following steps are appropriate to render the
+ gainmap in combination with the base image. Suppose our display has HDR to SDR ratio of H, and we wish to display an image with gainmap on
+ this display. Let B be the pixel value from the base image in a color space that has the
+ primaries of the base image and a linear transfer function. Let G be the pixel value from the
+ gainmap. Let D be the output pixel in the same color space as B. The value of D is computed
+ as follows: First, let W be a weight parameter determining how much the gainmap will be applied. W = clamp((log(H)                      - log(minDisplayRatioForHdrTransition)) /
+             (log(displayRatioForFullHdr) - log(minDisplayRatioForHdrTransition), 0, 1) Next, let L be the gainmap value in log space. We compute this from the value G that was
+ sampled from the texture as follows: L = mix(log(ratioMin), log(ratioMax), pow(G, gamma)) Finally, apply the gainmap to compute D, the displayed pixel. If the base image is SDR then
+ compute: D = (B + epsilonSdr) * exp(L * W) - epsilonHdr In the above math, log() is a natural logarithm and exp() is natural exponentiation. The base
+ for these functions cancels out and does not affect the result, so other bases may be used
+ if preferred. Summary Constants int GAINMAP_DIRECTION_HDR_TO_SDR The gainmap will be applied as if the base image were HDR, and fully applying the gainmap
+ results in an SDR image. int GAINMAP_DIRECTION_SDR_TO_HDR The gainmap will be applied as if the base image were SDR, and fully applying the gainmap
+ results in an HDR image. Inherited constants From interface android.os.Parcelable int CONTENTS_FILE_DESCRIPTOR Descriptor bit used with describeContents() : indicates that
+ the Parcelable object's flattened representation includes a file descriptor. int PARCELABLE_WRITE_RETURN_VALUE Flag for use with writeToParcel(Parcel, int) : the object being written
+ is a return value, that is the result of a function such as
+ " Parcelable someFunction() ",
+ " void someFunction(out Parcelable) ", or
+ " void someFunction(inout Parcelable) ". Fields public
+    static
+    final Creator < Gainmap > CREATOR Public constructors Gainmap ( Bitmap gainmapContents) Creates a gainmap from a given Bitmap. Gainmap ( Gainmap gainmap, Bitmap gainmapContents) Creates a new gainmap using the provided gainmap as the metadata source and the provided
+ bitmap as the replacement for the gainmapContents Public methods int describeContents () No special parcel contents. ColorSpace getAlternativeImagePrimaries () Gets the colorspace that the gainmap math should be applied in. float getDisplayRatioForFullHdr () Gets the hdr/sdr ratio at which point applying the gainmap results in an HDR rendition float[] getEpsilonHdr () Gets the hdr epsilon. float[] getEpsilonSdr () Gets the sdr epsilon. Bitmap getGainmapContents () int getGainmapDirection () Gets the direction that the gainmap math should be applied in. float[] getGamma () Gets the gainmap gamma. float getMinDisplayRatioForHdrTransition () Gets the hdr/sdr ratio below which applying the gainmap results in an SDR rendition. float[] getRatioMax () Gets the gainmap ratio max. float[] getRatioMin () Gets the gainmap ratio max. void setAlternativeImagePrimaries ( ColorSpace colorSpace) Sets the colorspace that the gainmap math should be applied in. void setDisplayRatioForFullHdr (float max) Sets the hdr/sdr ratio at which point applying the gainmap results in an HDR rendition. void setEpsilonHdr (float r, float g, float b) Sets the hdr epsilon which is used to avoid numerical instability. void setEpsilonSdr (float r, float g, float b) Sets the sdr epsilon which is used to avoid numerical instability. void setGainmapContents ( Bitmap bitmap) Sets the image data of the gainmap. void setGainmapDirection (int direction) Sets the direction that the gainmap math should be applied in. void setGamma (float r, float g, float b) Sets the gainmap gamma. void setMinDisplayRatioForHdrTransition (float min) Sets the hdr/sdr ratio below which applying the gainmap results in an SDR rendition. void setRatioMax (float r, float g, float b) Sets the gainmap ratio max. void setRatioMin (float r, float g, float b) Sets the gainmap ratio min. void writeToParcel ( Parcel dest, int flags) Write the gainmap to the parcel. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface android.os.Parcelable abstract
+        
+        
+        
+        
+        int describeContents () Describe the kinds of special objects contained in this Parcelable
+ instance's marshaled representation. abstract
+        
+        
+        
+        
+        void writeToParcel ( Parcel dest, int flags) Flatten this object in to a Parcel. Constants GAINMAP_DIRECTION_HDR_TO_SDR Added in API level 36 public static final int GAINMAP_DIRECTION_HDR_TO_SDR The gainmap will be applied as if the base image were HDR, and fully applying the gainmap
+ results in an SDR image. Constant Value:
+      
+          1
+          (0x00000001) GAINMAP_DIRECTION_SDR_TO_HDR Added in API level 36 public static final int GAINMAP_DIRECTION_SDR_TO_HDR The gainmap will be applied as if the base image were SDR, and fully applying the gainmap
+ results in an HDR image. Constant Value:
+      
+          0
+          (0x00000000) Fields CREATOR Added in API level 34 public static final Creator < Gainmap > CREATOR Public constructors Gainmap Added in API level 34 public Gainmap ( Bitmap gainmapContents) Creates a gainmap from a given Bitmap. The caller is responsible for setting the various
+ fields to the desired values. The defaults are as follows: Ratio min is 1f, 1f, 1f Ratio max is 2f, 2f, 2f Gamma is 1f, 1f, 1f Epsilon SDR is 0f, 0f, 0f Epsilon HDR is 0f, 0f, 0f Display ratio SDR is 1f Display ratio HDR is 2f It is strongly recommended that at least the ratio max and display ratio HDR are adjusted
+ to better suit the given gainmap contents. Parameters gainmapContents Bitmap : This value cannot be null . Gainmap Added in API level 35 public Gainmap ( Gainmap gainmap, Bitmap gainmapContents) Creates a new gainmap using the provided gainmap as the metadata source and the provided
+ bitmap as the replacement for the gainmapContents Parameters gainmap Gainmap : This value cannot be null . gainmapContents Bitmap : This value cannot be null . Public methods describeContents Added in API level 34 public int describeContents () No special parcel contents. Returns int a bitmask indicating the set of special object types marshaled
+ by this Parcelable object instance.
+
+ Value is either 0 or CONTENTS_FILE_DESCRIPTOR getAlternativeImagePrimaries Added in API level 36 public ColorSpace getAlternativeImagePrimaries () Gets the colorspace that the gainmap math should be applied in.
+ Only the primaries are what is relevant for applying the gainmap. The transfer and range
+ characteritics are ignored.
+
+ If the returned ColorSpace is null, then applying the gainmap will be done using the color
+ gamut of the base image. Returns ColorSpace getDisplayRatioForFullHdr Added in API level 34 public float getDisplayRatioForFullHdr () Gets the hdr/sdr ratio at which point applying the gainmap results in an HDR rendition Returns float This value cannot be null . getEpsilonHdr Added in API level 34 public float[] getEpsilonHdr () Gets the hdr epsilon. For single-plane gainmaps, all 3 components should be the
+ same. The components are in r, g, b order. Returns float[] This value cannot be null . getEpsilonSdr Added in API level 34 public float[] getEpsilonSdr () Gets the sdr epsilon. For single-plane gainmaps, all 3 components should be the
+ same. The components are in r, g, b order. Returns float[] This value cannot be null . getGainmapContents Added in API level 34 public Bitmap getGainmapContents () Returns Bitmap Returns the image data of the gainmap represented as a Bitmap. This is represented
+ as a Bitmap for broad API compatibility, however certain aspects of the Bitmap are ignored
+ such as Bitmap.getColorSpace() or Bitmap.getGainmap() as they are not
+ relevant to the gainmap's enhancement layer.
+
+ This value cannot be null . getGainmapDirection Added in API level 36 public int getGainmapDirection () Gets the direction that the gainmap math should be applied in. Returns int Value is GAINMAP_DIRECTION_SDR_TO_HDR , or GAINMAP_DIRECTION_HDR_TO_SDR getGamma Added in API level 34 public float[] getGamma () Gets the gainmap gamma. For single-plane gainmaps, all 3 components should be the
+ same. The components are in r, g, b order. Returns float[] This value cannot be null . getMinDisplayRatioForHdrTransition Added in API level 34 public float getMinDisplayRatioForHdrTransition () Gets the hdr/sdr ratio below which applying the gainmap results in an SDR rendition. Returns float This value cannot be null . getRatioMax Added in API level 34 public float[] getRatioMax () Gets the gainmap ratio max. For single-plane gainmaps, all 3 components should be the
+ same. The components are in r, g, b order. Returns float[] This value cannot be null . getRatioMin Added in API level 34 public float[] getRatioMin () Gets the gainmap ratio max. For single-plane gainmaps, all 3 components should be the
+ same. The components are in r, g, b order. Returns float[] This value cannot be null . setAlternativeImagePrimaries Added in API level 36 public void setAlternativeImagePrimaries ( ColorSpace colorSpace) Sets the colorspace that the gainmap math should be applied in.
+ Only the primaries are what is relevant for applying the gainmap. The transfer and range
+ characteritics are ignored.
+
+ If the supplied ColorSpace is null, then applying the gainmap will be done using the color
+ gamut of the base image. Parameters colorSpace ColorSpace : This value may be null . setDisplayRatioForFullHdr Added in API level 34 public void setDisplayRatioForFullHdr (float max) Sets the hdr/sdr ratio at which point applying the gainmap results in an HDR rendition. Parameters max float : The hdr/sdr ratio at which point applying the gainmap results in an HDR rendition.
+ Must be >= 1.0f
+
+ Value is 1.0f or greater setEpsilonHdr Added in API level 34 public void setEpsilonHdr (float r, 
+                float g, 
+                float b) Sets the hdr epsilon which is used to avoid numerical instability.
+ For single-plane gainmaps, r, g, and b should be the same. Parameters r float g float b float setEpsilonSdr Added in API level 34 public void setEpsilonSdr (float r, 
+                float g, 
+                float b) Sets the sdr epsilon which is used to avoid numerical instability.
+ For single-plane gainmaps, r, g, and b should be the same. Parameters r float g float b float setGainmapContents Added in API level 34 public void setGainmapContents ( Bitmap bitmap) Sets the image data of the gainmap. This is the 1 or 3 channel enhancement layer to apply
+ to the base image. This is represented as a Bitmap for broad API compatibility, however
+ certain aspects of the Bitmap are ignored such as Bitmap.getColorSpace() or Bitmap.getGainmap() as they are not relevant to the gainmap's enhancement layer. Parameters bitmap Bitmap : The non-null bitmap to set as the gainmap's contents setGainmapDirection Added in API level 36 public void setGainmapDirection (int direction) Sets the direction that the gainmap math should be applied in. Parameters direction int : Value is GAINMAP_DIRECTION_SDR_TO_HDR , or GAINMAP_DIRECTION_HDR_TO_SDR setGamma Added in API level 34 public void setGamma (float r, 
+                float g, 
+                float b) Sets the gainmap gamma. For single-plane gainmaps, r, g, and b should be the same. Parameters r float g float b float setMinDisplayRatioForHdrTransition Added in API level 34 public void setMinDisplayRatioForHdrTransition (float min) Sets the hdr/sdr ratio below which applying the gainmap results in an SDR rendition. Parameters min float : The minimum hdr/sdr ratio at which point applying the gainmap results in an SDR
+ rendition. Must be >= 1.0f
+
+ Value is 1.0f or greater setRatioMax Added in API level 34 public void setRatioMax (float r, 
+                float g, 
+                float b) Sets the gainmap ratio max. For single-plane gainmaps, r, g, and b should be the same. Parameters r float g float b float setRatioMin Added in API level 34 public void setRatioMin (float r, 
+                float g, 
+                float b) Sets the gainmap ratio min. For single-plane gainmaps, r, g, and b should be the same. Parameters r float g float b float writeToParcel Added in API level 34 public void writeToParcel ( Parcel dest, 
+                int flags) Write the gainmap to the parcel. Parameters dest Parcel : Parcel object to write the gainmap data into
+ This value cannot be null . flags int : Additional flags about how the object should be written.</body></html>

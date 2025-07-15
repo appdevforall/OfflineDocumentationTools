@@ -1,0 +1,39 @@
+<html><head><title>Class Documentation</title></head><body>OnReceiveContentListener Kotlin | Java public
+  
+  
+  
+  interface
+  OnReceiveContentListener android.view.OnReceiveContentListener Listener for apps to implement handling for insertion of content. Content may be both text and
+ non-text (plain/styled text, HTML, images, videos, audio files, etc). This listener can be attached to different types of UI components using View.setOnReceiveContentListener . Here is a sample implementation that handles content URIs and delegates the processing for
+ text and everything else to the platform: // ( 1 ) Define the listener public class MyReceiver implements OnReceiveContentListener { public static final String [] MIME_TYPES = new String [] { "image/*" , "video/*" }; @ Override public ContentInfo onReceiveContent ( View view , ContentInfo payload ) { Pair<ContentInfo , ContentInfo > split = ContentInfoCompat . partition ( payload , item - > item . getUri () != null ); ContentInfo uriContent = split . first ; ContentInfo remaining = split . second ; if ( uriContent != null ) { ClipData clip = uriContent . getClip (); for ( int i = 0 ; i < clip . getItemCount (); i ++ ) { Uri uri = clip . getItemAt ( i ) . getUri (); // ... app - specific logic to handle the URI ... } } // Return anything that we didn 't handle ourselves. This preserves the default platform // behavior for text and anything else for which we are not implementing custom handling . return remaining ; } } // ( 2 ) Register the listener public class MyActivity extends Activity { @ Override public void onCreate ( Bundle savedInstanceState ) { // ... EditText myInput = findViewById ( R . id . my_input ); myInput . setOnReceiveContentListener ( MyReceiver . MIME_TYPES , new MyReceiver ()); } Summary Public methods abstract ContentInfo onReceiveContent ( View view, ContentInfo payload) Receive the given content. Public methods onReceiveContent Added in API level 31 public abstract ContentInfo onReceiveContent ( View view, ContentInfo payload) Receive the given content. Implementations should handle any content items of interest and return all unhandled
+ items to preserve the default platform behavior for content that does not have app-specific
+ handling. For example, an implementation may provide handling for content URIs (to provide
+ support for inserting images, etc) and delegate the processing of text to the platform to
+ preserve the common behavior for inserting text. See the class javadoc for a sample
+ implementation. Handling different content Text. If the source is autofill , the view's content should be fully
+     replaced by the passed-in text. For sources other than autofill, the passed-in text
+     should overwrite the current selection or be inserted at the current cursor position
+     if there is no selection. Non-text content (e.g. images). The content may be inserted inline if the widget
+     supports this, or it may be added as an attachment (could potentially be shown in a
+     completely separate view). URI permissions Read permissions are
+ granted automatically by the platform for any content URIs in the payload passed
+ to this listener. Permissions are transient and will be released automatically by the
+ platform. Processing of content should normally be done in a service or activity.
+ For long-running processing, using androidx.work.WorkManager is recommended.
+ When implementing this, permissions should be extended to the target service or activity
+ by passing the content using Intent.setClipData and setting the flag FLAG_GRANT_READ_URI_PERMISSION . Alternatively, if using a background thread within the current context to process the
+ content, a reference to the payload object should be maintained to ensure that
+ permissions are not revoked prematurely. Parameters view View : The view where the content insertion was requested.
+ This value cannot be null . payload ContentInfo : The content to insert and related metadata. The payload may contain multiple
+                items and their MIME types may be different (e.g. an image item and a text
+                item). The payload may also contain items whose MIME type is not in the list
+                of MIME types specified when setting the listener. For
+                those items, the listener may reject the content (defer to the default
+                platform behavior) or execute some other fallback logic (e.g. show an
+                appropriate message to the user).
+
+ This value cannot be null . Returns ContentInfo The portion of the passed-in content whose processing should be delegated to
+ the platform. Return null if all content was handled in some way. Actual insertion of
+ the content may be processed asynchronously in the background and may or may not
+ succeed even if this method returns null. For example, an app may end up not inserting
+ an item if it exceeds the app's size limit for that type of content.</body></html>

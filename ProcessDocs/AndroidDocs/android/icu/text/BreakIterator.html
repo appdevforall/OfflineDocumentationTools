@@ -1,0 +1,368 @@
+<html><head><title>Class Documentation</title></head><body>BreakIterator Kotlin | Java public
+  
+  
+  abstract
+  class
+  BreakIterator extends Object implements Cloneable java.lang.Object ↳ android.icu.text.BreakIterator [icu enhancement] ICU's replacement for BreakIterator . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. A class that locates boundaries in text.  This class defines a protocol for
+ objects that break up a piece of natural-language text according to a set
+ of criteria.  Instances or subclasses of BreakIterator can be provided, for
+ example, to break a piece of text into words, sentences, or logical characters
+ according to the conventions of some language or group of languages.
+
+ We provide five built-in types of BreakIterator: getTitleInstance() returns a BreakIterator that locates boundaries
+ between title breaks. getSentenceInstance() returns a BreakIterator that locates boundaries
+ between sentences.  This is useful for triple-click selection, for example. getWordInstance() returns a BreakIterator that locates boundaries between
+ words.  This is useful for double-click selection or "find whole words" searches.
+ This type of BreakIterator makes sure there is a boundary position at the
+ beginning and end of each legal word.  (Numbers count as words, too.)  Whitespace
+ and punctuation are kept separate from real words. getLineInstance() returns a BreakIterator that locates positions where it is
+ legal for a text editor to wrap lines.  This is similar to word breaking, but
+ not the same: punctuation and whitespace are generally kept with words (you don't
+ want a line to start with whitespace, for example), and some special characters
+ can force a position to be considered a line-break position or prevent a position
+ from being a line-break position. getCharacterInstance() returns a BreakIterator that locates boundaries between
+ logical characters.  Because of the structure of the Unicode encoding, a logical
+ character may be stored internally as more than one Unicode code point.  (A with an
+ umlaut may be stored as an a followed by a separate combining umlaut character,
+ for example, but the user still thinks of it as one character.)  This iterator allows
+ various processes (especially text editors) to treat as characters the units of text
+ that a user would think of as characters, rather than the units of text that the
+ computer sees as "characters". The text boundary positions are found according to the rules
+ described in Unicode Standard Annex #29, Text Boundaries, and
+ Unicode Standard Annex #14, Line Breaking Properties.  These
+ are available at http://www.unicode.org/reports/tr14/ and
+ http://www.unicode.org/reports/tr29/. BreakIterator's interface follows an "iterator" model (hence the name), meaning it
+ has a concept of a "current position" and methods like first(), last(), next(),
+ and previous() that update the current position.  All BreakIterators uphold the
+ following invariants: The beginning and end of the text are always treated as boundary positions. The current position of the iterator is always a boundary position (random-
+ access methods move the iterator to the nearest boundary position before or
+ after the specified position, not to the specified position). DONE is used as a flag to indicate when iteration has stopped.  DONE is only
+ returned when the current position is the end of the text and the user calls next(),
+ or when the current position is the beginning of the text and the user calls
+ previous(). Break positions are numbered by the positions of the characters that follow
+ them.  Thus, under normal circumstances, the position before the first character
+ is 0, the position after the first character is 1, and the position after the
+ last character is 1 plus the length of the string. The client can change the position of an iterator, or the text it analyzes,
+ at will, but cannot change the behavior.  If the user wants different behavior, he
+ must instantiate a new iterator. BreakIterator accesses the text it analyzes through a CharacterIterator, which makes
+ it possible to use BreakIterator to analyze text in any text-storage vehicle that
+ provides a CharacterIterator interface. Note: Some types of BreakIterator can take a long time to create, and
+ instances of BreakIterator are not currently cached by the system.  For
+ optimal performance, keep instances of BreakIterator around as long as makes
+ sense.  For example, when word-wrapping a document, don't create and destroy a
+ new BreakIterator for each line.  Create one break iterator for the whole document
+ (or whatever stretch of text you're wrapping) and use it to do the whole job of
+ wrapping the text. Examples : Creating and using text boundaries public static void main(String args[]) {
+      if (args.length == 1) {
+          String stringToExamine = args[0];
+          //print each word in order
+          BreakIterator boundary = BreakIterator.getWordInstance();
+          boundary.setText(stringToExamine);
+          printEachForward(boundary, stringToExamine);
+          //print each sentence in reverse order
+          boundary = BreakIterator.getSentenceInstance(Locale.US);
+          boundary.setText(stringToExamine);
+          printEachBackward(boundary, stringToExamine);
+          printFirst(boundary, stringToExamine);
+          printLast(boundary, stringToExamine);
+      }
+ } Print each element in order public static void printEachForward(BreakIterator boundary, String source) {
+     int start = boundary.first();
+     for (int end = boundary.next();
+          end != BreakIterator.DONE;
+          start = end, end = boundary.next()) {
+          System.out.println(source.substring(start,end));
+     }
+ } Print each element in reverse order public static void printEachBackward(BreakIterator boundary, String source) {
+     int end = boundary.last();
+     for (int start = boundary.previous();
+          start != BreakIterator.DONE;
+          end = start, start = boundary.previous()) {
+         System.out.println(source.substring(start,end));
+     }
+ } Print first element public static void printFirst(BreakIterator boundary, String source) {
+     int start = boundary.first();
+     int end = boundary.next();
+     System.out.println(source.substring(start,end));
+ } Print last element public static void printLast(BreakIterator boundary, String source) {
+     int end = boundary.last();
+     int start = boundary.previous();
+     System.out.println(source.substring(start,end));
+ } Print the element at a specified position public static void printAt(BreakIterator boundary, int pos, String source) {
+     int end = boundary.following(pos);
+     int start = boundary.previous();
+     System.out.println(source.substring(start,end));
+ } Find the next word public static int nextWordStartAfter(int pos, String text) {
+     BreakIterator wb = BreakIterator.getWordInstance();
+     wb.setText(text);
+     int wordStart = wb.following(pos);
+     for (;;) {
+         int wordLimit = wb.next();
+         if (wordLimit == BreakIterator.DONE) {
+             return BreakIterator.DONE;
+         }
+         int wordStatus = wb.getRuleStatus();
+         if (wordStatus != BreakIterator.WORD_NONE) {
+             return wordStart;
+         }
+         wordStart = wordLimit;
+      }
+ } The iterator returned by getWordInstance() is unique in that
+ the break positions it returns don't represent both the start and end of the
+ thing being iterated over.  That is, a sentence-break iterator returns breaks
+ that each represent the end of one sentence and the beginning of the next.
+ With the word-break iterator, the characters between two boundaries might be a
+ word, or they might be the punctuation or whitespace between two words.  The
+ above code uses getRuleStatus() to identify and ignore boundaries associated
+ with punctuation or other non-word characters. See also: CharacterIterator Summary Constants int DONE DONE is returned by previous() and next() after all valid
+ boundaries have been returned. int KIND_CHARACTER [icu] int KIND_LINE [icu] int KIND_SENTENCE [icu] int KIND_TITLE This constant was deprecated
+      in API level 29.
+    ICU 64 Use getWordInstance() instead. int KIND_WORD [icu] int WORD_IDEO Tag value for words containing ideographic characters, lower limit int WORD_IDEO_LIMIT Tag value for words containing ideographic characters, upper limit int WORD_KANA Tag value for words containing kana characters, lower limit int WORD_KANA_LIMIT Tag value for words containing kana characters, upper limit int WORD_LETTER Tag value for words that contain letters, excluding
+ hiragana, katakana or ideographic characters, lower limit. int WORD_LETTER_LIMIT Tag value for words containing letters, upper limit int WORD_NONE Tag value for "words" that do not fit into any of other categories. int WORD_NONE_LIMIT Upper bound for tags for uncategorized words. int WORD_NUMBER Tag value for words that appear to be numbers, lower limit. int WORD_NUMBER_LIMIT Tag value for words that appear to be numbers, upper limit. Protected constructors BreakIterator () Default constructor. Public methods Object clone () Clone method. abstract
+        
+        
+        
+        
+        int current () Return the iterator's current position. abstract
+        
+        
+        
+        
+        int first () Set the iterator to the first boundary position. abstract
+        
+        
+        
+        
+        int following (int offset) Sets the iterator's current iteration position to be the first
+ boundary position following the specified position. static Locale[] getAvailableLocales () Returns a list of locales for which BreakIterators can be used. static BreakIterator getCharacterInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates logical-character
+ boundaries. static BreakIterator getCharacterInstance ( Locale where) Returns a new instance of BreakIterator that locates logical-character
+ boundaries. static BreakIterator getCharacterInstance () Returns a new instance of BreakIterator that locates logical-character
+ boundaries. static BreakIterator getLineInstance ( Locale where) Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions. static BreakIterator getLineInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions. static BreakIterator getLineInstance () Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions. int getRuleStatus () For RuleBasedBreakIterators, return the status tag from the
+ break rule that determined the boundary at the current iteration position. int getRuleStatusVec (int[] fillInArray) For RuleBasedBreakIterators, get the status (tag) values from the break rule(s)
+ that determined the the boundary at the current iteration position. static BreakIterator getSentenceInstance ( Locale where) Returns a new instance of BreakIterator that locates sentence boundaries. static BreakIterator getSentenceInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates sentence boundaries. static BreakIterator getSentenceInstance () Returns a new instance of BreakIterator that locates sentence boundaries. abstract CharacterIterator getText () Returns a CharacterIterator over the text being analyzed. static BreakIterator getTitleInstance ( Locale where) This method was deprecated
+      in API level 29.
+    ICU 64 Use getWordInstance() instead. static BreakIterator getTitleInstance ( ULocale where) This method was deprecated
+      in API level 29.
+    ICU 64 Use getWordInstance() instead. static BreakIterator getTitleInstance () This method was deprecated
+      in API level 29.
+    ICU 64 Use getWordInstance() instead. static BreakIterator getWordInstance ( Locale where) Returns a new instance of BreakIterator that locates word boundaries. static BreakIterator getWordInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates word boundaries. static BreakIterator getWordInstance () Returns a new instance of BreakIterator that locates word boundaries. boolean isBoundary (int offset) Return true if the specified position is a boundary position. abstract
+        
+        
+        
+        
+        int last () Set the iterator to the last boundary position. abstract
+        
+        
+        
+        
+        int next () Advances the iterator forward one boundary. abstract
+        
+        
+        
+        
+        int next (int n) Move the iterator by the specified number of steps in the text. int preceding (int offset) Sets the iterator's current iteration position to be the last
+ boundary position preceding the specified position. abstract
+        
+        
+        
+        
+        int previous () Move the iterator backward one boundary. void setText ( String newText) Sets the iterator to analyze a new piece of text. abstract
+        
+        
+        
+        
+        void setText ( CharacterIterator newText) Sets the iterator to analyze a new piece of text. void setText ( CharSequence newText) Sets the iterator to analyze a new piece of text. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants DONE Added in API level 24 public static final int DONE DONE is returned by previous() and next() after all valid
+ boundaries have been returned. Constant Value:
+      
+          -1
+          (0xffffffff) KIND_CHARACTER Added in API level 24 public static final int KIND_CHARACTER [icu] Constant Value:
+      
+          0
+          (0x00000000) KIND_LINE Added in API level 24 public static final int KIND_LINE [icu] Constant Value:
+      
+          2
+          (0x00000002) KIND_SENTENCE Added in API level 24 public static final int KIND_SENTENCE [icu] Constant Value:
+      
+          3
+          (0x00000003) KIND_TITLE Added in API level 24 Deprecated in API level
+      29 public static final int KIND_TITLE This constant was deprecated
+      in API level 29. ICU 64 Use getWordInstance() instead. [icu] See also: getTitleInstance() getWordInstance() Constant Value:
+      
+          4
+          (0x00000004) KIND_WORD Added in API level 24 public static final int KIND_WORD [icu] Constant Value:
+      
+          1
+          (0x00000001) WORD_IDEO Added in API level 24 public static final int WORD_IDEO Tag value for words containing ideographic characters, lower limit Constant Value:
+      
+          400
+          (0x00000190) WORD_IDEO_LIMIT Added in API level 24 public static final int WORD_IDEO_LIMIT Tag value for words containing ideographic characters, upper limit Constant Value:
+      
+          500
+          (0x000001f4) WORD_KANA Added in API level 24 public static final int WORD_KANA Tag value for words containing kana characters, lower limit Constant Value:
+      
+          300
+          (0x0000012c) WORD_KANA_LIMIT Added in API level 24 public static final int WORD_KANA_LIMIT Tag value for words containing kana characters, upper limit Constant Value:
+      
+          400
+          (0x00000190) WORD_LETTER Added in API level 24 public static final int WORD_LETTER Tag value for words that contain letters, excluding
+ hiragana, katakana or ideographic characters, lower limit. Constant Value:
+      
+          200
+          (0x000000c8) WORD_LETTER_LIMIT Added in API level 24 public static final int WORD_LETTER_LIMIT Tag value for words containing letters, upper limit Constant Value:
+      
+          300
+          (0x0000012c) WORD_NONE Added in API level 24 public static final int WORD_NONE Tag value for "words" that do not fit into any of other categories.
+ Includes spaces and most punctuation. Constant Value:
+      
+          0
+          (0x00000000) WORD_NONE_LIMIT Added in API level 24 public static final int WORD_NONE_LIMIT Upper bound for tags for uncategorized words. Constant Value:
+      
+          100
+          (0x00000064) WORD_NUMBER Added in API level 24 public static final int WORD_NUMBER Tag value for words that appear to be numbers, lower limit. Constant Value:
+      
+          100
+          (0x00000064) WORD_NUMBER_LIMIT Added in API level 24 public static final int WORD_NUMBER_LIMIT Tag value for words that appear to be numbers, upper limit. Constant Value:
+      
+          200
+          (0x000000c8) Protected constructors BreakIterator Added in API level 24 protected BreakIterator () Default constructor.  There is no state that is carried by this abstract
+ base class. Public methods clone Added in API level 24 public Object clone () Clone method.  Creates another BreakIterator with the same behavior and
+ current state as this one. Returns Object The clone. current Added in API level 24 public abstract int current () Return the iterator's current position. Returns int The iterator's current position. first Added in API level 24 public abstract int first () Set the iterator to the first boundary position.  This is always the beginning
+ index of the text this iterator iterates over.  For example, if
+ the iterator iterates over a whole string, this function will
+ always return 0. Returns int The character offset of the beginning of the stretch of text
+ being broken. following Added in API level 24 public abstract int following (int offset) Sets the iterator's current iteration position to be the first
+ boundary position following the specified position.  (Whether the
+ specified position is itself a boundary position or not doesn't
+ matter-- this function always moves the iteration position to the
+ first boundary after the specified position.)  If the specified
+ position is the past-the-end position, returns DONE. Parameters offset int : The character position to start searching from. Returns int The position of the first boundary position following
+ "offset" (whether or not "offset" itself is a boundary position),
+ or DONE if "offset" is the past-the-end offset. getAvailableLocales Added in API level 24 public static Locale[] getAvailableLocales () Returns a list of locales for which BreakIterators can be used. Returns Locale[] An array of Locales.  All of the locales in the array can
+ be used when creating a BreakIterator. getCharacterInstance Added in API level 24 public static BreakIterator getCharacterInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates logical-character
+ boundaries. Parameters where ULocale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates logical-character
+ boundaries. Throws NullPointerException if where is null. getCharacterInstance Added in API level 24 public static BreakIterator getCharacterInstance ( Locale where) Returns a new instance of BreakIterator that locates logical-character
+ boundaries. Parameters where Locale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates logical-character
+ boundaries. Throws NullPointerException if where is null. getCharacterInstance Added in API level 24 public static BreakIterator getCharacterInstance () Returns a new instance of BreakIterator that locates logical-character
+ boundaries.  This function assumes that the text being analyzed is
+ in the default locale's language. Returns BreakIterator A new instance of BreakIterator that locates logical-character
+ boundaries. getLineInstance Added in API level 24 public static BreakIterator getLineInstance ( Locale where) Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions. Parameters where Locale : A Locale specifying the language of the text being broken. Returns BreakIterator A new instance of BreakIterator that locates legal
+ line-wrapping positions. Throws NullPointerException if where is null. getLineInstance Added in API level 24 public static BreakIterator getLineInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions. Parameters where ULocale : A Locale specifying the language of the text being broken. Returns BreakIterator A new instance of BreakIterator that locates legal
+ line-wrapping positions. Throws NullPointerException if where is null. getLineInstance Added in API level 24 public static BreakIterator getLineInstance () Returns a new instance of BreakIterator that locates legal line-
+ wrapping positions.  This function assumes the text being broken
+ is in the default locale's language. Returns BreakIterator A new instance of BreakIterator that locates legal
+ line-wrapping positions. getRuleStatus Added in API level 24 public int getRuleStatus () For RuleBasedBreakIterators, return the status tag from the
+ break rule that determined the boundary at the current iteration position. For break iterator types that do not support a rule status,
+ a default value of 0 is returned. Returns int The status from the break rule that determined the boundary
+ at the current iteration position. getRuleStatusVec Added in API level 24 public int getRuleStatusVec (int[] fillInArray) For RuleBasedBreakIterators, get the status (tag) values from the break rule(s)
+ that determined the the boundary at the current iteration position. For break iterator types that do not support rule status,
+ no values are returned. If the size  of the output array is insufficient to hold the data,
+  the output will be truncated to the available length.  No exception
+  will be thrown. Parameters fillInArray int : an array to be filled in with the status values. Returns int The number of rule status values from rules that determined
+                  the the boundary at the current iteration position.
+                  In the event that the array is too small, the return value
+                  is the total number of status values that were available,
+                  not the reduced number that were actually returned. getSentenceInstance Added in API level 24 public static BreakIterator getSentenceInstance ( Locale where) Returns a new instance of BreakIterator that locates sentence boundaries. Parameters where Locale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates sentence boundaries. Throws NullPointerException if where is null. getSentenceInstance Added in API level 24 public static BreakIterator getSentenceInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates sentence boundaries. Parameters where ULocale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates sentence boundaries. Throws NullPointerException if where is null. getSentenceInstance Added in API level 24 public static BreakIterator getSentenceInstance () Returns a new instance of BreakIterator that locates sentence boundaries.
+ This function assumes the text being analyzed is in the default locale's
+ language. Returns BreakIterator A new instance of BreakIterator that locates sentence boundaries. getText Added in API level 24 public abstract CharacterIterator getText () Returns a CharacterIterator over the text being analyzed. Caution: The state of the returned CharacterIterator
+ must not be modified in any way while the BreakIterator is still in use.
+ Doing so will lead to undefined behavior of the BreakIterator.
+ Clone the returned CharacterIterator first and work with that. The returned CharacterIterator is a reference
+ to the actual iterator being used by the BreakIterator.
+ No guarantees are made about the current position
+ of this iterator when it is returned; it may differ from the
+ BreakIterators current position.  If you need to move that
+ position to examine the text, clone this function's return value first. Returns CharacterIterator A CharacterIterator over the text being analyzed. getTitleInstance Added in API level 24 Deprecated in API level
+      29 public static BreakIterator getTitleInstance ( Locale where) This method was deprecated
+      in API level 29. ICU 64 Use getWordInstance() instead. [icu] Returns a new instance of BreakIterator that locates title boundaries.
+ The iterator returned locates title boundaries as described for
+ Unicode 3.2 only. For Unicode 4.0 and above title boundary iteration,
+ please use Word Boundary iterator. getWordInstance() Parameters where Locale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates title boundaries. Throws NullPointerException if where is null. getTitleInstance Added in API level 24 Deprecated in API level
+      29 public static BreakIterator getTitleInstance ( ULocale where) This method was deprecated
+      in API level 29. ICU 64 Use getWordInstance() instead. [icu] Returns a new instance of BreakIterator that locates title boundaries.
+ The iterator returned locates title boundaries as described for
+ Unicode 3.2 only. For Unicode 4.0 and above title boundary iteration,
+ please use Word Boundary iterator. getWordInstance() Parameters where ULocale : A Locale specifying the language of the text being analyzed. Returns BreakIterator A new instance of BreakIterator that locates title boundaries. Throws NullPointerException if where is null. getTitleInstance Added in API level 24 Deprecated in API level
+      29 public static BreakIterator getTitleInstance () This method was deprecated
+      in API level 29. ICU 64 Use getWordInstance() instead. [icu] Returns a new instance of BreakIterator that locates title boundaries.
+ This function assumes the text being analyzed is in the default locale's
+ language. The iterator returned locates title boundaries as described for
+ Unicode 3.2 only. For Unicode 4.0 and above title boundary iteration,
+ please use a word boundary iterator. getWordInstance() Returns BreakIterator A new instance of BreakIterator that locates title boundaries. getWordInstance Added in API level 24 public static BreakIterator getWordInstance ( Locale where) Returns a new instance of BreakIterator that locates word boundaries. Parameters where Locale : A locale specifying the language of the text to be
+ analyzed. Returns BreakIterator An instance of BreakIterator that locates word boundaries. Throws NullPointerException if where is null. getWordInstance Added in API level 24 public static BreakIterator getWordInstance ( ULocale where) [icu] Returns a new instance of BreakIterator that locates word boundaries. Parameters where ULocale : A locale specifying the language of the text to be
+ analyzed. Returns BreakIterator An instance of BreakIterator that locates word boundaries. Throws NullPointerException if where is null. getWordInstance Added in API level 24 public static BreakIterator getWordInstance () Returns a new instance of BreakIterator that locates word boundaries.
+ This function assumes that the text being analyzed is in the default
+ locale's language. Returns BreakIterator An instance of BreakIterator that locates word boundaries. isBoundary Added in API level 24 public boolean isBoundary (int offset) Return true if the specified position is a boundary position.  If the
+ function returns true, the current iteration position is set to the
+ specified position; if the function returns false, the current
+ iteration position is set as though following() had been called. Parameters offset int : the offset to check. Returns boolean True if "offset" is a boundary position. last Added in API level 24 public abstract int last () Set the iterator to the last boundary position.  This is always the "past-the-end"
+ index of the text this iterator iterates over.  For example, if the
+ iterator iterates over a whole string (call it "text"), this function
+ will always return text.length(). Returns int The character offset of the end of the stretch of text
+ being broken. next Added in API level 24 public abstract int next () Advances the iterator forward one boundary.  The current iteration
+ position is updated to point to the next boundary position after the
+ current position, and this is also the value that is returned.  If
+ the current position is equal to the value returned by last(), or to
+ DONE, this function returns DONE and sets the current position to
+ DONE. Returns int The position of the first boundary position following the
+ iteration position. next Added in API level 24 public abstract int next (int n) Move the iterator by the specified number of steps in the text.
+ A positive number moves the iterator forward; a negative number
+ moves the iterator backwards. If this causes the iterator
+ to move off either end of the text, this function returns DONE;
+ otherwise, this function returns the position of the appropriate
+ boundary.  Calling this function is equivalent to calling next() or
+ previous() n times. Parameters n int : The number of boundaries to advance over (if positive, moves
+ forward; if negative, moves backwards). Returns int The position of the boundary n boundaries from the current
+ iteration position, or DONE if moving n boundaries causes the iterator
+ to advance off either end of the text. preceding Added in API level 24 public int preceding (int offset) Sets the iterator's current iteration position to be the last
+ boundary position preceding the specified position.  (Whether the
+ specified position is itself a boundary position or not doesn't
+ matter-- this function always moves the iteration position to the
+ last boundary before the specified position.)  If the specified
+ position is the starting position, returns DONE. Parameters offset int : The character position to start searching from. Returns int The position of the last boundary position preceding
+ "offset" (whether of not "offset" itself is a boundary position),
+ or DONE if "offset" is the starting offset of the iterator. previous Added in API level 24 public abstract int previous () Move the iterator backward one boundary.  The current iteration
+ position is updated to point to the last boundary position before
+ the current position, and this is also the value that is returned.  If
+ the current position is equal to the value returned by first(), or to
+ DONE, this function returns DONE and sets the current position to
+ DONE. Returns int The position of the last boundary position preceding the
+ iteration position. setText Added in API level 24 public void setText ( String newText) Sets the iterator to analyze a new piece of text.  The new
+ piece of text is passed in as a String, and the current
+ iteration position is reset to the beginning of the string.
+ (The old text is dropped.) Parameters newText String : A String containing the text to analyze with
+ this BreakIterator. setText Added in API level 24 public abstract void setText ( CharacterIterator newText) Sets the iterator to analyze a new piece of text. This function resets
+ the current iteration position to the beginning of the text.
+ (The old iterator is dropped.) Caution: The supplied CharacterIterator is used
+ directly by the BreakIterator, and must not be altered in any
+ way by code outside of the BreakIterator.
+ Doing so will lead to undefined behavior of the BreakIterator. Parameters newText CharacterIterator : A CharacterIterator referring to the text
+ to analyze with this BreakIterator (the iterator's current
+ position is ignored, but its other state is significant). setText Added in API level 29 public void setText ( CharSequence newText) Sets the iterator to analyze a new piece of text.  The new
+ piece of text is passed in as a CharSequence, and the current
+ iteration position is reset to the beginning of the text.
+ (The old text is dropped.) The text underlying the CharSequence must not be be modified while
+ the BreakIterator holds a references to it. (As could possibly occur
+ with a StringBuilder, for example). Parameters newText CharSequence : A CharSequence containing the text to analyze with
+ this BreakIterator.</body></html>

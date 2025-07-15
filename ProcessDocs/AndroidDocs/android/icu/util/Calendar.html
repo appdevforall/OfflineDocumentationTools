@@ -1,0 +1,1287 @@
+<html><head><title>Class Documentation</title></head><body>Calendar Kotlin | Java public
+  
+  
+  abstract
+  class
+  Calendar extends Object implements Cloneable , Comparable < Calendar >, Serializable java.lang.Object ↳ android.icu.util.Calendar Known direct subclasses ChineseCalendar , CopticCalendar , EthiopicCalendar , GregorianCalendar , HebrewCalendar , IndianCalendar , IslamicCalendar ChineseCalendar ChineseCalendar is a concrete subclass of Calendar that implements a traditional Chinese calendar. CopticCalendar Implement the Coptic calendar system. EthiopicCalendar Implement the Ethiopic calendar system. GregorianCalendar [icu enhancement] ICU's replacement for GregorianCalendar . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. HebrewCalendar HebrewCalendar is a subclass of Calendar that that implements the traditional Hebrew calendar. IndianCalendar IndianCalendar is a subclass of GregorianCalendar that numbers years since the birth of the Buddha. IslamicCalendar IslamicCalendar is a subclass of Calendar that that implements the Islamic civil and religious calendars. Known indirect subclasses BuddhistCalendar , JapaneseCalendar , TaiwanCalendar BuddhistCalendar BuddhistCalendar is a subclass of GregorianCalendar that numbers years since the birth of the Buddha. JapaneseCalendar JapaneseCalendar is a subclass of GregorianCalendar that numbers years and eras based on the reigns of the Japanese emperors. TaiwanCalendar TaiwanCalendar is a subclass of GregorianCalendar that numbers years since 1912. [icu enhancement] ICU's replacement for Calendar . Methods, fields, and other functionality specific to ICU are labeled ' [icu] '. Calendar is an abstract base class for converting between
+ a Date object and a set of integer fields such as YEAR , MONTH , DAY , HOUR ,
+ and so on. (A Date object represents a specific instant in
+ time with millisecond precision. See Date for information about the Date class.) Subclasses of Calendar interpret a Date according to the rules of a specific calendar system.  ICU4J contains
+ several subclasses implementing different international calendar systems. Like other locale-sensitive classes, Calendar provides a
+ class method, getInstance , for getting a generally useful
+ object of this type. Calendar 's getInstance method
+ returns a calendar of a type appropriate to the locale, whose
+ time fields have been initialized with the current date and time: Calendar rightNow = Calendar.getInstance() When a ULocale is used by getInstance , its
+ ' calendar ' tag and value are retrieved if present.  If a recognized
+ value is supplied, a calendar is provided and configured as appropriate.
+ Currently recognized tags are "buddhist", "chinese", "coptic", "ethiopic",
+ "gregorian", "hebrew", "islamic", "islamic-civil", "japanese", and "roc".  For
+ example: Calendar cal = Calendar.getInstance(new ULocale("en_US@calendar=japanese")); will return an instance of JapaneseCalendar (using en_US conventions for
+ minimum days in first week, start day of week, et cetera). A Calendar object can produce all the time field values
+ needed to implement the date-time formatting for a particular language and
+ calendar style (for example, Japanese-Gregorian, Japanese-Traditional). Calendar defines the range of values returned by certain fields,
+ as well as their meaning.  For example, the first month of the year has value MONTH == JANUARY for all calendars.  Other values
+ are defined by the concrete subclass, such as ERA and YEAR .  See individual field documentation and subclass
+ documentation for details. When a Calendar is lenient , it accepts a wider range
+ of field values than it produces.  For example, a lenient GregorianCalendar interprets MONTH == JANUARY , DAY_OF_MONTH == 32 as February 1.  A
+ non-lenient GregorianCalendar throws an exception when given
+ out-of-range field settings.  When calendars recompute field values for
+ return by get() , they normalize them.  For example, a GregorianCalendar always produces DAY_OF_MONTH values between 1 and the length of the month. Calendar defines a locale-specific seven day week using two
+ parameters: the first day of the week and the minimal days in first week
+ (from 1 to 7).  These numbers are taken from the locale resource data when a Calendar is constructed.  They may also be specified explicitly
+ through the API. When setting or getting the WEEK_OF_MONTH or WEEK_OF_YEAR fields, Calendar must determine the
+ first week of the month or year as a reference point.  The first week of a
+ month or year is defined as the earliest seven day period beginning on getFirstDayOfWeek() and containing at least getMinimalDaysInFirstWeek() days of that month or year.  Weeks
+ numbered ..., -1, 0 precede the first week; weeks numbered 2, 3,... follow
+ it.  Note that the normalized numbering returned by get() may be
+ different.  For example, a specific Calendar subclass may
+ designate the week before week 1 of a year as week n of the previous
+ year. When computing a Date from time fields, some special
+ circumstances may arise: there may be insufficient information to compute the Date (such as only year and month but no day in the month),
+ there may be inconsistent information (such as "Tuesday, July 15, 1996" --
+ July 15, 1996 is actually a Monday), or the input time might be ambiguous
+ because of time zone transition. Insufficient information. The calendar will use default
+ information to specify the missing fields. This may vary by calendar; for
+ the Gregorian calendar, the default for a field is the same as that of the
+ start of the epoch: i.e., YEAR = 1970, MONTH = JANUARY, DATE = 1, etc. Inconsistent information. If fields conflict, the calendar
+ will give preference to fields set more recently. For example, when
+ determining the day, the calendar will look for one of the following
+ combinations of fields.  The most recent combination, as determined by the
+ most recently set single field, will be used. MONTH + DAY_OF_MONTH
+ MONTH + WEEK_OF_MONTH + DAY_OF_WEEK
+ MONTH + DAY_OF_WEEK_IN_MONTH + DAY_OF_WEEK
+ DAY_OF_YEAR
+ DAY_OF_WEEK + WEEK_OF_YEAR For the time of day: HOUR_OF_DAY
+ AM_PM + HOUR Ambiguous Wall Clock Time. When time offset from UTC has
+ changed, it produces an ambiguous time slot around the transition. For example,
+ many US locations observe daylight saving time. On the date switching to daylight
+ saving time in US, wall clock time jumps from 12:59 AM (standard) to 2:00 AM
+ (daylight). Therefore, wall clock time from 1:00 AM to 1:59 AM do not exist on
+ the date. When the input wall time fall into this missing time slot, the ICU
+ Calendar resolves the time using the UTC offset before the transition by default.
+ In this example, 1:30 AM is interpreted as 1:30 AM standard time (non-exist),
+ so the final result will be 2:30 AM daylight time. On the date switching back to standard time, wall clock time is moved back one
+ hour at 2:00 AM. So wall clock time from 1:00 AM to 1:59 AM occur twice. In this
+ case, the ICU Calendar resolves the time using the UTC offset after the transition
+ by default. For example, 1:30 AM on the date is resolved as 1:30 AM standard time. Ambiguous wall clock time resolution behaviors can be customized by Calendar APIs setRepeatedWallTimeOption(int) and setSkippedWallTimeOption(int) .
+ These methods are available in ICU 49 or later versions. Note: for some non-Gregorian calendars, different
+ fields may be necessary for complete disambiguation. For example, a full
+ specification of the historial Arabic astronomical calendar requires year,
+ month, day-of-month and day-of-week in some cases. Note: There are certain possible ambiguities in
+ interpretation of certain singular times, which are resolved in the
+ following ways: 24:00:00 "belongs" to the following day. That is,
+          23:59 on Dec 31, 1969 < 24:00 on Jan 1, 1970 < 24:01:00 on Jan 1, 1970 Although historically not precise, midnight also belongs to "am",
+          and noon belongs to "pm", so on the same day,
+          12:00 am (midnight) < 12:01 am, and 12:00 pm (noon) < 12:01 pm The date or time format strings are not part of the definition of a
+ calendar, as those must be modifiable or overridable by the user at
+ runtime. Use DateFormat to format dates. Field manipulation methods Calendar fields can be changed using three methods: set() , add() , and roll() . set(f, value) changes field f to value .  In addition, it sets an
+ internal member variable to indicate that field f has
+ been changed. Although field f is changed immediately,
+ the calendar's milliseconds is not recomputed until the next call to get() , getTime() , or getTimeInMillis() is made. Thus, multiple calls to set() do not trigger multiple, unnecessary
+ computations. As a result of changing a field using set() , other fields may also change, depending on the
+ field, the field value, and the calendar system. In addition, get(f) will not necessarily return value after the fields have been recomputed. The specifics are determined by
+ the concrete calendar class. Example : Consider a GregorianCalendar originally set to August 31, 1999. Calling set(Calendar.MONTH,
+ Calendar.SEPTEMBER) sets the calendar to September 31,
+ 1999. This is a temporary internal representation that resolves to
+ October 1, 1999 if getTime() is then called. However, a
+ call to set(Calendar.DAY_OF_MONTH, 30) before the call to getTime() sets the calendar to September 30, 1999, since
+ no recomputation occurs after set() itself. add(f, delta) adds delta to field f .  This is equivalent to calling set(f,
+ get(f) + delta) with two adjustments: Add rule 1 . The value of field f after the call minus the value of field f before the
+   call is delta , modulo any overflow that has occurred in
+   field f . Overflow occurs when a field value exceeds its
+   range and, as a result, the next larger field is incremented or
+   decremented and the field value is adjusted back into its range. Add rule 2 . If a smaller field is expected to be
+   invariant, but   it is impossible for it to be equal to its
+   prior value because of changes in its minimum or maximum after field f is changed, then its value is adjusted to be as close
+   as possible to its expected value. A smaller field represents a
+   smaller unit of time. HOUR is a smaller field than DAY_OF_MONTH . No adjustment is made to smaller fields
+   that are not expected to be invariant. The calendar system
+   determines what fields are expected to be invariant. In addition, unlike set() , add() forces
+ an immediate recomputation of the calendar's milliseconds and all
+ fields. Example : Consider a GregorianCalendar originally set to August 31, 1999. Calling add(Calendar.MONTH,
+ 13) sets the calendar to September 30, 2000. Add rule
+ 1 sets the MONTH field to September, since
+ adding 13 months to August gives September of the next year. Since DAY_OF_MONTH cannot be 31 in September in a GregorianCalendar , add rule 2 sets the DAY_OF_MONTH to 30, the closest possible value. Although
+ it is a smaller field, DAY_OF_WEEK is not adjusted by
+ rule 2, since it is expected to change when the month changes in a GregorianCalendar . roll(f, delta) adds delta to field f without changing larger
+ fields. This is equivalent to calling add(f, delta) with
+ the following adjustment: Roll rule . Larger fields are unchanged after the
+   call. A larger field represents a larger unit of
+   time. DAY_OF_MONTH is a larger field than HOUR . Example : Consider a GregorianCalendar originally set to August 31, 1999. Calling roll(Calendar.MONTH,
+ 8) sets the calendar to April 30, 1999 .  Add
+ rule 1 sets the MONTH field to April. Using a GregorianCalendar , the DAY_OF_MONTH cannot
+ be 31 in the month April. Add rule 2 sets it to the closest possible
+ value, 30. Finally, the roll rule maintains the YEAR field value of 1999. Example : Consider a GregorianCalendar originally set to Sunday June 6, 1999. Calling roll(Calendar.WEEK_OF_MONTH, -1) sets the calendar to
+ Tuesday June 1, 1999, whereas calling add(Calendar.WEEK_OF_MONTH, -1) sets the calendar to
+ Sunday May 30, 1999. This is because the roll rule imposes an
+ additional constraint: The MONTH must not change when the WEEK_OF_MONTH is rolled. Taken together with add rule 1,
+ the resultant date must be between Tuesday June 1 and Saturday June
+ 5. According to add rule 2, the DAY_OF_WEEK , an invariant
+ when changing the WEEK_OF_MONTH , is set to Tuesday, the
+ closest possible value to Sunday (where Sunday is the first day of the
+ week). Usage model . To motivate the behavior of add() and roll() , consider a user interface
+ component with increment and decrement buttons for the month, day, and
+ year, and an underlying GregorianCalendar . If the
+ interface reads January 31, 1999 and the user presses the month
+ increment button, what should it read? If the underlying
+ implementation uses set() , it might read March 3, 1999. A
+ better result would be February 28, 1999. Furthermore, if the user
+ presses the month increment button again, it should read March 31,
+ 1999, not March 28, 1999. By saving the original date and using either add() or roll() , depending on whether larger
+ fields should be affected, the user interface can behave as most users
+ will intuitively expect. Note: You should always use roll and add rather
+ than attempting to perform arithmetic operations directly on the fields
+ of a Calendar .  It is quite possible for Calendar subclasses
+ to have fields with non-linear behavior, for example missing months
+ or days during non-leap years.  The subclasses' add and roll methods will take this into account, while simple arithmetic manipulations
+ may give invalid results. Calendar Architecture in ICU4J Recently the implementation of Calendar has changed
+ significantly in order to better support subclassing. The original Calendar class was designed to support subclassing, but
+ it had only one implemented subclass, GregorianCalendar .
+ With the implementation of several new calendar subclasses, including
+ the BuddhistCalendar , ChineseCalendar , HebrewCalendar , IslamicCalendar , and JapaneseCalendar , the subclassing API has been reworked
+ thoroughly. This section details the new subclassing API and other
+ ways in which android.icu.util.Calendar differs from java.util.Calendar . Changes Overview of changes between the classic Calendar architecture and the new architecture. The fields[] array is private now
+     instead of protected .  Subclasses must access it
+     using the methods internalSet(int, int) and internalGet(int) . Motivation: Subclasses should
+     not directly access data members. The time long word is private now
+     instead of protected .  Subclasses may access it using
+     the method internalGetTimeInMillis() , which does not
+     provoke an update. Motivation: Subclasses should not
+     directly access data members. The scope of responsibility of subclasses has been drastically
+     reduced. As much functionality as possible is implemented in the Calendar base class. As a result, it is much easier
+     to subclass Calendar . Motivation: Subclasses
+     should not have to reimplement common code. Certain behaviors are
+     common across calendar systems: The definition and behavior of
+     week-related fields and time fields, the arithmetic
+     ( add and roll ) behavior of many
+     fields, and the field validation system. The subclassing API has been completely redesigned. The Calendar base class contains some Gregorian
+     calendar algorithmic support that subclasses can use (specifically
+     in handleComputeFields(int) ).  Subclasses can use the
+     methods getGregorianXxx() to obtain precomputed
+     values. Motivation: This is required by all Calendar subclasses in order to implement consistent
+     time zone behavior, and Gregorian-derived systems can use the
+     already computed data. The FIELD_COUNT constant has been removed. Use getFieldCount() .  In addition, framework API has been
+     added to allow subclasses to define additional fields. Motivation: The number of fields is not constant across
+     calendar systems. The range of handled dates has been narrowed from +/-
+     ~300,000,000 years to +/- ~5,000,000 years. In practical terms
+     this should not affect clients. However, it does mean that client
+     code cannot be guaranteed well-behaved results with dates such as Date(Long.MIN_VALUE) or Date(Long.MAX_VALUE) . Instead, the Calendar protected constants should be used. Motivation: With
+     the addition of the JULIAN_DAY field, Julian day
+     numbers must be restricted to a 32-bit int .  This
+     restricts the overall supported range. Furthermore, restricting
+     the supported range simplifies the computations by removing
+     special case code that was used to accommodate arithmetic overflow
+     at millis near Long.MIN_VALUE and Long.MAX_VALUE . New fields are implemented: JULIAN_DAY defines
+     single-field specification of the
+     date. MILLISECONDS_IN_DAY defines a single-field
+     specification of the wall time. DOW_LOCAL and YEAR_WOY implement localized day-of-week and
+     week-of-year behavior. Subclasses can access protected millisecond constants
+   defined in Calendar . New API has been added to support calendar-specific subclasses
+     of DateFormat . Several subclasses have been implemented, representing
+     various international calendar systems. Subclass API The original Calendar API was based on the experience
+ of implementing a only a single subclass, GregorianCalendar . As a result, all of the subclassing
+ kinks had not been worked out. The new subclassing API has been
+ refined based on several implemented subclasses. This includes methods
+ that must be overridden and methods for subclasses to call. Subclasses
+ no longer have direct access to fields and stamp . Instead, they have new API to access
+ these. Subclasses are able to allocate the fields array
+ through a protected framework method; this allows subclasses to
+ specify additional fields. More functionality has been moved into the base class. The base
+ class now contains much of the computational machinery to support the
+ Gregorian calendar. This is based on two things: (1) Many calendars
+ are based on the Gregorian calendar (such as the Buddhist and Japanese
+ imperial calendars). (2) All calendars require basic
+ Gregorian support in order to handle timezone computations. Common computations have been moved into Calendar . Subclasses no longer compute the week related
+ fields and the time related fields. These are commonly handled for all
+ calendars by the base class. Subclass computation of time => fields The ERA , YEAR , EXTENDED_YEAR , MONTH , DAY_OF_MONTH , and DAY_OF_YEAR fields are
+ computed by the subclass, based on the Julian day. All other fields
+ are computed by Calendar . Subclasses should implement handleComputeFields(int) to compute the ERA , YEAR , EXTENDED_YEAR , MONTH , DAY_OF_MONTH , and DAY_OF_YEAR fields,
+     based on the value of the JULIAN_DAY field. If there
+     are calendar-specific fields not defined by Calendar ,
+     they must also be computed. These are the only fields that the
+     subclass should compute. All other fields are computed by the base
+     class, so time and week fields behave in a consistent way across
+     all calendars. The default version of this method in Calendar implements a proleptic Gregorian
+     calendar. Within this method, subclasses may call getGregorianXxx() to obtain the Gregorian calendar
+     month, day of month, and extended year for the given date. Subclass computation of fields => time The interpretation of most field values is handled entirely by Calendar . Calendar determines which fields
+ are set, which are not, which are set more recently, and so on. In
+ addition, Calendar handles the computation of the time
+ from the time fields and handles the week-related fields. The only
+ thing the subclass must do is determine the extended year, based on
+ the year fields, and then, given an extended year and a month, it must
+ return a Julian day number. Subclasses should implement handleGetExtendedYear() to return the extended year for this calendar system, based on the YEAR , EXTENDED_YEAR , and any fields that
+     the calendar system uses that are larger than a year, such as ERA . Subclasses should implement handleComputeMonthStart(int, int, boolean) to return the Julian day number
+     associated with a month and extended year. This is the Julian day
+     number of the day before the first day of the month. The month
+     number is zero-based. This computation should not depend on any
+     field values. Other methods Subclasses should implement handleGetMonthLength(int, int) to return the number of days in a
+     given month of a given extended year. The month number, as always,
+     is zero-based. Subclasses should implement handleGetYearLength(int) to return the number of days in the given
+     extended year. This method is used by computeWeekFields to compute the WEEK_OF_YEAR and YEAR_WOY fields. Subclasses should implement handleGetLimit(int, int) to return the protected values of a field, depending on the value of limitType . This method only needs to handle the
+     fields ERA , YEAR , MONTH , WEEK_OF_YEAR , WEEK_OF_MONTH , DAY_OF_MONTH , DAY_OF_YEAR , DAY_OF_WEEK_IN_MONTH , YEAR_WOY , and EXTENDED_YEAR .  Other fields are invariant (with
+     respect to calendar system) and are handled by the base
+     class. Optionally, subclasses may override validateField(int) to check any subclass-specific fields. If the
+     field's value is out of range, the method should throw an IllegalArgumentException . The method may call super.validateField(field) to handle fields in a
+     generic way, that is, to compare them to the range getMinimum(field) .. getMaximum(field) . Optionally, subclasses may override handleCreateFields() to create an int[] array large enough to hold the calendar's fields. This is only
+     necessary if the calendar defines additional fields beyond those
+     defined by Calendar . The length of the result must be
+     be between the base and maximum field counts. Optionally, subclasses may override handleGetDateFormat(String, ULocale) to create a DateFormat appropriate to this calendar. This is only
+     required if a calendar subclass redefines the use of a field (for
+     example, changes the ERA field from a symbolic field
+     to a numeric one) or defines an additional field. Optionally, subclasses may override roll and add to handle fields that are discontinuous. For
+     example, in the Hebrew calendar the month "Adar I" only
+     occurs in leap years; in other years the calendar jumps from
+     Shevat (month #4) to Adar (month #6). The HebrewCalendar.add and HebrewCalendar.roll methods take this into
+     account, so that adding 1 month to Shevat gives the proper result
+     (Adar) in a non-leap year. The protected utility method pinField is often useful when implementing these two
+     methods. Normalized behavior The behavior of certain fields has been made consistent across all
+ calendar systems and implemented in Calendar . Time is normalized. Even though some calendar systems transition
+     between days at sunset or at other times, all ICU4J calendars
+     transition between days at local zone midnight .  This
+     allows ICU4J to centralize the time computations in Calendar and to maintain basic correspondences
+     between calendar systems. Affected fields: AM_PM , HOUR , HOUR_OF_DAY , MINUTE , SECOND , MILLISECOND , ZONE_OFFSET , and DST_OFFSET . DST behavior is normalized. Daylight savings time behavior is
+     computed the same for all calendar systems, and depends on the
+     value of several GregorianCalendar fields: the YEAR , MONTH , and DAY_OF_MONTH . As a result, Calendar always computes these fields, even for non-Gregorian calendar
+     systems. These fields are available to subclasses. Weeks are normalized. Although locales define the week
+     differently, in terms of the day on which it starts, and the
+     designation of week number one of a month or year, they all use a
+     common mechanism. Furthermore, the day of the week has a simple
+     and consistent definition throughout history. For example,
+     although the Gregorian calendar introduced a discontinuity when
+     first instituted, the day of week was not disrupted. For this
+     reason, the fields DAY_OF_WEEK , WEEK_OF_YEAR,
+     WEEK_OF_MONTH , DAY_OF_WEEK_IN_MONTH , DOW_LOCAL , YEAR_WOY are all computed in
+     a consistent way in the base class, based on the EXTENDED_YEAR , DAY_OF_YEAR , MONTH , and DAY_OF_MONTH , which are
+     computed by the subclass. Supported range The allowable range of Calendar has been
+ narrowed. GregorianCalendar used to attempt to support
+ the range of dates with millisecond values from Long.MIN_VALUE to Long.MAX_VALUE . This
+ introduced awkward constructions (hacks) which slowed down
+ performance. It also introduced non-uniform behavior at the
+ boundaries. The new Calendar protocol specifies the
+ maximum range of supportable dates as those having Julian day numbers
+ of -0x7F000000 to +0x7F000000 . This
+ corresponds to years from ~5,800,000 BCE to ~5,800,000 CE. Programmers
+ should use the protected constants in Calendar to
+ specify an extremely early or extremely late date. General notes Calendars implementations are proleptic . For example,
+     even though the Gregorian calendar was not instituted until the
+     16th century, the GregorianCalendar class supports
+     dates before the historical onset of the calendar by extending the
+     calendar system backward in time. Similarly, the HebrewCalendar extends backward before the start of
+     its epoch into zero and negative years. Subclasses do not throw
+     exceptions because a date precedes the historical start of a
+     calendar system. Instead, they implement handleGetLimit(int, int) to return appropriate limits on YEAR , ERA , etc. fields. Then, if the
+     calendar is set to not be lenient, out-of-range field values will
+     trigger an exception. Calendar system subclasses compute a extended
+     year . This differs from the YEAR field in that
+     it ranges over all integer values, including zero and negative
+     values, and it encapsulates the information of the YEAR field and all larger fields.  Thus, for the
+     Gregorian calendar, the EXTENDED_YEAR is computed as ERA==AD ? YEAR : 1-YEAR . Another example is the Mayan
+     long count, which has years ( KUN ) and nested cycles
+     of years ( KATUN and BAKTUN ). The Mayan EXTENDED_YEAR is computed as TUN + 20 * (KATUN
+     + 20 * BAKTUN) . The Calendar base class uses
+     the EXTENDED_YEAR field to compute the week-related
+     fields. See also: Date GregorianCalendar TimeZone DateFormat Summary Nested classes class Calendar.WeekData Simple, immutable struct-like class for access to the CLDR week data. Constants int AM Value of the AM_PM field indicating the
+ period of the day from midnight to just before noon. int AM_PM Field number for get and set indicating
+ whether the HOUR is before or after noon. int APRIL Value of the MONTH field indicating the
+ fourth month of the year. int AUGUST Value of the MONTH field indicating the
+ eighth month of the year. int DATE Field number for get and set indicating the
+ day of the month. int DAY_OF_MONTH Field number for get and set indicating the
+ day of the month. int DAY_OF_WEEK Field number for get and set indicating the day
+ of the week. int DAY_OF_WEEK_IN_MONTH Field number for get and set indicating the
+ ordinal number of the day of the week within the current month. int DAY_OF_YEAR Field number for get and set indicating the day
+ number within the current year. int DECEMBER Value of the MONTH field indicating the
+ twelfth month of the year. int DOW_LOCAL [icu] Field number for get() and set() indicating the localized day of week. int DST_OFFSET Field number for get and set indicating the
+ daylight savings offset in milliseconds. int EPOCH_JULIAN_DAY The Julian day of the epoch, that is, January 1, 1970 on the
+ Gregorian calendar. int ERA Field number for get and set indicating the
+ era, e.g., AD or BC in the Julian calendar. int EXTENDED_YEAR [icu] Field number for get() and set() indicating the extended year. int FEBRUARY Value of the MONTH field indicating the
+ second month of the year. int FRIDAY Value of the DAY_OF_WEEK field indicating
+ Friday. int GREATEST_MINIMUM Limit type for getLimit() and handleGetLimit() indicating the greatest minimum value that a field can take. int HOUR Field number for get and set indicating the
+ hour of the morning or afternoon. int HOUR_OF_DAY Field number for get and set indicating the
+ hour of the day. int INTERNALLY_SET Value of the time stamp stamp[] indicating that a field
+ has been set via computations from the time or from other fields. int IS_LEAP_MONTH [icu] Field indicating whether or not the current month is a leap month. int JANUARY Value of the MONTH field indicating the
+ first month of the year. int JAN_1_1_JULIAN_DAY The Julian day of the Gregorian epoch, that is, January 1, 1 on the
+ Gregorian calendar. int JULIAN_DAY [icu] Field number for get() and set() indicating the modified Julian day number. int JULY Value of the MONTH field indicating the
+ seventh month of the year. int JUNE Value of the MONTH field indicating the
+ sixth month of the year. int LEAST_MAXIMUM Limit type for getLimit() and handleGetLimit() indicating the least maximum value that a field can take. int MARCH Value of the MONTH field indicating the
+ third month of the year. int MAXIMUM Limit type for getLimit() and handleGetLimit() indicating the maximum value that a field can take (greatest maximum). int MAX_FIELD_COUNT This constant was deprecated
+      in API level 26.
+    ICU 58 The numeric value may change over time, see ICU ticket #12420. int MAX_JULIAN The maximum supported Julian day. long MAX_MILLIS The maximum supported epoch milliseconds. int MAY Value of the MONTH field indicating the
+ fifth month of the year. int MILLISECOND Field number for get and set indicating the
+ millisecond within the second. int MILLISECONDS_IN_DAY [icu] Field number for get() and set() indicating the milliseconds in the day. int MINIMUM Limit type for getLimit() and handleGetLimit() indicating the minimum value that a field can take (least minimum). int MINIMUM_USER_STAMP If the time stamp stamp[] has a value greater than or
+ equal to MINIMUM_USER_SET then it has been set by the
+ user via a call to set() . int MINUTE Field number for get and set indicating the
+ minute within the hour. int MIN_JULIAN The minimum supported Julian day. long MIN_MILLIS The minimum supported epoch milliseconds. int MONDAY Value of the DAY_OF_WEEK field indicating
+ Monday. int MONTH Field number for get and set indicating the
+ month. int NOVEMBER Value of the MONTH field indicating the
+ eleventh month of the year. int OCTOBER Value of the MONTH field indicating the
+ tenth month of the year. long ONE_DAY The number of milliseconds in one day. int ONE_HOUR The number of milliseconds in one hour. int ONE_MINUTE The number of milliseconds in one minute. int ONE_SECOND The number of milliseconds in one second. long ONE_WEEK The number of milliseconds in one week. int ORDINAL_MONTH [icu] Field indicating the month. int PM Value of the AM_PM field indicating the
+ period of the day from noon to just before midnight. int RESOLVE_REMAP Value to OR against resolve table field values for remapping. int SATURDAY Value of the DAY_OF_WEEK field indicating
+ Saturday. int SECOND Field number for get and set indicating the
+ second within the minute. int SEPTEMBER Value of the MONTH field indicating the
+ ninth month of the year. int SUNDAY Value of the DAY_OF_WEEK field indicating
+ Sunday. int THURSDAY Value of the DAY_OF_WEEK field indicating
+ Thursday. int TUESDAY Value of the DAY_OF_WEEK field indicating
+ Tuesday. int UNDECIMBER Value of the MONTH field indicating the
+ thirteenth month of the year. int UNSET Value of the time stamp stamp[] indicating that
+ a field has not been set since the last call to clear() . int WALLTIME_FIRST [icu] Option used by setRepeatedWallTimeOption(int) and setSkippedWallTimeOption(int) specifying an ambiguous wall time
+ to be interpreted as the earliest. int WALLTIME_LAST [icu] Option used by setRepeatedWallTimeOption(int) and setSkippedWallTimeOption(int) specifying an ambiguous wall time
+ to be interpreted as the latest. int WALLTIME_NEXT_VALID [icu] Option used by setSkippedWallTimeOption(int) specifying an
+ ambiguous wall time to be interpreted as the next valid wall time. int WEDNESDAY Value of the DAY_OF_WEEK field indicating
+ Wednesday. int WEEK_OF_MONTH Field number for get and set indicating the
+ week number within the current month. int WEEK_OF_YEAR Field number for get and set indicating the
+ week number within the current year. int YEAR Field number for get and set indicating the
+ year. int YEAR_WOY [icu] Field number for get() and set() indicating the extended year corresponding to the WEEK_OF_YEAR field. int ZONE_OFFSET Field number for get and set indicating the
+ raw offset from GMT in milliseconds. Fields protected
+    static
+    final Date MAX_DATE The maximum supported Date . protected
+    static
+    final Date MIN_DATE The minimum supported Date . Protected constructors Calendar () Constructs a Calendar with the default time zone
+ and the default FORMAT locale. Calendar ( TimeZone zone, ULocale locale) Constructs a calendar with the specified time zone and locale. Calendar ( TimeZone zone, Locale aLocale) Constructs a calendar with the specified time zone and locale. Public methods void add (int field, int amount) Add a signed amount to a specified field, using this calendar's rules. boolean after ( Object when) Compares the time field records. boolean before ( Object when) Compares the time field records. final
+        
+        void clear () Clears the values of all the time fields. final
+        
+        void clear (int field) Clears the value in the given time field. Object clone () Overrides Cloneable int compareTo ( Calendar that) Compares the times (in millis) represented by two Calendar objects. boolean equals ( Object obj) Compares this calendar to the specified object. int fieldDifference ( Date when, int field) [icu] Returns the difference between the given time and the time this
+ calendar object is set to. final
+        
+        int get (int field) Returns the value for a given time field. int getActualMaximum (int field) Returns the maximum value that this field could have, given the
+ current date. int getActualMinimum (int field) Returns the minimum value that this field could have, given the current date. static Locale[] getAvailableLocales () Returns the list of locales for which Calendars are installed. DateFormat getDateTimeFormat (int dateStyle, int timeStyle, ULocale loc) [icu] Returns a DateFormat appropriate to this calendar. DateFormat getDateTimeFormat (int dateStyle, int timeStyle, Locale loc) [icu] Returns a DateFormat appropriate to this calendar. String getDisplayName ( ULocale loc) Returns the name of this calendar in the language of the given locale. String getDisplayName ( Locale loc) Returns the name of this calendar in the language of the given locale. final
+        
+        int getFieldCount () [icu] Returns the number of fields defined by this calendar. int getFirstDayOfWeek () Returns what the first day of the week is,
+ where 1 = SUNDAY and 7 = SATURDAY . final
+        
+        int getGreatestMinimum (int field) Returns the highest minimum value for the given field if varies. static Calendar getInstance () Returns a calendar using the default time zone and locale. static Calendar getInstance ( Locale aLocale) Returns a calendar using the default time zone and specified locale. static Calendar getInstance ( TimeZone zone, Locale aLocale) Returns a calendar with the specified time zone and locale. static Calendar getInstance ( TimeZone zone, ULocale locale) Returns a calendar with the specified time zone and locale. static Calendar getInstance ( TimeZone zone) Returns a calendar using the specified time zone and default locale. static Calendar getInstance ( ULocale locale) Returns a calendar using the default time zone and specified locale. static
+        final String[] getKeywordValuesForLocale ( String key, ULocale locale, boolean commonlyUsed) [icu] Given a key and a locale, returns an array of string values in a preferred
+ order that would make a difference. final
+        
+        int getLeastMaximum (int field) Returns the lowest maximum value for the given field if varies. final
+        
+        int getMaximum (int field) Returns the maximum value for the given time field. int getMinimalDaysInFirstWeek () Returns what the minimal days required in the first week of the year are. final
+        
+        int getMinimum (int field) Returns the minimum value for the given time field. int getRepeatedWallTimeOption () [icu] Gets the behavior for handling wall time repeating multiple times
+ at negative time zone offset transitions. int getSkippedWallTimeOption () [icu] Gets the behavior for handling skipped wall time at positive time zone offset
+ transitions. String getTemporalMonthCode () Gets The Temporal monthCode value corresponding to the month for the date. final Date getTime () Returns this Calendar's current time. long getTimeInMillis () Returns this Calendar's current time as a long. TimeZone getTimeZone () Returns the time zone. String getType () [icu] Returns the calendar type name string for this Calendar object. Calendar.WeekData getWeekData () [icu] Return simple, immutable struct-like class for access to the week data in this calendar. static Calendar.WeekData getWeekDataForRegion ( String region) [icu] Return simple, immutable struct-like class for access to the CLDR week data. int hashCode () Returns a hash code for this calendar. boolean inTemporalLeapYear () [icu] Returns true if the date is in a leap year. boolean isEquivalentTo ( Calendar other) [icu] Returns true if the given Calendar object is equivalent to this
+ one. boolean isLenient () Tell whether date/time interpretation is to be lenient. final
+        
+        boolean isSet (int field) Determines if the given time field has a value set. boolean isWeekend ( Date date) [icu] Returns true if the given date and time is in the weekend in this calendar
+ system. boolean isWeekend () [icu] Returns true if this Calendar's current date and time is in the weekend in
+ this calendar system. final
+        
+        void roll (int field, boolean up) Rolls (up/down) a single unit of time on the given field. void roll (int field, int amount) Rolls (up/down) a specified amount time on the given field. final
+        
+        void set (int year, int month, int date, int hour, int minute, int second) Sets the values for the fields year, month, date, hour, minute, and second. final
+        
+        void set (int year, int month, int date, int hour, int minute) Sets the values for the fields year, month, date, hour, and minute. final
+        
+        void set (int field, int value) Sets the time field with the given value. final
+        
+        void set (int year, int month, int date) Sets the values for the fields year, month, and date. void setFirstDayOfWeek (int value) Sets what the first day of the week is,
+ where 1 = SUNDAY and 7 = SATURDAY . void setLenient (boolean lenient) Specify whether or not date/time interpretation is to be lenient. void setMinimalDaysInFirstWeek (int value) Sets what the minimal days required in the first week of the year are. void setRepeatedWallTimeOption (int option) [icu] Sets the behavior for handling wall time repeating multiple times
+ at negative time zone offset transitions. void setSkippedWallTimeOption (int option) [icu] Sets the behavior for handling skipped wall time at positive time zone offset
+ transitions. void setTemporalMonthCode ( String temporalMonth) Sets The Temporal monthCode which is a string identifier that starts
+ with the literal grapheme "M" followed by two graphemes representing
+ the zero-padded month number of the current month in a normal
+ (non-leap) year and suffixed by an optional literal grapheme "L" if this
+ is a leap month in a lunisolar calendar. final
+        
+        void setTime ( Date date) Sets this Calendar's current time with the given Date. void setTimeInMillis (long millis) Sets this Calendar's current time from the given long value. void setTimeZone ( TimeZone value) Sets the time zone with the given time zone value. Calendar setWeekData ( Calendar.WeekData wdata) [icu] Set data in this calendar based on the WeekData input. String toString () Returns a string representation of this calendar. Protected methods void complete () Fills in any unset fields in the time field list. void computeFields () Converts the current millisecond time value time to
+ field values in fields[] . final
+        
+        void computeGregorianFields (int julianDay) Compute the Gregorian calendar year, month, and day of month from the
+ Julian day. int computeGregorianMonthStart (int year, int month) Compute the Julian day of a month of the Gregorian calendar. int computeJulianDay () Compute the Julian day number as specified by this calendar's fields. int computeMillisInDay () This method was deprecated
+      in API level 26.
+    ICU 60 void computeTime () Converts the current field values in fields[] to the
+ millisecond time value time . int computeZoneOffset (long millis, int millisInDay) This method was deprecated
+      in API level 26.
+    ICU 60 String fieldName (int field) Returns a string name for a field, for debugging and exceptions. static
+        final
+        
+        int floorDivide (int numerator, int denominator, int[] remainder) Divide two integers, returning the floor of the quotient, and
+ the modulus remainder. static
+        final
+        
+        int floorDivide (int numerator, int denominator) Divide two integers, returning the floor of the quotient. static
+        final
+        
+        long floorDivide (long numerator, long denominator) Divide two long integers, returning the floor of the quotient. static
+        final
+        
+        int floorDivide (long numerator, int denominator, int[] remainder) Divide two integers, returning the floor of the quotient, and
+ the modulus remainder. int[][][] getFieldResolutionTable () Returns the field resolution array for this calendar. final
+        
+        int getGregorianDayOfMonth () Returns the day of month (1-based) on the Gregorian calendar as
+ computed by computeGregorianFields() . final
+        
+        int getGregorianDayOfYear () Returns the day of year (1-based) on the Gregorian calendar as
+ computed by computeGregorianFields() . final
+        
+        int getGregorianMonth () Returns the month (0-based) on the Gregorian calendar as computed by computeGregorianFields() . final
+        
+        int getGregorianYear () Returns the extended year on the Gregorian calendar as computed by computeGregorianFields() . int getLimit (int field, int limitType) Returns a limit for a field. final
+        
+        int getStamp (int field) Returns the timestamp of a field. static
+        final
+        
+        int gregorianMonthLength (int y, int m) Returns the length of a month of the Gregorian calendar. static
+        final
+        
+        int gregorianPreviousMonthLength (int y, int m) Returns the length of a previous month of the Gregorian calendar. void handleComputeFields (int julianDay) Subclasses may override this method to compute several fields
+ specific to each calendar system. int handleComputeJulianDay (int bestField) Subclasses may override this. abstract
+        
+        
+        
+        
+        int handleComputeMonthStart (int eyear, int month, boolean useMonth) Returns the Julian day number of day before the first day of the
+ given month in the given extended year. int[] handleCreateFields () Subclasses that use additional fields beyond those defined in Calendar should override this method to return an int[] array of the appropriate length. DateFormat handleGetDateFormat ( String pattern, String override, Locale locale) Creates a DateFormat appropriate to this calendar. DateFormat handleGetDateFormat ( String pattern, ULocale locale) Creates a DateFormat appropriate to this calendar. DateFormat handleGetDateFormat ( String pattern, Locale locale) Creates a DateFormat appropriate to this calendar. abstract
+        
+        
+        
+        
+        int handleGetExtendedYear () Returns the extended year defined by the current fields. abstract
+        
+        
+        
+        
+        int handleGetLimit (int field, int limitType) Subclass API for defining limits of different types. int handleGetMonthLength (int extendedYear, int month) Returns the number of days in the given month of the given extended
+ year of this calendar system. int handleGetYearLength (int eyear) Returns the number of days in the given extended year of this
+ calendar system. final
+        
+        int internalGet (int field) Returns the value for a given time field. final
+        
+        int internalGet (int field, int defaultValue) Returns the value for a given time field, or return the given default
+ value if the field is not set. final
+        
+        long internalGetTimeInMillis () Returns the current milliseconds without recomputing. final
+        
+        void internalSet (int field, int value) Set a field to a value. static
+        final
+        
+        boolean isGregorianLeapYear (int year) Determines if the given year is a leap year. static
+        final
+        
+        int julianDayToDayOfWeek (int julian) Returns the day of week, from SUNDAY to SATURDAY, given a Julian day. static
+        final
+        
+        long julianDayToMillis (int julian) Converts Julian day to time as milliseconds. static
+        final
+        
+        int millisToJulianDay (long millis) Converts time as milliseconds to Julian day. int newerField (int defaultField, int alternateField) Returns the field that is newer, either defaultField, or
+ alternateField. int newestStamp (int first, int last, int bestStampSoFar) Returns the newest stamp of a given range of fields. void pinField (int field) Adjust the specified field so that it is within
+ the allowable range for the date to which this calendar is set. void prepareGetActual (int field, boolean isMinimum) Prepare this calendar for computing the actual minimum or maximum. int resolveFields (int[][][] precedenceTable) Given a precedence table, return the newest field combination in
+ the table, or -1 if none is found. void validateField (int field) Validate a single field of this calendar. final
+        
+        void validateField (int field, int min, int max) Validate a single field of this calendar given its minimum and
+ maximum allowed value. void validateFields () Ensure that each field is within its valid range by calling validateField(int) on each field that has been set. int weekNumber (int desiredDay, int dayOfPeriod, int dayOfWeek) Returns the week number of a day, within a period. final
+        
+        int weekNumber (int dayOfPeriod, int dayOfWeek) Returns the week number of a day, within a period. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.Comparable abstract
+        
+        
+        
+        
+        int compareTo ( Calendar o) Compares this object with the specified object for order. Constants AM Added in API level 24 public static final int AM Value of the AM_PM field indicating the
+ period of the day from midnight to just before noon. Constant Value:
+      
+          0
+          (0x00000000) AM_PM Added in API level 24 public static final int AM_PM Field number for get and set indicating
+ whether the HOUR is before or after noon.
+ E.g., at 10:04:15.250 PM the AM_PM is PM . See also: AM PM HOUR Constant Value:
+      
+          9
+          (0x00000009) APRIL Added in API level 24 public static final int APRIL Value of the MONTH field indicating the
+ fourth month of the year. Constant Value:
+      
+          3
+          (0x00000003) AUGUST Added in API level 24 public static final int AUGUST Value of the MONTH field indicating the
+ eighth month of the year. Constant Value:
+      
+          7
+          (0x00000007) DATE Added in API level 24 public static final int DATE Field number for get and set indicating the
+ day of the month. This is a synonym for DAY_OF_MONTH .
+ The first day of the month has value 1. See also: DAY_OF_MONTH Constant Value:
+      
+          5
+          (0x00000005) DAY_OF_MONTH Added in API level 24 public static final int DAY_OF_MONTH Field number for get and set indicating the
+ day of the month. This is a synonym for DATE .
+ The first day of the month has value 1. See also: DATE Constant Value:
+      
+          5
+          (0x00000005) DAY_OF_WEEK Added in API level 24 public static final int DAY_OF_WEEK Field number for get and set indicating the day
+ of the week.  This field takes values SUNDAY , MONDAY , TUESDAY , WEDNESDAY , THURSDAY , FRIDAY , and SATURDAY . See also: SUNDAY MONDAY TUESDAY WEDNESDAY THURSDAY FRIDAY SATURDAY Constant Value:
+      
+          7
+          (0x00000007) DAY_OF_WEEK_IN_MONTH Added in API level 24 public static final int DAY_OF_WEEK_IN_MONTH Field number for get and set indicating the
+ ordinal number of the day of the week within the current month. Together
+ with the DAY_OF_WEEK field, this uniquely specifies a day
+ within a month.  Unlike WEEK_OF_MONTH and WEEK_OF_YEAR , this field's value does not depend on getFirstDayOfWeek() or getMinimalDaysInFirstWeek() . DAY_OF_MONTH 1 through 7 always correspond to DAY_OF_WEEK_IN_MONTH
+ 1 ; 8 through 15 correspond to DAY_OF_WEEK_IN_MONTH 2 , and so on. DAY_OF_WEEK_IN_MONTH 0 indicates the week before DAY_OF_WEEK_IN_MONTH 1 .  Negative values count back from the
+ end of the month, so the last Sunday of a month is specified as DAY_OF_WEEK = SUNDAY, DAY_OF_WEEK_IN_MONTH = -1 .  Because
+ negative values count backward they will usually be aligned differently
+ within the month than positive values.  For example, if a month has 31
+ days, DAY_OF_WEEK_IN_MONTH -1 will overlap DAY_OF_WEEK_IN_MONTH 5 and the end of 4 . See also: DAY_OF_WEEK WEEK_OF_MONTH Constant Value:
+      
+          8
+          (0x00000008) DAY_OF_YEAR Added in API level 24 public static final int DAY_OF_YEAR Field number for get and set indicating the day
+ number within the current year.  The first day of the year has value 1. Constant Value:
+      
+          6
+          (0x00000006) DECEMBER Added in API level 24 public static final int DECEMBER Value of the MONTH field indicating the
+ twelfth month of the year. Constant Value:
+      
+          11
+          (0x0000000b) DOW_LOCAL Added in API level 24 public static final int DOW_LOCAL [icu] Field number for get() and set() indicating the localized day of week.  This will be a value from 1
+ to 7 inclusive, with 1 being the localized first day of the week. Constant Value:
+      
+          18
+          (0x00000012) DST_OFFSET Added in API level 24 public static final int DST_OFFSET Field number for get and set indicating the
+ daylight savings offset in milliseconds. Constant Value:
+      
+          16
+          (0x00000010) EPOCH_JULIAN_DAY Added in API level 24 protected static final int EPOCH_JULIAN_DAY The Julian day of the epoch, that is, January 1, 1970 on the
+ Gregorian calendar. Constant Value:
+      
+          2440588
+          (0x00253d8c) ERA Added in API level 24 public static final int ERA Field number for get and set indicating the
+ era, e.g., AD or BC in the Julian calendar. This is a calendar-specific
+ value; see subclass documentation. See also: GregorianCalendar.AD GregorianCalendar.BC Constant Value:
+      
+          0
+          (0x00000000) EXTENDED_YEAR Added in API level 24 public static final int EXTENDED_YEAR [icu] Field number for get() and set() indicating the extended year.  This is a single number designating
+ the year of this calendar system, encompassing all supra-year
+ fields.  For example, for the Julian calendar system, year numbers
+ are positive, with an era of BCE or CE.  An extended year value for
+ the Julian calendar system assigns positive values to CE years and
+ negative values to BCE years, with 1 BCE being year 0. Constant Value:
+      
+          19
+          (0x00000013) FEBRUARY Added in API level 24 public static final int FEBRUARY Value of the MONTH field indicating the
+ second month of the year. Constant Value:
+      
+          1
+          (0x00000001) FRIDAY Added in API level 24 public static final int FRIDAY Value of the DAY_OF_WEEK field indicating
+ Friday. Constant Value:
+      
+          6
+          (0x00000006) GREATEST_MINIMUM Added in API level 24 protected static final int GREATEST_MINIMUM Limit type for getLimit() and handleGetLimit() indicating the greatest minimum value that a field can take. See also: getLimit(int, int) handleGetLimit(int, int) Constant Value:
+      
+          1
+          (0x00000001) HOUR Added in API level 24 public static final int HOUR Field number for get and set indicating the
+ hour of the morning or afternoon. HOUR is used for the 12-hour
+ clock.
+ E.g., at 10:04:15.250 PM the HOUR is 10. See also: AM_PM HOUR_OF_DAY Constant Value:
+      
+          10
+          (0x0000000a) HOUR_OF_DAY Added in API level 24 public static final int HOUR_OF_DAY Field number for get and set indicating the
+ hour of the day. HOUR_OF_DAY is used for the 24-hour clock.
+ E.g., at 10:04:15.250 PM the HOUR_OF_DAY is 22. See also: HOUR Constant Value:
+      
+          11
+          (0x0000000b) INTERNALLY_SET Added in API level 24 protected static final int INTERNALLY_SET Value of the time stamp stamp[] indicating that a field
+ has been set via computations from the time or from other fields. See also: UNSET MINIMUM_USER_STAMP Constant Value:
+      
+          1
+          (0x00000001) IS_LEAP_MONTH Added in API level 24 public static final int IS_LEAP_MONTH [icu] Field indicating whether or not the current month is a leap month.
+ Should have a value of 0 for non-leap months, and 1 for leap months. Constant Value:
+      
+          22
+          (0x00000016) JANUARY Added in API level 24 public static final int JANUARY Value of the MONTH field indicating the
+ first month of the year. Constant Value:
+      
+          0
+          (0x00000000) JAN_1_1_JULIAN_DAY Added in API level 24 protected static final int JAN_1_1_JULIAN_DAY The Julian day of the Gregorian epoch, that is, January 1, 1 on the
+ Gregorian calendar. Constant Value:
+      
+          1721426
+          (0x001a4452) JULIAN_DAY Added in API level 24 public static final int JULIAN_DAY [icu] Field number for get() and set() indicating the modified Julian day number.  This is different from
+ the conventional Julian day number in two regards.  First, it
+ demarcates days at local zone midnight, rather than noon GMT.
+ Second, it is a local number; that is, it depends on the local time
+ zone.  It can be thought of as a single number that encompasses all
+ the date-related fields. Constant Value:
+      
+          20
+          (0x00000014) JULY Added in API level 24 public static final int JULY Value of the MONTH field indicating the
+ seventh month of the year. Constant Value:
+      
+          6
+          (0x00000006) JUNE Added in API level 24 public static final int JUNE Value of the MONTH field indicating the
+ sixth month of the year. Constant Value:
+      
+          5
+          (0x00000005) LEAST_MAXIMUM Added in API level 24 protected static final int LEAST_MAXIMUM Limit type for getLimit() and handleGetLimit() indicating the least maximum value that a field can take. See also: getLimit(int, int) handleGetLimit(int, int) Constant Value:
+      
+          2
+          (0x00000002) MARCH Added in API level 24 public static final int MARCH Value of the MONTH field indicating the
+ third month of the year. Constant Value:
+      
+          2
+          (0x00000002) MAXIMUM Added in API level 24 protected static final int MAXIMUM Limit type for getLimit() and handleGetLimit() indicating the maximum value that a field can take (greatest maximum). See also: getLimit(int, int) handleGetLimit(int, int) Constant Value:
+      
+          3
+          (0x00000003) MAX_FIELD_COUNT Added in API level 24 Deprecated in API level
+      26 protected static final int MAX_FIELD_COUNT This constant was deprecated
+      in API level 26. ICU 58 The numeric value may change over time, see ICU ticket #12420. The maximum number of fields possible.  Subclasses must not define
+ more total fields than this number. Constant Value:
+      
+          32
+          (0x00000020) MAX_JULIAN Added in API level 24 protected static final int MAX_JULIAN The maximum supported Julian day.  This value is equivalent to MAX_MILLIS and MAX_DATE . See also: JULIAN_DAY Constant Value:
+      
+          2130706432
+          (0x7f000000) MAX_MILLIS Added in API level 24 protected static final long MAX_MILLIS The maximum supported epoch milliseconds.  This value is equivalent
+ to MAX_JULIAN and MAX_DATE . Constant Value:
+      
+          183882168921600000
+          (0x028d47dbbf19b000) MAY Added in API level 24 public static final int MAY Value of the MONTH field indicating the
+ fifth month of the year. Constant Value:
+      
+          4
+          (0x00000004) MILLISECOND Added in API level 24 public static final int MILLISECOND Field number for get and set indicating the
+ millisecond within the second.
+ E.g., at 10:04:15.250 PM the MILLISECOND is 250. Constant Value:
+      
+          14
+          (0x0000000e) MILLISECONDS_IN_DAY Added in API level 24 public static final int MILLISECONDS_IN_DAY [icu] Field number for get() and set() indicating the milliseconds in the day.  This ranges from 0 to
+ 23:59:59.999 (regardless of DST).  This field behaves exactly like a composite of all time-related fields, not
+ including the zone fields.  As such, it also reflects
+ discontinuities of those fields on DST transition days.  On a day of
+ DST onset, it will jump forward.  On a day of DST cessation, it will
+ jump backward.  This reflects the fact that is must be combined with
+ the DST_OFFSET field to obtain a unique local time value. Constant Value:
+      
+          21
+          (0x00000015) MINIMUM Added in API level 24 protected static final int MINIMUM Limit type for getLimit() and handleGetLimit() indicating the minimum value that a field can take (least minimum). See also: getLimit(int, int) handleGetLimit(int, int) Constant Value:
+      
+          0
+          (0x00000000) MINIMUM_USER_STAMP Added in API level 24 protected static final int MINIMUM_USER_STAMP If the time stamp stamp[] has a value greater than or
+ equal to MINIMUM_USER_SET then it has been set by the
+ user via a call to set() . See also: UNSET INTERNALLY_SET Constant Value:
+      
+          2
+          (0x00000002) MINUTE Added in API level 24 public static final int MINUTE Field number for get and set indicating the
+ minute within the hour.
+ E.g., at 10:04:15.250 PM the MINUTE is 4. Constant Value:
+      
+          12
+          (0x0000000c) MIN_JULIAN Added in API level 24 protected static final int MIN_JULIAN The minimum supported Julian day.  This value is equivalent to MIN_MILLIS and MIN_DATE . See also: JULIAN_DAY Constant Value:
+      
+          -2130706432
+          (0x81000000) MIN_MILLIS Added in API level 24 protected static final long MIN_MILLIS The minimum supported epoch milliseconds.  This value is equivalent
+ to MIN_JULIAN and MIN_DATE . Constant Value:
+      
+          -184303902528000000
+          (0xfd713893bf19b000) MONDAY Added in API level 24 public static final int MONDAY Value of the DAY_OF_WEEK field indicating
+ Monday. Constant Value:
+      
+          2
+          (0x00000002) MONTH Added in API level 24 public static final int MONTH Field number for get and set indicating the
+ month. This is a calendar-specific value. The first month of the year is JANUARY ; the last depends on the number of months in a year. See also: JANUARY FEBRUARY MARCH APRIL MAY JUNE JULY AUGUST SEPTEMBER OCTOBER NOVEMBER DECEMBER UNDECIMBER Constant Value:
+      
+          2
+          (0x00000002) NOVEMBER Added in API level 24 public static final int NOVEMBER Value of the MONTH field indicating the
+ eleventh month of the year. Constant Value:
+      
+          10
+          (0x0000000a) OCTOBER Added in API level 24 public static final int OCTOBER Value of the MONTH field indicating the
+ tenth month of the year. Constant Value:
+      
+          9
+          (0x00000009) ONE_DAY Added in API level 24 protected static final long ONE_DAY The number of milliseconds in one day.  Although ONE_DAY and
+ ONE_WEEK can fit into ints, they must be longs in order to prevent
+ arithmetic overflow when performing (bug 4173516). Constant Value:
+      
+          86400000
+          (0x0000000005265c00) ONE_HOUR Added in API level 24 protected static final int ONE_HOUR The number of milliseconds in one hour. Constant Value:
+      
+          3600000
+          (0x0036ee80) ONE_MINUTE Added in API level 24 protected static final int ONE_MINUTE The number of milliseconds in one minute. Constant Value:
+      
+          60000
+          (0x0000ea60) ONE_SECOND Added in API level 24 protected static final int ONE_SECOND The number of milliseconds in one second. Constant Value:
+      
+          1000
+          (0x000003e8) ONE_WEEK Added in API level 24 protected static final long ONE_WEEK The number of milliseconds in one week.  Although ONE_DAY and
+ ONE_WEEK can fit into ints, they must be longs in order to prevent
+ arithmetic overflow when performing (bug 4173516). Constant Value:
+      
+          604800000
+          (0x00000000240c8400) ORDINAL_MONTH Added in API level 36 public static final int ORDINAL_MONTH [icu] Field indicating the month. This is a calendar-specific value.
+ Differ from MONTH, this value is continuous and unique within a
+ year and range from 0 to 11 or 0 to 12 depending on how many months in a
+ year, the calendar system has leap month or not, and in leap year or not.
+ It is the ordinal position of that month in the corresponding year of
+ the calendar. For Chinese, Dangi, and Hebrew calendar, the range is
+ 0 to 11 in non-leap years and 0 to 12 in leap years. For Coptic and Ethiopian
+ calendar, the range is always 0 to 12. For other calendars supported by
+ ICU now, the range is 0 to 11. When the number of months in a year of the
+ identified calendar is variable, a different ORDINAL_MONTH value can
+ be used for dates that are part of the same named month in different years.
+ For example, in the Hebrew calendar, "1 Nisan 5781" is associated with
+ ORDINAL_MONTH value 6 while "1 Nisan 5782" is associated with
+ ORDINAL_MONTH value 7 because 5782 is a leap year and Nisan follows
+ the insertion of Adar I. In Chinese calendar, "Year 4664 Month 6 Day 2"
+ is associated with ORDINAL_MONTH value 5 while "Year 4665 Month 6 Day 2"
+ is associated with ORDINAL_MONTH value 6 because 4665 is a leap year
+ and there is an extra "Leap Month 5" which associated with ORDINAL_MONTH
+ value 5 before "Month 6" of year 4664. Constant Value:
+      
+          23
+          (0x00000017) PM Added in API level 24 public static final int PM Value of the AM_PM field indicating the
+ period of the day from noon to just before midnight. Constant Value:
+      
+          1
+          (0x00000001) RESOLVE_REMAP Added in API level 24 protected static final int RESOLVE_REMAP Value to OR against resolve table field values for remapping. See also: resolveFields(int) Constant Value:
+      
+          32
+          (0x00000020) SATURDAY Added in API level 24 public static final int SATURDAY Value of the DAY_OF_WEEK field indicating
+ Saturday. Constant Value:
+      
+          7
+          (0x00000007) SECOND Added in API level 24 public static final int SECOND Field number for get and set indicating the
+ second within the minute.
+ E.g., at 10:04:15.250 PM the SECOND is 15. Constant Value:
+      
+          13
+          (0x0000000d) SEPTEMBER Added in API level 24 public static final int SEPTEMBER Value of the MONTH field indicating the
+ ninth month of the year. Constant Value:
+      
+          8
+          (0x00000008) SUNDAY Added in API level 24 public static final int SUNDAY Value of the DAY_OF_WEEK field indicating
+ Sunday. Constant Value:
+      
+          1
+          (0x00000001) THURSDAY Added in API level 24 public static final int THURSDAY Value of the DAY_OF_WEEK field indicating
+ Thursday. Constant Value:
+      
+          5
+          (0x00000005) TUESDAY Added in API level 24 public static final int TUESDAY Value of the DAY_OF_WEEK field indicating
+ Tuesday. Constant Value:
+      
+          3
+          (0x00000003) UNDECIMBER Added in API level 24 public static final int UNDECIMBER Value of the MONTH field indicating the
+ thirteenth month of the year. Although GregorianCalendar does not use this value, lunar calendars do. Constant Value:
+      
+          12
+          (0x0000000c) UNSET Added in API level 24 protected static final int UNSET Value of the time stamp stamp[] indicating that
+ a field has not been set since the last call to clear() . See also: INTERNALLY_SET MINIMUM_USER_STAMP Constant Value:
+      
+          0
+          (0x00000000) WALLTIME_FIRST Added in API level 24 public static final int WALLTIME_FIRST [icu] Option used by setRepeatedWallTimeOption(int) and setSkippedWallTimeOption(int) specifying an ambiguous wall time
+ to be interpreted as the earliest. See also: setRepeatedWallTimeOption(int) getRepeatedWallTimeOption() setSkippedWallTimeOption(int) getSkippedWallTimeOption() Constant Value:
+      
+          1
+          (0x00000001) WALLTIME_LAST Added in API level 24 public static final int WALLTIME_LAST [icu] Option used by setRepeatedWallTimeOption(int) and setSkippedWallTimeOption(int) specifying an ambiguous wall time
+ to be interpreted as the latest. See also: setRepeatedWallTimeOption(int) getRepeatedWallTimeOption() setSkippedWallTimeOption(int) getSkippedWallTimeOption() Constant Value:
+      
+          0
+          (0x00000000) WALLTIME_NEXT_VALID Added in API level 24 public static final int WALLTIME_NEXT_VALID [icu] Option used by setSkippedWallTimeOption(int) specifying an
+ ambiguous wall time to be interpreted as the next valid wall time. See also: setSkippedWallTimeOption(int) getSkippedWallTimeOption() Constant Value:
+      
+          2
+          (0x00000002) WEDNESDAY Added in API level 24 public static final int WEDNESDAY Value of the DAY_OF_WEEK field indicating
+ Wednesday. Constant Value:
+      
+          4
+          (0x00000004) WEEK_OF_MONTH Added in API level 24 public static final int WEEK_OF_MONTH Field number for get and set indicating the
+ week number within the current month.  The first week of the month, as
+ defined by getFirstDayOfWeek() and getMinimalDaysInFirstWeek() , has value 1.  Subclasses define
+ the value of WEEK_OF_MONTH for days before the first week of
+ the month. See also: getFirstDayOfWeek() getMinimalDaysInFirstWeek() Constant Value:
+      
+          4
+          (0x00000004) WEEK_OF_YEAR Added in API level 24 public static final int WEEK_OF_YEAR Field number for get and set indicating the
+ week number within the current year.  The first week of the year, as
+ defined by getFirstDayOfWeek() and getMinimalDaysInFirstWeek() , has value 1.  Subclasses define
+ the value of WEEK_OF_YEAR for days before the first week of
+ the year. See also: getFirstDayOfWeek() getMinimalDaysInFirstWeek() Constant Value:
+      
+          3
+          (0x00000003) YEAR Added in API level 24 public static final int YEAR Field number for get and set indicating the
+ year. This is a calendar-specific value; see subclass documentation. Constant Value:
+      
+          1
+          (0x00000001) YEAR_WOY Added in API level 24 public static final int YEAR_WOY [icu] Field number for get() and set() indicating the extended year corresponding to the WEEK_OF_YEAR field.  This may be one greater or less
+ than the value of EXTENDED_YEAR . Constant Value:
+      
+          17
+          (0x00000011) ZONE_OFFSET Added in API level 24 public static final int ZONE_OFFSET Field number for get and set indicating the
+ raw offset from GMT in milliseconds. Constant Value:
+      
+          15
+          (0x0000000f) Fields MAX_DATE Added in API level 24 protected static final Date MAX_DATE The maximum supported Date .  This value is equivalent
+ to MAX_JULIAN and MAX_MILLIS . MIN_DATE Added in API level 24 protected static final Date MIN_DATE The minimum supported Date .  This value is equivalent
+ to MIN_JULIAN and MIN_MILLIS . Protected constructors Calendar Added in API level 24 protected Calendar () Constructs a Calendar with the default time zone
+ and the default FORMAT locale. See also: TimeZone.getDefault() ULocale.Category.FORMAT Calendar Added in API level 24 protected Calendar ( TimeZone zone, ULocale locale) Constructs a calendar with the specified time zone and locale. Parameters zone TimeZone : the time zone to use locale ULocale : the ulocale for the week data Calendar Added in API level 24 protected Calendar ( TimeZone zone, Locale aLocale) Constructs a calendar with the specified time zone and locale. Parameters zone TimeZone : the time zone to use aLocale Locale : the locale for the week data Public methods add Added in API level 24 public void add (int field, 
+                int amount) Add a signed amount to a specified field, using this calendar's rules.
+ For example, to add three days to the current date, you can call add(Calendar.DATE, 3) . When adding to certain fields, the values of other fields may conflict and
+ need to be changed.  For example, when adding one to the MONTH field
+ for the Gregorian date 1/31/96, the DAY_OF_MONTH field
+ must be adjusted so that the result is 2/29/96 rather than the invalid
+ 2/31/96. Adding a positive value always means moving forward in time, so for the Gregorian
+ calendar, starting with 100 BC and adding +1 to year results in 99 BC (even though
+ this actually reduces the numeric value of the field itself). [icu] Note: The ICU implementation of this method is able to add to
+ all fields except for ERA , DST_OFFSET ,
+ and ZONE_OFFSET .  Subclasses may, of course, add support for
+ additional fields in their overrides of add . Note: You should always use roll and add rather
+ than attempting to perform arithmetic operations directly on the fields
+ of a Calendar .  It is quite possible for Calendar subclasses
+ to have fields with non-linear behavior, for example missing months
+ or days during non-leap years.  The subclasses' add and roll methods will take this into account, while simple arithmetic manipulations
+ may give invalid results. Subclassing: This implementation of add assumes that the behavior of the
+ field is continuous between its minimum and maximum, which are found by
+ calling getActualMinimum and getActualMaximum .
+ For such fields, simple arithmetic operations are sufficient to
+ perform the add. Subclasses that have fields for which this assumption of continuity breaks
+ down must override add to handle those fields specially.
+ For example, in the Hebrew calendar the month "Adar I"
+ only occurs in leap years; in other years the calendar jumps from
+ Shevat (month #4) to Adar (month #6).  The HebrewCalendar.add method takes this into account,
+ so that adding one month
+ to a date in Shevat gives the proper result (Adar) in a non-leap year. Parameters field int : the time field. amount int : the amount to add to the field. Throws IllegalArgumentException if the field is invalid or refers
+              to a field that cannot be handled by this method. See also: roll(int, int) after Added in API level 24 public boolean after ( Object when) Compares the time field records.
+ Equivalent to comparing result of conversion to UTC. Parameters when Object : the Calendar to be compared with this Calendar. Returns boolean true if the current time of this Calendar is after
+ the time of Calendar when; false otherwise. before Added in API level 24 public boolean before ( Object when) Compares the time field records.
+ Equivalent to comparing result of conversion to UTC. Parameters when Object : the Calendar to be compared with this Calendar. Returns boolean true if the current time of this Calendar is before
+ the time of Calendar when; false otherwise. clear Added in API level 24 public final void clear () Clears the values of all the time fields. clear Added in API level 24 public final void clear (int field) Clears the value in the given time field. Parameters field int : the time field to be cleared. clone Added in API level 24 public Object clone () Overrides Cloneable Returns Object a clone of this instance. compareTo Added in API level 24 public int compareTo ( Calendar that) Compares the times (in millis) represented by two Calendar objects. Parameters that Calendar : the Calendar to compare to this. Returns int 0 if the time represented by
+ this Calendar is equal to the time represented
+ by that Calendar , a value less than 0 if the time represented by this is before
+ the time represented by that, and a value greater than 0 if the time represented by this
+ is after the time represented by that. Throws NullPointerException if that Calendar is null. IllegalArgumentException if the time of that Calendar can't be obtained because of invalid
+ calendar values. equals Added in API level 24 public boolean equals ( Object obj) Compares this calendar to the specified object.
+ The result is true if and only if the argument is
+ not null and is a Calendar object that
+ represents the same calendar as this object. Parameters obj Object : the object to compare with. Returns boolean true if the objects are the same; false otherwise. fieldDifference Added in API level 24 public int fieldDifference ( Date when, 
+                int field) [icu] Returns the difference between the given time and the time this
+ calendar object is set to.  If this calendar is set before the given time, the returned value will be
+ positive.  If this calendar is set after the given
+ time, the returned value will be negative.  The field parameter specifies the units of the return
+ value.  For example, if fieldDifference(when,
+ Calendar.MONTH) returns 3, then this calendar is set to
+ 3 months before when , and possibly some additional
+ time less than one month. As a side effect of this call, this calendar is advanced
+ toward when by the given amount.  That is, calling
+ this method has the side effect of calling add(field,
+ n) , where n is the return value. Usage: To use this method, call it first with the largest
+ field of interest, then with progressively smaller fields.  For
+ example: int y = cal.fieldDifference(when, Calendar.YEAR);
+ int m = cal.fieldDifference(when, Calendar.MONTH);
+ int d = cal.fieldDifference(when, Calendar.DATE); computes the difference between cal and when in years, months, and days. Note: fieldDifference() is asymmetrical .  That is, in the following code: cal.setTime(date1);
+ int m1 = cal.fieldDifference(date2, Calendar.MONTH);
+ int d1 = cal.fieldDifference(date2, Calendar.DATE);
+ cal.setTime(date2);
+ int m2 = cal.fieldDifference(date1, Calendar.MONTH);
+ int d2 = cal.fieldDifference(date1, Calendar.DATE); one might expect that m1 == -m2 && d1 == -d2 .
+ However, this is not generally the case, because of
+ irregularities in the underlying calendar system (e.g., the
+ Gregorian calendar has a varying number of days per month). Parameters when Date : the date to compare this calendar's time to field int : the field in which to compute the result Returns int the difference, either positive or negative, between
+ this calendar's time and when , in terms of field . get Added in API level 24 public final int get (int field) Returns the value for a given time field. Parameters field int : the given time field. Returns int the value for the given time field. getActualMaximum Added in API level 24 public int getActualMaximum (int field) Returns the maximum value that this field could have, given the
+ current date.  For example, with the Gregorian date February 3, 1997
+ and the DAY_OF_MONTH field, the actual maximum
+ is 28; for February 3, 1996 it is 29. The actual maximum computation ignores smaller fields and the
+ current value of like-sized fields.  For example, the actual maximum
+ of the DAY_OF_YEAR or MONTH depends only on the year and supra-year
+ fields.  The actual maximum of the DAY_OF_MONTH depends, in
+ addition, on the MONTH field and any other fields at that
+ granularity (such as IS_LEAP_MONTH).  The
+ DAY_OF_WEEK_IN_MONTH field does not depend on the current
+ DAY_OF_WEEK; it returns the maximum for any day of week in the
+ current month.  Likewise for the WEEK_OF_MONTH and WEEK_OF_YEAR
+ fields. Parameters field int : the field whose maximum is desired Returns int the maximum of the given field for the current date of this calendar See also: getMaximum(int) getLeastMaximum(int) getActualMinimum Added in API level 24 public int getActualMinimum (int field) Returns the minimum value that this field could have, given the current date.
+ For most fields, this is the same as getMinimum and getGreatestMinimum .  However, some fields,
+ especially those related to week number, are more complicated. For example, assume getMinimalDaysInFirstWeek returns 4 and getFirstDayOfWeek returns SUNDAY.
+ If the first day of the month is Sunday, Monday, Tuesday, or Wednesday
+ there will be four or more days in the first week, so it will be week number 1,
+ and getActualMinimum(WEEK_OF_MONTH) will return 1.  However,
+ if the first of the month is a Thursday, Friday, or Saturday, there are not four days in that week, so it is week number 0, and getActualMinimum(WEEK_OF_MONTH) will return 0. Parameters field int : the field whose actual minimum value is desired. Returns int the minimum of the given field for the current date of this calendar See also: getMinimum(int) getGreatestMinimum(int) getAvailableLocales Added in API level 24 public static Locale[] getAvailableLocales () Returns the list of locales for which Calendars are installed. Returns Locale[] the list of locales for which Calendars are installed. getDateTimeFormat Added in API level 24 public DateFormat getDateTimeFormat (int dateStyle, 
+                int timeStyle, ULocale loc) [icu] Returns a DateFormat appropriate to this calendar.
+ Subclasses wishing to specialize this behavior should override handleGetDateFormat(String, ULocale) . Parameters dateStyle int timeStyle int loc ULocale Returns DateFormat getDateTimeFormat Added in API level 24 public DateFormat getDateTimeFormat (int dateStyle, 
+                int timeStyle, Locale loc) [icu] Returns a DateFormat appropriate to this calendar.
+ Subclasses wishing to specialize this behavior should override handleGetDateFormat(String, ULocale) . Parameters dateStyle int timeStyle int loc Locale Returns DateFormat getDisplayName Added in API level 24 public String getDisplayName ( ULocale loc) Returns the name of this calendar in the language of the given locale. Parameters loc ULocale Returns String getDisplayName Added in API level 24 public String getDisplayName ( Locale loc) Returns the name of this calendar in the language of the given locale. Parameters loc Locale Returns String getFieldCount Added in API level 24 public final int getFieldCount () [icu] Returns the number of fields defined by this calendar.  Valid field
+ arguments to set() and get() are 0..getFieldCount()-1 . Returns int getFirstDayOfWeek Added in API level 24 public int getFirstDayOfWeek () Returns what the first day of the week is,
+ where 1 = SUNDAY and 7 = SATURDAY .
+ e.g., Sunday in US, Monday in France Returns int the first day of the week, where 1 = SUNDAY and 7 = SATURDAY . getGreatestMinimum Added in API level 24 public final int getGreatestMinimum (int field) Returns the highest minimum value for the given field if varies.
+ Otherwise same as getMinimum(). For Gregorian, no difference. Parameters field int : the given time field. Returns int the highest minimum value for the given time field. getInstance Added in API level 24 public static Calendar getInstance () Returns a calendar using the default time zone and locale. Returns Calendar a Calendar. getInstance Added in API level 24 public static Calendar getInstance ( Locale aLocale) Returns a calendar using the default time zone and specified locale. Parameters aLocale Locale : the locale for the week data Returns Calendar a Calendar. getInstance Added in API level 24 public static Calendar getInstance ( TimeZone zone, Locale aLocale) Returns a calendar with the specified time zone and locale. Parameters zone TimeZone : the time zone to use aLocale Locale : the locale for the week data Returns Calendar a Calendar. getInstance Added in API level 24 public static Calendar getInstance ( TimeZone zone, ULocale locale) Returns a calendar with the specified time zone and locale. Parameters zone TimeZone : the time zone to use locale ULocale : the ulocale for the week data Returns Calendar a Calendar. getInstance Added in API level 24 public static Calendar getInstance ( TimeZone zone) Returns a calendar using the specified time zone and default locale. Parameters zone TimeZone : the time zone to use Returns Calendar a Calendar. getInstance Added in API level 24 public static Calendar getInstance ( ULocale locale) Returns a calendar using the default time zone and specified locale. Parameters locale ULocale : the ulocale for the week data Returns Calendar a Calendar. getKeywordValuesForLocale Added in API level 24 public static final String[] getKeywordValuesForLocale ( String key, ULocale locale, 
+                boolean commonlyUsed) [icu] Given a key and a locale, returns an array of string values in a preferred
+ order that would make a difference. These are all and only those values where
+ the open (creation) of the service with the locale formed from the input locale
+ plus input keyword and that value has different behavior than creation with the
+ input locale alone. Parameters key String : one of the keys supported by this service.  For now, only
+                      "calendar" is supported. locale ULocale : the locale commonlyUsed boolean : if set to true it will return only commonly used values
+                      with the given locale in preferred order.  Otherwise,
+                      it will return all the available values for the locale. Returns String[] an array of string values for the given key and the locale. getLeastMaximum Added in API level 24 public final int getLeastMaximum (int field) Returns the lowest maximum value for the given field if varies.
+ Otherwise same as getMaximum(). e.g., for Gregorian DAY_OF_MONTH, 28. Parameters field int : the given time field. Returns int the lowest maximum value for the given time field. getMaximum Added in API level 24 public final int getMaximum (int field) Returns the maximum value for the given time field.
+ e.g. for Gregorian DAY_OF_MONTH, 31. Parameters field int : the given time field. Returns int the maximum value for the given time field. getMinimalDaysInFirstWeek Added in API level 24 public int getMinimalDaysInFirstWeek () Returns what the minimal days required in the first week of the year are.
+ That is, if the first week is defined as one that contains the first day
+ of the first month of a year, getMinimalDaysInFirstWeek returns 1. If
+ the minimal days required must be a full week, getMinimalDaysInFirstWeek
+ returns 7. Returns int the minimal days required in the first week of the year. getMinimum Added in API level 24 public final int getMinimum (int field) Returns the minimum value for the given time field.
+ e.g., for Gregorian DAY_OF_MONTH, 1. Parameters field int : the given time field. Returns int the minimum value for the given time field. getRepeatedWallTimeOption Added in API level 24 public int getRepeatedWallTimeOption () [icu] Gets the behavior for handling wall time repeating multiple times
+ at negative time zone offset transitions. Returns int the behavior for handling repeating wall time, either WALLTIME_FIRST or WALLTIME_LAST . See also: setRepeatedWallTimeOption(int) WALLTIME_FIRST WALLTIME_LAST getSkippedWallTimeOption Added in API level 24 public int getSkippedWallTimeOption () [icu] Gets the behavior for handling skipped wall time at positive time zone offset
+ transitions. Returns int the behavior for handling skipped wall time, one of WALLTIME_FIRST , WALLTIME_LAST and WALLTIME_NEXT_VALID . See also: setSkippedWallTimeOption(int) WALLTIME_FIRST WALLTIME_LAST WALLTIME_NEXT_VALID getTemporalMonthCode Added in API level 36 public String getTemporalMonthCode () Gets The Temporal monthCode value corresponding to the month for the date.
+ The value is a string identifier that starts with the literal grapheme
+ "M" followed by two graphemes representing the zero-padded month number
+ of the current month in a normal (non-leap) year and suffixed by an
+ optional literal grapheme "L" if this is a leap month in a lunisolar
+ calendar. The 25 possible values are "M01" .. "M13" and "M01L" .. "M12L".
+ For the Hebrew calendar, the values are "M01" .. "M12" for non-leap year, and
+ "M01" .. "M05", "M05L", "M06" .. "M12" for leap year.
+ For the Chinese calendar, the values are "M01" .. "M12" for non-leap year and
+ in leap year with another monthCode in "M01L" .. "M12L".
+ For Coptic and Ethiopian calendar, the Temporal monthCode values for any
+ years are "M01" to "M13". Returns String One of 25 possible strings in {"M01".."M13", "M01L".."M12L"}. getTime Added in API level 24 public final Date getTime () Returns this Calendar's current time. Returns Date the current time. getTimeInMillis Added in API level 24 public long getTimeInMillis () Returns this Calendar's current time as a long. Returns long the current time as UTC milliseconds from the epoch. getTimeZone Added in API level 24 public TimeZone getTimeZone () Returns the time zone. Returns TimeZone the time zone object associated with this calendar. getType Added in API level 24 public String getType () [icu] Returns the calendar type name string for this Calendar object.
+ The returned string is the legacy ICU calendar attribute value,
+ for example, "gregorian" or "japanese". See type="old type name" for the calendar attribute of locale IDs
+ at http://www.unicode.org/reports/tr35/#Key_Type_Definitions Returns String legacy calendar type name string getWeekData Added in API level 24 public Calendar.WeekData getWeekData () [icu] Return simple, immutable struct-like class for access to the week data in this calendar. Returns Calendar.WeekData the WeekData for this calendar. getWeekDataForRegion Added in API level 24 public static Calendar.WeekData getWeekDataForRegion ( String region) [icu] Return simple, immutable struct-like class for access to the CLDR week data. Parameters region String : The input region. The results are undefined if the region code is not valid. Returns Calendar.WeekData the WeekData for the input region. It is never null. hashCode Added in API level 24 public int hashCode () Returns a hash code for this calendar. Returns int a hash code value for this object. inTemporalLeapYear Added in API level 36 public boolean inTemporalLeapYear () [icu] Returns true if the date is in a leap year. Recalculate the current time
+ field values if the time value has been changed by a call to * setTime().
+ This method is semantically const, but may alter the object in memory.
+ A "leap year" is a year that contains more days than other years (for
+ solar or lunar calendars) or more months than other years (for lunisolar
+ calendars like Hebrew or Chinese), as defined in the ECMAScript Temporal
+ proposal. Returns boolean true if the date in the fields is in a Temporal proposal
+               defined leap year. False otherwise. isEquivalentTo Added in API level 24 public boolean isEquivalentTo ( Calendar other) [icu] Returns true if the given Calendar object is equivalent to this
+ one.  An equivalent Calendar will behave exactly as this one
+ does, but it may be set to a different time.  By contrast, for
+ the equals() method to return true, the other Calendar must
+ be set to the same time. Parameters other Calendar : the Calendar to be compared with this Calendar Returns boolean isLenient Added in API level 24 public boolean isLenient () Tell whether date/time interpretation is to be lenient. Returns boolean isSet Added in API level 24 public final boolean isSet (int field) Determines if the given time field has a value set. Parameters field int Returns boolean true if the given time field has a value set; false otherwise. isWeekend Added in API level 24 public boolean isWeekend ( Date date) [icu] Returns true if the given date and time is in the weekend in this calendar
+ system.  Equivalent to calling setTime() followed by isWeekend().  Note: This
+ method changes the time this calendar is set to. Parameters date Date : the date and time Returns boolean true if the given date and time is part of the
+ weekend See also: isWeekend() isWeekend Added in API level 24 public boolean isWeekend () [icu] Returns true if this Calendar's current date and time is in the weekend in
+ this calendar system. Returns boolean true if the given date and time is part of the
+ weekend See also: isWeekend(Date) roll Added in API level 24 public final void roll (int field, 
+                boolean up) Rolls (up/down) a single unit of time on the given field.  If the
+ field is rolled past its maximum allowable value, it will "wrap" back
+ to its minimum and continue rolling. For
+ example, to roll the current date up by one day, you can call: roll( DATE , true) When rolling on the YEAR field, it will roll the year
+ value in the range between 1 and the value returned by calling getMaximum ( YEAR ). When rolling on certain fields, the values of other fields may conflict and
+ need to be changed.  For example, when rolling the MONTH field
+ for the Gregorian date 1/31/96 upward, the DAY_OF_MONTH field
+ must be adjusted so that the result is 2/29/96 rather than the invalid
+ 2/31/96. Rolling up always means rolling forward in time (unless
+ the limit of the field is reached, in which case it may pin or wrap), so for the
+ Gregorian calendar, starting with 100 BC and rolling the year up results in 99 BC.
+ When eras have a definite beginning and end (as in the Chinese calendar, or as in
+ most eras in the Japanese calendar) then rolling the year past either limit of the
+ era will cause the year to wrap around. When eras only have a limit at one end,
+ then attempting to roll the year past that limit will result in pinning the year
+ at that limit. Note that for most calendars in which era 0 years move forward in
+ time (such as Buddhist, Hebrew, or Islamic), it is possible for add or roll to
+ result in negative years for era 0 (that is the only way to represent years before
+ the calendar epoch in such calendars). Note: Calling roll(field, true) N times is not necessarily equivalent to calling roll(field, N) .  For example,
+ imagine that you start with the date Gregorian date January 31, 1995.  If you call roll(Calendar.MONTH, 2) , the result will be March 31, 1995.
+ But if you call roll(Calendar.MONTH, true) , the result will be
+ February 28, 1995.  Calling it one more time will give March 28, 1995, which
+ is usually not the desired result. Note: You should always use roll and add rather
+ than attempting to perform arithmetic operations directly on the fields
+ of a Calendar .  It is quite possible for Calendar subclasses
+ to have fields with non-linear behavior, for example missing months
+ or days during non-leap years.  The subclasses' add and roll methods will take this into account, while simple arithmetic manipulations
+ may give invalid results. Parameters field int : the calendar field to roll. up boolean : indicates if the value of the specified time field is to be
+              rolled up or rolled down. Use true if rolling up, false otherwise. Throws IllegalArgumentException if the field is invalid or refers
+              to a field that cannot be handled by this method. See also: roll(int, int) add(int, int) roll Added in API level 24 public void roll (int field, 
+                int amount) Rolls (up/down) a specified amount time on the given field.  For
+ example, to roll the current date up by three days, you can call roll(Calendar.DATE, 3) .  If the
+ field is rolled past its maximum allowable value, it will "wrap" back
+ to its minimum and continue rolling.
+ For example, calling roll(Calendar.DATE, 10) on a Gregorian calendar set to 4/25/96 will result in the date 4/5/96. When rolling on certain fields, the values of other fields may conflict and
+ need to be changed.  For example, when rolling the MONTH field
+ for the Gregorian date 1/31/96 by +1, the DAY_OF_MONTH field
+ must be adjusted so that the result is 2/29/96 rather than the invalid
+ 2/31/96. Rolling by a positive value always means rolling forward in time (unless
+ the limit of the field is reached, in which case it may pin or wrap), so for the
+ Gregorian calendar, starting with 100 BC and rolling the year by + 1 results in 99 BC.
+ When eras have a definite beginning and end (as in the Chinese calendar, or as in
+ most eras in the Japanese calendar) then rolling the year past either limit of the
+ era will cause the year to wrap around. When eras only have a limit at one end,
+ then attempting to roll the year past that limit will result in pinning the year
+ at that limit. Note that for most calendars in which era 0 years move forward in
+ time (such as Buddhist, Hebrew, or Islamic), it is possible for add or roll to
+ result in negative years for era 0 (that is the only way to represent years before
+ the calendar epoch in such calendars). [icu] Note: the ICU implementation of this method is able to roll
+ all fields except for ERA , DST_OFFSET ,
+ and ZONE_OFFSET .  Subclasses may, of course, add support for
+ additional fields in their overrides of roll . Note: You should always use roll and add rather
+ than attempting to perform arithmetic operations directly on the fields
+ of a Calendar .  It is quite possible for Calendar subclasses
+ to have fields with non-linear behavior, for example missing months
+ or days during non-leap years.  The subclasses' add and roll methods will take this into account, while simple arithmetic manipulations
+ may give invalid results. Subclassing: This implementation of roll assumes that the behavior of the
+ field is continuous between its minimum and maximum, which are found by
+ calling getActualMinimum and getActualMaximum .
+ For most such fields, simple addition, subtraction, and modulus operations
+ are sufficient to perform the roll.  For week-related fields,
+ the results of getFirstDayOfWeek and getMinimalDaysInFirstWeek are also necessary.
+ Subclasses can override these two methods if their values differ from the defaults. Subclasses that have fields for which the assumption of continuity breaks
+ down must override roll to handle those fields specially.
+ For example, in the Hebrew calendar the month "Adar I"
+ only occurs in leap years; in other years the calendar jumps from
+ Shevat (month #4) to Adar (month #6).  The HebrewCalendar.roll method takes this into account,
+ so that rolling the month of Shevat by one gives the proper result (Adar) in a
+ non-leap year. Parameters field int : the calendar field to roll. amount int : the amount by which the field should be rolled. Throws IllegalArgumentException if the field is invalid or refers
+              to a field that cannot be handled by this method. See also: roll(int, boolean) add(int, int) set Added in API level 24 public final void set (int year, 
+                int month, 
+                int date, 
+                int hour, 
+                int minute, 
+                int second) Sets the values for the fields year, month, date, hour, minute, and second.
+ Previous values of other fields are retained.  If this is not desired,
+ call clear() first. Parameters year int : the value used to set the YEAR time field. month int : the value used to set the MONTH time field.
+ Month value is 0-based. e.g., 0 for January. date int : the value used to set the DATE time field. hour int : the value used to set the HOUR_OF_DAY time field. minute int : the value used to set the MINUTE time field. second int : the value used to set the SECOND time field. set Added in API level 24 public final void set (int year, 
+                int month, 
+                int date, 
+                int hour, 
+                int minute) Sets the values for the fields year, month, date, hour, and minute.
+ Previous values of other fields are retained.  If this is not desired,
+ call clear() first. Parameters year int : the value used to set the YEAR time field. month int : the value used to set the MONTH time field.
+ Month value is 0-based. e.g., 0 for January. date int : the value used to set the DATE time field. hour int : the value used to set the HOUR_OF_DAY time field. minute int : the value used to set the MINUTE time field. set Added in API level 24 public final void set (int field, 
+                int value) Sets the time field with the given value. Parameters field int : the given time field. value int : the value to be set for the given time field. set Added in API level 24 public final void set (int year, 
+                int month, 
+                int date) Sets the values for the fields year, month, and date.
+ Previous values of other fields are retained.  If this is not desired,
+ call clear() first. Parameters year int : the value used to set the YEAR time field. month int : the value used to set the MONTH time field.
+ Month value is 0-based. e.g., 0 for January. date int : the value used to set the DATE time field. setFirstDayOfWeek Added in API level 24 public void setFirstDayOfWeek (int value) Sets what the first day of the week is,
+ where 1 = SUNDAY and 7 = SATURDAY . Parameters value int : the given first day of the week, where 1 = SUNDAY and 7 = SATURDAY . setLenient Added in API level 24 public void setLenient (boolean lenient) Specify whether or not date/time interpretation is to be lenient.  With
+ lenient interpretation, a date such as "February 942, 1996" will be
+ treated as being equivalent to the 941st day after February 1, 1996.
+ With strict interpretation, such dates will cause an exception to be
+ thrown. Parameters lenient boolean See also: DateFormat.setLenient(boolean) setMinimalDaysInFirstWeek Added in API level 24 public void setMinimalDaysInFirstWeek (int value) Sets what the minimal days required in the first week of the year are.
+ For example, if the first week is defined as one that contains the first
+ day of the first month of a year, call the method with value 1. If it
+ must be a full week, use value 7. Parameters value int : the given minimal days required in the first week
+ of the year. setRepeatedWallTimeOption Added in API level 24 public void setRepeatedWallTimeOption (int option) [icu] Sets the behavior for handling wall time repeating multiple times
+ at negative time zone offset transitions. For example, 1:30 AM on
+ November 6, 2011 in US Eastern time (America/New_York) occurs twice;
+ 1:30 AM EDT, then 1:30 AM EST one hour later. When WALLTIME_FIRST is used, the wall time 1:30AM in this example will be interpreted as 1:30 AM EDT
+ (first occurrence). When WALLTIME_LAST is used, it will be
+ interpreted as 1:30 AM EST (last occurrence). The default value is WALLTIME_LAST . Parameters option int : the behavior for handling repeating wall time, either WALLTIME_FIRST or WALLTIME_LAST . Throws IllegalArgumentException when option is neither WALLTIME_FIRST nor WALLTIME_LAST . See also: getRepeatedWallTimeOption() WALLTIME_FIRST WALLTIME_LAST setSkippedWallTimeOption Added in API level 24 public void setSkippedWallTimeOption (int option) [icu] Sets the behavior for handling skipped wall time at positive time zone offset
+ transitions. For example, 2:30 AM on March 13, 2011 in US Eastern time (America/New_York)
+ does not exist because the wall time jump from 1:59 AM EST to 3:00 AM EDT. When WALLTIME_FIRST is used, 2:30 AM is interpreted as 30 minutes before 3:00 AM
+ EDT, therefore, it will be resolved as 1:30 AM EST. When WALLTIME_LAST is used, 2:30 AM is interpreted as 31 minutes after 1:59 AM EST, therefore, it will be
+ resolved as 3:30 AM EDT. When WALLTIME_NEXT_VALID is used, 2:30 AM will
+ be resolved as next valid wall time, that is 3:00 AM EDT. The default value is WALLTIME_LAST . Note: This option is effective only when this calendar is lenient .
+ When the calendar is strict, such non-existing wall time will cause an exception. Parameters option int : the behavior for handling skipped wall time at positive time zone
+ offset transitions, one of WALLTIME_FIRST , WALLTIME_LAST and WALLTIME_NEXT_VALID . Throws IllegalArgumentException when option is not any of WALLTIME_FIRST , WALLTIME_LAST and WALLTIME_NEXT_VALID . See also: getSkippedWallTimeOption() WALLTIME_FIRST WALLTIME_LAST WALLTIME_NEXT_VALID setTemporalMonthCode Added in API level 36 public void setTemporalMonthCode ( String temporalMonth) Sets The Temporal monthCode which is a string identifier that starts
+ with the literal grapheme "M" followed by two graphemes representing
+ the zero-padded month number of the current month in a normal
+ (non-leap) year and suffixed by an optional literal grapheme "L" if this
+ is a leap month in a lunisolar calendar. The 25 possible values are
+ "M01" .. "M13" and "M01L" .. "M12L". For Hebrew calendar, the values are
+ "M01" .. "M12" for non-leap years, and "M01" .. "M05", "M05L", "M06"
+ .. "M12" for leap year.
+ For the Chinese calendar, the values are "M01" .. "M12" for non-leap year and
+ in leap year with another monthCode in "M01L" .. "M12L".
+ For Coptic and Ethiopian calendar, the Temporal monthCode values for any
+ years are "M01" to "M13". Parameters temporalMonth String : One of 25 possible strings in {"M01".. "M12", "M13", "M01L",
+  "M12L"}. setTime Added in API level 24 public final void setTime ( Date date) Sets this Calendar's current time with the given Date. Note: Calling setTime with Date(Long.MAX_VALUE) or Date(Long.MIN_VALUE) may yield incorrect field values from get(int) . Parameters date Date : the given Date. setTimeInMillis Added in API level 24 public void setTimeInMillis (long millis) Sets this Calendar's current time from the given long value.
+ An IllegalIcuArgumentException is thrown when millis is outside the range permitted
+ by a Calendar object when in strict mode.
+ When in lenient mode the out of range values are pinned to their respective min/max. Parameters millis long : the new time in UTC milliseconds from the epoch. setTimeZone Added in API level 24 public void setTimeZone ( TimeZone value) Sets the time zone with the given time zone value. Parameters value TimeZone : the given time zone. setWeekData Added in API level 24 public Calendar setWeekData ( Calendar.WeekData wdata) [icu] Set data in this calendar based on the WeekData input. Parameters wdata Calendar.WeekData : The week data to use Returns Calendar this, for chaining toString Added in API level 24 public String toString () Returns a string representation of this calendar. This method
+ is intended to be used only for debugging purposes, and the
+ format of the returned string may vary between implementations.
+ The returned string may be empty but may not be null . Returns String a string representation of this calendar. Protected methods complete Added in API level 24 protected void complete () Fills in any unset fields in the time field list. computeFields Added in API level 24 protected void computeFields () Converts the current millisecond time value time to
+ field values in fields[] .  This synchronizes the time
+ field values with a new time that is set for the calendar.  The time
+ is not recomputed first; to recompute the time, then the
+ fields, call the complete method. See also: complete() computeGregorianFields Added in API level 24 protected final void computeGregorianFields (int julianDay) Compute the Gregorian calendar year, month, and day of month from the
+ Julian day.  These values are not stored in fields, but in member
+ variables gregorianXxx.  They are used for time zone computations and by
+ subclasses that are Gregorian derivatives.  Subclasses may call this
+ method to perform a Gregorian calendar millis->fields computation.
+ To perform a Gregorian calendar fields->millis computation, call
+ computeGregorianMonthStart(). Parameters julianDay int See also: computeGregorianMonthStart(int, int) computeGregorianMonthStart Added in API level 24 protected int computeGregorianMonthStart (int year, 
+                int month) Compute the Julian day of a month of the Gregorian calendar.
+ Subclasses may call this method to perform a Gregorian calendar
+ fields->millis computation.  To perform a Gregorian calendar
+ millis->fields computation, call computeGregorianFields(). Parameters year int : extended Gregorian year month int : zero-based Gregorian month Returns int the Julian day number of the day before the first
+ day of the given month in the given extended year See also: computeGregorianFields(int) computeJulianDay Added in API level 24 protected int computeJulianDay () Compute the Julian day number as specified by this calendar's fields. Returns int computeMillisInDay Added in API level 24 Deprecated in API level
+      26 protected int computeMillisInDay () This method was deprecated
+      in API level 26. ICU 60 Compute the milliseconds in the day from the fields.  This is a
+ value from 0 to 23:59:59.999 inclusive, unless fields are out of
+ range, in which case it can be an arbitrary value.  This value
+ reflects local zone wall time. Returns int computeTime Added in API level 24 protected void computeTime () Converts the current field values in fields[] to the
+ millisecond time value time . computeZoneOffset Added in API level 24 Deprecated in API level
+      26 protected int computeZoneOffset (long millis, 
+                int millisInDay) This method was deprecated
+      in API level 26. ICU 60 This method can assume EXTENDED_YEAR has been set. Parameters millis long : milliseconds of the date fields (local midnight millis) millisInDay int : milliseconds of the time fields; may be out
+ or range. Returns int total zone offset (raw + DST) for the given moment fieldName Added in API level 24 protected String fieldName (int field) Returns a string name for a field, for debugging and exceptions. Parameters field int Returns String floorDivide Added in API level 24 protected static final int floorDivide (int numerator, 
+                int denominator, 
+                int[] remainder) Divide two integers, returning the floor of the quotient, and
+ the modulus remainder. Unlike the built-in division, this is mathematically well-behaved.
+ E.g., -1/4 => 0 and -1%4 => -1,
+ but floorDivide(-1,4) => -1 with remainder[0] => 3. Parameters numerator int : the numerator denominator int : a divisor which must be > 0 remainder int : an array of at least one element in which the value numerator mod denominator is returned. Unlike numerator
+ % denominator , this will always be non-negative. Returns int the floor of the quotient. floorDivide Added in API level 24 protected static final int floorDivide (int numerator, 
+                int denominator) Divide two integers, returning the floor of the quotient. Unlike the built-in division, this is mathematically well-behaved.
+ E.g., -1/4 => 0
+ but floorDivide(-1,4) => -1. Parameters numerator int : the numerator denominator int : a divisor which must be > 0 Returns int the floor of the quotient. floorDivide Added in API level 24 protected static final long floorDivide (long numerator, 
+                long denominator) Divide two long integers, returning the floor of the quotient. Unlike the built-in division, this is mathematically well-behaved.
+ E.g., -1/4 => 0
+ but floorDivide(-1,4) => -1. Parameters numerator long : the numerator denominator long : a divisor which must be > 0 Returns long the floor of the quotient. floorDivide Added in API level 24 protected static final int floorDivide (long numerator, 
+                int denominator, 
+                int[] remainder) Divide two integers, returning the floor of the quotient, and
+ the modulus remainder. Unlike the built-in division, this is mathematically well-behaved.
+ E.g., -1/4 => 0 and -1%4 => -1,
+ but floorDivide(-1,4) => -1 with remainder[0] => 3. Parameters numerator long : the numerator denominator int : a divisor which must be > 0 remainder int : an array of at least one element in which the value numerator mod denominator is returned. Unlike numerator
+ % denominator , this will always be non-negative. Returns int the floor of the quotient. getFieldResolutionTable Added in API level 24 protected int[][][] getFieldResolutionTable () Returns the field resolution array for this calendar.  Calendars that
+ define additional fields or change the semantics of existing fields
+ should override this method to adjust the field resolution semantics
+ accordingly.  Other subclasses should not override this method. Returns int[][][] See also: resolveFields(int) getGregorianDayOfMonth Added in API level 24 protected final int getGregorianDayOfMonth () Returns the day of month (1-based) on the Gregorian calendar as
+ computed by computeGregorianFields() . Returns int See also: computeGregorianFields(int) getGregorianDayOfYear Added in API level 24 protected final int getGregorianDayOfYear () Returns the day of year (1-based) on the Gregorian calendar as
+ computed by computeGregorianFields() . Returns int See also: computeGregorianFields(int) getGregorianMonth Added in API level 24 protected final int getGregorianMonth () Returns the month (0-based) on the Gregorian calendar as computed by computeGregorianFields() . Returns int See also: computeGregorianFields(int) getGregorianYear Added in API level 24 protected final int getGregorianYear () Returns the extended year on the Gregorian calendar as computed by computeGregorianFields() . Returns int See also: computeGregorianFields(int) getLimit Added in API level 24 protected int getLimit (int field, 
+                int limitType) Returns a limit for a field. Parameters field int : the field, from 0.. getFieldCount()-1 limitType int : the type specifier for the limit Returns int See also: MINIMUM GREATEST_MINIMUM LEAST_MAXIMUM MAXIMUM getStamp Added in API level 24 protected final int getStamp (int field) Returns the timestamp of a field. Parameters field int Returns int gregorianMonthLength Added in API level 24 protected static final int gregorianMonthLength (int y, 
+                int m) Returns the length of a month of the Gregorian calendar. Parameters y int : the extended year m int : the 0-based month number Returns int the number of days in the given month gregorianPreviousMonthLength Added in API level 24 protected static final int gregorianPreviousMonthLength (int y, 
+                int m) Returns the length of a previous month of the Gregorian calendar. Parameters y int : the extended year m int : the 0-based month number Returns int the number of days in the month previous to the given month handleComputeFields Added in API level 24 protected void handleComputeFields (int julianDay) Subclasses may override this method to compute several fields
+ specific to each calendar system.  These are: ERA YEAR MONTH DAY_OF_MONTH DAY_OF_YEAR EXTENDED_YEAR Subclasses can refer to the DAY_OF_WEEK and DOW_LOCAL fields, which
+ will be set when this method is called.  Subclasses can also call
+ the getGregorianXxx() methods to obtain Gregorian calendar
+ equivalents for the given Julian day. In addition, subclasses should compute any subclass-specific
+ fields, that is, fields from BASE_FIELD_COUNT to
+ getFieldCount() - 1. The default implementation in Calendar implements
+ a pure proleptic Gregorian calendar. Parameters julianDay int handleComputeJulianDay Added in API level 24 protected int handleComputeJulianDay (int bestField) Subclasses may override this.  This method calls
+ handleGetMonthLength() to obtain the calendar-specific month
+ length. Parameters bestField int Returns int handleComputeMonthStart Added in API level 24 protected abstract int handleComputeMonthStart (int eyear, 
+                int month, 
+                boolean useMonth) Returns the Julian day number of day before the first day of the
+ given month in the given extended year.  Subclasses should override
+ this method to implement their calendar system. Parameters eyear int : the extended year month int : the zero-based month, or 0 if useMonth is false useMonth boolean : if false, compute the day before the first day of
+ the given year, otherwise, compute the day before the first day of
+ the given month Returns int the Julian day number of the day before the first
+ day of the given month and year handleCreateFields Added in API level 24 protected int[] handleCreateFields () Subclasses that use additional fields beyond those defined in Calendar should override this method to return an int[] array of the appropriate length.  The length
+ must be at least BASE_FIELD_COUNT and no more than MAX_FIELD_COUNT . Returns int[] handleGetDateFormat Added in API level 24 protected DateFormat handleGetDateFormat ( String pattern, String override, Locale locale) Creates a DateFormat appropriate to this calendar.
+ This is a framework method for subclasses to override.  This method
+ is responsible for creating the calendar-specific DateFormat and
+ DateFormatSymbols objects as needed. Parameters pattern String : the pattern, specific to the DateFormat subclass override String : The override string.  A numbering system override string can take one of the following forms:
+     1). If just a numbering system name is specified, it applies to all numeric fields in the date format pattern.
+     2). To specify an alternate numbering system on a field by field basis, use the field letters from the pattern
+         followed by an = sign, followed by the numbering system name.  For example, to specify that just the year
+         be formatted using Hebrew digits, use the override "y=hebr".  Multiple overrides can be specified in a single
+         string by separating them with a semi-colon. For example, the override string "m=thai;y=deva" would format using
+         Thai digits for the month and Devanagari digits for the year. locale Locale : the locale for which the symbols should be drawn Returns DateFormat a DateFormat appropriate to this calendar handleGetDateFormat Added in API level 24 protected DateFormat handleGetDateFormat ( String pattern, ULocale locale) Creates a DateFormat appropriate to this calendar.
+ This is a framework method for subclasses to override.  This method
+ is responsible for creating the calendar-specific DateFormat and
+ DateFormatSymbols objects as needed. Parameters pattern String : the pattern, specific to the DateFormat subclass locale ULocale : the locale for which the symbols should be drawn Returns DateFormat a DateFormat appropriate to this calendar handleGetDateFormat Added in API level 24 protected DateFormat handleGetDateFormat ( String pattern, Locale locale) Creates a DateFormat appropriate to this calendar.
+ This is a framework method for subclasses to override.  This method
+ is responsible for creating the calendar-specific DateFormat and
+ DateFormatSymbols objects as needed. Parameters pattern String : the pattern, specific to the DateFormat subclass locale Locale : the locale for which the symbols should be drawn Returns DateFormat a DateFormat appropriate to this calendar handleGetExtendedYear Added in API level 24 protected abstract int handleGetExtendedYear () Returns the extended year defined by the current fields.  This will
+ use the EXTENDED_YEAR field or the YEAR and supra-year fields (such
+ as ERA) specific to the calendar system, depending on which set of
+ fields is newer. Returns int the extended year handleGetLimit Added in API level 24 protected abstract int handleGetLimit (int field, 
+                int limitType) Subclass API for defining limits of different types.
+ Subclasses must implement this method to return limits for the
+ following fields: ERA
+ YEAR
+ MONTH
+ WEEK_OF_YEAR
+ WEEK_OF_MONTH
+ DAY_OF_MONTH
+ DAY_OF_YEAR
+ DAY_OF_WEEK_IN_MONTH
+ YEAR_WOY
+ EXTENDED_YEAR Parameters field int : one of the above field numbers limitType int : one of MINIMUM , GREATEST_MINIMUM , LEAST_MAXIMUM , or MAXIMUM Returns int handleGetMonthLength Added in API level 24 protected int handleGetMonthLength (int extendedYear, 
+                int month) Returns the number of days in the given month of the given extended
+ year of this calendar system.  Subclasses should override this
+ method if they can provide a more correct or more efficient
+ implementation than the default implementation in Calendar. Parameters extendedYear int month int Returns int handleGetYearLength Added in API level 24 protected int handleGetYearLength (int eyear) Returns the number of days in the given extended year of this
+ calendar system.  Subclasses should override this method if they can
+ provide a more correct or more efficient implementation than the
+ default implementation in Calendar. Parameters eyear int Returns int internalGet Added in API level 24 protected final int internalGet (int field) Returns the value for a given time field.  This is an internal method
+ for subclasses that does not trigger any calculations. Parameters field int : the given time field. Returns int the value for the given time field. internalGet Added in API level 24 protected final int internalGet (int field, 
+                int defaultValue) Returns the value for a given time field, or return the given default
+ value if the field is not set.  This is an internal method for
+ subclasses that does not trigger any calculations. Parameters field int : the given time field. defaultValue int : value to return if field is not set Returns int the value for the given time field of defaultValue if the
+ field is unset internalGetTimeInMillis Added in API level 24 protected final long internalGetTimeInMillis () Returns the current milliseconds without recomputing. Returns long internalSet Added in API level 24 protected final void internalSet (int field, 
+                int value) Set a field to a value.  Subclasses should use this method when
+ computing fields.  It sets the time stamp in the stamp[] array to INTERNALLY_SET .  If a
+ field that may not be set by subclasses is passed in, an IllegalArgumentException is thrown.  This prevents
+ subclasses from modifying fields that are intended to be
+ calendar-system invariant. Parameters field int value int isGregorianLeapYear Added in API level 24 protected static final boolean isGregorianLeapYear (int year) Determines if the given year is a leap year. Returns true if the
+ given year is a leap year. Parameters year int : the given year. Returns boolean true if the given year is a leap year; false otherwise. julianDayToDayOfWeek Added in API level 24 protected static final int julianDayToDayOfWeek (int julian) Returns the day of week, from SUNDAY to SATURDAY, given a Julian day. Parameters julian int Returns int julianDayToMillis Added in API level 24 protected static final long julianDayToMillis (int julian) Converts Julian day to time as milliseconds. Parameters julian int : the given Julian day number. Returns long time as milliseconds. millisToJulianDay Added in API level 24 protected static final int millisToJulianDay (long millis) Converts time as milliseconds to Julian day. Parameters millis long : the given milliseconds. Returns int the Julian day number. newerField Added in API level 24 protected int newerField (int defaultField, 
+                int alternateField) Returns the field that is newer, either defaultField, or
+ alternateField.  If neither is newer or neither is set, return defaultField. Parameters defaultField int alternateField int Returns int newestStamp Added in API level 24 protected int newestStamp (int first, 
+                int last, 
+                int bestStampSoFar) Returns the newest stamp of a given range of fields. Parameters first int last int bestStampSoFar int Returns int pinField Added in API level 24 protected void pinField (int field) Adjust the specified field so that it is within
+ the allowable range for the date to which this calendar is set.
+ For example, in a Gregorian calendar pinning the DAY_OF_MONTH field for a calendar set to April 31 would cause it to be set
+ to April 30. Subclassing: This utility method is intended for use by subclasses that need to implement
+ their own overrides of roll and add . Note: pinField is implemented in terms of getActualMinimum and getActualMaximum .  If either of those methods uses
+ a slow, iterative algorithm for a particular field, it would be
+ unwise to attempt to call pinField for that field.  If you
+ really do need to do so, you should override this method to do
+ something more efficient for that field. Parameters field int : The calendar field whose value should be pinned. See also: getActualMinimum(int) getActualMaximum(int) prepareGetActual Added in API level 24 protected void prepareGetActual (int field, 
+                boolean isMinimum) Prepare this calendar for computing the actual minimum or maximum.
+ This method modifies this calendar's fields; it is called on a
+ temporary calendar. Rationale: The semantics of getActualXxx() is to return the
+ maximum or minimum value that the given field can take, taking into
+ account other relevant fields.  In general these other fields are
+ larger fields.  For example, when computing the actual maximum
+ DAY_OF_MONTH, the current value of DAY_OF_MONTH itself is ignored,
+ as is the value of any field smaller. The time fields all have fixed minima and maxima, so we don't
+ need to worry about them.  This also lets us set the
+ MILLISECONDS_IN_DAY to zero to erase any effects the time fields
+ might have when computing date fields. DAY_OF_WEEK is adjusted specially for the WEEK_OF_MONTH and
+ WEEK_OF_YEAR fields to ensure that they are computed correctly. Parameters field int isMinimum boolean resolveFields Added in API level 24 protected int resolveFields (int[][][] precedenceTable) Given a precedence table, return the newest field combination in
+ the table, or -1 if none is found. The precedence table is a 3-dimensional array of integers.  It
+ may be thought of as an array of groups.  Each group is an array of
+ lines.  Each line is an array of field numbers.  Within a line, if
+ all fields are set, then the time stamp of the line is taken to be
+ the stamp of the most recently set field.  If any field of a line is
+ unset, then the line fails to match.  Within a group, the line with
+ the newest time stamp is selected.  The first field of the line is
+ returned to indicate which line matched. In some cases, it may be desirable to map a line to field that
+ whose stamp is NOT examined.  For example, if the best field is
+ DAY_OF_WEEK then the DAY_OF_WEEK_IN_MONTH algorithm may be used.  In
+ order to do this, insert the value REMAP_RESOLVE | F at
+ the start of the line, where F is the desired return
+ field value.  This field will NOT be examined; it only determines
+ the return value if the other fields in the line are the newest. If all lines of a group contain at least one unset field, then no
+ line will match, and the group as a whole will fail to match.  In
+ that case, the next group will be processed.  If all groups fail to
+ match, then -1 is returned. Parameters precedenceTable int Returns int validateField Added in API level 24 protected void validateField (int field) Validate a single field of this calendar.  Subclasses should
+ override this method to validate any calendar-specific fields.
+ Generic fields can be handled by Calendar.validateField() . Parameters field int See also: validateField(int, int, int) validateField Added in API level 24 protected final void validateField (int field, 
+                int min, 
+                int max) Validate a single field of this calendar given its minimum and
+ maximum allowed value.  If the field is out of range, throw a
+ descriptive IllegalArgumentException .  Subclasses may
+ use this method in their implementation of validateField(int) . Parameters field int min int max int validateFields Added in API level 24 protected void validateFields () Ensure that each field is within its valid range by calling validateField(int) on each field that has been set.  This method
+ should only be called if this calendar is not lenient. See also: isLenient() validateField(int) weekNumber Added in API level 24 protected int weekNumber (int desiredDay, 
+                int dayOfPeriod, 
+                int dayOfWeek) Returns the week number of a day, within a period. This may be the week number in
+ a year or the week number in a month. Usually this will be a value >= 1, but if
+ some initial days of the period are excluded from week 1, because getMinimalDaysInFirstWeek is > 1, then
+ the week number will be zero for those
+ initial days. This method requires the day number and day of week for some
+ known date in the period in order to determine the day of week
+ on the desired day. Subclassing: This method is intended for use by subclasses in implementing their computeTime and/or computeFields methods.
+ It is often useful in getActualMinimum and getActualMaximum as well. This variant is handy for computing the week number of some other
+ day of a period (often the first or last day of the period) when its day
+ of the week is not known but the day number and day of week for some other
+ day in the period (e.g. the current date) is known. Parameters desiredDay int : The DAY_OF_YEAR or DAY_OF_MONTH whose week number is desired.
+              Should be 1 for the first day of the period. dayOfPeriod int : The DAY_OF_YEAR or DAY_OF_MONTH for a day in the period whose DAY_OF_WEEK is specified by the dayOfWeek parameter.
+              Should be 1 for first day of period. dayOfWeek int : The DAY_OF_WEEK for the day
+              corresponding to the dayOfPeriod parameter.
+              1-based with 1=Sunday. Returns int The week number (one-based), or zero if the day falls before
+              the first week because getMinimalDaysInFirstWeek is more than one. weekNumber Added in API level 24 protected final int weekNumber (int dayOfPeriod, 
+                int dayOfWeek) Returns the week number of a day, within a period. This may be the week number in
+ a year, or the week number in a month. Usually this will be a value >= 1, but if
+ some initial days of the period are excluded from week 1, because getMinimalDaysInFirstWeek is > 1,
+ then the week number will be zero for those
+ initial days. This method requires the day of week for the given date in order to
+ determine the result. Subclassing: This method is intended for use by subclasses in implementing their computeTime and/or computeFields methods.
+ It is often useful in getActualMinimum and getActualMaximum as well. Parameters dayOfPeriod int : The DAY_OF_YEAR or DAY_OF_MONTH whose week number is desired.
+                      Should be 1 for the first day of the period. dayOfWeek int : The DAY_OF_WEEK for the day
+                      corresponding to the dayOfPeriod parameter.
+                      1-based with 1=Sunday. Returns int The week number (one-based), or zero if the day falls before
+              the first week because getMinimalDaysInFirstWeek is more than one.</body></html>

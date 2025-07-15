@@ -1,0 +1,85 @@
+<html><head><title>Class Documentation</title></head><body>PresentationSession Kotlin | Java public
+  
+  
+  abstract
+  class
+  PresentationSession extends Object java.lang.Object ↳ android.security.identity.PresentationSession Class for presenting multiple documents to a remote verifier. This should be used for all interactions with a remote verifier instead of the now deprecated IdentityCredential.getEntries(byte[], Map, byte[], byte[]) method.
+
+ Use IdentityCredentialStore.createPresentationSession(int) to create a PresentationSession instance. Summary Public methods abstract CredentialDataResult getCredentialData ( String credentialName, CredentialDataRequest request) Retrieves data from a named credential in the current presentation session. abstract KeyPair getEphemeralKeyPair () Gets the ephemeral key pair to use to establish a secure channel with the verifier. abstract
+        
+        
+        
+        
+        void setReaderEphemeralPublicKey ( PublicKey readerEphemeralPublicKey) Set the ephemeral public key provided by the verifier. abstract
+        
+        
+        
+        
+        void setSessionTranscript (byte[] sessionTranscript) Set the session transcript. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public methods getCredentialData Added in API level 33 public abstract CredentialDataResult getCredentialData ( String credentialName, CredentialDataRequest request) Retrieves data from a named credential in the current presentation session. If an access control check fails for one of the requested entries or if the entry
+ doesn't exist, the entry is simply not returned. The application can detect this
+ by using the CredentialDataResult.Entries.getStatus(String, String) method on
+ each of the requested entries. The application should not make any assumptions on whether user authentication is needed.
+ Instead, the application should request the data elements values first and then examine
+ the returned CredentialDataResult.Entries . If CredentialDataResult.Entries.STATUS_USER_AUTHENTICATION_FAILED is returned the
+ application should get a BiometricPrompt.CryptoObject which references this
+ object and use it with a BiometricPrompt . Upon successful
+ authentication the application may call getCredentialData(java.lang.String, android.security.identity.CredentialDataRequest) again. It is permissible to call this method multiple times using the same credential name.
+ If this is done the same auth-key will be used. If the reader signature is set in the request parameter (via the CredentialDataRequest.Builder.setReaderSignature(byte[]) method) it must contain
+ the bytes of a COSE_Sign1 structure as defined in RFC 8152. For the payload nil shall be used and the detached payload is the ReaderAuthenticationBytes CBOR described below. ReaderAuthentication = [
+       "ReaderAuthentication",
+       SessionTranscript,
+       ItemsRequestBytes
+     ]
+
+     ItemsRequestBytes = #6.24(bstr .cbor ItemsRequest)
+
+     ReaderAuthenticationBytes = #6.24(bstr .cbor ReaderAuthentication) where ItemsRequestBytes are the bytes of the request message set in
+ the request parameter (via the CredentialDataRequest.Builder.setRequestMessage(byte[]) method). The public key corresponding to the key used to make the signature, can be found in the x5chain unprotected header element of the COSE_Sign1 structure (as as
+ described in draft-ietf-cose-x509-08 ).
+ There will be at least one certificate in said element and there may be more (and if so,
+ each certificate must be signed by its successor). Data elements protected by reader authentication are returned if, and only if, requestMessage is signed by the top-most certificate in the reader's certificate
+ chain, and the data element is configured with an AccessControlProfile configured
+ with an X.509 certificate for a key which appear in the certificate chain. Note that the request message CBOR is used only for enforcing reader authentication, it's
+ not used for determining which entries this API will return. The application is expected to
+ have parsed the request message and filtered it according to user preference and/or consent. Parameters credentialName String : the name of the credential to retrieve.
+ This value cannot be null . request CredentialDataRequest : the data to retrieve from the credential
+ This value cannot be null . Returns CredentialDataResult If the credential wasn't found, returns null. Otherwise a CredentialDataResult object containing entry data organized by namespace and
+         a cryptographically authenticated representation of the same data, bound to the
+         current session. Throws NoAuthenticationKeyAvailableException if authentication keys were never
+                                                provisioned for the credential or if they
+                                                are expired or exhausted their use-count. InvalidRequestMessageException if the requestMessage is malformed. InvalidReaderSignatureException if the reader signature is invalid, or it
+                                                doesn't contain a certificate chain, or if
+                                                the signature failed to validate. EphemeralPublicKeyNotFoundException if the ephemeral public key was not found in
+                                                the session transcript. getEphemeralKeyPair Added in API level 33 public abstract KeyPair getEphemeralKeyPair () Gets the ephemeral key pair to use to establish a secure channel with the verifier. Applications should use this key-pair for the communications channel with the verifier
+ using a protocol / cipher-suite appropriate for the application. One example of such a
+ protocol is the one used for Mobile Driving Licenses, see ISO 18013-5. The ephemeral key pair is tied to the PresentationSession instance so subsequent
+ calls to this method will return the same key-pair. Returns KeyPair ephemeral key pair to use to establish a secure channel with a reader.
+
+ This value cannot be null . setReaderEphemeralPublicKey Added in API level 33 public abstract void setReaderEphemeralPublicKey ( PublicKey readerEphemeralPublicKey) Set the ephemeral public key provided by the verifier. If called, this must be called before any calls to getCredentialData(java.lang.String, android.security.identity.CredentialDataRequest) . This method can only be called once per PresentationSession instance. Parameters readerEphemeralPublicKey PublicKey : The ephemeral public key provided by the reader to
+                                 establish a secure session.
+ This value cannot be null . Throws InvalidKeyException if the given key is invalid. setSessionTranscript Added in API level 33 public abstract void setSessionTranscript (byte[] sessionTranscript) Set the session transcript. If called, this must be called before any calls to getCredentialData(java.lang.String, android.security.identity.CredentialDataRequest) . If mdoc session encryption is used (e.g. if getEphemeralKeyPair() has been
+ called) then the X and Y coordinates of the public part of the key-pair returned by getEphemeralKeyPair() must appear somewhere in the bytes of the passed in CBOR.  Each of
+ these coordinates must appear encoded with the most significant bits first and use the exact
+ amount of bits indicated by the key size of the ephemeral keys. For example, if the
+ ephemeral key is using the P-256 curve then the 32 bytes for the X coordinate encoded with
+ the most significant bits first must appear somewhere and ditto for the 32 bytes for the Y
+ coordinate. This method can only be called once per PresentationSession instance. Parameters sessionTranscript byte : the session transcript.
+
+ This value cannot be null .</body></html>

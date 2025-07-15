@@ -1,0 +1,187 @@
+<html><head><title>Class Documentation</title></head><body>JsonReader Kotlin | Java public
+  
+  final
+  
+  class
+  JsonReader extends Object implements Closeable java.lang.Object ↳ android.util.JsonReader Reads a JSON ( RFC 4627 )
+ encoded value as a stream of tokens. This stream includes both literal
+ values (strings, numbers, booleans, and nulls) as well as the begin and
+ end delimiters of objects and arrays. The tokens are traversed in
+ depth-first order, the same order that they appear in the JSON document.
+ Within JSON objects, name/value pairs are represented by a single token. Parsing JSON To create a recursive descent parser for your own JSON streams, first create
+ an entry point method that creates a JsonReader . Next, create handler methods for each structure in your JSON text. You'll
+ need a method for each object type and for each array type. Within array handling methods, first call beginArray() to consume the array's opening bracket. Then create a
+       while loop that accumulates values, terminating when hasNext() is false. Finally, read the array's closing bracket by calling endArray() . Within object handling methods, first call beginObject() to consume the object's opening brace. Then create a
+       while loop that assigns values to local variables based on their name.
+       This loop should terminate when hasNext() is false. Finally,
+       read the object's closing brace by calling endObject() . When a nested object or array is encountered, delegate to the
+ corresponding handler method. When an unknown name is encountered, strict parsers should fail with an
+ exception. Lenient parsers should call skipValue() to recursively
+ skip the value's nested tokens, which may otherwise conflict. If a value may be null, you should first check using peek() .
+ Null literals can be consumed using either nextNull() or skipValue() . Example Suppose we'd like to parse a stream of messages such as the following: [
+   {
+     "id": 912345678901,
+     "text": "How do I read JSON on Android?",
+     "geo": null,
+     "user": {
+       "name": "android_newb",
+       "followers_count": 41
+      }
+   },
+   {
+     "id": 912345678902,
+     "text": "@android_newb just use android.util.JsonReader!",
+     "geo": [50.454722, -104.606667],
+     "user": {
+       "name": "jesse",
+       "followers_count": 2
+     }
+   }
+ ] This code implements the parser for the above structure: public List<Message> readJsonStream(InputStream in) throws IOException {
+     JsonReader reader = new JsonReader(new InputStreamReader(in, "UTF-8"));
+     try {
+       return readMessagesArray(reader);
+     } finally {
+       reader.close();
+     }
+   }
+
+   public List<Message> readMessagesArray(JsonReader reader) throws IOException {
+     List<Message> messages = new ArrayList<Message>();
+
+     reader.beginArray();
+     while (reader.hasNext()) {
+       messages.add(readMessage(reader));
+     }
+     reader.endArray();
+     return messages;
+   }
+
+   public Message readMessage(JsonReader reader) throws IOException {
+     long id = -1;
+     String text = null;
+     User user = null;
+     List<Double> geo = null;
+
+     reader.beginObject();
+     while (reader.hasNext()) {
+       String name = reader.nextName();
+       if (name.equals("id")) {
+         id = reader.nextLong();
+       } else if (name.equals("text")) {
+         text = reader.nextString();
+       } else if (name.equals("geo") && reader.peek() != JsonToken.NULL) {
+         geo = readDoublesArray(reader);
+       } else if (name.equals("user")) {
+         user = readUser(reader);
+       } else {
+         reader.skipValue();
+       }
+     }
+     reader.endObject();
+     return new Message(id, text, user, geo);
+   }
+
+   public List<Double> readDoublesArray(JsonReader reader) throws IOException {
+     List<Double> doubles = new ArrayList<Double>();
+
+     reader.beginArray();
+     while (reader.hasNext()) {
+       doubles.add(reader.nextDouble());
+     }
+     reader.endArray();
+     return doubles;
+   }
+
+   public User readUser(JsonReader reader) throws IOException {
+     String username = null;
+     int followersCount = -1;
+
+     reader.beginObject();
+     while (reader.hasNext()) {
+       String name = reader.nextName();
+       if (name.equals("name")) {
+         username = reader.nextString();
+       } else if (name.equals("followers_count")) {
+         followersCount = reader.nextInt();
+       } else {
+         reader.skipValue();
+       }
+     }
+     reader.endObject();
+     return new User(username, followersCount);
+   } Number Handling This reader permits numeric values to be read as strings and string values to
+ be read as numbers. For example, both elements of the JSON array [1, "1"] may be read using either nextInt() or nextString() .
+ This behavior is intended to prevent lossy numeric conversions: double is
+ JavaScript's only numeric type and very large values like 9007199254740993 cannot be represented exactly on that platform. To minimize
+ precision loss, extremely large values should be written and read as strings
+ in JSON. Each JsonReader may be used to read a single JSON stream. Instances
+ of this class are not thread safe. Summary Public constructors JsonReader ( Reader in) Creates a new instance that reads a JSON-encoded stream from in . Public methods void beginArray () Consumes the next token from the JSON stream and asserts that it is the
+ beginning of a new array. void beginObject () Consumes the next token from the JSON stream and asserts that it is the
+ beginning of a new object. void close () Closes this JSON reader and the underlying Reader . void endArray () Consumes the next token from the JSON stream and asserts that it is the
+ end of the current array. void endObject () Consumes the next token from the JSON stream and asserts that it is the
+ end of the current object. boolean hasNext () Returns true if the current array or object has another element. boolean isLenient () Returns true if this parser is liberal in what it accepts. boolean nextBoolean () Returns the boolean value of the next token,
+ consuming it. double nextDouble () Returns the double value of the next token,
+ consuming it. int nextInt () Returns the int value of the next token,
+ consuming it. long nextLong () Returns the long value of the next token,
+ consuming it. String nextName () Returns the next token, a property name , and
+ consumes it. void nextNull () Consumes the next token from the JSON stream and asserts that it is a
+ literal null. String nextString () Returns the string value of the next token,
+ consuming it. JsonToken peek () Returns the type of the next token without consuming it. void setLenient (boolean lenient) Configure this parser to be  be liberal in what it accepts. void skipValue () Skips the next value recursively. String toString () Returns a string representation of the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.io.Closeable abstract
+        
+        
+        
+        
+        void close () Closes this stream and releases any system resources associated
+ with it. From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public constructors JsonReader Added in API level 11 public JsonReader ( Reader in) Creates a new instance that reads a JSON-encoded stream from in . Parameters in Reader Public methods beginArray Added in API level 11 public void beginArray () Consumes the next token from the JSON stream and asserts that it is the
+ beginning of a new array. Throws IOException beginObject Added in API level 11 public void beginObject () Consumes the next token from the JSON stream and asserts that it is the
+ beginning of a new object. Throws IOException close Added in API level 11 public void close () Closes this JSON reader and the underlying Reader . Throws IOException endArray Added in API level 11 public void endArray () Consumes the next token from the JSON stream and asserts that it is the
+ end of the current array. Throws IOException endObject Added in API level 11 public void endObject () Consumes the next token from the JSON stream and asserts that it is the
+ end of the current object. Throws IOException hasNext Added in API level 11 public boolean hasNext () Returns true if the current array or object has another element. Returns boolean Throws IOException isLenient Added in API level 11 public boolean isLenient () Returns true if this parser is liberal in what it accepts. Returns boolean nextBoolean Added in API level 11 public boolean nextBoolean () Returns the boolean value of the next token,
+ consuming it. Returns boolean Throws IllegalStateException if the next token is not a boolean or if
+     this reader is closed. IOException nextDouble Added in API level 11 public double nextDouble () Returns the double value of the next token,
+ consuming it. If the next token is a string, this method will attempt to
+ parse it as a double using Double.parseDouble(String) . Returns double Throws IllegalStateException if the next token is not a literal value. IOException nextInt Added in API level 11 public int nextInt () Returns the int value of the next token,
+ consuming it. If the next token is a string, this method will attempt to
+ parse it as an int. If the next token's numeric value cannot be exactly
+ represented by a Java int , this method throws. Returns int Throws IllegalStateException if the next token is not a literal value. NumberFormatException if the next literal value cannot be parsed
+     as a number, or exactly represented as an int. IOException nextLong Added in API level 11 public long nextLong () Returns the long value of the next token,
+ consuming it. If the next token is a string, this method will attempt to
+ parse it as a long. If the next token's numeric value cannot be exactly
+ represented by a Java long , this method throws. Returns long Throws IllegalStateException if the next token is not a literal value. NumberFormatException if the next literal value cannot be parsed
+     as a number, or exactly represented as a long. IOException nextName Added in API level 11 public String nextName () Returns the next token, a property name , and
+ consumes it. Returns String Throws IOException if the next token in the stream is not a property
+     name. nextNull Added in API level 11 public void nextNull () Consumes the next token from the JSON stream and asserts that it is a
+ literal null. Throws IllegalStateException if the next token is not null or if this
+     reader is closed. IOException nextString Added in API level 11 public String nextString () Returns the string value of the next token,
+ consuming it. If the next token is a number, this method will return its
+ string form. Returns String Throws IllegalStateException if the next token is not a string or if
+     this reader is closed. IOException peek Added in API level 11 public JsonToken peek () Returns the type of the next token without consuming it. Returns JsonToken Throws IOException setLenient Added in API level 11 public void setLenient (boolean lenient) Configure this parser to be  be liberal in what it accepts. By default,
+ this parser is strict and only accepts JSON as specified by RFC 4627 . Setting the
+ parser to lenient causes it to ignore the following syntax errors: End of line comments starting with // or # and
+       ending with a newline character. C-style comments starting with /* and ending with * / . Such comments may not be nested. Names that are unquoted or 'single quoted' . Strings that are unquoted or 'single quoted' . Array elements separated by ; instead of , . Unnecessary array separators. These are interpreted as if null
+       was the omitted value. Names and values separated by = or => instead of : . Name/value pairs separated by ; instead of , . Parameters lenient boolean skipValue Added in API level 11 public void skipValue () Skips the next value recursively. If it is an object or array, all nested
+ elements are skipped. This method is intended for use when the JSON token
+ stream contains unrecognized or unhandled values. Throws IOException toString Added in API level 11 public String toString () Returns a string representation of the object. Returns String a string representation of the object.</body></html>

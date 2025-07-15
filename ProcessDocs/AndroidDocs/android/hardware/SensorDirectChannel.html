@@ -1,0 +1,138 @@
+<html><head><title>Class Documentation</title></head><body>SensorDirectChannel Kotlin | Java public
+  
+  final
+  
+  class
+  SensorDirectChannel extends Object implements Channel java.lang.Object ↳ android.hardware.SensorDirectChannel Class representing a sensor direct channel. Use SensorManager.createDirectChannel(android.os.MemoryFile) or SensorManager.createDirectChannel(android.hardware.HardwareBuffer) to obtain an object. The channel object can be then configured
+ (see configure(android.hardware.Sensor, int) )
+ to start delivery of sensor events into shared memory buffer. Summary Constants int RATE_FAST Sensor operates at nominal rate of 200Hz. int RATE_NORMAL Sensor operates at nominal rate of 50Hz. int RATE_STOP Sensor stopped (no event output). int RATE_VERY_FAST Sensor operates at nominal rate of 800Hz. int TYPE_HARDWARE_BUFFER Shared memory type wrapped by HardwareBuffer object. int TYPE_MEMORY_FILE Shared memory type ashmem, wrapped in MemoryFile object. Public methods void close () Close sensor direct channel. int configure ( Sensor sensor, int rateLevel) Configure sensor rate or stop sensor report. boolean isOpen () Determine if a channel is still valid. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.nio.channels.Channel abstract
+        
+        
+        
+        
+        void close () Closes this channel. abstract
+        
+        
+        
+        
+        boolean isOpen () Tells whether or not this channel is open. From interface java.io.Closeable abstract
+        
+        
+        
+        
+        void close () Closes this stream and releases any system resources associated
+ with it. From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Constants RATE_FAST Added in API level 26 public static final int RATE_FAST Sensor operates at nominal rate of 200Hz.
+
+ The actual rate is expected to be between 55% to 220% of nominal rate, thus between 110Hz to
+ 440Hz. See also: configure(Sensor, int) Constant Value:
+      
+          2
+          (0x00000002) RATE_NORMAL Added in API level 26 public static final int RATE_NORMAL Sensor operates at nominal rate of 50Hz.
+
+ The actual rate is expected to be between 55% to 220% of nominal rate, thus between 27.5Hz to
+ 110Hz. See also: configure(Sensor, int) Constant Value:
+      
+          1
+          (0x00000001) RATE_STOP Added in API level 26 public static final int RATE_STOP Sensor stopped (no event output). See also: configure(Sensor, int) Constant Value:
+      
+          0
+          (0x00000000) RATE_VERY_FAST Added in API level 26 public static final int RATE_VERY_FAST Sensor operates at nominal rate of 800Hz.
+
+ The actual rate is expected to be between 55% to 220% of nominal rate, thus between 440Hz to
+ 1760Hz. See also: configure(Sensor, int) Constant Value:
+      
+          3
+          (0x00000003) TYPE_HARDWARE_BUFFER Added in API level 26 public static final int TYPE_HARDWARE_BUFFER Shared memory type wrapped by HardwareBuffer object. See also: SensorManager.createDirectChannel(HardwareBuffer) Constant Value:
+      
+          2
+          (0x00000002) TYPE_MEMORY_FILE Added in API level 26 public static final int TYPE_MEMORY_FILE Shared memory type ashmem, wrapped in MemoryFile object. See also: SensorManager.createDirectChannel(MemoryFile) Constant Value:
+      
+          1
+          (0x00000001) Public methods close Added in API level 26 public void close () Close sensor direct channel.
+
+ Stop all active sensor in the channel and free sensor system resource related to channel.
+ Shared memory used for creating the direct channel need to be closed or freed separately. See also: SensorManager.createDirectChannel(MemoryFile) SensorManager.createDirectChannel(HardwareBuffer) configure Added in API level 26 public int configure ( Sensor sensor, 
+                int rateLevel) Configure sensor rate or stop sensor report.
+
+ To start event report of a sensor, or change rate of existing report, call this function with
+ rateLevel other than RATE_STOP . Sensor events
+ will be added into a queue formed by the shared memory used in creation of direction channel.
+ Each element of the queue has size of 104 bytes and represents a sensor event. Data
+ structure of an element (all fields in little-endian): offset   type                    name
+ ------------------------------------------------------------------------
+   0x0000   int32_t                 size (always 104)
+   0x0004   int32_t                 sensor report token
+   0x0008   int32_t                 type (see SensorType)
+   0x000C   uint32_t                atomic counter
+   0x0010   int64_t                 timestamp (see Event)
+   0x0018   float[16]/int64_t[8]    data (data type depends on sensor type)
+   0x0058   int32_t[4]              reserved (set to zero) There are no head or tail pointers. The sequence and frontier of new sensor events is
+ determined by the atomic counter, which counts from 1 after creation of direct channel and
+ increments 1 for each new event. Atomic counter will wrap back to 1 after it reaches
+ UINT32_MAX, skipping value 0 to avoid confusion with uninitialized memory. The writer in
+ sensor system will wrap around from the start of shared memory region when it reaches the
+ end. If size of memory region is not a multiple of size of element (104 bytes), the residual
+ is not used at the end.  Function returns a positive sensor report token on success. This
+ token can be used to differentiate sensor events from multiple sensor of the same type. For
+ example, if there are two accelerometers in the system A and B, it is guaranteed different
+ report tokens will be returned when starting sensor A and B.
+
+ To stop a sensor, call this function with rateLevel equal RATE_STOP . If the sensor parameter is left to be null,
+ this will stop all active sensor report associated with the direct channel specified.
+ Function return 1 on success or 0 on failure. Parameters sensor Sensor : A Sensor object to denote sensor to be operated. rateLevel int : rate level defined in SensorDirectChannel .
+ Value is RATE_STOP , RATE_NORMAL , RATE_FAST , or RATE_VERY_FAST Returns int * starting report or changing rate: positive sensor report token on success,
+                                             0 on failure;
+         * stopping report: 1 on success, 0 on failure. Throws NullPointerException when channel is null. isOpen Added in API level 26 public boolean isOpen () Determine if a channel is still valid. A channel is invalidated after close() is
+ called. Returns boolean true if channel is valid. Protected methods finalize Added in API level 26 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored. Throws Throwable</body></html>

@@ -1,0 +1,216 @@
+<html><head><title>Class Documentation</title></head><body>MediaCas Kotlin | Java public
+  
+  final
+  
+  class
+  MediaCas extends Object implements AutoCloseable java.lang.Object ↳ android.media.MediaCas MediaCas can be used to obtain keys for descrambling protected media streams, in
+ conjunction with MediaDescrambler . The MediaCas APIs are
+ designed to support conditional access such as those in the ISO/IEC13818-1.
+ The CA system is identified by a 16-bit integer CA_system_id. The scrambling
+ algorithms are usually proprietary and implemented by vendor-specific CA plugins
+ installed on the device. The app is responsible for constructing a MediaCas object for the CA system it
+ intends to use. The app can query if a certain CA system is supported using static
+ method isSystemIdSupported(int) . It can also obtain the entire list of supported
+ CA systems using static method enumeratePlugins() . Once the MediaCas object is constructed, the app should properly provision it by
+ using method provision(String) and/or processEmm(byte) . The EMMs (Entitlement
+ management messages) can be distributed out-of-band, or in-band with the stream. To descramble elementary streams, the app first calls openSession() to
+ generate a Session object that will uniquely identify a session. A session
+ provides a context for subsequent key updates and descrambling activities. The ECMs
+ (Entitlement control messages) are sent to the session via method Session.processEcm . The app next constructs a MediaDescrambler object, and initializes it with the
+ session using MediaDescrambler.setMediaCasSession . This ties the
+ descrambler to the session, and the descrambler can then be used to descramble
+ content secured with the session's key, either during extraction, or during decoding
+ with MediaCodec . If the app handles sample extraction using its own extractor, it can use
+ MediaDescrambler to descramble samples into clear buffers (if the session's license
+ doesn't require secure decoders), or descramble a small amount of data to retrieve
+ information necessary for the downstream pipeline to process the sample (if the
+ session's license requires secure decoders). If the session requires a secure decoder, a MediaDescrambler needs to be provided to
+ MediaCodec to descramble samples queued by MediaCodec.queueSecureInputBuffer into protected buffers. The app should use MediaCodec.configure(MediaFormat,
+ android.view.Surface, int, MediaDescrambler) instead of the normal MediaCodec.configure(android.media.MediaFormat, android.view.Surface, android.media.MediaCrypto, int) method
+ to configure MediaCodec. Using Android's MediaExtractor If the app uses MediaExtractor , it can delegate the CAS session
+ management to MediaExtractor by calling MediaExtractor.setMediaCas .
+ MediaExtractor will take over and call openSession() , processEmm(byte) and/or Session.processEcm , etc.. if necessary. When using MediaExtractor , the app would still need a MediaDescrambler
+ to use with MediaCodec if the licensing requires a secure decoder. The
+ session associated with the descrambler of a track can be retrieved by calling MediaExtractor.getCasInfo , and used to initialize a MediaDescrambler
+ object for MediaCodec. Listeners The app may register a listener to receive events from the CA system using
+ method setEventListener(EventListener, Handler) . The exact format of the event is scheme-specific
+ and is not specified by this API. Summary Nested classes interface MediaCas.EventListener An interface registered by the caller to MediaCas.setEventListener(EventListener, Handler) to receives scheme-specific notifications from a MediaCas instance. class MediaCas.PluginDescriptor Describe a CAS plugin with its CA_system_ID and string name. class MediaCas.Session Class for an open session with the CA system. Constants int PLUGIN_STATUS_PHYSICAL_MODULE_CHANGED The event to indicate that the status of CAS system is changed by the removal or insertion of
+ physical CAS modules. int PLUGIN_STATUS_SESSION_NUMBER_CHANGED The event to indicate that the number of CAS system's session is changed. int SCRAMBLING_MODE_AES128 Advanced Encryption System (AES) 128-bit Encryption mode. int SCRAMBLING_MODE_AES_CBC Advanced Encryption System (AES) Cipher Block Chaining (CBC) mode. int SCRAMBLING_MODE_AES_ECB Advanced Encryption System (AES) Electronic Code Book (ECB) mode. int SCRAMBLING_MODE_AES_SCTE52 Advanced Encryption System (AES) Society of Cable Telecommunications Engineers (SCTE) 52
+ mode. int SCRAMBLING_MODE_DVB_CISSA_V1 DVB Common IPTV Software-oriented Scrambling Algorithm (CISSA) Version 1. int SCRAMBLING_MODE_DVB_CSA1 DVB (Digital Video Broadcasting) Common Scrambling Algorithm (CSA) 1. int SCRAMBLING_MODE_DVB_CSA2 DVB CSA 2. int SCRAMBLING_MODE_DVB_CSA3_ENHANCE DVB CSA 3 in fully enhanced mode. int SCRAMBLING_MODE_DVB_CSA3_MINIMAL DVB CSA 3 in minimally enhanced mode. int SCRAMBLING_MODE_DVB_CSA3_STANDARD DVB CSA 3 in standard mode. int SCRAMBLING_MODE_DVB_IDSA ATIS-0800006 IIF Default Scrambling Algorithm (IDSA). int SCRAMBLING_MODE_MULTI2 A symmetric key algorithm. int SCRAMBLING_MODE_RESERVED DVB (Digital Video Broadcasting) reserved mode. int SCRAMBLING_MODE_TDES_ECB Triple Data Encryption Algorithm (TDES) Electronic Code Book (ECB) mode. int SCRAMBLING_MODE_TDES_SCTE52 Triple Data Encryption Algorithm (TDES) Society of Cable Telecommunications Engineers (SCTE)
+ 52 mode. int SESSION_USAGE_LIVE Cas session is used to descramble live streams. int SESSION_USAGE_PLAYBACK Cas session is used to descramble recoreded streams. int SESSION_USAGE_RECORD Cas session is used to descramble live streams and encrypt local recorded content int SESSION_USAGE_TIMESHIFT Cas session is used to descramble live streams , encrypt local recorded content and playback
+ local encrypted content. Public constructors MediaCas ( Context context, int casSystemId, String tvInputServiceSessionId, int priorityHint) Instantiate a CA system of the specified system id. MediaCas ( Context context, int casSystemId, String tvInputServiceSessionId, int priorityHint, Handler handler, MediaCas.EventListener listener) Instantiate a CA system of the specified system id with EvenListener. MediaCas (int casSystemId) Instantiate a CA system of the specified system id. Public methods void close () Closes this resource, relinquishing any underlying resources. static PluginDescriptor[] enumeratePlugins () List all available CA plugins on the device. static
+        
+        
+        boolean isSystemIdSupported (int CA_system_id) Query if a certain CA system is supported on this device. MediaCas.Session openSession (int sessionUsage, int scramblingMode) Open a session with usage and scrambling information, so that descrambler can be configured
+ to descramble one or more streams scrambled by the conditional access system. MediaCas.Session openSession () Open a session to descramble one or more streams scrambled by the
+ conditional access system. void processEmm (byte[] data) Send a received EMM packet to the CA system. void processEmm (byte[] data, int offset, int length) Send a received EMM packet to the CA system. void provision ( String provisionString) Initiate a provisioning operation for a CA system. void refreshEntitlements (int refreshType, byte[] refreshData) Notify the CA system to refresh entitlement keys. void sendEvent (int event, int arg, byte[] data) Send an event to a CA system. void setEventListener ( MediaCas.EventListener listener, Handler handler) Set an event listener to receive notifications from the MediaCas instance. void setPrivateData (byte[] data) Send the private data for the CA system. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Constants PLUGIN_STATUS_PHYSICAL_MODULE_CHANGED Added in API level 30 public static final int PLUGIN_STATUS_PHYSICAL_MODULE_CHANGED The event to indicate that the status of CAS system is changed by the removal or insertion of
+ physical CAS modules. Constant Value:
+      
+          0
+          (0x00000000) PLUGIN_STATUS_SESSION_NUMBER_CHANGED Added in API level 30 public static final int PLUGIN_STATUS_SESSION_NUMBER_CHANGED The event to indicate that the number of CAS system's session is changed. Constant Value:
+      
+          1
+          (0x00000001) SCRAMBLING_MODE_AES128 Added in API level 30 public static final int SCRAMBLING_MODE_AES128 Advanced Encryption System (AES) 128-bit Encryption mode. Constant Value:
+      
+          9
+          (0x00000009) SCRAMBLING_MODE_AES_CBC Added in API level 34 public static final int SCRAMBLING_MODE_AES_CBC Advanced Encryption System (AES) Cipher Block Chaining (CBC) mode. Constant Value:
+      
+          14
+          (0x0000000e) SCRAMBLING_MODE_AES_ECB Added in API level 30 public static final int SCRAMBLING_MODE_AES_ECB Advanced Encryption System (AES) Electronic Code Book (ECB) mode. Constant Value:
+      
+          10
+          (0x0000000a) SCRAMBLING_MODE_AES_SCTE52 Added in API level 30 public static final int SCRAMBLING_MODE_AES_SCTE52 Advanced Encryption System (AES) Society of Cable Telecommunications Engineers (SCTE) 52
+ mode. Constant Value:
+      
+          11
+          (0x0000000b) SCRAMBLING_MODE_DVB_CISSA_V1 Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CISSA_V1 DVB Common IPTV Software-oriented Scrambling Algorithm (CISSA) Version 1. Constant Value:
+      
+          6
+          (0x00000006) SCRAMBLING_MODE_DVB_CSA1 Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CSA1 DVB (Digital Video Broadcasting) Common Scrambling Algorithm (CSA) 1. Constant Value:
+      
+          1
+          (0x00000001) SCRAMBLING_MODE_DVB_CSA2 Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CSA2 DVB CSA 2. Constant Value:
+      
+          2
+          (0x00000002) SCRAMBLING_MODE_DVB_CSA3_ENHANCE Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CSA3_ENHANCE DVB CSA 3 in fully enhanced mode. Constant Value:
+      
+          5
+          (0x00000005) SCRAMBLING_MODE_DVB_CSA3_MINIMAL Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CSA3_MINIMAL DVB CSA 3 in minimally enhanced mode. Constant Value:
+      
+          4
+          (0x00000004) SCRAMBLING_MODE_DVB_CSA3_STANDARD Added in API level 30 public static final int SCRAMBLING_MODE_DVB_CSA3_STANDARD DVB CSA 3 in standard mode. Constant Value:
+      
+          3
+          (0x00000003) SCRAMBLING_MODE_DVB_IDSA Added in API level 30 public static final int SCRAMBLING_MODE_DVB_IDSA ATIS-0800006 IIF Default Scrambling Algorithm (IDSA). Constant Value:
+      
+          7
+          (0x00000007) SCRAMBLING_MODE_MULTI2 Added in API level 30 public static final int SCRAMBLING_MODE_MULTI2 A symmetric key algorithm. Constant Value:
+      
+          8
+          (0x00000008) SCRAMBLING_MODE_RESERVED Added in API level 30 public static final int SCRAMBLING_MODE_RESERVED DVB (Digital Video Broadcasting) reserved mode. Constant Value:
+      
+          0
+          (0x00000000) SCRAMBLING_MODE_TDES_ECB Added in API level 30 public static final int SCRAMBLING_MODE_TDES_ECB Triple Data Encryption Algorithm (TDES) Electronic Code Book (ECB) mode. Constant Value:
+      
+          12
+          (0x0000000c) SCRAMBLING_MODE_TDES_SCTE52 Added in API level 30 public static final int SCRAMBLING_MODE_TDES_SCTE52 Triple Data Encryption Algorithm (TDES) Society of Cable Telecommunications Engineers (SCTE)
+ 52 mode. Constant Value:
+      
+          13
+          (0x0000000d) SESSION_USAGE_LIVE Added in API level 30 public static final int SESSION_USAGE_LIVE Cas session is used to descramble live streams. Constant Value:
+      
+          0
+          (0x00000000) SESSION_USAGE_PLAYBACK Added in API level 30 public static final int SESSION_USAGE_PLAYBACK Cas session is used to descramble recoreded streams. Constant Value:
+      
+          1
+          (0x00000001) SESSION_USAGE_RECORD Added in API level 30 public static final int SESSION_USAGE_RECORD Cas session is used to descramble live streams and encrypt local recorded content Constant Value:
+      
+          2
+          (0x00000002) SESSION_USAGE_TIMESHIFT Added in API level 30 public static final int SESSION_USAGE_TIMESHIFT Cas session is used to descramble live streams , encrypt local recorded content and playback
+ local encrypted content. Constant Value:
+      
+          3
+          (0x00000003) Public constructors MediaCas Added in API level 30 public MediaCas ( Context context, 
+                int casSystemId, String tvInputServiceSessionId, 
+                int priorityHint) Instantiate a CA system of the specified system id. Parameters context Context : the context of the caller.
+ This value cannot be null . casSystemId int : The system id of the CA system. tvInputServiceSessionId String : The Id of the session opened in TV Input Service (TIS) TvInputService.onCreateSession(String, String) This value may be null . priorityHint int : priority hint from the use case type for new created CAS system.
+
+ Value is TvInputService.PRIORITY_HINT_USE_CASE_TYPE_BACKGROUND , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_SCAN , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_PLAYBACK , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_LIVE , or TvInputService.PRIORITY_HINT_USE_CASE_TYPE_RECORD Throws MediaCasException.UnsupportedCasException if the device does not support the
+ specified CA system. MediaCas Added in API level 31 public MediaCas ( Context context, 
+                int casSystemId, String tvInputServiceSessionId, 
+                int priorityHint, Handler handler, MediaCas.EventListener listener) Instantiate a CA system of the specified system id with EvenListener. Parameters context Context : the context of the caller.
+ This value cannot be null . casSystemId int : The system id of the CA system. tvInputServiceSessionId String : The Id of the session opened in TV Input Service (TIS) TvInputService.onCreateSession(String, String) This value may be null . priorityHint int : priority hint from the use case type for new created CAS system.
+ Value is TvInputService.PRIORITY_HINT_USE_CASE_TYPE_BACKGROUND , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_SCAN , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_PLAYBACK , TvInputService.PRIORITY_HINT_USE_CASE_TYPE_LIVE , or TvInputService.PRIORITY_HINT_USE_CASE_TYPE_RECORD handler Handler : the handler whose looper the event listener will be called on.
+ If handler is null, we'll try to use current thread's looper, or the main
+ looper. If neither are available, an internal thread will be created instead. listener MediaCas.EventListener : the event listener to be set.
+ This value may be null . Throws MediaCasException.UnsupportedCasException if the device does not support the
+ specified CA system. MediaCas Added in API level 26 public MediaCas (int casSystemId) Instantiate a CA system of the specified system id. Parameters casSystemId int : The system id of the CA system. Throws MediaCasException.UnsupportedCasException if the device does not support the
+ specified CA system. Public methods close Added in API level 26 public void close () Closes this resource, relinquishing any underlying resources.
+ This method is invoked automatically on objects managed by the try -with-resources statement. enumeratePlugins Added in API level 26 public static PluginDescriptor[] enumeratePlugins () List all available CA plugins on the device. Returns PluginDescriptor[] an array of descriptors for the available CA plugins. isSystemIdSupported Added in API level 26 public static boolean isSystemIdSupported (int CA_system_id) Query if a certain CA system is supported on this device. Parameters CA_system_id int : the id of the CA system. Returns boolean Whether the specified CA system is supported on this device. openSession Added in API level 30 public MediaCas.Session openSession (int sessionUsage, 
+                int scramblingMode) Open a session with usage and scrambling information, so that descrambler can be configured
+ to descramble one or more streams scrambled by the conditional access system. Tuner resource manager (TRM) uses the client priority value to decide whether it is able
+ to get cas session resource if cas session resources is limited. If the client can't get the
+ resource, this call returns MediaCasException.InsufficientResourceException . Parameters sessionUsage int : used for the created session.
+ Value is SESSION_USAGE_LIVE , SESSION_USAGE_PLAYBACK , SESSION_USAGE_RECORD , or SESSION_USAGE_TIMESHIFT scramblingMode int : used for the created session.
+
+ Value is SCRAMBLING_MODE_RESERVED , SCRAMBLING_MODE_DVB_CSA1 , SCRAMBLING_MODE_DVB_CSA2 , SCRAMBLING_MODE_DVB_CSA3_STANDARD , SCRAMBLING_MODE_DVB_CSA3_MINIMAL , SCRAMBLING_MODE_DVB_CSA3_ENHANCE , SCRAMBLING_MODE_DVB_CISSA_V1 , SCRAMBLING_MODE_DVB_IDSA , SCRAMBLING_MODE_MULTI2 , SCRAMBLING_MODE_AES128 , SCRAMBLING_MODE_AES_CBC , SCRAMBLING_MODE_AES_ECB , SCRAMBLING_MODE_AES_SCTE52 , SCRAMBLING_MODE_TDES_ECB , or SCRAMBLING_MODE_TDES_SCTE52 Returns MediaCas.Session session the newly opened session.
+
+ This value may be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. openSession Added in API level 26 public MediaCas.Session openSession () Open a session to descramble one or more streams scrambled by the
+ conditional access system. Tuner resource manager (TRM) uses the client priority value to decide whether it is able
+ to get cas session resource if cas session resources is limited. If the client can't get the
+ resource, this call returns MediaCasException.InsufficientResourceException . Returns MediaCas.Session session the newly opened session. Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. processEmm Added in API level 26 public void processEmm (byte[] data) Send a received EMM packet to the CA system. This is similar to processEmm(byte[], int, int) except that the entire byte
+ array is sent. Parameters data byte : byte array of the EMM data.
+
+ This value cannot be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. processEmm Added in API level 26 public void processEmm (byte[] data, 
+                int offset, 
+                int length) Send a received EMM packet to the CA system. Parameters data byte : byte array of the EMM data.
+ This value cannot be null . offset int : position within data where the EMM data begins. length int : length of the data (starting from offset). Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. provision Added in API level 26 public void provision ( String provisionString) Initiate a provisioning operation for a CA system. Parameters provisionString String : string containing information needed for the
+ provisioning operation, the format of which is scheme and implementation
+ specific.
+
+ This value cannot be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. refreshEntitlements Added in API level 26 public void refreshEntitlements (int refreshType, 
+                byte[] refreshData) Notify the CA system to refresh entitlement keys. Parameters refreshType int : the type of the refreshment. refreshData byte : private data associated with the refreshment.
+
+ This value may be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. sendEvent Added in API level 26 public void sendEvent (int event, 
+                int arg, 
+                byte[] data) Send an event to a CA system. The format of the event is scheme-specific
+ and is opaque to the framework. Parameters event int : an integer denoting a scheme-specific event to be sent. arg int : a scheme-specific integer argument for the event. data byte : a byte array containing scheme-specific data for the event.
+
+ This value may be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. setEventListener Added in API level 26 public void setEventListener ( MediaCas.EventListener listener, Handler handler) Set an event listener to receive notifications from the MediaCas instance. Parameters listener MediaCas.EventListener : the event listener to be set.
+ This value may be null . handler Handler : the handler whose looper the event listener will be called on.
+ If handler is null, we'll try to use current thread's looper, or the main
+ looper. If neither are available, an internal thread will be created instead. setPrivateData Added in API level 26 public void setPrivateData (byte[] data) Send the private data for the CA system. Parameters data byte : byte array of the private data.
+
+ This value cannot be null . Throws IllegalStateException if the MediaCas instance is not valid. MediaCasException for CAS-specific errors. MediaCasStateException for CAS-specific state exceptions. Protected methods finalize Added in API level 26 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored.</body></html>

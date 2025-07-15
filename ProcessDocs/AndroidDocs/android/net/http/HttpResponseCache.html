@@ -1,0 +1,149 @@
+<html><head><title>Class Documentation</title></head><body>HttpResponseCache Kotlin | Java public
+  
+  final
+  
+  class
+  HttpResponseCache extends ResponseCache implements Closeable java.lang.Object ↳ java.net.ResponseCache ↳ android.net.http.HttpResponseCache Caches HTTP and HTTPS responses to the filesystem so they may be reused,
+ saving time and bandwidth. This class supports HttpURLConnection and HttpsURLConnection ;
+ there is no platform-provided cache for DefaultHttpClient or AndroidHttpClient . Installation and instances are thread
+ safe. Installing an HTTP response cache Enable caching of all of your application's HTTP requests by installing the
+ cache at application startup. For example, this code installs a 10 MiB cache
+ in the application-specific
+ cache directory of the filesystem}: protected void onCreate(Bundle savedInstanceState) {
+       ...
+
+       try {
+           File httpCacheDir = new File(context.getCacheDir(), "http");
+           long httpCacheSize = 10 * 1024 * 1024; // 10 MiB
+           HttpResponseCache.install(httpCacheDir, httpCacheSize);
+       } catch (IOException e) {
+           Log.i(TAG, "HTTP response cache installation failed:" + e);
+       }
+   }
+
+   protected void onStop() {
+       ...
+
+       HttpResponseCache cache = HttpResponseCache.getInstalled();
+       if (cache != null) {
+           cache.flush();
+       }
+   } This cache will evict entries as necessary to keep its size from exceeding
+ 10 MiB. The best cache size is application specific and depends on the size
+ and frequency of the files being downloaded. Increasing the limit may improve
+ the hit rate, but it may also just waste filesystem space! For some applications it may be preferable to create the cache in the
+ external storage directory. There are no access controls on the
+ external storage directory so it should not be used for caches that could
+ contain private data. Although it often has more free space,
+ external storage is optional and—even if available—can disappear
+ during use. Retrieve the external cache directory using Context.getExternalCacheDir() . If this method returns null,
+ your application should fall back to either not caching or caching on
+ non-external storage. If the external storage is removed during use, the
+ cache hit rate will drop to zero and ongoing cache reads will fail. Flushing the cache forces its data to the filesystem. This ensures that
+ all responses written to the cache will be readable the next time the
+ activity starts. Cache Optimization To measure cache effectiveness, this class tracks three statistics: Request Count: the number
+         of HTTP requests issued since this cache was created. Network Count: the
+         number of those requests that required network use. Hit Count: the number of
+         those requests whose responses were served by the cache. Sometimes a request will result in a conditional cache hit. If the cache
+ contains a stale copy of the response, the client will issue a conditional GET . The server will then send either the updated response if it has
+ changed, or a short 'not modified' response if the client's copy is still
+ valid. Such responses increment both the network count and hit count. The best way to improve the cache hit rate is by configuring the web
+ server to return cacheable responses. Although this client honors all HTTP/1.1 (RFC 2068) cache
+ headers, it doesn't cache partial responses. Force a Network Response In some situations, such as after a user clicks a 'refresh' button, it may be
+ necessary to skip the cache, and fetch data directly from the server. To force
+ a full refresh, add the no-cache directive: connection.addRequestProperty("Cache-Control", "no-cache"); If it is only necessary to force a cached response to be validated by the
+ server, use the more efficient max-age=0 instead: connection.addRequestProperty("Cache-Control", "max-age=0"); Force a Cache Response Sometimes you'll want to show resources if they are available immediately,
+ but not otherwise. This can be used so your application can show something while waiting for the latest data to be downloaded. To
+ restrict a request to locally-cached resources, add the only-if-cached directive: try {
+         connection.addRequestProperty("Cache-Control", "only-if-cached");
+         InputStream cached = connection.getInputStream();
+         // the resource was cached! show it
+     } catch (FileNotFoundException e) {
+         // the resource was not cached
+     } This technique works even better in situations where a stale response is
+ better than no response. To permit stale cached responses, use the max-stale directive with the maximum staleness in seconds: int maxStale = 60 * 60 * 24 * 28; // tolerate 4-weeks stale
+         connection.addRequestProperty("Cache-Control", "max-stale=" + maxStale); Working With Earlier Releases This class was added in Android 4.0 (Ice Cream Sandwich). Use reflection to
+ enable the response cache without impacting earlier releases: try {
+           File httpCacheDir = new File(context.getCacheDir(), "http");
+           long httpCacheSize = 10 * 1024 * 1024; // 10 MiB
+           Class.forName("android.net.http.HttpResponseCache")
+                   .getMethod("install", File.class, long.class)
+                   .invoke(null, httpCacheDir, httpCacheSize);
+       } catch (Exception httpResponseCacheNotAvailable) {
+       } Summary Public methods void close () Uninstalls the cache and releases any active resources. void delete () Uninstalls the cache and deletes all of its stored contents. void flush () Force buffered operations to the filesystem. CacheResponse get ( URI uri, String requestMethod, Map < String , List < String >> requestHeaders) Retrieve the cached response based on the requesting uri,
+ request method and request headers. int getHitCount () Returns the number of HTTP requests whose response was provided by the
+ cache. static HttpResponseCache getInstalled () Returns the currently-installed HttpResponseCache , or null if
+ there is no cache installed or it is not a HttpResponseCache . int getNetworkCount () Returns the number of HTTP requests that required the network to either
+ supply a response or validate a locally cached response. int getRequestCount () Returns the total number of HTTP requests that were made. static HttpResponseCache install ( File directory, long maxSize) Creates a new HTTP response cache and sets it as the system default cache. long maxSize () Returns the maximum number of bytes that this cache should use to store
+ its data. CacheRequest put ( URI uri, URLConnection urlConnection) The protocol handler calls this method after a resource has
+ been retrieved, and the ResponseCache must decide whether or
+ not to store the resource in its cache. long size () Returns the number of bytes currently being used to store the values in
+ this cache. Inherited methods From class java.net.ResponseCache abstract CacheResponse get ( URI uri, String rqstMethod, Map < String , List < String >> rqstHeaders) Retrieve the cached response based on the requesting uri,
+ request method and request headers. static ResponseCache getDefault () Gets the system-wide response cache. abstract CacheRequest put ( URI uri, URLConnection conn) The protocol handler calls this method after a resource has
+ been retrieved, and the ResponseCache must decide whether or
+ not to store the resource in its cache. static
+        
+        
+        void setDefault ( ResponseCache responseCache) Sets (or unsets) the system-wide cache. From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.io.Closeable abstract
+        
+        
+        
+        
+        void close () Closes this stream and releases any system resources associated
+ with it. From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public methods close Added in API level 14 public void close () Uninstalls the cache and releases any active resources. Stored contents
+ will remain on the filesystem. Throws IOException delete Added in API level 14 public void delete () Uninstalls the cache and deletes all of its stored contents. Throws IOException flush Added in API level 14 public void flush () Force buffered operations to the filesystem. This ensures that responses
+ written to the cache will be available the next time the cache is opened,
+ even if this process is killed. get Added in API level 14 public CacheResponse get ( URI uri, String requestMethod, Map < String , List < String >> requestHeaders) Retrieve the cached response based on the requesting uri,
+ request method and request headers. Typically this method is
+ called by the protocol handler before it sends out the request
+ to get the network resource. If a cached response is returned,
+ that resource is used instead. Parameters uri URI : a URI used to reference the requested
+            network resource requestMethod String : a String representing the request
+            method requestHeaders Map : - a Map from request header
+            field names to lists of field values representing
+            the current request headers Returns CacheResponse a CacheResponse instance if available
+          from cache, or null otherwise Throws IOException getHitCount Added in API level 14 public int getHitCount () Returns the number of HTTP requests whose response was provided by the
+ cache. This may include conditional GET requests that were
+ validated over the network. Returns int getInstalled Added in API level 14 public static HttpResponseCache getInstalled () Returns the currently-installed HttpResponseCache , or null if
+ there is no cache installed or it is not a HttpResponseCache . Returns HttpResponseCache getNetworkCount Added in API level 14 public int getNetworkCount () Returns the number of HTTP requests that required the network to either
+ supply a response or validate a locally cached response. Returns int getRequestCount Added in API level 14 public int getRequestCount () Returns the total number of HTTP requests that were made. This includes
+ both client requests and requests that were made on the client's behalf
+ to handle a redirects and retries. Returns int install Added in API level 14 public static HttpResponseCache install ( File directory, 
+                long maxSize) Creates a new HTTP response cache and sets it as the system default cache. Parameters directory File : the directory to hold cache data. maxSize long : the maximum size of the cache in bytes. Returns HttpResponseCache the newly-installed cache Throws IOException if directory cannot be used for this cache.
+     Most applications should respond to this exception by logging a
+     warning. maxSize Added in API level 14 public long maxSize () Returns the maximum number of bytes that this cache should use to store
+ its data. Returns long put Added in API level 14 public CacheRequest put ( URI uri, URLConnection urlConnection) The protocol handler calls this method after a resource has
+ been retrieved, and the ResponseCache must decide whether or
+ not to store the resource in its cache. If the resource is to
+ be cached, then put() must return a CacheRequest object which
+ contains an OutputStream that the protocol handler will
+ use to write the resource into the cache. If the resource is
+ not to be cached, then put must return null. Parameters uri URI : a URI used to reference the requested
+            network resource urlConnection URLConnection : - a URLConnection instance that is used to fetch
+            the response to be cached Returns CacheRequest a CacheRequest for recording the
+            response to be cached. Null return indicates that
+            the caller does not intend to cache the response. Throws IOException size Added in API level 14 public long size () Returns the number of bytes currently being used to store the values in
+ this cache. This may be greater than the maxSize() if a background
+ deletion is pending. -1 is returned if the size cannot be determined. Returns long</body></html>

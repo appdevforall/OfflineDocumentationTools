@@ -1,0 +1,70 @@
+<html><head><title>Class Documentation</title></head><body>AccessibilityNodeProvider Kotlin | Java public
+  
+  
+  abstract
+  class
+  AccessibilityNodeProvider extends Object java.lang.Object ↳ android.view.accessibility.AccessibilityNodeProvider This class is the contract a client should implement to enable support of a
+ virtual view hierarchy rooted at a given view for accessibility purposes. A virtual
+ view hierarchy is a tree of imaginary Views that is reported as a part of the view
+ hierarchy when an AccessibilityService explores the window content.
+ Since the virtual View tree does not exist this class is responsible for
+ managing the AccessibilityNodeInfo s describing that tree to accessibility
+ services. The main use case of these APIs is to enable a custom view that draws complex content,
+ for example a monthly calendar grid, to be presented as a tree of logical nodes,
+ for example month days each containing events, thus conveying its logical structure. A typical use case is to override View.getAccessibilityNodeProvider() of the
+ View that is a root of a virtual View hierarchy to return an instance of this class.
+ In such a case this instance is responsible for managing AccessibilityNodeInfo s
+ describing the virtual sub-tree rooted at the View including the one representing the
+ View itself. Similarly the returned instance is responsible for performing accessibility
+ actions on any virtual view or the root view itself. For example: Note: Consider using a ExploreByTouchHelper , a utility
+ extension of AccessibilityNodeProvider, to simplify many aspects of providing information to
+ accessibility services and managing accessibility focus. Kotlin // "view" is the View instance on which this class performs accessibility functions. class MyCalendarViewAccessibilityDelegate ( private var view : MyCalendarView ) : AccessibilityDelegate () { override fun getAccessibilityNodeProvider ( host : View ): AccessibilityNodeProvider { return object : AccessibilityNodeProvider () { override fun createAccessibilityNodeInfo ( virtualViewId : Int ): AccessibilityNodeInfo? { when ( virtualViewId ) { host - view - id - > { val node = AccessibilityNodeInfo . obtain ( view ) node . addChild ( view , child - view - id ) // Set other attributes like screenReaderFocusable // and contentDescription. return node } child - view - id - > { val node = AccessibilityNodeInfo . obtain ( view , virtualViewId ) node . setParent ( view ) node . addAction ( ACTION_SCROLL_UP ) node . addAction ( ACTION_SCROLL_DOWN ) // Set other attributes like focusable and visibleToUser. node . setBoundsInScreen ( Rect ( coords - of - edges - relative - to - screen )) return node } else - > return null } } override fun performAction ( virtualViewId : Int , action : Int , arguments : Bundle ): Boolean { if ( virtualViewId == host - view - id ) { return view . performAccessibilityAction ( action , arguments ) } when ( action ) { ACTION_SCROLL_UP . id - > { // Implement logic in a separate method. navigateToPreviousMonth () return true } ACTION_SCROLL_DOWN . id - > // Implement logic in a separate method. navigateToNextMonth () return true else - > return false } } } } } Java final class MyCalendarViewAccessibilityDelegate extends AccessibilityDelegate { // The View instance on which this class performs accessibility functions. private final MyCalendarView view ; MyCalendarViewAccessibilityDelegate ( MyCalendarView view ) { this . view = view ; } @ Override public AccessibilityNodeProvider getAccessibilityNodeProvider ( View host ) { return new AccessibilityNodeProvider () { @ Override @ Nullable public AccessibilityNodeInfo createAccessibilityNodeInfo ( int virtualViewId ) { if ( virtualViewId == host - view - id ) { AccessibilityNodeInfo node = AccessibilityNodeInfo . obtain ( view ); node . addChild ( view , child - view - id ); // Set other attributes like screenReaderFocusable and contentDescription. return node ; } else if ( virtualViewId == child - view - id ) { AccessibilityNodeInfo node = AccessibilityNodeInfo . obtain ( view , virtualViewId ); node . setParent ( view ); node . addAction ( ACTION_SCROLL_UP ); node . addAction ( ACTION_SCROLL_DOWN ); // Set other attributes like focusable and visibleToUser. node . setBoundsInScreen ( new Rect ( coordinates - of - edges - relative - to - screen )); return node ; } else { return null ; } } @ Override public boolean performAction ( int virtualViewId , int action , Bundle arguments ) { if ( virtualViewId == host - view - id ) { return view . performAccessibilityAction ( action , arguments ); } if ( action == ACTION_SCROLL_UP . getId ()) { // Implement logic in a separate method. navigateToPreviousMonth (); return true ; } else if ( action == ACTION_SCROLL_DOWN . getId ()) { // Implement logic in a separate method. navigateToNextMonth (); return true ; } else { return false ; } } }; } } Summary Constants int HOST_VIEW_ID The virtual id for the hosting View. Public constructors AccessibilityNodeProvider () Public methods void addExtraDataToAccessibilityNodeInfo (int virtualViewId, AccessibilityNodeInfo info, String extraDataKey, Bundle arguments) Adds extra data to an AccessibilityNodeInfo based on an explicit request for the
+ additional data. AccessibilityNodeInfo createAccessibilityNodeInfo (int virtualViewId) Returns an AccessibilityNodeInfo representing a virtual view,
+ such as a descendant of the host View, with the given virtualViewId or the host View itself if virtualViewId equals to HOST_VIEW_ID . List < AccessibilityNodeInfo > findAccessibilityNodeInfosByText ( String text, int virtualViewId) Finds AccessibilityNodeInfo s by text. AccessibilityNodeInfo findFocus (int focus) Find the virtual view, such as a descendant of the host View, that has the
+ specified focus type. boolean performAction (int virtualViewId, int action, Bundle arguments) Performs an accessibility action on a virtual view, such as a descendant of the
+ host View, with the given virtualViewId or the host View itself
+ if virtualViewId equals to HOST_VIEW_ID . Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants HOST_VIEW_ID Added in API level 21 public static final int HOST_VIEW_ID The virtual id for the hosting View. Constant Value:
+      
+          -1
+          (0xffffffff) Public constructors AccessibilityNodeProvider public AccessibilityNodeProvider () Public methods addExtraDataToAccessibilityNodeInfo Added in API level 26 public void addExtraDataToAccessibilityNodeInfo (int virtualViewId, AccessibilityNodeInfo info, String extraDataKey, Bundle arguments) Adds extra data to an AccessibilityNodeInfo based on an explicit request for the
+ additional data. This method only needs to be implemented if a virtual view offers to provide additional
+ data. Parameters virtualViewId int : The virtual view id used to create the node info AccessibilityNodeInfo : The info to which to add the extra data extraDataKey String : A key specifying the type of extra data to add to the info. The
+                     extra data should be added to the Bundle returned by
+                     the info's AccessibilityNodeInfo.getExtras method. arguments Bundle : A Bundle holding any arguments relevant for this request. See also: AccessibilityNodeInfo.setAvailableExtraData(List) createAccessibilityNodeInfo Added in API level 16 public AccessibilityNodeInfo createAccessibilityNodeInfo (int virtualViewId) Returns an AccessibilityNodeInfo representing a virtual view,
+ such as a descendant of the host View, with the given virtualViewId or the host View itself if virtualViewId equals to HOST_VIEW_ID . A virtual descendant is an imaginary View that is reported as a part of the view
+ hierarchy for accessibility purposes. This enables custom views that draw complex
+ content to report them selves as a tree of virtual views, thus conveying their
+ logical structure. The implementer is responsible for obtaining an accessibility node info from the
+ pool of reusable instances and setting the desired properties of the node info
+ before returning it. Parameters virtualViewId int : A client defined virtual view id. Returns AccessibilityNodeInfo A populated AccessibilityNodeInfo for a virtual descendant or the
+     host View.
+
+ This value may be null . See also: View.createAccessibilityNodeInfo() AccessibilityNodeInfo findAccessibilityNodeInfosByText Added in API level 16 public List < AccessibilityNodeInfo > findAccessibilityNodeInfosByText ( String text, 
+                int virtualViewId) Finds AccessibilityNodeInfo s by text. The match is case insensitive
+ containment. The search is relative to the virtual view, i.e. a descendant of the
+ host View, with the given virtualViewId or the host View itself virtualViewId equals to HOST_VIEW_ID . Parameters text String : The searched text. virtualViewId int : A client defined virtual view id which defined
+     the root of the tree in which to perform the search. Returns List < AccessibilityNodeInfo > A list of node info.
+
+ This value may be null . See also: createAccessibilityNodeInfo(int) AccessibilityNodeInfo findFocus Added in API level 19 public AccessibilityNodeInfo findFocus (int focus) Find the virtual view, such as a descendant of the host View, that has the
+ specified focus type. Parameters focus int : The focus to find. One of AccessibilityNodeInfo.FOCUS_INPUT or AccessibilityNodeInfo.FOCUS_ACCESSIBILITY . Returns AccessibilityNodeInfo The node info of the focused view or null. See also: AccessibilityNodeInfo.FOCUS_INPUT AccessibilityNodeInfo.FOCUS_ACCESSIBILITY performAction Added in API level 16 public boolean performAction (int virtualViewId, 
+                int action, Bundle arguments) Performs an accessibility action on a virtual view, such as a descendant of the
+ host View, with the given virtualViewId or the host View itself
+ if virtualViewId equals to HOST_VIEW_ID . Parameters virtualViewId int : A client defined virtual view id. action int : The action to perform. arguments Bundle : Optional action arguments.
+ This value may be null . Returns boolean True if the action was performed. See also: View.performAccessibilityAction(int, Bundle) createAccessibilityNodeInfo(int) AccessibilityNodeInfo</body></html>

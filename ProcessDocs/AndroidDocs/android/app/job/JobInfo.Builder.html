@@ -1,0 +1,481 @@
+<html><head><title>Class Documentation</title></head><body>JobInfo.Builder Kotlin | Java public
+  static
+  final
+  
+  class
+  JobInfo.Builder extends Object java.lang.Object ↳ android.app.job.JobInfo.Builder Builder class for constructing JobInfo objects. Summary Public constructors Builder (int jobId, ComponentName jobService) Initialize a new Builder to construct a JobInfo . Public methods JobInfo.Builder addDebugTag ( String tag) Add a debug tag to help track what this job is for. JobInfo.Builder addTriggerContentUri ( JobInfo.TriggerContentUri uri) Add a new content: URI that will be monitored with a ContentObserver , and will cause the job to execute if changed. JobInfo build () JobInfo.Builder removeDebugTag ( String tag) Remove a tag set via addDebugTag(java.lang.String) . JobInfo.Builder setBackoffCriteria (long initialBackoffMillis, int backoffPolicy) Set up the back-off/retry policy. JobInfo.Builder setClipData ( ClipData clip, int grantFlags) Set a ClipData associated with this Job. JobInfo.Builder setEstimatedNetworkBytes (long downloadBytes, long uploadBytes) Set the estimated size of network traffic that will be performed by
+ this job, in bytes. JobInfo.Builder setExpedited (boolean expedited) Setting this to true indicates that this job is important and needs to run as soon as
+ possible with stronger guarantees than regular jobs. JobInfo.Builder setExtras ( PersistableBundle extras) Set optional extras. JobInfo.Builder setImportantWhileForeground (boolean importantWhileForeground) This method was deprecated
+      in API level 31.
+    Use setExpedited(boolean) instead. JobInfo.Builder setMinimumLatency (long minLatencyMillis) Specify that this job should be delayed by the provided amount of time. JobInfo.Builder setMinimumNetworkChunkBytes (long chunkSizeBytes) Set the minimum size of non-resumable network traffic this job requires, in bytes. JobInfo.Builder setOverrideDeadline (long maxExecutionDelayMillis) Set a deadline after which all other functional requested constraints will be ignored. JobInfo.Builder setPeriodic (long intervalMillis) Specify that this job should recur with the provided interval, not more than once per
+ period. JobInfo.Builder setPeriodic (long intervalMillis, long flexMillis) Specify that this job should recur with the provided interval and flex. JobInfo.Builder setPersisted (boolean isPersisted) Set whether or not to persist this job across device reboots. JobInfo.Builder setPrefetch (boolean prefetch) Setting this to true indicates that this job is designed to prefetch
+ content that will make a material improvement to the experience of
+ the specific user of this device. JobInfo.Builder setPriority (int priority) Indicate the priority for this job. JobInfo.Builder setRequiredNetwork ( NetworkRequest networkRequest) Set detailed description of the kind of network your job requires. JobInfo.Builder setRequiredNetworkType (int networkType) Set basic description of the kind of network your job requires. JobInfo.Builder setRequiresBatteryNotLow (boolean batteryNotLow) Specify that to run this job, the device's battery level must not be low. JobInfo.Builder setRequiresCharging (boolean requiresCharging) Specify that to run this job, the device must be charging (or be a
+ non-battery-powered device connected to permanent power, such as Android TV
+ devices). JobInfo.Builder setRequiresDeviceIdle (boolean requiresDeviceIdle) When set true , ensure that this job will not run if the device is in active use. JobInfo.Builder setRequiresStorageNotLow (boolean storageNotLow) Specify that to run this job, the device's available storage must not be low. JobInfo.Builder setTraceTag ( String traceTag) Set a tag that will be used in traces . JobInfo.Builder setTransientExtras ( Bundle extras) Set optional transient extras. JobInfo.Builder setTriggerContentMaxDelay (long durationMs) Set the maximum total delay (in milliseconds) that is allowed from the first
+ time a content change is detected until the job is scheduled. JobInfo.Builder setTriggerContentUpdateDelay (long durationMs) Set the delay (in milliseconds) from when a content change is detected until
+ the job is scheduled. JobInfo.Builder setUserInitiated (boolean userInitiated) Indicates that this job is being scheduled to fulfill an explicit user request. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors Builder Added in API level 21 public Builder (int jobId, ComponentName jobService) Initialize a new Builder to construct a JobInfo . Parameters jobId int : Application-provided id for this job. Subsequent calls to cancel, or
+ jobs created with the same jobId, will update the pre-existing job with
+ the same id.  This ID must be unique across all clients of the same uid
+ (not just the same package).  You will want to make sure this is a stable
+ id across app updates, so probably not based on a resource ID. jobService ComponentName : The endpoint that you implement that will receive the callback from the
+ JobScheduler.
+
+ This value cannot be null . Public methods addDebugTag Added in API level 35 public JobInfo.Builder addDebugTag ( String tag) Add a debug tag to help track what this job is for. The tags may show in debug dumps
+ or app metrics. Do not put personally identifiable information (PII) in the tag. Tags have the following requirements: Tags cannot be more than 127 characters. Since leading and trailing whitespace can lead to hard-to-debug issues,
+       tags should not include leading or trailing whitespace.
+       All tags will be trimmed . An empty String (after trimming) is not allowed. Should not have personally identifiable information (PII). A job cannot have more than 32 tags. Parameters tag String : A debug tag that helps describe what the job is for.
+ This value cannot be null . Returns JobInfo.Builder This object for method chaining
+
+ This value cannot be null . addTriggerContentUri Added in API level 24 public JobInfo.Builder addTriggerContentUri ( JobInfo.TriggerContentUri uri) Add a new content: URI that will be monitored with a ContentObserver , and will cause the job to execute if changed.
+ If you have any trigger content URIs associated with a job, it will not execute until
+ there has been a change report for one or more of them. Note that trigger URIs can not be used in combination with setPeriodic(long) or setPersisted(boolean) .  To continually monitor
+ for content changes, you need to schedule a new JobInfo using the same job ID and
+ observing the same URIs in place of calling JobService.jobFinished(JobParameters, boolean) . Remember that JobScheduler.schedule(JobInfo) stops a running job if it uses the same job ID,
+ so only call it after you've finished processing the most recent changes (in other words,
+ call JobScheduler.schedule(JobInfo) where you would have normally called JobService.jobFinished(JobParameters, boolean) .
+ Following this pattern will ensure you do not lose any content changes: while your
+ job is running, the system will continue monitoring for content changes, and propagate
+ any changes it sees over to the next job you schedule, so you do not have to worry
+ about missing new changes. Scheduling the new job
+ before or during processing will cause the current job to be stopped (as described in JobScheduler.schedule(JobInfo) ), meaning the wakelock will be released for the
+ current job and your app process may be killed since it will no longer be in a valid
+ component lifecycle. Since JobScheduler.schedule(JobInfo) stops the current job, you do not
+ need to call JobService.jobFinished(JobParameters, boolean) if you call JobScheduler.schedule(JobInfo) using the same job ID as the
+ currently running job. Because setting this property is not compatible with periodic or
+ persisted jobs, doing so will throw an IllegalArgumentException when build() is called. The following example shows how this feature can be used to monitor for changes
+ in the photos on a device. import android.app.job.JobInfo;
+import android.app.job.JobParameters;
+import android.app.job.JobScheduler;
+import android.app.job.JobService;
+import android.content.ComponentName;
+import android.content.Context;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Environment;
+import android.os.Handler;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Example stub job to monitor when there is a change to photos in the media provider.
+ */
+public class PhotosContentJob extends JobService {
+    // The root URI of the media provider, to monitor for generic changes to its content.
+    static final Uri MEDIA_URI = Uri.parse("content://" + MediaStore.AUTHORITY + "/");
+
+    // Path segments for image-specific URIs in the provider.
+    static final List<String> EXTERNAL_PATH_SEGMENTS
+            = MediaStore.Images.Media.EXTERNAL_CONTENT_URI.getPathSegments();
+
+    // The columns we want to retrieve about a particular image.
+    static final String[] PROJECTION = new String[] {
+            MediaStore.Images.ImageColumns._ID, MediaStore.Images.ImageColumns.DATA
+    };
+    static final int PROJECTION_ID = 0;
+    static final int PROJECTION_DATA = 1;
+
+    // This is the external storage directory where cameras place pictures.
+    static final String DCIM_DIR = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DCIM).getPath();
+
+    // A pre-built JobInfo we use for scheduling our job.
+    static final JobInfo JOB_INFO;
+
+    static {
+        JobInfo.Builder builder = new JobInfo.Builder(JobIds.PHOTOS_CONTENT_JOB,
+                new ComponentName("com.example.android.apis", PhotosContentJob.class.getName()));
+        // Look for specific changes to images in the provider.
+        builder.addTriggerContentUri(new JobInfo.TriggerContentUri(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                JobInfo.TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS));
+        // Also look for general reports of changes in the overall provider.
+        builder.addTriggerContentUri(new JobInfo.TriggerContentUri(MEDIA_URI, 0));
+        JOB_INFO = builder.build();
+    }
+
+    // Fake job work.  A real implementation would do some work on a separate thread.
+    final Handler mHandler = new Handler();
+    final Runnable mWorker = new Runnable() {
+        @Override public void run() {
+            scheduleJob(PhotosContentJob.this);
+            jobFinished(mRunningParams, false);
+        }
+    };
+
+    JobParameters mRunningParams;
+
+    // Schedule this job, replace any existing one.
+    public static void scheduleJob(Context context) {
+        JobScheduler js = context.getSystemService(JobScheduler.class);
+        js.schedule(JOB_INFO);
+        Log.i("PhotosContentJob", "JOB SCHEDULED!");
+    }
+
+    // Check whether this job is currently scheduled.
+    public static boolean isScheduled(Context context) {
+        JobScheduler js = context.getSystemService(JobScheduler.class);
+        List<JobInfo> jobs = js.getAllPendingJobs();
+        if (jobs == null) {
+            return false;
+        }
+        for (int i=0; i<jobs.size(); i++) {
+            if (jobs.get(i).getId() == JobIds.PHOTOS_CONTENT_JOB) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Cancel this job, if currently scheduled.
+    public static void cancelJob(Context context) {
+        JobScheduler js = context.getSystemService(JobScheduler.class);
+        js.cancel(JobIds.PHOTOS_CONTENT_JOB);
+    }
+
+    @Override
+    public boolean onStartJob(JobParameters params) {
+        Log.i("PhotosContentJob", "JOB STARTED!");
+        mRunningParams = params;
+
+        // Instead of real work, we are going to build a string to show to the user.
+        StringBuilder sb = new StringBuilder();
+
+        // Did we trigger due to a content change?
+        if (params.getTriggeredContentAuthorities() != null) {
+            boolean rescanNeeded = false;
+
+            if (params.getTriggeredContentUris() != null) {
+                // If we have details about which URIs changed, then iterate through them
+                // and collect either the ids that were impacted or note that a generic
+                // change has happened.
+                ArrayList<String> ids = new ArrayList<>();
+                for (Uri uri : params.getTriggeredContentUris()) {
+                    List<String> path = uri.getPathSegments();
+                    if (path != null && path.size() == EXTERNAL_PATH_SEGMENTS.size()+1) {
+                        // This is a specific file.
+                        ids.add(path.get(path.size()-1));
+                    } else {
+                        // Oops, there is some general change!
+                        rescanNeeded = true;
+                    }
+                }
+
+                if (ids.size() > 0) {
+                    // If we found some ids that changed, we want to determine what they are.
+                    // First, we do a query with content provider to ask about all of them.
+                    StringBuilder selection = new StringBuilder();
+                    for (int i=0; i<ids.size(); i++) {
+                        if (selection.length() > 0) {
+                            selection.append(" OR ");
+                        }
+                        selection.append(MediaStore.Images.ImageColumns._ID);
+                        selection.append("='");
+                        selection.append(ids.get(i));
+                        selection.append("'");
+                    }
+
+                    // Now we iterate through the query, looking at the filenames of
+                    // the items to determine if they are ones we are interested in.
+                    Cursor cursor = null;
+                    boolean haveFiles = false;
+                    try {
+                        cursor = getContentResolver().query(
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                                PROJECTION, selection.toString(), null, null);
+                        while (cursor.moveToNext()) {
+                            // We only care about files in the DCIM directory.
+                            String dir = cursor.getString(PROJECTION_DATA);
+                            if (dir.startsWith(DCIM_DIR)) {
+                                if (!haveFiles) {
+                                    haveFiles = true;
+                                    sb.append("New photos:\n");
+                                }
+                                sb.append(cursor.getInt(PROJECTION_ID));
+                                sb.append(": ");
+                                sb.append(dir);
+                                sb.append("\n");
+                            }
+                        }
+                    } catch (SecurityException e) {
+                        sb.append("Error: no access to media!");
+                    } finally {
+                        if (cursor != null) {
+                            cursor.close();
+                        }
+                    }
+                }
+
+            } else {
+                // We don't have any details about URIs (because too many changed at once),
+                // so just note that we need to do a full rescan.
+                rescanNeeded = true;
+            }
+
+            if (rescanNeeded) {
+                sb.append("Photos rescan needed!");
+            }
+        } else {
+            sb.append("(No photos content)");
+        }
+        Toast.makeText(this, sb.toString(), Toast.LENGTH_LONG).show();
+
+        // We will emulate taking some time to do this work, so we can see batching happen.
+        mHandler.postDelayed(mWorker, 10*1000);
+        return true;
+    }
+
+    @Override
+    public boolean onStopJob(JobParameters params) {
+        mHandler.removeCallbacks(mWorker);
+        return false;
+    }
+} Parameters uri JobInfo.TriggerContentUri : The content: URI to monitor.
+ This value cannot be null . Returns JobInfo.Builder See also: JobInfo.getTriggerContentUris() build Added in API level 21 public JobInfo build () Returns JobInfo The job object to hand to the JobScheduler. This object is immutable. removeDebugTag Added in API level 35 public JobInfo.Builder removeDebugTag ( String tag) Remove a tag set via addDebugTag(java.lang.String) . Parameters tag String : The tag to remove
+ This value cannot be null . Returns JobInfo.Builder This object for method chaining
+
+ This value cannot be null . setBackoffCriteria Added in API level 21 public JobInfo.Builder setBackoffCriteria (long initialBackoffMillis, 
+                int backoffPolicy) Set up the back-off/retry policy.
+ This defaults to some respectable values: {30 seconds, Exponential}. We cap back-off at
+ 5hrs. Note that trying to set a backoff criteria for a job with setRequiresDeviceIdle(boolean) will throw an exception when you call build().
+ This is because back-off typically does not make sense for these types of jobs. See JobService.jobFinished(android.app.job.JobParameters, boolean) for more description of the return value for the case of a job executing while in idle
+ mode. Parameters initialBackoffMillis long : Millisecond time interval to wait initially when job has
+                             failed. backoffPolicy int : Value is JobInfo.BACKOFF_POLICY_LINEAR , or JobInfo.BACKOFF_POLICY_EXPONENTIAL Returns JobInfo.Builder See also: JobInfo.getInitialBackoffMillis() JobInfo.getBackoffPolicy() setClipData Added in API level 26 public JobInfo.Builder setClipData ( ClipData clip, 
+                int grantFlags) Set a ClipData associated with this Job. The main purpose of providing a ClipData is to allow granting of
+ URI permissions for data associated with the clip.  The exact kind
+ of permission grant to perform is specified through grantFlags . If the ClipData contains items that are Intents, any
+ grant flags in those Intents will be ignored.  Only flags provided as an argument
+ to this method are respected, and will be applied to all Uri or
+ Intent items in the clip (or sub-items of the clip). Because setting this property is not compatible with persisted
+ jobs, doing so will throw an IllegalArgumentException when build() is called. Parameters clip ClipData : The new clip to set.  May be null to clear the current clip. grantFlags int : The desired permissions to grant for any URIs.  This should be
+ a combination of Intent.FLAG_GRANT_READ_URI_PERMISSION , Intent.FLAG_GRANT_WRITE_URI_PERMISSION , and Intent.FLAG_GRANT_PREFIX_URI_PERMISSION . Returns JobInfo.Builder See also: JobInfo.getClipData() JobInfo.getClipGrantFlags() setEstimatedNetworkBytes Added in API level 28 public JobInfo.Builder setEstimatedNetworkBytes (long downloadBytes, 
+                long uploadBytes) Set the estimated size of network traffic that will be performed by
+ this job, in bytes. Apps are encouraged to provide values that are as accurate as
+ possible, but when the exact size isn't available, an
+ order-of-magnitude estimate can be provided instead. Here are some
+ specific examples: A job that is backing up a photo knows the exact size of that
+ photo, so it should provide that size as the estimate. A job that refreshes top news stories wouldn't know an exact
+ size, but if the size is expected to be consistently around 100KB, it
+ can provide that order-of-magnitude value as the estimate. A job that synchronizes email could end up using an extreme range
+ of data, from under 1KB when nothing has changed, to dozens of MB
+ when there are new emails with attachments. Jobs that cannot provide
+ reasonable estimates should use the sentinel value JobInfo.NETWORK_BYTES_UNKNOWN . Note that the system may choose to delay jobs with large network
+ usage estimates when the device has a poor network connection, in
+ order to save battery and possible network costs.
+ Starting from Android version Build.VERSION_CODES.S , JobScheduler may attempt
+ to run large jobs when the device is charging and on an unmetered network, even if the
+ network is slow. This gives large jobs an opportunity to make forward progress, even if
+ they risk timing out. The values provided here only reflect the traffic that will be
+ performed by the base job; if you're using JobWorkItem then
+ you also need to define the network traffic used by each work item
+ when constructing them. Prior to Android version Build.VERSION_CODES.TIRAMISU , JobScheduler used the
+ estimated transfer numbers in a similar fashion to setMinimumNetworkChunkBytes(long) (to estimate if the work would complete
+ within the time available to job). In other words, JobScheduler treated the transfer as
+ all-or-nothing. Starting from Android version Build.VERSION_CODES.TIRAMISU ,
+ JobScheduler will only use the estimated transfer numbers in this manner if minimum
+ chunk sizes have not been provided via setMinimumNetworkChunkBytes(long) . Parameters downloadBytes long : The estimated size of network traffic that will
+            be downloaded by this job, in bytes.
+ Value is a non-negative number of bytes. uploadBytes long : The estimated size of network traffic that will be
+            uploaded by this job, in bytes.
+ Value is a non-negative number of bytes. Returns JobInfo.Builder See also: JobInfo.getEstimatedNetworkDownloadBytes() JobInfo.getEstimatedNetworkUploadBytes() JobWorkItem.JobWorkItem(android.content.Intent, long, long) setExpedited Added in API level 31 public JobInfo.Builder setExpedited (boolean expedited) Setting this to true indicates that this job is important and needs to run as soon as
+ possible with stronger guarantees than regular jobs. These "expedited" jobs will: Run as soon as possible Be less restricted during Doze and battery saver Bypass Doze, app standby, and battery saver network restrictions (if the job
+         has a connectivity constraint ) Be less likely to be killed than regular jobs Be subject to background location throttling Be exempt from delay to optimize job execution Expedited jobs are given JobInfo.PRIORITY_MAX by default. Since these jobs have stronger guarantees than regular jobs, they will be subject to
+ stricter quotas. As long as an app has available expedited quota, jobs scheduled with
+ this set to true will run with these guarantees. If an app has run out of available
+ expedited quota, any pending expedited jobs will run as regular jobs. JobParameters.isExpeditedJob() can be used to know whether the executing job
+ has expedited guarantees or not. In addition, JobScheduler.schedule(JobInfo) will immediately return JobScheduler.RESULT_FAILURE if the app does not have
+ available quota (and the job will not be successfully scheduled). Expedited job quota will replenish over time and as the user interacts with the app,
+ so you should not have to worry about running out of quota because of processing from
+ frequent user engagement. Expedited jobs may only set network, storage-not-low, and persistence constraints.
+ No other constraints are allowed. Assuming all constraints remain satisfied (including ideal system load conditions),
+ expedited jobs can have an execution time of at least 1 minute. If your
+ app has remaining expedited job quota, then the expedited job may potentially run
+ longer until remaining quota is used up. Just like with regular jobs, quota is not
+ consumed while the app is on top and visible to the user. Note: Even though expedited jobs are meant to run as soon as possible, they may be
+ deferred if the system is under heavy load or requested constraints are not satisfied.
+ This delay may be true for expedited jobs of the foreground app on Android version Build.VERSION_CODES.S , but starting from Android version Build.VERSION_CODES.TIRAMISU , expedited jobs for the foreground app are
+ guaranteed to be started before JobScheduler.schedule(JobInfo) returns (assuming
+ all requested constraints are satisfied), similar to foreground services. Parameters expedited boolean Returns JobInfo.Builder This value cannot be null . See also: JobInfo.isExpedited() setExtras Added in API level 21 public JobInfo.Builder setExtras ( PersistableBundle extras) Set optional extras. This is persisted, so we only allow primitive types. Parameters extras PersistableBundle : Bundle containing extras you want the scheduler to hold on to for you.
+ This value cannot be null . Returns JobInfo.Builder See also: JobInfo.getExtras() setImportantWhileForeground Added in API level 28 Deprecated in API level
+      31 public JobInfo.Builder setImportantWhileForeground (boolean importantWhileForeground) This method was deprecated
+      in API level 31. Use setExpedited(boolean) instead. Setting this to true indicates that this job is important while the scheduling app
+ is in the foreground or on the temporary allowlist for background restrictions.
+ This means that the system will relax doze restrictions on this job during this time.
+
+ Apps should use this flag only for short jobs that are essential for the app to function
+ properly in the foreground.
+
+ Note that once the scheduling app is no longer allowlisted from background restrictions
+ and in the background, or the job failed due to unsatisfied constraints,
+ this job should be expected to behave like other jobs without this flag. Jobs marked as important-while-foreground are given JobInfo.PRIORITY_HIGH by default. Note: Beginning with Build.VERSION_CODES.BAKLAVA , this flag will be ignored and no longer
+ function effectively, regardless of the calling app's target SDK version. JobInfo.isImportantWhileForeground() will always return false .
+ Apps should use {link #setExpedited(boolean)} with true to indicate
+ that this job is important and needs to run as soon as possible. Parameters importantWhileForeground boolean : whether to relax doze restrictions for this job when the
+                                 app is in the foreground. False by default. Returns JobInfo.Builder See also: JobInfo.isImportantWhileForeground() setMinimumLatency Added in API level 21 public JobInfo.Builder setMinimumLatency (long minLatencyMillis) Specify that this job should be delayed by the provided amount of time. The job may not
+ run the instant the delay has elapsed. JobScheduler will start the job at an
+ indeterminate time after the delay has elapsed. Because it doesn't make sense setting this property on a periodic job, doing so will
+ throw an IllegalArgumentException when build() is called.
+
+ Negative latencies also don't make sense for a job and are indicative of an error,
+ so starting in Android version Build.VERSION_CODES.VANILLA_ICE_CREAM ,
+ setting a negative deadline will result in build() throwing an IllegalArgumentException . Parameters minLatencyMillis long : Milliseconds before which this job will not be considered for
+                         execution. Returns JobInfo.Builder See also: JobInfo.getMinLatencyMillis() setMinimumNetworkChunkBytes Added in API level 33 public JobInfo.Builder setMinimumNetworkChunkBytes (long chunkSizeBytes) Set the minimum size of non-resumable network traffic this job requires, in bytes. When
+ the upload or download can be easily paused and resumed, use this to set the smallest
+ size that must be transmitted between start and stop events to be considered successful.
+ If the transfer cannot be paused and resumed, then this should be the sum of the values
+ provided to JobInfo.Builder.setEstimatedNetworkBytes(long, long) . Apps are encouraged to provide values that are as accurate as possible since JobScheduler
+ will try to run the job at a time when at least the minimum chunk can be transmitted to
+ reduce the amount of repetitive data that's transferred. Jobs that cannot provide
+ reasonable estimates should use the sentinel value JobInfo.NETWORK_BYTES_UNKNOWN . The values provided here only reflect the minimum non-resumable traffic that will be
+ performed by the base job; if you're using JobWorkItem then
+ you also need to define the network traffic used by each work item
+ when constructing them. Parameters chunkSizeBytes long : The smallest piece of data that cannot be easily paused and
+                       resumed, in bytes.
+ Value is a non-negative number of bytes. Returns JobInfo.Builder This value cannot be null . See also: JobInfo.getMinimumNetworkChunkBytes() JobWorkItem.JobWorkItem(android.content.Intent, long, long, long) setOverrideDeadline Added in API level 21 public JobInfo.Builder setOverrideDeadline (long maxExecutionDelayMillis) Set a deadline after which all other functional requested constraints will be ignored.
+ After the deadline has passed, the job can run even if other requirements (including
+ a delay set through setMinimumLatency(long) ) are not met. JobParameters.isOverrideDeadlineExpired() will return true if the job's
+ deadline has passed. The job's execution may be delayed beyond the set deadline by
+ other factors such as Doze mode and system health signals. Because it doesn't make sense setting this property on a periodic job, doing so will
+ throw an IllegalArgumentException when build() is called. Negative deadlines also don't make sense for a job and are indicative of an error,
+ so starting in Android version Build.VERSION_CODES.VANILLA_ICE_CREAM ,
+ setting a negative deadline will result in build() throwing an IllegalArgumentException . Since a job will run once the deadline has passed regardless of the status of other
+ constraints, setting a deadline of 0 (or a delay equal
+ to the deadline) with other constraints makes those constraints
+ meaningless when it comes to execution decisions. Since doing so is indicative of an
+ error in the logic, starting in Android version Build.VERSION_CODES.VANILLA_ICE_CREAM , jobs with extremely short
+ time windows will fail to build. Time windows are
+ defined as the time between a job's minimum latency and its deadline. If the minimum latency is not set, it is assumed to be 0.
+
+ Work that must happen immediately should use setExpedited(boolean) or setUserInitiated(boolean) in the appropriate manner. This API aimed to guarantee execution of the job by the deadline only on Android version Build.VERSION_CODES.LOLLIPOP . That aim and guarantee has not existed
+ since Build.VERSION_CODES.M . Parameters maxExecutionDelayMillis long Returns JobInfo.Builder See also: JobInfo.getMaxExecutionDelayMillis() setPeriodic Added in API level 21 public JobInfo.Builder setPeriodic (long intervalMillis) Specify that this job should recur with the provided interval, not more than once per
+ period. You have no control over when within this interval this job will be executed,
+ only the guarantee that it will be executed at most once within this interval, as long
+ as the constraints are satisfied. If the constraints are not satisfied within this
+ interval, the job will wait until the constraints are satisfied.
+ Setting this function on the builder with setMinimumLatency(long) or setOverrideDeadline(long) will result in an error. Parameters intervalMillis long : Millisecond interval for which this job will repeat. Returns JobInfo.Builder See also: JobInfo.getIntervalMillis() JobInfo.getFlexMillis() setPeriodic Added in API level 24 public JobInfo.Builder setPeriodic (long intervalMillis, 
+                long flexMillis) Specify that this job should recur with the provided interval and flex. The job can
+ execute at any time in a window of flex length at the end of the period.
+ If the constraints are not satisfied within the window,
+ the job will wait until the constraints are satisfied. Parameters intervalMillis long : Millisecond interval for which this job will repeat. A minimum
+                       value of JobInfo.getMinPeriodMillis() is enforced. flexMillis long : Millisecond flex for this job. Flex is clamped to be at least JobInfo.getMinFlexMillis() or 5 percent of the period, whichever is
+                   higher. Returns JobInfo.Builder See also: JobInfo.getIntervalMillis() JobInfo.getFlexMillis() setPersisted Added in API level 21 public JobInfo.Builder setPersisted (boolean isPersisted) Set whether or not to persist this job across device reboots. Requires Manifest.permission.RECEIVE_BOOT_COMPLETED Parameters isPersisted boolean : True to indicate that the job will be written to
+            disk and loaded at boot. Returns JobInfo.Builder See also: JobInfo.isPersisted() setPrefetch Added in API level 28 public JobInfo.Builder setPrefetch (boolean prefetch) Setting this to true indicates that this job is designed to prefetch
+ content that will make a material improvement to the experience of
+ the specific user of this device. For example, fetching top headlines
+ of interest to the current user. Apps targeting Android version Build.VERSION_CODES.TIRAMISU or later are
+ not allowed to have deadlines (set via setOverrideDeadline(long) on their
+ prefetch jobs. The system may use this signal to relax the network constraints you
+ originally requested, such as allowing a JobInfo.NETWORK_TYPE_UNMETERED job to run over a metered
+ network when there is a surplus of metered data available. The system
+ may also use this signal in combination with end user usage patterns
+ to ensure data is prefetched before the user launches your app. Parameters prefetch boolean Returns JobInfo.Builder See also: JobInfo.isPrefetch() setPriority Added in API level 33 public JobInfo.Builder setPriority (int priority) Indicate the priority for this job. The priority set here will be used to sort jobs
+ for the calling app and apply slightly different policies based on the priority.
+ The priority will NOT be used as a global sorting value to sort between
+ different app's jobs. Use this to inform the system about which jobs it should try
+ to run before other jobs. Giving the same priority to all of your jobs will result
+ in them all being treated the same. The priorities each have slightly different
+ behaviors, as noted in their relevant javadoc.
+
+ Starting in Android version Build.VERSION_CODES.UPSIDE_DOWN_CAKE ,
+ the priority will only affect sorting order within the job's namespace. NOTE: Setting all of your jobs to high priority will not be
+ beneficial to your app and in fact may hurt its performance in the
+ long run.
+
+ In order to prevent starvation, repeatedly retried jobs (because of failures) will slowly
+ have their priorities lowered. Parameters priority int : Value is JobInfo.PRIORITY_MIN , JobInfo.PRIORITY_LOW , JobInfo.PRIORITY_DEFAULT , JobInfo.PRIORITY_HIGH , or JobInfo.PRIORITY_MAX Returns JobInfo.Builder This value cannot be null . See also: JobInfo.getPriority() setRequiredNetwork Added in API level 28 public JobInfo.Builder setRequiredNetwork ( NetworkRequest networkRequest) Set detailed description of the kind of network your job requires. If your job doesn't need a network connection, you don't need to call
+ this method, as the default is null . Calling this method defines network as a strict requirement for your
+ job. If the network requested is not available your job will never
+ run. See setOverrideDeadline(long) to change this behavior.
+ Calling this method will override any requirements previously defined
+ by setRequiredNetworkType(int) ; you typically only want to
+ call one of these methods. When your job executes in JobService.onStartJob(JobParameters) , be sure to use the
+ specific network returned by JobParameters.getNetwork() ,
+ otherwise you'll use the default network which may not meet this
+ constraint.
+
+ Starting in Android version Build.VERSION_CODES.UPSIDE_DOWN_CAKE ,
+ an app must hold the Manifest.permission.ACCESS_NETWORK_STATE permission to
+ schedule a job that requires a network. Parameters networkRequest NetworkRequest : The detailed description of the kind of network
+            this job requires, or null if no specific kind of
+            network is required. Defining a NetworkSpecifier is only supported for jobs that aren't persisted. Returns JobInfo.Builder See also: setRequiredNetworkType(int) JobInfo.getRequiredNetwork() JobParameters.getNetwork() setRequiredNetworkType Added in API level 21 public JobInfo.Builder setRequiredNetworkType (int networkType) Set basic description of the kind of network your job requires. If
+ you need more precise control over network capabilities, see setRequiredNetwork(android.net.NetworkRequest) . If your job doesn't need a network connection, you don't need to call
+ this method, as the default value is JobInfo.NETWORK_TYPE_NONE . Calling this method defines network as a strict requirement for your
+ job. If the network requested is not available your job will never
+ run. See setOverrideDeadline(long) to change this behavior.
+ Calling this method will override any requirements previously defined
+ by setRequiredNetwork(android.net.NetworkRequest) ; you typically only
+ want to call one of these methods.
+
+ Starting in Android version Build.VERSION_CODES.UPSIDE_DOWN_CAKE ,
+ an app must hold the Manifest.permission.ACCESS_NETWORK_STATE permission to
+ schedule a job that requires a network. Starting in Android version Build.VERSION_CODES.UPSIDE_DOWN_CAKE , JobScheduler may try to shift the execution of jobs requiring JobInfo.NETWORK_TYPE_ANY to when there is access to an un-metered network. When your job executes in JobService.onStartJob(JobParameters) , be sure to use the
+ specific network returned by JobParameters.getNetwork() ,
+ otherwise you'll use the default network which may not meet this
+ constraint. Parameters networkType int : Value is JobInfo.NETWORK_TYPE_NONE , JobInfo.NETWORK_TYPE_ANY , JobInfo.NETWORK_TYPE_UNMETERED , JobInfo.NETWORK_TYPE_NOT_ROAMING , or JobInfo.NETWORK_TYPE_CELLULAR Returns JobInfo.Builder See also: setRequiredNetwork(NetworkRequest) JobInfo.getNetworkType() JobParameters.getNetwork() setRequiresBatteryNotLow Added in API level 26 public JobInfo.Builder setRequiresBatteryNotLow (boolean batteryNotLow) Specify that to run this job, the device's battery level must not be low.
+ This defaults to false.  If true, the job will only run when the battery level
+ is not low, which is generally the point where the user is given a "low battery"
+ warning. Setting this to false DOES NOT mean the job will only run
+ when the battery is low. Parameters batteryNotLow boolean : Whether or not the device's battery level must not be low. Returns JobInfo.Builder See also: JobInfo.isRequireBatteryNotLow() setRequiresCharging Added in API level 21 public JobInfo.Builder setRequiresCharging (boolean requiresCharging) Specify that to run this job, the device must be charging (or be a
+ non-battery-powered device connected to permanent power, such as Android TV
+ devices). This defaults to false . Setting this to false DOES NOT mean the job will only run when the device is not charging. For purposes of running jobs, a battery-powered device
+ "charging" is not quite the same as simply being connected to power.  If the
+ device is so busy that the battery is draining despite a power connection, jobs
+ with this constraint will not run.  This can happen during some
+ common use cases such as video chat, particularly if the device is plugged in
+ to USB rather than to wall power. Parameters requiresCharging boolean : Pass true to require that the device be
+     charging in order to run the job. Returns JobInfo.Builder See also: JobInfo.isRequireCharging() setRequiresDeviceIdle Added in API level 21 public JobInfo.Builder setRequiresDeviceIdle (boolean requiresDeviceIdle) When set true , ensure that this job will not run if the device is in active use.
+ The default state is false : that is, the for the job to be runnable even when
+ someone is interacting with the device. Setting this to false DOES NOT mean the job will only run when the device is not idle. This state is a loose definition provided by the system. In general, it means that
+ the device is not currently being used interactively, and has not been in use for some
+ time. As such, it is a good time to perform resource heavy jobs. Bear in mind that
+ battery usage will still be attributed to your application, and surfaced to the user in
+ battery stats. Despite the similar naming, this job constraint is not related to the system's "device idle" or "doze" states.  This constraint only
+ determines whether a job is allowed to run while the device is directly in use. Parameters requiresDeviceIdle boolean : Pass true to prevent the job from running
+     while the device is being used interactively. Returns JobInfo.Builder See also: JobInfo.isRequireDeviceIdle() setRequiresStorageNotLow Added in API level 26 public JobInfo.Builder setRequiresStorageNotLow (boolean storageNotLow) Specify that to run this job, the device's available storage must not be low.
+ This defaults to false.  If true, the job will only run when the device is not
+ in a low storage state, which is generally the point where the user is given a
+ "low storage" warning. Parameters storageNotLow boolean : Whether or not the device's available storage must not be low. Returns JobInfo.Builder See also: JobInfo.isRequireStorageNotLow() setTraceTag Added in API level 35 public JobInfo.Builder setTraceTag ( String traceTag) Set a tag that will be used in traces .
+ Since this is a trace tag, it must follow the rules set in Trace.beginSection(String) , such as it cannot be more
+ than 127 Unicode code units.
+ Additionally, since leading and trailing whitespace can lead to hard-to-debug issues,
+ they will be trimmed .
+ An empty String (after trimming) is not allowed. Parameters traceTag String : The tag to use in traces.
+ This value may be null . Returns JobInfo.Builder This object for method chaining
+
+ This value cannot be null . setTransientExtras Added in API level 26 public JobInfo.Builder setTransientExtras ( Bundle extras) Set optional transient extras. Because setting this property is not compatible with persisted
+ jobs, doing so will throw an IllegalArgumentException when build() is called. Parameters extras Bundle : Bundle containing extras you want the scheduler to hold on to for you.
+ This value cannot be null . Returns JobInfo.Builder See also: JobInfo.getTransientExtras() setTriggerContentMaxDelay Added in API level 24 public JobInfo.Builder setTriggerContentMaxDelay (long durationMs) Set the maximum total delay (in milliseconds) that is allowed from the first
+ time a content change is detected until the job is scheduled. Parameters durationMs long : Delay after initial content change, in milliseconds. Returns JobInfo.Builder See also: JobInfo.getTriggerContentMaxDelay() setTriggerContentUpdateDelay Added in API level 24 public JobInfo.Builder setTriggerContentUpdateDelay (long durationMs) Set the delay (in milliseconds) from when a content change is detected until
+ the job is scheduled.  If there are more changes during that time, the delay
+ will be reset to start at the time of the most recent change. Parameters durationMs long : Delay after most recent content change, in milliseconds. Returns JobInfo.Builder See also: JobInfo.getTriggerContentUpdateDelay() setUserInitiated Added in API level 34 public JobInfo.Builder setUserInitiated (boolean userInitiated) Indicates that this job is being scheduled to fulfill an explicit user request.
+ As such, user-initiated jobs can only be scheduled when the app is in the foreground
+ or in a state where launching an activity is allowed, as defined here . Attempting to schedule one outside of these conditions will return a JobScheduler.RESULT_FAILURE . This should NOT be used for automatic features. All user-initiated jobs must have an associated notification, set via JobService.setNotification(JobParameters, int, Notification, int) , and will be
+ shown in the Task Manager when running. These jobs cannot be rescheduled by the app
+ if the user stops the job via system provided affordance (such as the Task Manager).
+ Thus, it is best practice and recommended to provide action buttons in the
+ associated notification to allow the user to stop the job gracefully
+ and allow for rescheduling. If the app doesn't hold the Manifest.permission.RUN_USER_INITIATED_JOBS permission when scheduling a user-initiated job, JobScheduler will throw a SecurityException . In Build.VERSION_CODES.UPSIDE_DOWN_CAKE , user-initiated jobs can only
+ be used for network data transfers. As such, they must specify a required network via setRequiredNetwork(android.net.NetworkRequest) or setRequiredNetworkType(int) . These jobs will not be subject to quotas and will be started immediately once scheduled
+ if all constraints are met and the device system health allows for additional tasks.
+ They are also given JobInfo.PRIORITY_MAX by default, and the priority cannot be changed. Requires Manifest.permission.RUN_USER_INITIATED_JOBS Parameters userInitiated boolean Returns JobInfo.Builder This value cannot be null . See also: JobInfo.isUserInitiated()</body></html>

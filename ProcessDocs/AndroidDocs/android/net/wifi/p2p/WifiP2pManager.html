@@ -1,0 +1,613 @@
+<html><head><title>Class Documentation</title></head><body>WifiP2pManager Kotlin | Java public
+  
+  
+  
+  class
+  WifiP2pManager extends Object java.lang.Object ↳ android.net.wifi.p2p.WifiP2pManager This class provides the API for managing Wi-Fi peer-to-peer connectivity. This lets an
+ application discover available peers, setup connection to peers and query for the list of peers.
+ When a p2p connection is formed over wifi, the device continues to maintain the uplink
+ connection over mobile or any other available network for internet connectivity on the device. The API is asynchronous and responses to requests from an application are on listener
+ callbacks provided by the application. The application needs to do an initialization with initialize(Context, Looper, ChannelListener) before doing any p2p operation. Most application calls need a ActionListener instance for receiving callbacks ActionListener.onSuccess or ActionListener.onFailure . Action callbacks
+ indicate whether the initiation of the action was a success or a failure.
+ Upon failure, the reason of failure can be one of ERROR , P2P_UNSUPPORTED or BUSY . An application can initiate discovery of peers with discoverPeers(Channel, ActionListener) . An initiated
+ discovery request from an application stays active until the device starts connecting to a peer
+ ,forms a p2p group or there is an explicit stopPeerDiscovery(Channel, ActionListener) .
+ Applications can listen to WIFI_P2P_DISCOVERY_CHANGED_ACTION to know if a peer-to-peer
+ discovery is running or stopped. Additionally, WIFI_P2P_PEERS_CHANGED_ACTION indicates
+ if the peer list has changed. When an application needs to fetch the current list of peers, it can request the list
+ of peers with requestPeers(Channel, PeerListListener) . When the peer list is available PeerListListener.onPeersAvailable is called with the device list. An application can initiate a connection request to a peer through connect(Channel, WifiP2pConfig, ActionListener) . See WifiP2pConfig for details on setting up the configuration. For communication with legacy
+ Wi-Fi devices that do not support p2p, an app can create a group using createGroup(Channel, WifiP2pConfig, ActionListener) which creates an access point whose details can be fetched with requestGroupInfo(Channel, GroupInfoListener) . After a successful group formation through createGroup(Channel, WifiP2pConfig, ActionListener) or through connect(Channel, WifiP2pConfig, ActionListener) ,
+ use requestConnectionInfo(Channel, ConnectionInfoListener) to fetch the connection details. The connection info WifiP2pInfo contains the address of the group owner WifiP2pInfo.groupOwnerAddress and a flag WifiP2pInfo.isGroupOwner to indicate
+ if the current device is a p2p group owner. A p2p client can thus communicate with
+ the p2p group owner through a socket connection. If the current device is the p2p group owner, WifiP2pInfo.groupOwnerAddress is anonymized unless the caller holds the android.Manifest.permission#LOCAL_MAC_ADDRESS permission. With peer discovery using discoverPeers(Channel, ActionListener) , an application discovers the neighboring
+ peers, but has no good way to figure out which peer to establish a connection with. For example,
+ if a game application is interested in finding all the neighboring peers that are also running
+ the same game, it has no way to find out until after the connection is setup. Pre-association
+ service discovery is meant to address this issue of filtering the peers based on the running
+ services. With pre-association service discovery, an application can advertise a service for a
+ application on a peer device prior to a connection setup between the devices.
+ Currently, DNS based service discovery (Bonjour) and Upnp are the higher layer protocols
+ supported. Get Bonjour resources at dns-sd.org and Upnp resources at upnp.org
+ As an example, a video application can discover a Upnp capable media renderer
+ prior to setting up a Wi-fi p2p connection with the device. An application can advertise a Upnp or a Bonjour service with a call to addLocalService(Channel, WifiP2pServiceInfo, ActionListener) . After a local service is added,
+ the framework automatically responds to a peer application discovering the service prior
+ to establishing a p2p connection. A call to removeLocalService(Channel, WifiP2pServiceInfo, ActionListener) removes a local
+ service and clearLocalServices(Channel, ActionListener) can be used to clear all local services. An application that is looking for peer devices that support certain services
+ can do so with a call to discoverServices(Channel, ActionListener) . Prior to initiating the discovery,
+ application can add service discovery request with a call to addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) ,
+ remove a service discovery request with a call to removeServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) or clear
+ all requests with a call to clearServiceRequests(Channel, ActionListener) . When no service requests remain,
+ a previously running service discovery will stop.
+
+ The application is notified of a result of service discovery request through listener callbacks
+ set through setDnsSdResponseListeners(Channel, DnsSdServiceResponseListener, DnsSdTxtRecordListener) for Bonjour or setUpnpServiceResponseListener(Channel, UpnpServiceResponseListener) for Upnp. Note: Registering an application handler with initialize(Context, Looper, ChannelListener) requires the permissions Manifest.permission.ACCESS_WIFI_STATE and Manifest.permission.CHANGE_WIFI_STATE to perform any further peer-to-peer
+ operations. See also: WifiP2pConfig WifiP2pInfo WifiP2pGroup WifiP2pDevice WifiP2pDeviceList WpsInfo Summary Nested classes interface WifiP2pManager.ActionListener Interface for callback invocation on an application action class WifiP2pManager.Channel A channel that connects the application to the Wifi p2p framework. interface WifiP2pManager.ChannelListener Interface for callback invocation when framework channel is lost interface WifiP2pManager.ConnectionInfoListener Interface for callback invocation when connection info is available interface WifiP2pManager.DeviceInfoListener Interface for callback invocation when WifiP2pDevice is available in response to WifiP2pManager.requestDeviceInfo(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.DeviceInfoListener) . interface WifiP2pManager.DiscoveryStateListener Interface for callback invocation when p2p state is available
+  in response to WifiP2pManager.requestDiscoveryState(Channel, DiscoveryStateListener) . interface WifiP2pManager.DnsSdServiceResponseListener Interface for callback invocation when Bonjour service discovery response
+ is received interface WifiP2pManager.DnsSdTxtRecordListener Interface for callback invocation when Bonjour TXT record is available
+ for a service interface WifiP2pManager.ExternalApproverRequestListener Interface for callback invocation when an incoming request is received. interface WifiP2pManager.GroupInfoListener Interface for callback invocation when group info is available interface WifiP2pManager.NetworkInfoListener Interface for callback invocation when NetworkInfo is available
+  in response to WifiP2pManager.requestNetworkInfo(Channel, NetworkInfoListener) . interface WifiP2pManager.P2pStateListener Interface for callback invocation when p2p state is available
+  in response to WifiP2pManager.requestP2pState(Channel, P2pStateListener) . interface WifiP2pManager.PeerListListener Interface for callback invocation when peer list is available interface WifiP2pManager.ServiceResponseListener Interface for callback invocation when service discovery response other than
+ Upnp or Bonjour is received interface WifiP2pManager.UpnpServiceResponseListener Interface for callback invocation when upnp service discovery response
+ is received interface WifiP2pManager.WifiP2pListener Interface used to listen to Wi-Fi p2p various changes such as device state change,
+ discovery started/stopped, connection change, etc. Constants String ACTION_WIFI_P2P_LISTEN_STATE_CHANGED Broadcast intent action indicating that peer listen has either started or stopped. String ACTION_WIFI_P2P_REQUEST_RESPONSE_CHANGED Broadcast intent action indicating whether or not current connecting
+ request is accepted. int BUSY Passed with ActionListener.onFailure . int CONNECTION_REQUEST_ACCEPT Accept the incoming request. int CONNECTION_REQUEST_DEFER_SHOW_PIN_TO_SERVICE Defer the PIN display to the Wi-Fi service (which will display a dialog to the user). int CONNECTION_REQUEST_DEFER_TO_SERVICE Defer the decision back to the Wi-Fi service (which will display a dialog to the user). int CONNECTION_REQUEST_REJECT Reject the incoming request. int ERROR Passed with ActionListener.onFailure . String EXTRA_DISCOVERY_STATE The lookup key for an int that indicates whether p2p discovery has started or stopped. String EXTRA_LISTEN_STATE The lookup key for an int that indicates whether p2p listen has started or stopped. String EXTRA_NETWORK_INFO The lookup key for a NetworkInfo object associated with the
+ p2p network. String EXTRA_P2P_DEVICE_LIST The lookup key for a WifiP2pDeviceList object representing
+ the new peer list when WIFI_P2P_PEERS_CHANGED_ACTION broadcast is sent. String EXTRA_REQUEST_CONFIG The lookup key for the WifiP2pConfig object of a request. String EXTRA_REQUEST_RESPONSE The lookup key for the result of a request, true if accepted, false otherwise. String EXTRA_WIFI_P2P_DEVICE The lookup key for a WifiP2pDevice object
+ Retrieve with Intent.getParcelableExtra(String) . String EXTRA_WIFI_P2P_GROUP The lookup key for a WifiP2pGroup object
+ associated with the p2p network. String EXTRA_WIFI_P2P_INFO The lookup key for a WifiP2pInfo object
+ Retrieve with Intent.getParcelableExtra(String) . String EXTRA_WIFI_STATE The lookup key for an int that indicates whether Wi-Fi p2p is enabled or disabled. int GROUP_CREATION_FAILURE_REASON_CONNECTION_CANCELLED P2p group creation failed because the connection has been cancelled. int GROUP_CREATION_FAILURE_REASON_GROUP_REMOVED P2p group creation failed because the group has been removed. int GROUP_CREATION_FAILURE_REASON_INVITATION_FAILED P2p group creation failed because invitation has failed. int GROUP_CREATION_FAILURE_REASON_PROVISION_DISCOVERY_FAILED P2p group creation failed because provision discovery has failed. int GROUP_CREATION_FAILURE_REASON_TIMED_OUT P2p group creation failed because it has timed out. int GROUP_CREATION_FAILURE_REASON_USER_REJECTED P2p group creation failed because user has rejected. int NO_PERMISSION Passed with ActionListener.onFailure . int NO_SERVICE_REQUESTS Passed with ActionListener.onFailure . int P2P_UNSUPPORTED Passed with ActionListener.onFailure . String WIFI_P2P_CONNECTION_CHANGED_ACTION Broadcast intent action indicating that the state of Wi-Fi p2p connectivity
+ has changed. String WIFI_P2P_DISCOVERY_CHANGED_ACTION Broadcast intent action indicating that peer discovery has either started or stopped. int WIFI_P2P_DISCOVERY_STARTED p2p discovery has started int WIFI_P2P_DISCOVERY_STOPPED p2p discovery has stopped int WIFI_P2P_LISTEN_STARTED p2p listen has started int WIFI_P2P_LISTEN_STOPPED p2p listen has stopped String WIFI_P2P_PEERS_CHANGED_ACTION Broadcast intent action indicating that the available peer list has changed. int WIFI_P2P_SCAN_FULL Run P2P scan on all channels. int WIFI_P2P_SCAN_SINGLE_FREQ Run P2P scan only on a specific channel. int WIFI_P2P_SCAN_SOCIAL Run P2P scan only on social channels. String WIFI_P2P_STATE_CHANGED_ACTION Broadcast intent action to indicate whether Wi-Fi p2p is enabled or disabled. int WIFI_P2P_STATE_DISABLED Wi-Fi p2p is disabled. int WIFI_P2P_STATE_ENABLED Wi-Fi p2p is enabled. String WIFI_P2P_THIS_DEVICE_CHANGED_ACTION Broadcast intent action indicating that this device details have changed. Public methods void addExternalApprover ( WifiP2pManager.Channel c, MacAddress deviceAddress, WifiP2pManager.ExternalApproverRequestListener listener) Set the external approver for a specific peer. void addLocalService ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pManager.ActionListener listener) Register a local service for service discovery. void addServiceRequest ( WifiP2pManager.Channel channel, WifiP2pServiceRequest req, WifiP2pManager.ActionListener listener) Add a service discovery request. void cancelConnect ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Cancel any ongoing p2p group negotiation The function call immediately returns after sending a connection cancellation request
+ to the framework. void clearLocalServices ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Clear all registered local services of service discovery. void clearServiceRequests ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Clear all registered service discovery requests. void connect ( WifiP2pManager.Channel channel, WifiP2pConfig config, WifiP2pManager.ActionListener listener) Start a p2p connection to a device with the specified configuration. void createGroup ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Create a p2p group with the current device as the group owner. void createGroup ( WifiP2pManager.Channel channel, WifiP2pConfig config, WifiP2pManager.ActionListener listener) Create a p2p group with the current device as the group owner. void discoverPeers ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Initiate peer discovery. void discoverPeersOnSocialChannels ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Scan only the social channels. void discoverPeersOnSpecificFrequency ( WifiP2pManager.Channel channel, int frequencyMhz, WifiP2pManager.ActionListener listener) Scan only a single channel specified by frequency. void discoverServices ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Initiate service discovery. void discoverUsdBasedServices ( WifiP2pManager.Channel channel, WifiP2pUsdBasedServiceDiscoveryConfig config, WifiP2pManager.ActionListener listener) Initiate Un-synchronized service discovery (USD) based service discovery. void getListenState ( WifiP2pManager.Channel c, Executor executor, Consumer < Integer > resultsCallback) Get p2p listen state. static
+        
+        
+        int getP2pMaxAllowedVendorElementsLengthBytes () Return the maximum total length (in bytes) of all Vendor specific information
+ elements (VSIEs) which can be set using the setVendorElements(android.net.wifi.p2p.WifiP2pManager.Channel, java.util.List, android.net.wifi.p2p.WifiP2pManager.ActionListener) . WifiP2pManager.Channel initialize ( Context srcContext, Looper srcLooper, WifiP2pManager.ChannelListener listener) Registers the application with the Wi-Fi framework. boolean isChannelConstrainedDiscoverySupported () Check if this device supports discovery limited to a specific frequency or
+ the social channels. boolean isGroupClientRemovalSupported () Check if this device supports removing clients from a group. boolean isGroupOwnerIPv6LinkLocalAddressProvided () Checks whether this device, while being a group client, can discover and deliver the group
+ owner's IPv6 link-local address. boolean isPccModeSupported () Check if this device supports P2P Connection Compatibility Mode(R1/R2 compatibility mode). boolean isSetVendorElementsSupported () Check if this device supports setting vendor elements. boolean isWiFiDirectR2Supported () Check if this device supports Wi-Fi Direct R2 (P2P2). void registerWifiP2pListener ( Executor executor, WifiP2pManager.WifiP2pListener listener) Add a listener to listen to Wi-Fi p2p various changes. void removeClient ( WifiP2pManager.Channel channel, MacAddress peerAddress, WifiP2pManager.ActionListener listener) Remove the client with the MAC address from the group. void removeExternalApprover ( WifiP2pManager.Channel c, MacAddress deviceAddress, WifiP2pManager.ActionListener listener) Remove the external approver for a specific peer. void removeGroup ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Remove the current p2p group. void removeLocalService ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pManager.ActionListener listener) Remove a registered local service added with addLocalService(Channel, WifiP2pServiceInfo, ActionListener) The function call immediately returns after sending a request to remove a
+ local service to the framework. void removeServiceRequest ( WifiP2pManager.Channel channel, WifiP2pServiceRequest req, WifiP2pManager.ActionListener listener) Remove a specified service discovery request added with addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) The function call immediately returns after sending a request to remove service
+ discovery request to the framework. void requestConnectionInfo ( WifiP2pManager.Channel channel, WifiP2pManager.ConnectionInfoListener listener) Request device connection info. void requestDeviceInfo ( WifiP2pManager.Channel c, WifiP2pManager.DeviceInfoListener listener) Request Device Info This method provides the device info
+ in the form of a WifiP2pDevice . void requestDirInfo ( WifiP2pManager.Channel c, Executor executor, OutcomeReceiver < WifiP2pDirInfo , Exception > callback) Get the Device Identity Resolution (DIR) Information. void requestDiscoveryState ( WifiP2pManager.Channel c, WifiP2pManager.DiscoveryStateListener listener) Request p2p discovery state. void requestGroupInfo ( WifiP2pManager.Channel channel, WifiP2pManager.GroupInfoListener listener) Request p2p group info. void requestNetworkInfo ( WifiP2pManager.Channel c, WifiP2pManager.NetworkInfoListener listener) Request network info. void requestP2pState ( WifiP2pManager.Channel c, WifiP2pManager.P2pStateListener listener) Request p2p enabled state. void requestPeers ( WifiP2pManager.Channel channel, WifiP2pManager.PeerListListener listener) Request the current list of peers. void setConnectionRequestResult ( WifiP2pManager.Channel c, MacAddress deviceAddress, int result, String pin, WifiP2pManager.ActionListener listener) Set the result with PIN for the incoming request from a specific peer. void setConnectionRequestResult ( WifiP2pManager.Channel c, MacAddress deviceAddress, int result, WifiP2pManager.ActionListener listener) Set the result for the incoming request from a specific peer. void setDnsSdResponseListeners ( WifiP2pManager.Channel channel, WifiP2pManager.DnsSdServiceResponseListener servListener, WifiP2pManager.DnsSdTxtRecordListener txtListener) Register a callback to be invoked on receiving Bonjour service discovery
+ response. void setServiceResponseListener ( WifiP2pManager.Channel channel, WifiP2pManager.ServiceResponseListener listener) Register a callback to be invoked on receiving service discovery response. void setUpnpServiceResponseListener ( WifiP2pManager.Channel channel, WifiP2pManager.UpnpServiceResponseListener listener) Register a callback to be invoked on receiving upnp service discovery
+ response. void setVendorElements ( WifiP2pManager.Channel c, List < ScanResult.InformationElement > vendorElements, WifiP2pManager.ActionListener listener) Set/Clear vendor specific information elements (VSIEs) to be published during
+ Wi-Fi Direct (P2P) discovery. void setWfdInfo ( WifiP2pManager.Channel channel, WifiP2pWfdInfo wfdInfo, WifiP2pManager.ActionListener listener) Set Wifi Display information. void startListening ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Force p2p to enter listen state. void startPeerDiscovery ( WifiP2pManager.Channel channel, WifiP2pDiscoveryConfig config, WifiP2pManager.ActionListener listener) Initiate peer discovery. void startUsdBasedLocalServiceAdvertisement ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pUsdBasedLocalServiceAdvertisementConfig config, WifiP2pManager.ActionListener listener) Start a service discovery advertisement using Un-synchronized service discovery (USD). void stopListening ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Force p2p to exit listen state. void stopPeerDiscovery ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Stop an ongoing peer discovery The function call immediately returns after sending a stop request
+ to the framework. void unregisterWifiP2pListener ( WifiP2pManager.WifiP2pListener listener) Remove a listener added using registerWifiP2pListener(java.util.concurrent.Executor, android.net.wifi.p2p.WifiP2pManager.WifiP2pListener) void validateDirInfo ( WifiP2pManager.Channel c, WifiP2pDirInfo dirInfo, Executor executor, OutcomeReceiver < Boolean , Exception > callback) Validate the Device Identity Resolution (DIR) Information of a P2P device. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants ACTION_WIFI_P2P_LISTEN_STATE_CHANGED Added in API level 34 public static final String ACTION_WIFI_P2P_LISTEN_STATE_CHANGED Broadcast intent action indicating that peer listen has either started or stopped.
+ One extra EXTRA_LISTEN_STATE indicates whether listen has started or stopped. Constant Value:
+      
+          "android.net.wifi.p2p.action.WIFI_P2P_LISTEN_STATE_CHANGED" ACTION_WIFI_P2P_REQUEST_RESPONSE_CHANGED Added in API level 33 public static final String ACTION_WIFI_P2P_REQUEST_RESPONSE_CHANGED Broadcast intent action indicating whether or not current connecting
+ request is accepted.
+
+ The connecting request is initiated by connect(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pConfig, android.net.wifi.p2p.WifiP2pManager.ActionListener) . The EXTRA_REQUEST_RESPONSE extra indicates whether or not current
+ request is accepted or rejected. The EXTRA_REQUEST_CONFIG extra indicates the responsed configuration. Constant Value:
+      
+          "android.net.wifi.p2p.action.WIFI_P2P_REQUEST_RESPONSE_CHANGED" BUSY Added in API level 14 public static final int BUSY Passed with ActionListener.onFailure .
+ Indicates that the operation failed because the framework is busy and
+ unable to service the request Constant Value:
+      
+          2
+          (0x00000002) CONNECTION_REQUEST_ACCEPT Added in API level 33 public static final int CONNECTION_REQUEST_ACCEPT Accept the incoming request.
+
+ Used in setConnectionRequestResult(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Constant Value:
+      
+          0
+          (0x00000000) CONNECTION_REQUEST_DEFER_SHOW_PIN_TO_SERVICE Added in API level 33 public static final int CONNECTION_REQUEST_DEFER_SHOW_PIN_TO_SERVICE Defer the PIN display to the Wi-Fi service (which will display a dialog to the user).
+
+ Used in setConnectionRequestResult(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Constant Value:
+      
+          3
+          (0x00000003) CONNECTION_REQUEST_DEFER_TO_SERVICE Added in API level 33 public static final int CONNECTION_REQUEST_DEFER_TO_SERVICE Defer the decision back to the Wi-Fi service (which will display a dialog to the user).
+
+ Used in setConnectionRequestResult(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Constant Value:
+      
+          2
+          (0x00000002) CONNECTION_REQUEST_REJECT Added in API level 33 public static final int CONNECTION_REQUEST_REJECT Reject the incoming request.
+
+ Used in setConnectionRequestResult(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Constant Value:
+      
+          1
+          (0x00000001) ERROR Added in API level 14 public static final int ERROR Passed with ActionListener.onFailure .
+ Indicates that the operation failed due to an internal error. Constant Value:
+      
+          0
+          (0x00000000) EXTRA_DISCOVERY_STATE Added in API level 16 public static final String EXTRA_DISCOVERY_STATE The lookup key for an int that indicates whether p2p discovery has started or stopped.
+ Retrieve it with Intent.getIntExtra(String, int) . See also: WIFI_P2P_DISCOVERY_STARTED WIFI_P2P_DISCOVERY_STOPPED Constant Value:
+      
+          "discoveryState" EXTRA_LISTEN_STATE Added in API level 34 public static final String EXTRA_LISTEN_STATE The lookup key for an int that indicates whether p2p listen has started or stopped.
+ Retrieve it with Intent.getIntExtra(String, int) . See also: WIFI_P2P_LISTEN_STARTED WIFI_P2P_LISTEN_STOPPED Constant Value:
+      
+          "android.net.wifi.p2p.extra.LISTEN_STATE" EXTRA_NETWORK_INFO Added in API level 14 public static final String EXTRA_NETWORK_INFO The lookup key for a NetworkInfo object associated with the
+ p2p network. Retrieve with Intent.getParcelableExtra(String) . Constant Value:
+      
+          "networkInfo" EXTRA_P2P_DEVICE_LIST Added in API level 18 public static final String EXTRA_P2P_DEVICE_LIST The lookup key for a WifiP2pDeviceList object representing
+ the new peer list when WIFI_P2P_PEERS_CHANGED_ACTION broadcast is sent. Retrieve with Intent.getParcelableExtra(String) . Constant Value:
+      
+          "wifiP2pDeviceList" EXTRA_REQUEST_CONFIG Added in API level 33 public static final String EXTRA_REQUEST_CONFIG The lookup key for the WifiP2pConfig object of a request. Constant Value:
+      
+          "android.net.wifi.p2p.extra.REQUEST_CONFIG" EXTRA_REQUEST_RESPONSE Added in API level 33 public static final String EXTRA_REQUEST_RESPONSE The lookup key for the result of a request, true if accepted, false otherwise. Constant Value:
+      
+          "android.net.wifi.p2p.extra.REQUEST_RESPONSE" EXTRA_WIFI_P2P_DEVICE Added in API level 14 public static final String EXTRA_WIFI_P2P_DEVICE The lookup key for a WifiP2pDevice object
+ Retrieve with Intent.getParcelableExtra(String) . Constant Value:
+      
+          "wifiP2pDevice" EXTRA_WIFI_P2P_GROUP Added in API level 18 public static final String EXTRA_WIFI_P2P_GROUP The lookup key for a WifiP2pGroup object
+ associated with the p2p network. Retrieve with Intent.getParcelableExtra(String) . Constant Value:
+      
+          "p2pGroupInfo" EXTRA_WIFI_P2P_INFO Added in API level 14 public static final String EXTRA_WIFI_P2P_INFO The lookup key for a WifiP2pInfo object
+ Retrieve with Intent.getParcelableExtra(String) . Constant Value:
+      
+          "wifiP2pInfo" EXTRA_WIFI_STATE Added in API level 14 public static final String EXTRA_WIFI_STATE The lookup key for an int that indicates whether Wi-Fi p2p is enabled or disabled.
+ Retrieve it with Intent.getIntExtra(String, int) . See also: WIFI_P2P_STATE_DISABLED WIFI_P2P_STATE_ENABLED Constant Value:
+      
+          "wifi_p2p_state" GROUP_CREATION_FAILURE_REASON_CONNECTION_CANCELLED Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_CONNECTION_CANCELLED P2p group creation failed because the connection has been cancelled.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          0
+          (0x00000000) GROUP_CREATION_FAILURE_REASON_GROUP_REMOVED Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_GROUP_REMOVED P2p group creation failed because the group has been removed.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          4
+          (0x00000004) GROUP_CREATION_FAILURE_REASON_INVITATION_FAILED Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_INVITATION_FAILED P2p group creation failed because invitation has failed.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          5
+          (0x00000005) GROUP_CREATION_FAILURE_REASON_PROVISION_DISCOVERY_FAILED Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_PROVISION_DISCOVERY_FAILED P2p group creation failed because provision discovery has failed.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          3
+          (0x00000003) GROUP_CREATION_FAILURE_REASON_TIMED_OUT Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_TIMED_OUT P2p group creation failed because it has timed out.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          1
+          (0x00000001) GROUP_CREATION_FAILURE_REASON_USER_REJECTED Added in API level 35 public static final int GROUP_CREATION_FAILURE_REASON_USER_REJECTED P2p group creation failed because user has rejected.
+ Used in WifiP2pListener.onGroupCreationFailed(int reason) . Constant Value:
+      
+          2
+          (0x00000002) NO_PERMISSION Added in API level 36 public static final int NO_PERMISSION Passed with ActionListener.onFailure .
+ Indicates that the operation failed due to calling app doesn't have permission to call the
+ API. Constant Value:
+      
+          4
+          (0x00000004) NO_SERVICE_REQUESTS Added in API level 16 public static final int NO_SERVICE_REQUESTS Passed with ActionListener.onFailure .
+ Indicates that the discoverServices(Channel, ActionListener) failed because no service
+ requests are added. Use addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) to add a service
+ request. Constant Value:
+      
+          3
+          (0x00000003) P2P_UNSUPPORTED Added in API level 14 public static final int P2P_UNSUPPORTED Passed with ActionListener.onFailure .
+ Indicates that the operation failed because p2p is unsupported on the device. Constant Value:
+      
+          1
+          (0x00000001) WIFI_P2P_CONNECTION_CHANGED_ACTION Added in API level 14 public static final String WIFI_P2P_CONNECTION_CHANGED_ACTION Broadcast intent action indicating that the state of Wi-Fi p2p connectivity
+ has changed. One extra EXTRA_WIFI_P2P_INFO provides the p2p connection info in
+ the form of a WifiP2pInfo object. Another extra EXTRA_NETWORK_INFO provides
+ the network info in the form of a NetworkInfo . A third extra provides
+ the details of the group and may contain a null .
+
+ All of these permissions are required to receive this broadcast: Manifest.permission.ACCESS_WIFI_STATE and either Manifest.permission.ACCESS_FINE_LOCATION or Manifest.permission.NEARBY_WIFI_DEVICES See also: EXTRA_WIFI_P2P_INFO EXTRA_NETWORK_INFO EXTRA_WIFI_P2P_GROUP Constant Value:
+      
+          "android.net.wifi.p2p.CONNECTION_STATE_CHANGE" WIFI_P2P_DISCOVERY_CHANGED_ACTION Added in API level 16 public static final String WIFI_P2P_DISCOVERY_CHANGED_ACTION Broadcast intent action indicating that peer discovery has either started or stopped.
+ One extra EXTRA_DISCOVERY_STATE indicates whether discovery has started
+ or stopped. Note that discovery will be stopped during a connection setup. If the application tries
+ to re-initiate discovery during this time, it can fail. Constant Value:
+      
+          "android.net.wifi.p2p.DISCOVERY_STATE_CHANGE" WIFI_P2P_DISCOVERY_STARTED Added in API level 16 public static final int WIFI_P2P_DISCOVERY_STARTED p2p discovery has started See also: WIFI_P2P_DISCOVERY_CHANGED_ACTION Constant Value:
+      
+          2
+          (0x00000002) WIFI_P2P_DISCOVERY_STOPPED Added in API level 16 public static final int WIFI_P2P_DISCOVERY_STOPPED p2p discovery has stopped See also: WIFI_P2P_DISCOVERY_CHANGED_ACTION Constant Value:
+      
+          1
+          (0x00000001) WIFI_P2P_LISTEN_STARTED Added in API level 34 public static final int WIFI_P2P_LISTEN_STARTED p2p listen has started See also: ACTION_WIFI_P2P_LISTEN_STATE_CHANGED Constant Value:
+      
+          2
+          (0x00000002) WIFI_P2P_LISTEN_STOPPED Added in API level 34 public static final int WIFI_P2P_LISTEN_STOPPED p2p listen has stopped See also: ACTION_WIFI_P2P_LISTEN_STATE_CHANGED Constant Value:
+      
+          1
+          (0x00000001) WIFI_P2P_PEERS_CHANGED_ACTION Added in API level 14 public static final String WIFI_P2P_PEERS_CHANGED_ACTION Broadcast intent action indicating that the available peer list has changed. This
+ can be sent as a result of peers being found, lost or updated.
+
+ All of these permissions are required to receive this broadcast: Manifest.permission.ACCESS_WIFI_STATE and either Manifest.permission.ACCESS_FINE_LOCATION or Manifest.permission.NEARBY_WIFI_DEVICES An extra EXTRA_P2P_DEVICE_LIST provides the full list of
+ current peers. The full list of peers can also be obtained any time with requestPeers(Channel, PeerListListener) . See also: EXTRA_P2P_DEVICE_LIST Constant Value:
+      
+          "android.net.wifi.p2p.PEERS_CHANGED" WIFI_P2P_SCAN_FULL Added in API level 35 public static final int WIFI_P2P_SCAN_FULL Run P2P scan on all channels. Constant Value:
+      
+          0
+          (0x00000000) WIFI_P2P_SCAN_SINGLE_FREQ Added in API level 35 public static final int WIFI_P2P_SCAN_SINGLE_FREQ Run P2P scan only on a specific channel. Constant Value:
+      
+          2
+          (0x00000002) WIFI_P2P_SCAN_SOCIAL Added in API level 35 public static final int WIFI_P2P_SCAN_SOCIAL Run P2P scan only on social channels. Constant Value:
+      
+          1
+          (0x00000001) WIFI_P2P_STATE_CHANGED_ACTION Added in API level 14 public static final String WIFI_P2P_STATE_CHANGED_ACTION Broadcast intent action to indicate whether Wi-Fi p2p is enabled or disabled. An
+ extra EXTRA_WIFI_STATE provides the state information as int. See also: EXTRA_WIFI_STATE Constant Value:
+      
+          "android.net.wifi.p2p.STATE_CHANGED" WIFI_P2P_STATE_DISABLED Added in API level 14 public static final int WIFI_P2P_STATE_DISABLED Wi-Fi p2p is disabled. See also: WIFI_P2P_STATE_CHANGED_ACTION Constant Value:
+      
+          1
+          (0x00000001) WIFI_P2P_STATE_ENABLED Added in API level 14 public static final int WIFI_P2P_STATE_ENABLED Wi-Fi p2p is enabled. See also: WIFI_P2P_STATE_CHANGED_ACTION Constant Value:
+      
+          2
+          (0x00000002) WIFI_P2P_THIS_DEVICE_CHANGED_ACTION Added in API level 14 public static final String WIFI_P2P_THIS_DEVICE_CHANGED_ACTION Broadcast intent action indicating that this device details have changed. An extra EXTRA_WIFI_P2P_DEVICE provides this device details.
+ The valid device details can also be obtained with requestDeviceInfo(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.DeviceInfoListener) when p2p is enabled.
+ To get information notifications on P2P getting enabled refers WIFI_P2P_STATE_ENABLED . The EXTRA_WIFI_P2P_DEVICE extra contains an anonymized version of the device's
+ MAC address. Callers holding the android.Manifest.permission#LOCAL_MAC_ADDRESS permission can use requestDeviceInfo(Channel, DeviceInfoListener) to obtain the actual MAC address of this
+ device.
+
+ All of these permissions are required to receive this broadcast: Manifest.permission.ACCESS_WIFI_STATE and either Manifest.permission.ACCESS_FINE_LOCATION or Manifest.permission.NEARBY_WIFI_DEVICES See also: EXTRA_WIFI_P2P_DEVICE Constant Value:
+      
+          "android.net.wifi.p2p.THIS_DEVICE_CHANGED" Public methods addExternalApprover Added in API level 33 public void addExternalApprover ( WifiP2pManager.Channel c, MacAddress deviceAddress, WifiP2pManager.ExternalApproverRequestListener listener) Set the external approver for a specific peer.
+
+ This API associates a specific peer with an approver. When an incoming request is received
+ from a peer, an authorization request is routed to the attached approver. The approver then
+ calls setConnectionRequestResult(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) to send
+ the result to the WiFi service. A specific peer (identified by its MacAddress ) can
+ only be attached to a single approver. The previous approver will be detached once a new
+ approver is attached. The approver will also be detached automatically when the channel is
+ closed. When an approver is attached, ExternalApproverRequestListener.onAttached(MacAddress) is called. When an approver is detached, ExternalApproverRequestListener.onDetached(MacAddress, int) is called.
+ When an incoming request is received, ExternalApproverRequestListener.onConnectionRequested(int, WifiP2pConfig, WifiP2pDevice) is called. When a WPS PIN is generated, ExternalApproverRequestListener.onPinGenerated(MacAddress, String) is called. The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Requires Manifest.permission.MANAGE_WIFI_NETWORK_SELECTION Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . deviceAddress MacAddress : the peer which is bound to the external approver.
+ This value cannot be null . listener WifiP2pManager.ExternalApproverRequestListener : for callback when the framework needs to notify the external approver.
+
+ This value cannot be null . addLocalService Added in API level 16 public void addLocalService ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pManager.ActionListener listener) Register a local service for service discovery. If a local service is registered,
+ the framework automatically responds to a service discovery request from a peer. The function call immediately returns after sending a request to add a local
+ service to the framework. The application is notified of a success or failure to
+ add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The service information is set through WifiP2pServiceInfo . or its subclass calls WifiP2pUpnpServiceInfo.newInstance or WifiP2pDnsSdServiceInfo.newInstance for a Upnp or Bonjour service
+ respectively The service information can be cleared with calls to removeLocalService(Channel, WifiP2pServiceInfo, ActionListener) or clearLocalServices(Channel, ActionListener) . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) servInfo WifiP2pServiceInfo : is a local service information. listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. addServiceRequest Added in API level 16 public void addServiceRequest ( WifiP2pManager.Channel channel, WifiP2pServiceRequest req, WifiP2pManager.ActionListener listener) Add a service discovery request. The function call immediately returns after sending a request to add service
+ discovery request to the framework. The application is notified of a success or failure to
+ add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The USD based service information are set in the service request through WifiP2pServiceRequest.WifiP2pServiceRequest(WifiP2pUsdBasedServiceConfig) .
+ Application must use isWiFiDirectR2Supported() to determine whether the device
+ supports USD based service discovery. If isWiFiDirectR2Supported() return false then this method will throw UnsupportedOperationException for service
+ request information containing USD service configuration. After service discovery request is added, you can initiate service discovery by discoverServices(Channel, ActionListener) . The added service requests can be cleared with calls to removeServiceRequest(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.nsd.WifiP2pServiceRequest, android.net.wifi.p2p.WifiP2pManager.ActionListener) or clearServiceRequests(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) req WifiP2pServiceRequest : is the service discovery request. listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. cancelConnect Added in API level 14 public void cancelConnect ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Cancel any ongoing p2p group negotiation The function call immediately returns after sending a connection cancellation request
+ to the framework. The application is notified of a success or failure to initiate
+ cancellation through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. clearLocalServices Added in API level 16 public void clearLocalServices ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Clear all registered local services of service discovery. The function call immediately returns after sending a request to clear all
+ local services to the framework. The application is notified of a success or failure to
+ add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. clearServiceRequests Added in API level 16 public void clearServiceRequests ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Clear all registered service discovery requests. The function call immediately returns after sending a request to clear all
+ service discovery requests to the framework. The application is notified of a success
+ or failure to add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. connect Added in API level 14 public void connect ( WifiP2pManager.Channel channel, WifiP2pConfig config, WifiP2pManager.ActionListener listener) Start a p2p connection to a device with the specified configuration. The function call immediately returns after sending a connection request
+ to the framework. The application is notified of a success or failure to initiate
+ connect through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . An app should use WifiP2pConfig.Builder to build the configuration
+ for this API, ex. call WifiP2pConfig.Builder.setDeviceAddress(MacAddress) to set the peer MAC address and WifiP2pConfig.Builder.enablePersistentMode(boolean) to configure the persistent mode. Register for WIFI_P2P_CONNECTION_CHANGED_ACTION intent to
+ determine when the framework notifies of a change in connectivity. If the current device is not part of a p2p group, a connect request initiates
+ a group negotiation with the peer. If the current device is part of an existing p2p group or has created
+ a p2p group with createGroup(Channel, WifiP2pConfig, ActionListener) , an invitation to join the group is sent to
+ the peer device. If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) config WifiP2pConfig : options as described in WifiP2pConfig class listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. createGroup Added in API level 14 public void createGroup ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Create a p2p group with the current device as the group owner. This essentially creates
+ an access point that can accept connections from legacy clients as well as other p2p
+ devices. Note: This function would normally not be used unless the current device needs
+ to form a p2p connection with a legacy client The function call immediately returns after sending a group creation request
+ to the framework. The application is notified of a success or failure to initiate
+ group creation through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Application can request for the group details with requestGroupInfo(Channel, GroupInfoListener) . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. createGroup Added in API level 29 public void createGroup ( WifiP2pManager.Channel channel, WifiP2pConfig config, WifiP2pManager.ActionListener listener) Create a p2p group with the current device as the group owner. This essentially creates
+ an access point that can accept connections from legacy clients as well as other p2p
+ devices. An app should use WifiP2pConfig.Builder to build the configuration
+ for a group. Note: This function would normally not be used unless the current device needs
+ to form a p2p group as a Group Owner and allow peers to join it as either
+ Group Clients or legacy Wi-Fi STAs. The function call immediately returns after sending a group creation request
+ to the framework. The application is notified of a success or failure to initiate
+ group creation through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Application can request for the group details with requestGroupInfo(Channel, GroupInfoListener) . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . config WifiP2pConfig : the configuration of a p2p group.
+ This value may be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. discoverPeers Added in API level 14 public void discoverPeers ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Initiate peer discovery. A discovery process involves scanning for available Wi-Fi peers
+ for the purpose of establishing a connection. The function call immediately returns after sending a discovery request
+ to the framework. The application is notified of a success or failure to initiate
+ discovery through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The discovery remains active until a connection is initiated or
+ a p2p group is formed. Register for WIFI_P2P_PEERS_CHANGED_ACTION intent to
+ determine when the framework notifies of a change as peers are discovered. Upon receiving a WIFI_P2P_PEERS_CHANGED_ACTION intent, an application
+ can request the list of peers using requestPeers(Channel, PeerListListener) . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. discoverPeersOnSocialChannels Added in API level 33 public void discoverPeersOnSocialChannels ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Scan only the social channels.
+
+ A discovery process involves scanning for available Wi-Fi peers
+ for the purpose of establishing a connection. The function call immediately returns after sending a discovery request
+ to the framework. The application is notified of a success or failure to initiate
+ discovery through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The discovery remains active until a connection is initiated or
+ a p2p group is formed. Register for WIFI_P2P_PEERS_CHANGED_ACTION intent to
+ determine when the framework notifies of a change as peers are discovered. Upon receiving a WIFI_P2P_PEERS_CHANGED_ACTION intent, an application
+ can request the list of peers using requestPeers(Channel, PeerListListener) . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Use isChannelConstrainedDiscoverySupported() to determine whether the device
+ supports this feature. If isChannelConstrainedDiscoverySupported() return false then this method will throw UnsupportedOperationException . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure.
+
+ This value may be null . discoverPeersOnSpecificFrequency Added in API level 33 public void discoverPeersOnSpecificFrequency ( WifiP2pManager.Channel channel, 
+                int frequencyMhz, WifiP2pManager.ActionListener listener) Scan only a single channel specified by frequency.
+
+ A discovery process involves scanning for available Wi-Fi peers
+ for the purpose of establishing a connection. The function call immediately returns after sending a discovery request
+ to the framework. The application is notified of a success or failure to initiate
+ discovery through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The discovery remains active until a connection is initiated or
+ a p2p group is formed. Register for WIFI_P2P_PEERS_CHANGED_ACTION intent to
+ determine when the framework notifies of a change as peers are discovered. Upon receiving a WIFI_P2P_PEERS_CHANGED_ACTION intent, an application
+ can request the list of peers using requestPeers(Channel, PeerListListener) . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Use isChannelConstrainedDiscoverySupported() to determine whether the device
+ supports this feature. If isChannelConstrainedDiscoverySupported() return false then this method will throw UnsupportedOperationException . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . frequencyMhz int : is the frequency of the channel to use for peer discovery. listener WifiP2pManager.ActionListener : for callbacks on success or failure.
+
+ This value may be null . discoverServices Added in API level 16 public void discoverServices ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Initiate service discovery. A discovery process involves scanning for
+ requested services for the purpose of establishing a connection to a peer
+ that supports an available service. The function call immediately returns after sending a request to start service
+ discovery to the framework. The application is notified of a success or failure to initiate
+ discovery through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The services to be discovered are specified with calls to addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) . The application is notified of the response against the service discovery request
+ through listener callbacks registered by setServiceResponseListener(Channel, ServiceResponseListener) or setDnsSdResponseListeners(Channel, DnsSdServiceResponseListener, DnsSdTxtRecordListener) , or setUpnpServiceResponseListener(Channel, UpnpServiceResponseListener) . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. discoverUsdBasedServices Added in API level 36 public void discoverUsdBasedServices ( WifiP2pManager.Channel channel, WifiP2pUsdBasedServiceDiscoveryConfig config, WifiP2pManager.ActionListener listener) Initiate Un-synchronized service discovery (USD) based service discovery. A discovery
+ process involves scanning for requested services for the purpose of establishing a
+ connection to a peer that supports an available service using USD protocol.
+
+ This method accepts a WifiP2pUsdBasedServiceDiscoveryConfig object specifying the
+ desired parameters for the service discovery. The configuration object allows to specify
+ either a band or frequency list to scan for service. The function call immediately returns after sending a request to start service
+ discovery to the framework. The application is notified of a success or failure to initiate
+ discovery through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The USD based services to be discovered are specified with calls to addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) with the service request information set through WifiP2pServiceRequest.WifiP2pServiceRequest(WifiP2pUsdBasedServiceConfig) The application is notified of the response against the service discovery request
+ via ServiceResponseListener.onUsdBasedServiceAvailable(WifiP2pDevice,
+ WifiP2pUsdBasedServiceResponse) listener callback registered by setServiceResponseListener(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ServiceResponseListener) . Use isWiFiDirectR2Supported() to determine whether the device supports
+ this feature. If isWiFiDirectR2Supported() return false then
+ this method will throw UnsupportedOperationException . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . config WifiP2pUsdBasedServiceDiscoveryConfig : is the configuration for this USD based service discovery
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. getListenState Added in API level 34 public void getListenState ( WifiP2pManager.Channel c, Executor executor, Consumer < Integer > resultsCallback) Get p2p listen state. This state indicates whether p2p listen has started or stopped.
+ The valid value is one of WIFI_P2P_LISTEN_STOPPED or WIFI_P2P_LISTEN_STARTED . This state is also included in the ACTION_WIFI_P2P_LISTEN_STATE_CHANGED broadcast event with extra EXTRA_LISTEN_STATE . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters c WifiP2pManager.Channel : It is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . executor Executor : The executor on which callback will be invoked.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. resultsCallback Consumer : A callback that will return listen state WIFI_P2P_LISTEN_STOPPED or WIFI_P2P_LISTEN_STARTED This value cannot be null . getP2pMaxAllowedVendorElementsLengthBytes Added in API level 33 public static int getP2pMaxAllowedVendorElementsLengthBytes () Return the maximum total length (in bytes) of all Vendor specific information
+ elements (VSIEs) which can be set using the setVendorElements(android.net.wifi.p2p.WifiP2pManager.Channel, java.util.List, android.net.wifi.p2p.WifiP2pManager.ActionListener) .
+
+ The length is calculated adding the payload length + 2 bytes for each VSIE
+ (2 bytes: 1 byte for type and 1 byte for length). Returns int initialize Added in API level 14 public WifiP2pManager.Channel initialize ( Context srcContext, Looper srcLooper, WifiP2pManager.ChannelListener listener) Registers the application with the Wi-Fi framework. This function
+ must be the first to be called before any p2p operations are performed. Parameters srcContext Context : is the context of the source srcLooper Looper : is the Looper on which the callbacks are receivied listener WifiP2pManager.ChannelListener : for callback at loss of framework communication. Can be null. Returns WifiP2pManager.Channel Channel instance that is necessary for performing any further p2p operations isChannelConstrainedDiscoverySupported Added in API level 33 public boolean isChannelConstrainedDiscoverySupported () Check if this device supports discovery limited to a specific frequency or
+ the social channels.
+
+ Gates whether discoverPeersOnSpecificFrequency(android.net.wifi.p2p.WifiP2pManager.Channel, int, android.net.wifi.p2p.WifiP2pManager.ActionListener) and discoverPeersOnSocialChannels(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) methods are functional on this device. Returns boolean true if supported, false otherwise. isGroupClientRemovalSupported Added in API level 33 public boolean isGroupClientRemovalSupported () Check if this device supports removing clients from a group.
+
+ Gates whether the removeClient(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.MacAddress, android.net.wifi.p2p.WifiP2pManager.ActionListener) method is functional on this device. Returns boolean true if supported, false otherwise. isGroupOwnerIPv6LinkLocalAddressProvided Added in API level 34 public boolean isGroupOwnerIPv6LinkLocalAddressProvided () Checks whether this device, while being a group client, can discover and deliver the group
+ owner's IPv6 link-local address. If this method returns true and connect(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pConfig, android.net.wifi.p2p.WifiP2pManager.ActionListener) method is called with WifiP2pConfig having WifiP2pConfig.GROUP_CLIENT_IP_PROVISIONING_MODE_IPV6_LINK_LOCAL as the group client
+ IP provisioning mode, then the group owner's IPv6 link-local address will be delivered in the
+ group client via WIFI_P2P_CONNECTION_CHANGED_ACTION broadcast intent (i.e, group
+ owner address in EXTRA_WIFI_P2P_INFO ).
+ If this method returns false , then IPv6 link-local addresses can still be used, but
+ it is the responsibility of the caller to discover that address in other ways, e.g. using
+ out-of-band communication. Returns boolean true if supported, false otherwise. isPccModeSupported Added in API level 36 public boolean isPccModeSupported () Check if this device supports P2P Connection Compatibility Mode(R1/R2 compatibility mode). Returns boolean true if this device supports hosting an autonomous Group Owner which allows
+ legacy P2P clients and R2 clients to join the group in PCC Mode and also supports connecting
+ to a Group Owner either using legacy security mode (WPA2-PSK) or R2 mandated security
+ mode(WPA3-SAE) in PCC Mode. isSetVendorElementsSupported Added in API level 33 public boolean isSetVendorElementsSupported () Check if this device supports setting vendor elements.
+
+ Gates whether the setVendorElements(android.net.wifi.p2p.WifiP2pManager.Channel, java.util.List, android.net.wifi.p2p.WifiP2pManager.ActionListener) method is functional on this device. Returns boolean true if supported, false otherwise. isWiFiDirectR2Supported Added in API level 36 public boolean isWiFiDirectR2Supported () Check if this device supports Wi-Fi Direct R2 (P2P2). Returns boolean true if this device supports Wi-Fi Alliance Wi-Fi Direct R2 (Support for P2P2 IE and
+ establishing connection by using the P2P pairing protocol), false otherwise.
+ For more details, visit https://www.wi-fi.org/ and
+ search for "Wi-Fi Direct" . registerWifiP2pListener Added in API level 35 public void registerWifiP2pListener ( Executor executor, WifiP2pManager.WifiP2pListener listener) Add a listener to listen to Wi-Fi p2p various changes. Parameters executor Executor : the Executor on which to execute the callbacks.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. listener WifiP2pManager.WifiP2pListener : listener for the Wi-Fi p2p connection changes.
+ This value cannot be null . Throws SecurityException if the caller is missing required permissions. IllegalArgumentException if incorrect input arguments are provided. removeClient Added in API level 33 public void removeClient ( WifiP2pManager.Channel channel, MacAddress peerAddress, WifiP2pManager.ActionListener listener) Remove the client with the MAC address from the group. The function call immediately returns after sending a client removal request
+ to the framework. The application is notified of a success or failure to initiate
+ client removal through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The callbacks are triggered on the thread specified when initializing the channel , see initialize(Context, Looper, ChannelListener) . Use isGroupClientRemovalSupported() to determine whether the device supports
+ this feature. If isGroupClientRemovalSupported() return false then this
+ method will throw UnsupportedOperationException . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . peerAddress MacAddress : MAC address of the client.
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. removeExternalApprover Added in API level 33 public void removeExternalApprover ( WifiP2pManager.Channel c, MacAddress deviceAddress, WifiP2pManager.ActionListener listener) Remove the external approver for a specific peer.
+
+ The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Requires Manifest.permission.MANAGE_WIFI_NETWORK_SELECTION Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . deviceAddress MacAddress : the peer which is bound to the external approver.
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callback on success or failure.
+
+ This value may be null . removeGroup Added in API level 14 public void removeGroup ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Remove the current p2p group. The function call immediately returns after sending a group removal request
+ to the framework. The application is notified of a success or failure to initiate
+ group removal through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. removeLocalService Added in API level 16 public void removeLocalService ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pManager.ActionListener listener) Remove a registered local service added with addLocalService(Channel, WifiP2pServiceInfo, ActionListener) The function call immediately returns after sending a request to remove a
+ local service to the framework. The application is notified of a success or failure to
+ add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) servInfo WifiP2pServiceInfo : is the local service information. listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. removeServiceRequest Added in API level 16 public void removeServiceRequest ( WifiP2pManager.Channel channel, WifiP2pServiceRequest req, WifiP2pManager.ActionListener listener) Remove a specified service discovery request added with addServiceRequest(Channel, WifiP2pServiceRequest, ActionListener) The function call immediately returns after sending a request to remove service
+ discovery request to the framework. The application is notified of a success or failure to
+ add service through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) req WifiP2pServiceRequest : is the service discovery request. listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. requestConnectionInfo Added in API level 14 public void requestConnectionInfo ( WifiP2pManager.Channel channel, WifiP2pManager.ConnectionInfoListener listener) Request device connection info. Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ConnectionInfoListener : for callback when connection info is available. Can be null. requestDeviceInfo Added in API level 29 public void requestDeviceInfo ( WifiP2pManager.Channel c, WifiP2pManager.DeviceInfoListener listener) Request Device Info This method provides the device info
+ in the form of a WifiP2pDevice .
+ Valid WifiP2pDevice is returned when p2p is enabled.
+ To get information notifications on P2P getting enabled refers WIFI_P2P_STATE_ENABLED . This WifiP2pDevice is returned using the DeviceInfoListener listener. WifiP2pDevice.deviceAddress is only available if the caller
+ holds the android.Manifest.permission#LOCAL_MAC_ADDRESS permission, and holds the
+ anonymized MAC address (02:00:00:00:00:00) otherwise. This information is also included in the WIFI_P2P_THIS_DEVICE_CHANGED_ACTION broadcast event with extra EXTRA_WIFI_P2P_DEVICE . If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . listener WifiP2pManager.DeviceInfoListener : for callback when network info is available.
+
+ This value cannot be null . requestDirInfo Added in API level 36 public void requestDirInfo ( WifiP2pManager.Channel c, Executor executor, OutcomeReceiver < WifiP2pDirInfo , Exception > callback) Get the Device Identity Resolution (DIR) Information.
+ See WifiP2pDirInfo for details
+
+ Note: The results callback returns null if the device doesn't have any persistent group
+ with device identity key information. Use isWiFiDirectR2Supported() to determine whether the device supports
+ this feature. If isWiFiDirectR2Supported() return false then
+ this method will throw UnsupportedOperationException . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Parameters c WifiP2pManager.Channel : It is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . executor Executor : The executor on which callback will be invoked.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback OutcomeReceiver : An OutcomeReceiver callback for receiving WifiP2pDirInfo via OutcomeReceiver.onResult(Object) . This callback will return
+                        null when DIR info doesn't exist.
+                        When this API call fails due to permission issues, state machine
+                        is busy etc., OutcomeReceiver.onError(Throwable) is called. requestDiscoveryState Added in API level 29 public void requestDiscoveryState ( WifiP2pManager.Channel c, WifiP2pManager.DiscoveryStateListener listener) Request p2p discovery state. This state indicates whether p2p discovery has started or stopped.
+ The valid value is one of WIFI_P2P_DISCOVERY_STARTED or WIFI_P2P_DISCOVERY_STOPPED . The state is returned using the DiscoveryStateListener listener. This state is also included in the WIFI_P2P_DISCOVERY_CHANGED_ACTION broadcast event with extra EXTRA_DISCOVERY_STATE . Parameters c WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . listener WifiP2pManager.DiscoveryStateListener : for callback when discovery state is available.
+
+ This value cannot be null . requestGroupInfo Added in API level 14 public void requestGroupInfo ( WifiP2pManager.Channel channel, WifiP2pManager.GroupInfoListener listener) Request p2p group info. If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.GroupInfoListener : for callback when group info is available. Can be null. requestNetworkInfo Added in API level 29 public void requestNetworkInfo ( WifiP2pManager.Channel c, WifiP2pManager.NetworkInfoListener listener) Request network info. This method provides the network info in the form of a NetworkInfo . NetworkInfo.isAvailable() indicates the p2p availability and NetworkInfo.getDetailedState() reports the current fine-grained state
+ of the network. This NetworkInfo is returned using the NetworkInfoListener listener. This information is also included in the WIFI_P2P_CONNECTION_CHANGED_ACTION broadcast event with extra EXTRA_NETWORK_INFO . Parameters c WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . listener WifiP2pManager.NetworkInfoListener : for callback when network info is available.
+
+ This value cannot be null . requestP2pState Added in API level 29 public void requestP2pState ( WifiP2pManager.Channel c, WifiP2pManager.P2pStateListener listener) Request p2p enabled state. This state indicates whether Wi-Fi p2p is enabled or disabled.
+ The valid value is one of WIFI_P2P_STATE_DISABLED or WIFI_P2P_STATE_ENABLED . The state is returned using the P2pStateListener listener. This state is also included in the WIFI_P2P_STATE_CHANGED_ACTION broadcast event with extra EXTRA_WIFI_STATE . Parameters c WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . listener WifiP2pManager.P2pStateListener : for callback when p2p state is available.
+
+ This value cannot be null . requestPeers Added in API level 14 public void requestPeers ( WifiP2pManager.Channel channel, WifiP2pManager.PeerListListener listener) Request the current list of peers. If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.PeerListListener : for callback when peer list is available. Can be null. setConnectionRequestResult Added in API level 33 public void setConnectionRequestResult ( WifiP2pManager.Channel c, MacAddress deviceAddress, 
+                int result, String pin, WifiP2pManager.ActionListener listener) Set the result with PIN for the incoming request from a specific peer.
+
+ The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Requires Manifest.permission.MANAGE_WIFI_NETWORK_SELECTION Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . deviceAddress MacAddress : the peer which is bound to the external approver.
+ This value cannot be null . result int : the response for the incoming request.
+ Value is CONNECTION_REQUEST_ACCEPT , CONNECTION_REQUEST_REJECT , CONNECTION_REQUEST_DEFER_TO_SERVICE , or CONNECTION_REQUEST_DEFER_SHOW_PIN_TO_SERVICE pin String : the PIN for the incoming request.
+ This value may be null . listener WifiP2pManager.ActionListener : for callback on success or failure.
+
+ This value may be null . setConnectionRequestResult Added in API level 33 public void setConnectionRequestResult ( WifiP2pManager.Channel c, MacAddress deviceAddress, 
+                int result, WifiP2pManager.ActionListener listener) Set the result for the incoming request from a specific peer.
+
+ The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Requires Manifest.permission.MANAGE_WIFI_NETWORK_SELECTION Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . deviceAddress MacAddress : the peer which is bound to the external approver.
+ This value cannot be null . result int : the response for the incoming request.
+ Value is CONNECTION_REQUEST_ACCEPT , CONNECTION_REQUEST_REJECT , CONNECTION_REQUEST_DEFER_TO_SERVICE , or CONNECTION_REQUEST_DEFER_SHOW_PIN_TO_SERVICE listener WifiP2pManager.ActionListener : for callback on success or failure.
+
+ This value may be null . setDnsSdResponseListeners Added in API level 16 public void setDnsSdResponseListeners ( WifiP2pManager.Channel channel, WifiP2pManager.DnsSdServiceResponseListener servListener, WifiP2pManager.DnsSdTxtRecordListener txtListener) Register a callback to be invoked on receiving Bonjour service discovery
+ response. see discoverServices(Channel, ActionListener) for the detail. Parameters servListener WifiP2pManager.DnsSdServiceResponseListener : is for listening to a Bonjour service response txtListener WifiP2pManager.DnsSdTxtRecordListener : is for listening to a Bonjour TXT record response setServiceResponseListener Added in API level 16 public void setServiceResponseListener ( WifiP2pManager.Channel channel, WifiP2pManager.ServiceResponseListener listener) Register a callback to be invoked on receiving service discovery response.
+ Used only for vendor specific protocol right now. For Bonjour or Upnp, use setDnsSdResponseListeners(Channel, DnsSdServiceResponseListener, DnsSdTxtRecordListener) or setUpnpServiceResponseListener(Channel, UpnpServiceResponseListener) respectively. see discoverServices(Channel, ActionListener) for the detail. Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ServiceResponseListener : for callbacks on receiving service discovery response. setUpnpServiceResponseListener Added in API level 16 public void setUpnpServiceResponseListener ( WifiP2pManager.Channel channel, WifiP2pManager.UpnpServiceResponseListener listener) Register a callback to be invoked on receiving upnp service discovery
+ response. see discoverServices(Channel, ActionListener) for the detail. Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.UpnpServiceResponseListener : for callbacks on receiving service discovery response. setVendorElements Added in API level 33 public void setVendorElements ( WifiP2pManager.Channel c, List < ScanResult.InformationElement > vendorElements, WifiP2pManager.ActionListener listener) Set/Clear vendor specific information elements (VSIEs) to be published during
+ Wi-Fi Direct (P2P) discovery.
+
+ Once Channel.close() is called, the vendor information elements will be cleared from
+ framework. The information element format is defined in the IEEE 802.11-2016 spec
+ Table 9-77. To clear the previously set vendor elements, call this API with an empty List. The maximum accumulated length of all VSIEs must be before the limit specified by getP2pMaxAllowedVendorElementsLengthBytes() . To publish vendor elements, this API should be called before peer discovery API, ex. discoverPeers(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) . Use isSetVendorElementsSupported() to determine whether the device supports
+ this feature. If isSetVendorElementsSupported() return false then
+ this method will throw UnsupportedOperationException . Requires Manifest.permission.NEARBY_WIFI_DEVICES and Manifest.permission.OVERRIDE_WIFI_CONFIG Parameters c WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) .
+ This value cannot be null . vendorElements List : application information as vendor-specific information elements.
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callback when network info is available.
+
+ This value may be null . setWfdInfo Added in API level 34 public void setWfdInfo ( WifiP2pManager.Channel channel, WifiP2pWfdInfo wfdInfo, WifiP2pManager.ActionListener listener) Set Wifi Display information. Requires Manifest.permission.CONFIGURE_WIFI_DISPLAY Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . wfdInfo WifiP2pWfdInfo : the Wifi Display information to set
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. startListening Added in API level 33 public void startListening ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Force p2p to enter listen state.
+
+ When this API is called, this device will periodically enter LISTENING state until stopListening(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) or stopPeerDiscovery(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) are called.
+ While in LISTENING state, this device will dwell at its social channel and respond
+ to probe requests from other Wi-Fi Direct peers. If targeting Build.VERSION_CODES.TIRAMISU or later, the application must
+ have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION .
+
+ If targeting an earlier release than Build.VERSION_CODES.TIRAMISU , the
+ application must have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure.
+
+ This value may be null . startPeerDiscovery Added in API level 35 public void startPeerDiscovery ( WifiP2pManager.Channel channel, WifiP2pDiscoveryConfig config, WifiP2pManager.ActionListener listener) Initiate peer discovery. A discovery process involves scanning for available Wi-Fi peers
+ for the purpose of establishing a connection. See discoverPeers(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) for more details.
+
+ This method accepts a WifiP2pDiscoveryConfig object specifying the desired
+ parameters for the peer discovery. The configuration object allows the specification of the
+ scan type (ex. FULL, SOCIAL) and the inclusion of vendor-specific configuration data.
+
+ The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . config WifiP2pDiscoveryConfig : is the configuration for this peer discovery
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure.
+
+ This value may be null . startUsdBasedLocalServiceAdvertisement Added in API level 36 public void startUsdBasedLocalServiceAdvertisement ( WifiP2pManager.Channel channel, WifiP2pServiceInfo servInfo, WifiP2pUsdBasedLocalServiceAdvertisementConfig config, WifiP2pManager.ActionListener listener) Start a service discovery advertisement using Un-synchronized service discovery (USD).
+ Once startUsdBasedLocalServiceAdvertisement(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.nsd.WifiP2pServiceInfo, android.net.wifi.p2p.WifiP2pUsdBasedLocalServiceAdvertisementConfig, android.net.wifi.p2p.WifiP2pManager.ActionListener) is called, the device will
+ go to the channel frequency requested via WifiP2pUsdBasedLocalServiceAdvertisementConfig and responds to a service discovery
+ request from a peer. The service information is set through WifiP2pServiceInfo.WifiP2pServiceInfo(WifiP2pUsdBasedServiceConfig) The function call immediately returns after sending a request to start the service
+ advertisement to the framework. The application is notified of a success or failure to
+ start service advertisement through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . The service information can be cleared with calls to removeLocalService(Channel, WifiP2pServiceInfo, ActionListener) or clearLocalServices(Channel, ActionListener) . Use isWiFiDirectR2Supported() to determine whether the device supports
+ this feature. If isWiFiDirectR2Supported() return false then
+ this method will throw UnsupportedOperationException . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) This value cannot be null . servInfo WifiP2pServiceInfo : is a local service information.
+ This value cannot be null . config WifiP2pUsdBasedLocalServiceAdvertisementConfig : is the configuration for this service discovery advertisement.
+ This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. stopListening Added in API level 33 public void stopListening ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Force p2p to exit listen state.
+
+ When this API is called, this device will stop entering LISTENING state periodically
+ which is triggered by startListening(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) .
+ If there are running peer discovery which is triggered by discoverPeers(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) or running service discovery which is
+ triggered by discoverServices(android.net.wifi.p2p.WifiP2pManager.Channel, android.net.wifi.p2p.WifiP2pManager.ActionListener) , they will be stopped
+ as well. Parameters channel WifiP2pManager.Channel : is the channel created at initialize(android.content.Context, android.os.Looper, android.net.wifi.p2p.WifiP2pManager.ChannelListener) This value cannot be null . listener WifiP2pManager.ActionListener : for callbacks on success or failure.
+
+ This value may be null . stopPeerDiscovery Added in API level 16 public void stopPeerDiscovery ( WifiP2pManager.Channel channel, WifiP2pManager.ActionListener listener) Stop an ongoing peer discovery The function call immediately returns after sending a stop request
+ to the framework. The application is notified of a success or failure to initiate
+ stop through listener callbacks ActionListener.onSuccess or ActionListener.onFailure . If P2P Group is in the process of being created, this call will fail (report failure via listener . The applicantion should listen to WIFI_P2P_CONNECTION_CHANGED_ACTION to ensure the state is not NetworkInfo.State.CONNECTING and repeat calling when the state changes. Parameters channel WifiP2pManager.Channel : is the channel created at initialize(Context, Looper, ChannelListener) listener WifiP2pManager.ActionListener : for callbacks on success or failure. Can be null. unregisterWifiP2pListener Added in API level 35 public void unregisterWifiP2pListener ( WifiP2pManager.WifiP2pListener listener) Remove a listener added using registerWifiP2pListener(java.util.concurrent.Executor, android.net.wifi.p2p.WifiP2pManager.WifiP2pListener) Parameters listener WifiP2pManager.WifiP2pListener : the listener to be removed.
+ This value cannot be null . Throws IllegalArgumentException if incorrect input arguments are provided. validateDirInfo Added in API level 36 public void validateDirInfo ( WifiP2pManager.Channel c, WifiP2pDirInfo dirInfo, Executor executor, OutcomeReceiver < Boolean , Exception > callback) Validate the Device Identity Resolution (DIR) Information of a P2P device.
+ See WifiP2pDirInfo for details.
+ Framework takes the WifiP2pDirInfo and derives a set of Tag values based on
+ the cached Device Identity Keys (DevIK) of all paired peers saved in the device.
+ If a derived Tag value matches the Tag value received in the WifiP2pDirInfo , the
+ device is identified as a paired peer and returns true. Use isWiFiDirectR2Supported() to determine whether the device supports
+ this feature. If isWiFiDirectR2Supported() return false then
+ this method will throw UnsupportedOperationException . The application must have Manifest.permission.NEARBY_WIFI_DEVICES with
+ android:usesPermissionFlags="neverForLocation". If the application does not declare
+ android:usesPermissionFlags="neverForLocation", then it must also have Manifest.permission.ACCESS_FINE_LOCATION . Parameters c WifiP2pManager.Channel : It is the channel created at initialize(Context, Looper, ChannelListener) .
+ This value cannot be null . dirInfo WifiP2pDirInfo : WifiP2pDirInfo to validate.
+ This value cannot be null . executor Executor : The executor on which callback will be invoked.
+ This value cannot be null .
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. callback OutcomeReceiver : An OutcomeReceiver callback for receiving the result via OutcomeReceiver.onResult(Object) indicating whether the DIR
+                        info of P2P device is of a paired device. {code true} for paired, false for not paired.
+                        When this API call fails due to permission issues, state machine
+                        is busy etc., OutcomeReceiver.onError(Throwable) is called.
+
+ This value cannot be null .</body></html>

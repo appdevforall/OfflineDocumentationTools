@@ -57,72 +57,51 @@ class AndroidHtmlPage:
     
     def get_html_page(self):
         """
-        Return a valid HTML page with proper structure containing the article content.
-        
-        Returns:
-            str: A complete HTML page with the article content between sentinels
+        Wraps the output of get_article_text() in <html><head><title>Class Documentation</title></head><body>...</body></html>
         """
+        body = self.get_article_text()
+        if not body:
+            return ""
+        return f"<html><head><title>Class Documentation</title></head><body>{body}</body></html>" 
+
+    def get_androidx_article_text(self):
+        """
+        Extract plain text from AndroidX HTML content after <div id="header-block"> up to devsite-hats-survey, stripping HTML tags (no BeautifulSoup).
+        Returns:
+            str: The plain text content, or empty string if not found
+        """
+        import re
         if not os.path.exists(self.file_path):
-            return f"""<html>
-<head><title>Class Documentation</title></head>
-<body>
-<p>File not found: {self.file_path}</p>
-</body>
-</html>"""
-        
+            return ""
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                
-                # Find content between the sentinel comments
-                start_sentinel = "<!-- ======== START OF CLASS DATA ======== -->"
-                end_sentinel = "<!-- ========= END OF CLASS DATA ========= -->"
-                
-                start_index = content.find(start_sentinel)
-                end_index = content.find(end_sentinel)
-                
-                if start_index == -1 or end_index == -1:
-                    return f"""<html>
-<head><title>Class Documentation</title></head>
-<body>
-<p>No class data found in {self.file_path}</p>
-</body>
-</html>"""
-                
-                if start_index >= end_index:
-                    return f"""<html>
-<head><title>Class Documentation</title></head>
-<body>
-<p>Invalid sentinel positions in {self.file_path}</p>
-</body>
-</html>"""
-                
-                # Extract the content between sentinels
-                start_content = start_index + len(start_sentinel)
-                content_between = content[start_content:end_index]
-                
-                # Extract the class name from the h1 tag
-                soup = BeautifulSoup(content_between, 'html.parser')
-                h1_tag = soup.find('h1')
-                class_name = h1_tag.get_text(strip=True) if h1_tag else "Class Documentation"
-                
-                # Create the complete HTML page
-                html_page = f"""<html>
-<head><title>{class_name}</title></head>
-<body>
-{content_between}
-</body>
-</html>"""
-                
-                return html_page
-                    
-        except Exception as e:
-            return f"""<html>
-<head><title>Class Documentation</title></head>
-<body>
-<p>Error reading file {self.file_path}: {str(e)}</p>
-</body>
-</html>""" 
+                start_marker = '<div id="header-block">'
+                end_marker = '<devsite-hats-survey'
+                start_index = content.find(start_marker)
+                if start_index == -1:
+                    return ""
+                # Don't skip past the header-block div, include it
+                end_index = content.find(end_marker, start_index)
+                if end_index == -1:
+                    return ""
+                content_between = content[start_index:end_index]
+                # Remove all HTML tags
+                text = re.sub(r'<[^>]+>', ' ', content_between)
+                # Collapse whitespace
+                text = re.sub(r'\s+', ' ', text).strip()
+                return text
+        except Exception:
+            return ""
+    
+    def get_androidx_html_page(self):
+        """
+        Wraps the output of get_androidx_article_text() in <html><head><title>Class Documentation</title></head><body>...</body></html>
+        """
+        body = self.get_androidx_article_text()
+        if not body:
+            return ""
+        return f"<html><head><title>Class Documentation</title></head><body>{body}</body></html>"
 
 def main():
     import argparse

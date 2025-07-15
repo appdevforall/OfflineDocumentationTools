@@ -1,0 +1,137 @@
+<html><head><title>Class Documentation</title></head><body>ContentCaptureManager Kotlin | Java public
+  
+  final
+  
+  class
+  ContentCaptureManager extends Object java.lang.Object ↳ android.view.contentcapture.ContentCaptureManager Provides additional ways for apps to integrate with the content capture subsystem. Content capture provides real-time, continuous capture of application activity, display and
+ events to an intelligence service that is provided by the Android system. The intelligence
+ service then uses that info to mediate and speed user journey through different apps. For
+ example, when the user receives a restaurant address in a chat app and switches to a map app
+ to search for that restaurant, the intelligence service could offer an autofill dialog to
+ let the user automatically select its address. Content capture was designed with two major concerns in mind: privacy and performance. Privacy: the intelligence service is a trusted component provided that is provided
+   by the device manufacturer and that cannot be changed by the user (although the user can
+   globaly disable content capture using the Android Settings app). This service can only use the
+   data for in-device machine learning, which is enforced both by process isolation and CDD requirements . Performance: content capture is highly optimized to minimize its impact in the app
+   jankiness and overall device system health. For example, its only enabled on apps (or even
+   specific activities from an app) that were explicitly allowlisted by the intelligence service,
+   and it buffers the events so they are sent in a batch to the service (see isContentCaptureEnabled() for other cases when its disabled). In fact, before using this manager, the app developer should check if it's available. Example: ContentCaptureManager mgr = context.getSystemService(ContentCaptureManager.class);
+  if (mgr != null && mgr.isContentCaptureEnabled()) {
+    // ...
+  } App developers usually don't need to explicitly interact with content capture, except when the
+ app: Can define a contextual LocusId to identify unique state (such as a
+   conversation between 2 chat users). Can have multiple view hierarchies with different contextual meaning (for example, a
+   browser app with multiple tabs, each representing a different URL). Contains custom views (that extend View directly and are not provided by the standard
+   Android SDK. Contains views that provide their own virtual hierarchy (like a web browser that render the
+   HTML elements using a Canvas). The main integration point with content capture is the ContentCaptureSession . A "main"
+ session is automatically created by the Android System when content capture is enabled for the
+ activity and its used by the standard Android views to notify the content capture service of
+ events such as views being added, views been removed, and text changed by user input. The session
+ could have a ContentCaptureContext to provide more contextual info about it, such as
+ the locus associated with the view hierarchy (see LocusId for more info
+ about locus). By default, the main session doesn't have a ContentCaptureContext , but you
+ can change it after its created. Example: protected void onCreate(Bundle savedInstanceState) {
+   // Initialize view structure
+   ContentCaptureSession session = rootView.getContentCaptureSession();
+   if (session != null) {
+     session.setContentCaptureContext(ContentCaptureContext.forLocusId("chat_UserA_UserB"));
+   }
+ } If your activity contains view hierarchies with a different contextual meaning, you should
+ created child sessions for each view hierarchy root. For example, if your activity is a browser,
+ you could use the main session for the main URL being rendered, then child sessions for each IFRAME : ContentCaptureSession mMainSession;
+
+ protected void onCreate(Bundle savedInstanceState) {
+    // Initialize view structure...
+    mMainSession = rootView.getContentCaptureSession();
+    if (mMainSession != null) {
+      mMainSession.setContentCaptureContext(
+          ContentCaptureContext.forLocusId("https://example.com"));
+    }
+ }
+
+ private void loadIFrame(View iframeRootView, String url) {
+   if (mMainSession != null) {
+      ContentCaptureSession iFrameSession = mMainSession.newChild(
+          ContentCaptureContext.forLocusId(url));
+      }
+      iframeRootView.setContentCaptureSession(iFrameSession);
+   }
+   // Load iframe...
+ } If your activity has custom views (i.e., views that extend View directly and provide
+ just one logical view, not a virtual tree hiearchy) and it provides content that's relevant for
+ content capture (as of Android Q , the only relevant
+ content is text), then your view implementation should: Set it as important for content capture. Fill ViewStructure used for content capture. Notify the ContentCaptureSession when the text is changed by user input. Here's an example of the relevant methods for an EditText -like view: public class MyEditText extends View {
+
+ public MyEditText(...) {
+   if (getImportantForContentCapture() == IMPORTANT_FOR_CONTENT_CAPTURE_AUTO) {
+     setImportantForContentCapture(IMPORTANT_FOR_CONTENT_CAPTURE_YES);
+   }
+ }
+
+ public void onProvideContentCaptureStructure(@NonNull ViewStructure structure, int flags) {
+   super.onProvideContentCaptureStructure(structure, flags);
+
+   structure.setText(getText(), getSelectionStart(), getSelectionEnd());
+   structure.setHint(getHint());
+   structure.setInputType(getInputType());
+   // set other properties like setTextIdEntry(), setTextLines(), setTextStyle(),
+   // setMinTextEms(), setMaxTextEms(), setMaxTextLength()
+ }
+
+ private void onTextChanged() {
+   if (isLaidOut() && isImportantForContentCapture() && isTextEditable()) {
+     ContentCaptureManager mgr = mContext.getSystemService(ContentCaptureManager.class);
+     if (cm != null && cm.isContentCaptureEnabled()) {
+        ContentCaptureSession session = getContentCaptureSession();
+        if (session != null) {
+          session.notifyViewTextChanged(getAutofillId(), getText());
+        }
+   }
+ } If your view provides its own virtual hierarchy (for example, if it's a browser that draws
+ the HTML using Canvas or native libraries in a different render process), then the view
+ is also responsible to notify the session when the virtual elements appear and disappear - see View.onProvideContentCaptureStructure(ViewStructure, int) for more info. Summary Constants int DATA_SHARE_ERROR_CONCURRENT_REQUEST Request has been rejected, because a concurrent data share sessions is in progress. int DATA_SHARE_ERROR_TIMEOUT_INTERRUPTED Request has been interrupted because of data share session timeout. int DATA_SHARE_ERROR_UNKNOWN Error happened during the data sharing session. Public methods Set < ContentCaptureCondition > getContentCaptureConditions () Gets the list of conditions for when content capture should be allowed. ComponentName getServiceComponentName () Returns the component name of the system service that is consuming the captured events for
+ the current user. boolean isContentCaptureEnabled () Checks whether content capture is enabled for this activity. void removeData ( DataRemovalRequest request) Called by the app to request the content capture service to remove content capture data
+ associated with some context. void setContentCaptureEnabled (boolean enabled) Called by apps to explicitly enable or disable content capture. void shareData ( DataShareRequest request, Executor executor, DataShareWriteAdapter dataShareWriteAdapter) Called by the app to request data sharing via writing to a file. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants DATA_SHARE_ERROR_CONCURRENT_REQUEST Added in API level 30 public static final int DATA_SHARE_ERROR_CONCURRENT_REQUEST Request has been rejected, because a concurrent data share sessions is in progress. Constant Value:
+      
+          2
+          (0x00000002) DATA_SHARE_ERROR_TIMEOUT_INTERRUPTED Added in API level 30 public static final int DATA_SHARE_ERROR_TIMEOUT_INTERRUPTED Request has been interrupted because of data share session timeout. Constant Value:
+      
+          3
+          (0x00000003) DATA_SHARE_ERROR_UNKNOWN Added in API level 30 public static final int DATA_SHARE_ERROR_UNKNOWN Error happened during the data sharing session. Constant Value:
+      
+          1
+          (0x00000001) Public methods getContentCaptureConditions Added in API level 29 public Set < ContentCaptureCondition > getContentCaptureConditions () Gets the list of conditions for when content capture should be allowed. This method is typically used by web browsers so they don't generate unnecessary content
+ capture events for websites the content capture service is not interested on. Returns Set < ContentCaptureCondition > list of conditions, or null if the service didn't set any restriction
+ (in which case content capture events should always be generated). If the list is empty,
+ then it should not generate any event at all. getServiceComponentName Added in API level 29 public ComponentName getServiceComponentName () Returns the component name of the system service that is consuming the captured events for
+ the current user. Returns ComponentName This value may be null . Throws RuntimeException if getting the component name is timed out. isContentCaptureEnabled Added in API level 29 public boolean isContentCaptureEnabled () Checks whether content capture is enabled for this activity. There are many reasons it could be disabled, such as: App itself disabled content capture through setContentCaptureEnabled(boolean) . Intelligence service did not allowlist content capture for this activity's package. Intelligence service did not allowlist content capture for this specific activity. Intelligence service disabled content capture globally. User disabled content capture globally through the Android Settings app. Device manufacturer (OEM) disabled content capture globally. Transient errors, such as intelligence service package being updated. Returns boolean removeData Added in API level 29 public void removeData ( DataRemovalRequest request) Called by the app to request the content capture service to remove content capture data
+ associated with some context. Parameters request DataRemovalRequest : object specifying what user data should be removed.
+
+ This value cannot be null . setContentCaptureEnabled Added in API level 29 public void setContentCaptureEnabled (boolean enabled) Called by apps to explicitly enable or disable content capture. Note: this call is not persisted accross reboots, so apps should typically call
+ it on Activity.onCreate(android.os.Bundle, android.os.PersistableBundle) . Parameters enabled boolean shareData Added in API level 30 public void shareData ( DataShareRequest request, Executor executor, DataShareWriteAdapter dataShareWriteAdapter) Called by the app to request data sharing via writing to a file. The ContentCaptureService app will receive a read-only file descriptor pointing to the
+ same file and will be able to read data being shared from it. Note: using this API doesn't guarantee the app staying alive and is "best-effort".
+ Starting a foreground service would minimize the chances of the app getting killed during the
+ file sharing session. Parameters request DataShareRequest : object specifying details of the data being shared.
+
+ This value cannot be null . executor Executor : This value cannot be null .
+
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. dataShareWriteAdapter DataShareWriteAdapter : This value cannot be null .</body></html>

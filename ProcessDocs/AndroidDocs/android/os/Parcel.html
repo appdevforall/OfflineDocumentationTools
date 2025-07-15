@@ -1,0 +1,686 @@
+<html><head><title>Class Documentation</title></head><body>Parcel Kotlin | Java public
+  
+  final
+  
+  class
+  Parcel extends Object java.lang.Object ↳ android.os.Parcel Container for a message (data and object references) that can
+ be sent through an IBinder.  A Parcel can contain both flattened data
+ that will be unflattened on the other side of the IPC (using the various
+ methods here for writing specific types, or the general Parcelable interface), and references to live IBinder objects that will result in the other side receiving a proxy IBinder
+ connected with the original IBinder in the Parcel. Parcel is not a general-purpose
+ serialization mechanism.  This class (and the corresponding Parcelable API for placing arbitrary objects into a Parcel) is
+ designed as a high-performance IPC transport.  As such, it is not
+ appropriate to place any Parcel data in to persistent storage: changes
+ in the underlying implementation of any of the data in the Parcel can
+ render older data unreadable. The bulk of the Parcel API revolves around reading and writing data
+ of various types.  There are six major classes of such functions available. Primitives The most basic data functions are for writing and reading primitive
+ data types: writeByte(byte) , readByte() , writeDouble(double) , readDouble() , writeFloat(float) , readFloat() , writeInt(int) , readInt() , writeLong(long) , readLong() , writeString(String) , readString() .  Most other
+ data operations are built on top of these.  The given data is written and
+ read using the endianess of the host CPU. Primitive Arrays There are a variety of methods for reading and writing raw arrays
+ of primitive objects, which generally result in writing a 4-byte length
+ followed by the primitive data items.  The methods for reading can either
+ read the data into an existing array, or create and return a new array.
+ These available types are: writeBooleanArray(boolean[]) , readBooleanArray(boolean[]) , createBooleanArray() writeByteArray(byte[]) , writeByteArray(byte[], int, int) , readByteArray(byte[]) , createByteArray() writeCharArray(char[]) , readCharArray(char[]) , createCharArray() writeDoubleArray(double[]) , readDoubleArray(double[]) , createDoubleArray() writeFloatArray(float[]) , readFloatArray(float[]) , createFloatArray() writeIntArray(int[]) , readIntArray(int[]) , createIntArray() writeLongArray(long[]) , readLongArray(long[]) , createLongArray() writeStringArray(java.lang.String[]) , readStringArray(java.lang.String[]) , createStringArray() . writeSparseBooleanArray(android.util.SparseBooleanArray) , readSparseBooleanArray() . Parcelables The Parcelable protocol provides an extremely efficient (but
+ low-level) protocol for objects to write and read themselves from Parcels.
+ You can use the direct methods writeParcelable(android.os.Parcelable, int) and readParcelable(java.lang.ClassLoader) or writeParcelableArray(T, int) and readParcelableArray(java.lang.ClassLoader) to write or read.  These
+ methods write both the class type and its data to the Parcel, allowing
+ that class to be reconstructed from the appropriate class loader when
+ later reading. There are also some methods that provide a more efficient way to work
+ with Parcelables: writeTypedObject(T, int) , writeTypedArray(T, int) , writeTypedList(List) , readTypedObject(Creator) , createTypedArray(Creator) and createTypedArrayList(Creator) .  These methods
+ do not write the class information of the original object: instead, the
+ caller of the read function must know what type to expect and pass in the
+ appropriate Parcelable.Creator instead to
+ properly construct the new object and read its data.  (To more efficient
+ write and read a single Parcelable object that is not null, you can directly
+ call Parcelable.writeToParcel and Parcelable.Creator.createFromParcel yourself.) Bundles A special type-safe container, called Bundle , is available
+ for key/value maps of heterogeneous values.  This has many optimizations
+ for improved performance when reading and writing data, and its type-safe
+ API avoids difficult to debug type errors when finally marshalling the
+ data contents into a Parcel.  The methods to use are writeBundle(android.os.Bundle) , readBundle() , and readBundle(java.lang.ClassLoader) . Active Objects An unusual feature of Parcel is the ability to read and write active
+ objects.  For these objects the actual contents of the object is not
+ written, rather a special token referencing the object is written.  When
+ reading the object back from the Parcel, you do not get a new instance of
+ the object, but rather a handle that operates on the exact same object that
+ was originally written.  There are two forms of active objects available. Binder objects are a core facility of Android's general cross-process
+ communication system.  The IBinder interface describes an abstract
+ protocol with a Binder object.  Any such interface can be written in to
+ a Parcel, and upon reading you will receive either the original object
+ implementing that interface or a special proxy implementation
+ that communicates calls back to the original object.  The methods to use are writeStrongBinder(android.os.IBinder) , writeStrongInterface(android.os.IInterface) , readStrongBinder() , writeBinderArray(android.os.IBinder[]) , readBinderArray(android.os.IBinder[]) , createBinderArray() , writeInterfaceArray(T[]) , readInterfaceArray(T[], java.util.function.Function) , createInterfaceArray(java.util.function.IntFunction, java.util.function.Function) , writeBinderList(java.util.List) , readBinderList(java.util.List) , createBinderArrayList() , writeInterfaceList(java.util.List) , readInterfaceList(java.util.List, java.util.function.Function) , createInterfaceArrayList(java.util.function.Function) . FileDescriptor objects, representing raw Linux file descriptor identifiers,
+ can be written and ParcelFileDescriptor objects returned to operate
+ on the original file descriptor.  The returned file descriptor is a dup
+ of the original file descriptor: the object and fd is different, but
+ operating on the same underlying file stream, with the same position, etc.
+ The methods to use are writeFileDescriptor(java.io.FileDescriptor) , readFileDescriptor() . Parcelable Containers A final class of methods are for writing and reading standard Java
+ containers of arbitrary types.  These all revolve around the writeValue(java.lang.Object) and readValue(java.lang.ClassLoader) methods
+ which define the types of objects allowed.  The container methods are writeArray(java.lang.Object[]) , readArray(java.lang.ClassLoader) , writeList(java.util.List) , readList(java.util.List, java.lang.ClassLoader) , readArrayList(java.lang.ClassLoader) , writeMap(java.util.Map) , readMap(java.util.Map, java.lang.ClassLoader) , writeSparseArray(android.util.SparseArray) , readSparseArray(java.lang.ClassLoader) . Restricted Parcelable Containers A final class of methods are for reading standard Java containers of restricted types.
+ These methods replace methods for reading containers of arbitrary types from previous section
+ starting from Android Build.VERSION_CODES.TIRAMISU . The pairing writing methods are
+ still the same from previous section.
+ These methods accepts additional clazz parameters as the required types.
+ The Restricted Parcelable container methods are readArray(java.lang.ClassLoader, java.lang.Class) , readList(java.util.List, java.lang.ClassLoader, java.lang.Class) , readArrayList(java.lang.ClassLoader, java.lang.Class) , readMap(java.util.Map, java.lang.ClassLoader, java.lang.Class, java.lang.Class) , readSparseArray(java.lang.ClassLoader, java.lang.Class) . Summary Fields public
+    static
+    final Creator < String > STRING_CREATOR Public methods void appendFrom ( Parcel parcel, int offset, int length) IBinder[] createBinderArray () ArrayList < IBinder > createBinderArrayList () Read and return a new ArrayList containing IBinder objects from
+ the parcel that was written with writeBinderList(List) at the
+ current dataPosition(). boolean[] createBooleanArray () byte[] createByteArray () Read and return a byte[] object from the parcel. char[] createCharArray () double[] createDoubleArray () <T, S extends IInterface >
+        T createFixedArray ( Class <T> cls, Function < IBinder , S> asInterface, int... dimensions) Read and return a new multi-dimensional array of typed interfaces from a parcel. <T, S extends Parcelable >
+        T createFixedArray ( Class <T> cls, Creator <S> c, int... dimensions) Read and return a new multi-dimensional array of typed parcelables from a parcel. <T>
+        T createFixedArray ( Class <T> cls, int... dimensions) Read and return a new multi-dimensional array from a parcel. float[] createFloatArray () int[] createIntArray () <T extends IInterface >
+        T[] createInterfaceArray ( IntFunction <T[]> newArray, Function < IBinder , T> asInterface) Read and return a new array of T (IInterface) from the parcel. <T extends IInterface > ArrayList <T> createInterfaceArrayList ( Function < IBinder , T> asInterface) Read and return a new ArrayList containing T (IInterface) objects from
+ the parcel that was written with writeInterfaceList(List) at the
+ current dataPosition(). long[] createLongArray () String[] createStringArray () ArrayList < String > createStringArrayList () Read and return a new ArrayList containing String objects from
+ the parcel that was written with writeStringList(List) at the
+ current dataPosition(). <T>
+        T[] createTypedArray ( Creator <T> c) Read and return a new array containing a particular object type from
+ the parcel at the current dataPosition(). <T> ArrayList <T> createTypedArrayList ( Creator <T> c) Read and return a new ArrayList containing a particular object type from
+ the parcel that was written with writeTypedList(List) at the
+ current dataPosition(). <T extends Parcelable > ArrayMap < String , T> createTypedArrayMap ( Creator <T> creator) Read into a new ArrayMap with string keys items containing a particular
+ object type that were written with writeTypedArrayMap(android.util.ArrayMap, int) at the
+ current dataPosition(). <T extends Parcelable > SparseArray <T> createTypedSparseArray ( Creator <T> creator) Read into a new SparseArray items containing a particular object type
+ that were written with writeTypedSparseArray(android.util.SparseArray, int) at the
+ current dataPosition(). int dataAvail () Returns the amount of data remaining to be read from the
+ parcel. int dataCapacity () Returns the total amount of space in the parcel. int dataPosition () Returns the current position in the parcel data. int dataSize () Returns the total amount of data contained in the parcel. void enforceInterface ( String interfaceName) Read the header written by writeInterfaceToken and verify it matches
+ the interface name in question. void enforceNoDataAvail () Verify there are no bytes left to be read on the Parcel. boolean hasFileDescriptors () Report whether the parcel contains any marshalled file descriptors. boolean hasFileDescriptors (int offset, int length) Report whether the parcel contains any marshalled file descriptors in the range defined by offset and length . byte[] marshall () Returns the raw bytes of the parcel. static Parcel obtain () Retrieve a new Parcel object from the pool. static Parcel obtain ( IBinder binder) Retrieve a new Parcel object from the pool for use with a specific binder. Object[] readArray ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readArray(java.lang.ClassLoader, java.lang.Class) starting from
+      Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to use createTypedArray(android.os.Parcelable.Creator) if possible (eg. if the items' class is
+      final) since this is also more performant. Note that changing to the latter also
+      requires changing the writes. <T>
+        T[] readArray ( ClassLoader loader, Class <T> clazz) Same as readArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. <T> ArrayList <T> readArrayList ( ClassLoader loader, Class <? extends T> clazz) Same as readArrayList(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. ArrayList <E> readArrayList ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readArrayList(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use createTypedArrayList(android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. void readBinderArray ( IBinder[] val) void readBinderList ( List < IBinder > list) Read into the given List items IBinder objects that were written with writeBinderList(List) at the current dataPosition(). byte[] readBlob () Read a blob of data from the parcel and return it as a byte array. boolean readBoolean () Read a boolean value from the parcel at the current dataPosition(). void readBooleanArray (boolean[] val) Bundle readBundle () Read and return a new Bundle object from the parcel at the current
+ dataPosition(). Bundle readBundle ( ClassLoader loader) Read and return a new Bundle object from the parcel at the current
+ dataPosition(), using the given class loader to initialize the class
+ loader of the Bundle for later retrieval of Parcelable objects. byte readByte () Read a byte value from the parcel at the current dataPosition(). void readByteArray (byte[] val) Read a byte[] object from the parcel and copy it into the
+ given byte array. void readCharArray (char[] val) double readDouble () Read a double precision floating point value from the parcel at the
+ current dataPosition(). void readDoubleArray (double[] val) void readException () Special function for reading an exception result from the header of
+ a parcel, to be used after receiving the result of a transaction. void readException (int code, String msg) Throw an exception with the given message. ParcelFileDescriptor readFileDescriptor () Read a FileDescriptor from the parcel at the current dataPosition(). <T, S extends Parcelable >
+        void readFixedArray (T val, Creator <S> c) Read a new multi-dimensional array of typed parcelables from a parcel. <T, S extends IInterface >
+        void readFixedArray (T val, Function < IBinder , S> asInterface) Read a new multi-dimensional array of typed interfaces from a parcel. <T>
+        void readFixedArray (T val) Read a new multi-dimensional array from a parcel. float readFloat () Read a floating point value from the parcel at the current
+ dataPosition(). void readFloatArray (float[] val) HashMap <K, V> readHashMap ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Consider using readBundle(java.lang.ClassLoader) as stated above, in case this
+      method is still preferred use the type-safer version readHashMap(java.lang.ClassLoader, java.lang.Class, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . <K, V> HashMap <K, V> readHashMap ( ClassLoader loader, Class <? extends K> clazzKey, Class <? extends V> clazzValue) Same as readHashMap(java.lang.ClassLoader) but accepts clazzKey and clazzValue parameter as the types required for each key and value pair. int readInt () Read an integer value from the parcel at the current dataPosition(). void readIntArray (int[] val) <T extends IInterface >
+        void readInterfaceArray (T[] val, Function < IBinder , T> asInterface) Read an array of T (IInterface) from a parcel. <T extends IInterface >
+        void readInterfaceList ( List <T> list, Function < IBinder , T> asInterface) Read into the given List items IInterface objects that were written with writeInterfaceList(List) at the current dataPosition(). void readList ( List <E> outVal, ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readList(java.util.List, java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use readTypedList(java.util.List, android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. <T>
+        void readList ( List <? super T> outVal, ClassLoader loader, Class <T> clazz) Same as readList(java.util.List, java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. long readLong () Read a long integer value from the parcel at the current dataPosition(). void readLongArray (long[] val) void readMap ( Map <K, V> outVal, ClassLoader loader) This method was deprecated
+      in API level 33.
+    Consider using readBundle(java.lang.ClassLoader) as stated above, in case this
+      method is still preferred use the type-safer version readMap(java.util.Map, java.lang.ClassLoader, java.lang.Class, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . <K, V>
+        void readMap ( Map <? super K, ? super V> outVal, ClassLoader loader, Class <K> clazzKey, Class <V> clazzValue) Same as readMap(java.util.Map, java.lang.ClassLoader) but accepts clazzKey and clazzValue parameter as the types required for each key and value pair. <T extends Parcelable >
+        T readParcelable ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readParcelable(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use Parcelable.Creator.createFromParcel(Parcel) if possible since this is also
+      more performant. Note that changing to the latter also requires changing the writes. <T>
+        T readParcelable ( ClassLoader loader, Class <T> clazz) Same as readParcelable(java.lang.ClassLoader) but accepts clazz parameter as the type
+ required for each item. <T>
+        T[] readParcelableArray ( ClassLoader loader, Class <T> clazz) Same as readParcelableArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Parcelable[] readParcelableArray ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readParcelableArray(java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the
+      format to use createTypedArray(android.os.Parcelable.Creator) if possible (eg. if the
+      items' class is final) since this is also more performant. Note that changing to the
+      latter also requires changing the writes. Creator <?> readParcelableCreator ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readParcelableCreator(java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . <T> Creator <T> readParcelableCreator ( ClassLoader loader, Class <T> clazz) Same as readParcelableCreator(java.lang.ClassLoader) but accepts clazz parameter
+ as the required type. <T> List <T> readParcelableList ( List <T> list, ClassLoader cl, Class <? extends T> clazz) Same as readParcelableList(java.util.List, java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. <T extends Parcelable > List <T> readParcelableList ( List <T> list, ClassLoader cl) This method was deprecated
+      in API level 33.
+    Use the type-safer version readParcelableList(java.util.List, java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the
+      format to use readTypedList(java.util.List, android.os.Parcelable.Creator) if possible (eg. if the
+      items' class is final) since this is also more performant. Note that changing to the
+      latter also requires changing the writes. PersistableBundle readPersistableBundle () Read and return a new Bundle object from the parcel at the current
+ dataPosition(). PersistableBundle readPersistableBundle ( ClassLoader loader) Read and return a new Bundle object from the parcel at the current
+ dataPosition(), using the given class loader to initialize the class
+ loader of the Bundle for later retrieval of Parcelable objects. Serializable readSerializable () This method was deprecated
+      in API level 33.
+    Use the type-safer version readSerializable(java.lang.ClassLoader, java.lang.Class) starting
+       from Android Build.VERSION_CODES.TIRAMISU . <T>
+        T readSerializable ( ClassLoader loader, Class <T> clazz) Same as readSerializable() but accepts loader and clazz parameters. Size readSize () Read a Size from the parcel at the current dataPosition(). SizeF readSizeF () Read a SizeF from the parcel at the current dataPosition(). <T> SparseArray <T> readSparseArray ( ClassLoader loader) This method was deprecated
+      in API level 33.
+    Use the type-safer version readSparseArray(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use createTypedSparseArray(android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. <T> SparseArray <T> readSparseArray ( ClassLoader loader, Class <? extends T> clazz) Same as readSparseArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. SparseBooleanArray readSparseBooleanArray () Read and return a new SparseBooleanArray object from the parcel at the current
+ dataPosition(). String readString () Read a string value from the parcel at the current dataPosition(). void readStringArray ( String[] val) void readStringList ( List < String > list) Read into the given List items String objects that were written with writeStringList(List) at the current dataPosition(). IBinder readStrongBinder () Read an object from the parcel at the current dataPosition(). <T>
+        void readTypedArray (T[] val, Creator <T> c) <T>
+        void readTypedList ( List <T> list, Creator <T> c) Read into the given List items containing a particular object type
+ that were written with writeTypedList(List) at the
+ current dataPosition(). <T>
+        T readTypedObject ( Creator <T> c) Read and return a typed Parcelable object from a parcel. Object readValue ( ClassLoader loader) Read a typed object from a parcel. void recycle () Put a Parcel object back into the pool. void setDataCapacity (int size) Change the capacity (current available space) of the parcel. void setDataPosition (int pos) Move the current read/write position in the parcel. void setDataSize (int size) Change the amount of data in the parcel. void setPropagateAllowBlocking () This method is used by the AIDL compiler for system components. void unmarshall (byte[] data, int offset, int length) Fills the raw bytes of this Parcel with the supplied data. void writeArray ( Object[] val) Flatten an Object array into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeBinderArray ( IBinder[] val) void writeBinderList ( List < IBinder > val) Flatten a List containing IBinder objects into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed. void writeBlob (byte[] b) Write a blob of data into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. void writeBlob (byte[] b, int offset, int len) Write a blob of data into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. void writeBoolean (boolean val) Write a boolean value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeBooleanArray (boolean[] val) void writeBundle ( Bundle val) Flatten a Bundle into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeByte (byte val) Write a byte value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeByteArray (byte[] b) Write a byte array into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. void writeByteArray (byte[] b, int offset, int len) Write a byte array into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. void writeCharArray (char[] val) void writeDouble (double val) Write a double precision floating point value into the parcel at the
+ current dataPosition(), growing dataCapacity() if needed. void writeDoubleArray (double[] val) void writeException ( Exception e) Special function for writing an exception result at the header of
+ a parcel, to be used when returning an exception from a transaction. void writeFileDescriptor ( FileDescriptor val) Write a FileDescriptor into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. <T>
+        void writeFixedArray (T val, int parcelableFlags, int... dimensions) Flatten a homogeneous multi-dimensional array with fixed-size. void writeFloat (float val) Write a floating point value into the parcel at the current
+ dataPosition(), growing dataCapacity() if needed. void writeFloatArray (float[] val) void writeInt (int val) Write an integer value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeIntArray (int[] val) <T extends IInterface >
+        void writeInterfaceArray (T[] val) Flatten a homogeneous array containing an IInterface type into the parcel,
+ at the current dataPosition() and growing dataCapacity() if needed. <T extends IInterface >
+        void writeInterfaceList ( List <T> val) Flatten a List containing T (IInterface) objects into this parcel
+ at the current position. void writeInterfaceToken ( String interfaceName) Store or read an IBinder interface token in the parcel at the current dataPosition() . void writeList ( List <E> val) Flatten a List into the parcel at the current dataPosition(), growing
+ dataCapacity() if needed. void writeLong (long val) Write a long integer value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeLongArray (long[] val) void writeMap ( Map <K, V> val) Please use writeBundle(Bundle) instead. void writeNoException () Special function for writing information at the front of the Parcel
+ indicating that no exception occurred. void writeParcelable ( Parcelable p, int parcelableFlags) Flatten the name of the class of the Parcelable and its contents
+ into the parcel. <T extends Parcelable >
+        void writeParcelableArray (T[] value, int parcelableFlags) Write a heterogeneous array of Parcelable objects into the Parcel. void writeParcelableCreator ( Parcelable p) Flatten the name of the class of the Parcelable into this Parcel. <T extends Parcelable >
+        void writeParcelableList ( List <T> val, int flags) Flatten a List containing arbitrary Parcelable objects into this parcel
+ at the current position. void writePersistableBundle ( PersistableBundle val) Flatten a PersistableBundle into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeSerializable ( Serializable s) Write a generic serializable object in to a Parcel. void writeSize ( Size val) Flatten a Size into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeSizeF ( SizeF val) Flatten a SizeF into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. <T>
+        void writeSparseArray ( SparseArray <T> val) Flatten a generic SparseArray into the parcel at the current
+ dataPosition(), growing dataCapacity() if needed. void writeSparseBooleanArray ( SparseBooleanArray val) void writeString ( String val) Write a string value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeStringArray ( String[] val) void writeStringList ( List < String > val) Flatten a List containing String objects into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed. void writeStrongBinder ( IBinder val) Write an object into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. void writeStrongInterface ( IInterface val) Write an object into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. <T extends Parcelable >
+        void writeTypedArray (T[] val, int parcelableFlags) Flatten a homogeneous array containing a particular object type into
+ the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed. <T extends Parcelable >
+        void writeTypedArrayMap ( ArrayMap < String , T> val, int parcelableFlags) Flatten an ArrayMap with string keys containing a particular object
+ type into the parcel at the current dataPosition() and growing dataCapacity()
+ if needed. <T extends Parcelable >
+        void writeTypedList ( List <T> val, int parcelableFlags) Flatten a List containing a particular object type into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed. <T extends Parcelable >
+        void writeTypedList ( List <T> val) Flatten a List containing a particular object type into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed. <T extends Parcelable >
+        void writeTypedObject (T val, int parcelableFlags) Flatten the Parcelable object into the parcel. <T extends Parcelable >
+        void writeTypedSparseArray ( SparseArray <T> val, int parcelableFlags) Flatten a SparseArray containing a particular object type into the parcel
+ at the current dataPosition() and growing dataCapacity() if needed. void writeValue ( Object v) Flatten a generic object in to a parcel. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Fields STRING_CREATOR Added in API level 1 public static final Creator < String > STRING_CREATOR Public methods appendFrom Added in API level 1 public void appendFrom ( Parcel parcel, 
+                int offset, 
+                int length) Parameters parcel Parcel offset int length int createBinderArray Added in API level 1 public IBinder[] createBinderArray () Returns IBinder[] This value may be null . createBinderArrayList Added in API level 1 public ArrayList < IBinder > createBinderArrayList () Read and return a new ArrayList containing IBinder objects from
+ the parcel that was written with writeBinderList(List) at the
+ current dataPosition().  Returns null if the
+ previously written list object was null. Returns ArrayList < IBinder > A newly created ArrayList containing strings with the same data
+         as those that were previously written. See also: writeBinderList(List) createBooleanArray Added in API level 1 public boolean[] createBooleanArray () Returns boolean[] This value may be null . createByteArray Added in API level 1 public byte[] createByteArray () Read and return a byte[] object from the parcel. Returns byte[] This value may be null . createCharArray Added in API level 1 public char[] createCharArray () Returns char[] This value may be null . createDoubleArray Added in API level 1 public double[] createDoubleArray () Returns double[] This value may be null . createFixedArray Added in API level 33 public T createFixedArray ( Class <T> cls, Function < IBinder , S> asInterface, 
+                int... dimensions) Read and return a new multi-dimensional array of typed interfaces from a parcel.
+ Returns null if the previously written array object is null.  If you want to read
+ Parcelable values, use createFixedArray(java.lang.Class, android.os.Parcelable.Creator, int[]) .
+ For values of other types use createFixedArray(java.lang.Class, int[]) . Parameters cls Class : the Class object for the target array type. (e.g. IFoo[][].class)
+ This value cannot be null . asInterface Function : This value cannot be null . dimensions int : an array of int representing length of each dimension.
+
+ This value cannot be null . Returns T createFixedArray Added in API level 33 public T createFixedArray ( Class <T> cls, Creator <S> c, 
+                int... dimensions) Read and return a new multi-dimensional array of typed parcelables from a parcel.
+ Returns null if the previously written array object is null.  If you want to read
+ IInterface values, use createFixedArray(java.lang.Class, java.util.function.Function, int[]) .
+ For values of other types use createFixedArray(java.lang.Class, int[]) . Parameters cls Class : the Class object for the target array type. (e.g. Foo[][].class)
+ This value cannot be null . c Creator : This value cannot be null . dimensions int : an array of int representing length of each dimension.
+
+ This value cannot be null . Returns T createFixedArray Added in API level 33 public T createFixedArray ( Class <T> cls, 
+                int... dimensions) Read and return a new multi-dimensional array from a parcel.  Returns null if the
+ previously written array object is null.  If you want to read Parcelable or
+ IInterface values, use createFixedArray(java.lang.Class, android.os.Parcelable.Creator, int[]) or createFixedArray(java.lang.Class, java.util.function.Function, int[]) . Parameters cls Class : the Class object for the target array type. (e.g. int[][].class)
+ This value cannot be null . dimensions int : an array of int representing length of each dimension.
+
+ This value cannot be null . Returns T See also: writeTypedArray(T, int) createBooleanArray() createByteArray() createCharArray() createIntArray() createLongArray() createFloatArray() createDoubleArray() createBinderArray() createInterfaceArray(IntFunction, Function) createTypedArray(Creator) createFloatArray Added in API level 1 public float[] createFloatArray () Returns float[] This value may be null . createIntArray Added in API level 1 public int[] createIntArray () Returns int[] This value may be null . createInterfaceArray Added in API level 33 public T[] createInterfaceArray ( IntFunction <T[]> newArray, Function < IBinder , T> asInterface) Read and return a new array of T (IInterface) from the parcel. Parameters newArray IntFunction : a function to create an array of T with a given length
+ This value cannot be null . asInterface Function : a function to convert IBinder object into T (IInterface)
+
+ This value cannot be null . Returns T[] the IInterface array of type T
+ This value may be null . createInterfaceArrayList Added in API level 33 public ArrayList <T> createInterfaceArrayList ( Function < IBinder , T> asInterface) Read and return a new ArrayList containing T (IInterface) objects from
+ the parcel that was written with writeInterfaceList(List) at the
+ current dataPosition().  Returns null if the
+ previously written list object was null. Parameters asInterface Function : This value cannot be null . Returns ArrayList <T> A newly created ArrayList containing T (IInterface) See also: writeInterfaceList(List) createLongArray Added in API level 1 public long[] createLongArray () Returns long[] This value may be null . createStringArray Added in API level 1 public String[] createStringArray () Returns String[] This value may be null . createStringArrayList Added in API level 1 public ArrayList < String > createStringArrayList () Read and return a new ArrayList containing String objects from
+ the parcel that was written with writeStringList(List) at the
+ current dataPosition().  Returns null if the
+ previously written list object was null. Returns ArrayList < String > A newly created ArrayList containing strings with the same data
+         as those that were previously written. See also: writeStringList(List) createTypedArray Added in API level 1 public T[] createTypedArray ( Creator <T> c) Read and return a new array containing a particular object type from
+ the parcel at the current dataPosition().  Returns null if the
+ previously written array was null.  The array must have
+ previously been written via writeTypedArray(T, int) with the same
+ object type. Parameters c Creator : This value cannot be null . Returns T[] A newly created array containing objects with the same data
+         as those that were previously written. See also: writeTypedArray(T, int) createTypedArrayList Added in API level 1 public ArrayList <T> createTypedArrayList ( Creator <T> c) Read and return a new ArrayList containing a particular object type from
+ the parcel that was written with writeTypedList(List) at the
+ current dataPosition().  Returns null if the
+ previously written list object was null.  The list must have
+ previously been written via writeTypedList(List) with the same object
+ type. Parameters c Creator : This value cannot be null . Returns ArrayList <T> A newly created ArrayList containing objects with the same data
+         as those that were previously written. See also: writeTypedList(List) createTypedArrayMap Added in API level 29 public ArrayMap < String , T> createTypedArrayMap ( Creator <T> creator) Read into a new ArrayMap with string keys items containing a particular
+ object type that were written with writeTypedArrayMap(android.util.ArrayMap, int) at the
+ current dataPosition().  The list must have previously been written
+ via writeTypedArrayMap(android.util.ArrayMap, int) with the same object type. Parameters creator Creator : The creator to use when for instantiation.
+
+ This value cannot be null . Returns ArrayMap < String , T> A newly created ArrayMap containing objects with the same data
+         as those that were previously written.
+
+ This value may be null . See also: writeTypedArrayMap(ArrayMap, int) createTypedSparseArray Added in API level 29 public SparseArray <T> createTypedSparseArray ( Creator <T> creator) Read into a new SparseArray items containing a particular object type
+ that were written with writeTypedSparseArray(android.util.SparseArray, int) at the
+ current dataPosition().  The list must have previously been written
+ via writeTypedSparseArray(android.util.SparseArray, int) with the same object type. Parameters creator Creator : The creator to use when for instantiation.
+
+ This value cannot be null . Returns SparseArray <T> A newly created SparseArray containing objects with the same data
+         as those that were previously written.
+
+ This value may be null . See also: writeTypedSparseArray(SparseArray, int) dataAvail Added in API level 1 public int dataAvail () Returns the amount of data remaining to be read from the
+ parcel.  That is, dataSize() - dataPosition() . Returns int dataCapacity Added in API level 1 public int dataCapacity () Returns the total amount of space in the parcel.  This is always
+ >= dataSize() .  The difference between it and dataSize() is the
+ amount of room left until the parcel needs to re-allocate its
+ data buffer. Returns int dataPosition Added in API level 1 public int dataPosition () Returns the current position in the parcel data.  Never
+ more than dataSize() . Returns int dataSize Added in API level 1 public int dataSize () Returns the total amount of data contained in the parcel. Returns int enforceInterface Added in API level 1 public void enforceInterface ( String interfaceName) Read the header written by writeInterfaceToken and verify it matches
+ the interface name in question. If the wrong interface type is present, SecurityException is thrown. When used over binder, this exception
+ should propagate to the caller. Parameters interfaceName String : This value cannot be null . enforceNoDataAvail Added in API level 33 public void enforceNoDataAvail () Verify there are no bytes left to be read on the Parcel. Throws BadParcelableException If the current position hasn't reached the end of the Parcel.
+ When used over binder, this exception should propagate to the caller. hasFileDescriptors Added in API level 1 public boolean hasFileDescriptors () Report whether the parcel contains any marshalled file descriptors.
+
+ WARNING: Parcelable definitions change over time. Unless you define
+ a Parcelable yourself OR the Parcelable explicitly guarantees that
+ it would never include such objects, you should not expect the return
+ value to stay the same, and your code should continue to work even
+ if the return value changes. Returns boolean hasFileDescriptors Added in API level 33 public boolean hasFileDescriptors (int offset, 
+                int length) Report whether the parcel contains any marshalled file descriptors in the range defined by offset and length .
+
+ WARNING: Parcelable definitions change over time. Unless you define
+ a Parcelable yourself OR the Parcelable explicitly guarantees that
+ it would never include such objects, you should not expect the return
+ value to stay the same, and your code should continue to work even
+ if the return value changes. Parameters offset int : The offset from which the range starts. Should be between 0 and dataSize() . length int : The length of the range. Should be between 0 and dataSize() - offset . Returns boolean whether there are file descriptors or not. Throws IllegalArgumentException if the parameters are out of the permitted ranges. marshall Added in API level 1 public byte[] marshall () Returns the raw bytes of the parcel. The data you retrieve here must not be placed in any kind of persistent storage (on local disk, across
+ a network, etc).  For that, you should use standard serialization
+ or another kind of general serialization mechanism.  The Parcel
+ marshalled representation is highly optimized for local IPC, and as
+ such does not attempt to maintain compatibility with data created
+ in different versions of the platform. Returns byte[] obtain Added in API level 1 public static Parcel obtain () Retrieve a new Parcel object from the pool. Returns Parcel This value cannot be null . obtain Added in API level 33 public static Parcel obtain ( IBinder binder) Retrieve a new Parcel object from the pool for use with a specific binder.
+
+ Associate this parcel with a binder object. This marks the parcel as being prepared for a
+ transaction on this specific binder object. Based on this, the format of the wire binder
+ protocol may change. For future compatibility, it is recommended to use this for all
+ Parcels. Parameters binder IBinder : This value cannot be null . Returns Parcel This value cannot be null . readArray Added in API level 1 Deprecated in API level
+      33 public Object[] readArray ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readArray(java.lang.ClassLoader, java.lang.Class) starting from
+      Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to use createTypedArray(android.os.Parcelable.Creator) if possible (eg. if the items' class is
+      final) since this is also more performant. Note that changing to the latter also
+      requires changing the writes. Read and return a new Object array from the parcel at the current
+ dataPosition().  Returns null if the previously written array was
+ null.  The given class loader will be used to load any enclosed
+ Parcelables. Parameters loader ClassLoader : This value may be null . Returns Object[] readArray Added in API level 33 public T[] readArray ( ClassLoader loader, Class <T> clazz) Same as readArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: if the list contains items implementing the Parcelable interface,
+ the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readArray(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns T[] This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readArrayList Added in API level 33 public ArrayList <T> readArrayList ( ClassLoader loader, Class <? extends T> clazz) Same as readArrayList(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: if the list contains items implementing the Parcelable interface,
+ the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readArrayList(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns ArrayList <T> This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readArrayList Added in API level 1 Deprecated in API level
+      33 public ArrayList <E> readArrayList ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readArrayList(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use createTypedArrayList(android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. Read and return a new ArrayList object from the parcel at the current
+ dataPosition().  Returns null if the previously written list object was
+ null.  The given class loader will be used to load any enclosed
+ Parcelables. Parameters loader ClassLoader : This value may be null . Returns ArrayList <E> readBinderArray Added in API level 1 public void readBinderArray ( IBinder[] val) Parameters val IBinder : This value cannot be null . readBinderList Added in API level 1 public void readBinderList ( List < IBinder > list) Read into the given List items IBinder objects that were written with writeBinderList(List) at the current dataPosition(). Parameters list List : This value cannot be null . See also: writeBinderList(List) readBlob Added in API level 33 public byte[] readBlob () Read a blob of data from the parcel and return it as a byte array. Returns byte[] This value may be null . See also: writeBlob(byte[], int, int) readBoolean Added in API level 29 public boolean readBoolean () Read a boolean value from the parcel at the current dataPosition(). Returns boolean readBooleanArray Added in API level 1 public void readBooleanArray (boolean[] val) Parameters val boolean : This value cannot be null . readBundle Added in API level 1 public Bundle readBundle () Read and return a new Bundle object from the parcel at the current
+ dataPosition().  Returns null if the previously written Bundle object was
+ null. Returns Bundle readBundle Added in API level 1 public Bundle readBundle ( ClassLoader loader) Read and return a new Bundle object from the parcel at the current
+ dataPosition(), using the given class loader to initialize the class
+ loader of the Bundle for later retrieval of Parcelable objects.
+ Returns null if the previously written Bundle object was null. Parameters loader ClassLoader : This value may be null . Returns Bundle readByte Added in API level 1 public byte readByte () Read a byte value from the parcel at the current dataPosition(). Returns byte readByteArray Added in API level 1 public void readByteArray (byte[] val) Read a byte[] object from the parcel and copy it into the
+ given byte array. Parameters val byte : This value cannot be null . readCharArray Added in API level 1 public void readCharArray (char[] val) Parameters val char : This value cannot be null . readDouble Added in API level 1 public double readDouble () Read a double precision floating point value from the parcel at the
+ current dataPosition(). Returns double readDoubleArray Added in API level 1 public void readDoubleArray (double[] val) Parameters val double : This value cannot be null . readException Added in API level 1 public void readException () Special function for reading an exception result from the header of
+ a parcel, to be used after receiving the result of a transaction.  This
+ will throw the exception for you if it had been written to the Parcel,
+ otherwise return and let you read the normal result data from the Parcel. See also: writeException(Exception) writeNoException() readException Added in API level 1 public void readException (int code, String msg) Throw an exception with the given message. Not intended for use
+ outside the Parcel class. Parameters code int : Used to determine which exception class to throw. msg String : The exception message. readFileDescriptor Added in API level 1 public ParcelFileDescriptor readFileDescriptor () Read a FileDescriptor from the parcel at the current dataPosition(). Returns ParcelFileDescriptor readFixedArray Added in API level 33 public void readFixedArray (T val, Creator <S> c) Read a new multi-dimensional array of typed parcelables from a parcel.
+ If you want to read IInterface values, use readFixedArray(java.lang.Object, java.util.function.Function) . For values of other types, use readFixedArray(java.lang.Object) . Parameters val T : the destination array to hold the read values.
+
+ This value cannot be null . c Creator : This value cannot be null . readFixedArray Added in API level 33 public void readFixedArray (T val, Function < IBinder , S> asInterface) Read a new multi-dimensional array of typed interfaces from a parcel.
+ If you want to read Parcelable values, use readFixedArray(java.lang.Object, android.os.Parcelable.Creator) . For values of other types, use readFixedArray(java.lang.Object) . Parameters val T : the destination array to hold the read values.
+
+ This value cannot be null . asInterface Function : This value cannot be null . readFixedArray Added in API level 33 public void readFixedArray (T val) Read a new multi-dimensional array from a parcel.  If you want to read Parcelable or
+ IInterface values, use readFixedArray(java.lang.Object, android.os.Parcelable.Creator) or readFixedArray(java.lang.Object, java.util.function.Function) . Parameters val T : the destination array to hold the read values.
+
+ This value cannot be null . See also: writeTypedArray(T, int) readBooleanArray(boolean) readByteArray(byte) readCharArray(char) readIntArray(int) readLongArray(long) readFloatArray(float) readDoubleArray(double) readBinderArray(IBinder) readInterfaceArray(T, Function) readTypedArray(T, Creator) readFloat Added in API level 1 public float readFloat () Read a floating point value from the parcel at the current
+ dataPosition(). Returns float readFloatArray Added in API level 1 public void readFloatArray (float[] val) Parameters val float : This value cannot be null . readHashMap Added in API level 1 Deprecated in API level
+      33 public HashMap <K, V> readHashMap ( ClassLoader loader) This method was deprecated
+      in API level 33. Consider using readBundle(java.lang.ClassLoader) as stated above, in case this
+      method is still preferred use the type-safer version readHashMap(java.lang.ClassLoader, java.lang.Class, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Please use readBundle(java.lang.ClassLoader) instead (whose data must have
+ been written with writeBundle(Bundle) .  Read and return a new HashMap
+ object from the parcel at the current dataPosition(), using the given
+ class loader to load any enclosed Parcelables.  Returns null if
+ the previously written map object was null. Parameters loader ClassLoader : This value may be null . Returns HashMap <K, V> readHashMap Added in API level 33 public HashMap <K, V> readHashMap ( ClassLoader loader, Class <? extends K> clazzKey, Class <? extends V> clazzValue) Same as readHashMap(java.lang.ClassLoader) but accepts clazzKey and clazzValue parameter as the types required for each key and value pair. Parameters loader ClassLoader : This value may be null . clazzKey Class : This value cannot be null . clazzValue Class : This value cannot be null . Returns HashMap <K, V> This value may be null . Throws BadParcelableException if the item to be deserialized is not an instance of that
+ class or any of its children class readInt Added in API level 1 public int readInt () Read an integer value from the parcel at the current dataPosition(). Returns int readIntArray Added in API level 1 public void readIntArray (int[] val) Parameters val int : This value cannot be null . readInterfaceArray Added in API level 33 public void readInterfaceArray (T[] val, Function < IBinder , T> asInterface) Read an array of T (IInterface) from a parcel. Parameters val T : This value cannot be null . asInterface Function : a function to convert IBinder object into T (IInterface)
+
+ This value cannot be null . Throws BadParcelableException Throws BadParcelableException if the length of `val`
+    mismatches the number of items in the parcel. readInterfaceList Added in API level 33 public void readInterfaceList ( List <T> list, Function < IBinder , T> asInterface) Read into the given List items IInterface objects that were written with writeInterfaceList(List) at the current dataPosition(). Parameters list List : This value cannot be null . asInterface Function : This value cannot be null . See also: writeInterfaceList(List) readList Added in API level 1 Deprecated in API level
+      33 public void readList ( List <E> outVal, ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readList(java.util.List, java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use readTypedList(java.util.List, android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. Read into an existing List object from the parcel at the current
+ dataPosition(), using the given class loader to load any enclosed
+ Parcelables.  If it is null, the default class loader is used. Parameters outVal List : This value cannot be null . loader ClassLoader : This value may be null . readList Added in API level 33 public void readList ( List <? super T> outVal, ClassLoader loader, Class <T> clazz) Same as readList(java.util.List, java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: if the list contains items implementing the Parcelable interface,
+ the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readList(java.util.List, java.lang.ClassLoader) instead. Parameters outVal List : This value cannot be null . loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readLong Added in API level 1 public long readLong () Read a long integer value from the parcel at the current dataPosition(). Returns long readLongArray Added in API level 1 public void readLongArray (long[] val) Parameters val long : This value cannot be null . readMap Added in API level 1 Deprecated in API level
+      33 public void readMap ( Map <K, V> outVal, ClassLoader loader) This method was deprecated
+      in API level 33. Consider using readBundle(java.lang.ClassLoader) as stated above, in case this
+      method is still preferred use the type-safer version readMap(java.util.Map, java.lang.ClassLoader, java.lang.Class, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Please use readBundle(java.lang.ClassLoader) instead (whose data must have
+ been written with writeBundle(Bundle) .  Read into an existing Map object
+ from the parcel at the current dataPosition(). Parameters outVal Map : This value cannot be null . loader ClassLoader : This value may be null . readMap Added in API level 33 public void readMap ( Map <? super K, ? super V> outVal, ClassLoader loader, Class <K> clazzKey, Class <V> clazzValue) Same as readMap(java.util.Map, java.lang.ClassLoader) but accepts clazzKey and clazzValue parameter as the types required for each key and value pair. Parameters outVal Map : This value cannot be null . loader ClassLoader : This value may be null . clazzKey Class : This value cannot be null . clazzValue Class : This value cannot be null . Throws BadParcelableException If the item to be deserialized is not an instance of that
+ class or any of its children class readParcelable Added in API level 1 Deprecated in API level
+      33 public T readParcelable ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readParcelable(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use Parcelable.Creator.createFromParcel(Parcel) if possible since this is also
+      more performant. Note that changing to the latter also requires changing the writes. Read and return a new Parcelable from the parcel.  The given class loader
+ will be used to load any enclosed Parcelables.  If it is null, the default
+ class loader will be used. Parameters loader ClassLoader : A ClassLoader from which to instantiate the Parcelable
+ object, or null for the default class loader. Returns T Returns the newly created Parcelable, or null if a null
+ object has been written. Throws BadParcelableException Throws BadParcelableException if there
+ was an error trying to instantiate the Parcelable. readParcelable Added in API level 33 public T readParcelable ( ClassLoader loader, Class <T> clazz) Same as readParcelable(java.lang.ClassLoader) but accepts clazz parameter as the type
+ required for each item. Warning: the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readParcelable(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns T This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readParcelableArray Added in API level 33 public T[] readParcelableArray ( ClassLoader loader, Class <T> clazz) Same as readParcelableArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readParcelableArray(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns T[] This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readParcelableArray Added in API level 1 Deprecated in API level
+      33 public Parcelable[] readParcelableArray ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readParcelableArray(java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the
+      format to use createTypedArray(android.os.Parcelable.Creator) if possible (eg. if the
+      items' class is final) since this is also more performant. Note that changing to the
+      latter also requires changing the writes. Read and return a new Parcelable array from the parcel.
+ The given class loader will be used to load any enclosed
+ Parcelables. Parameters loader ClassLoader : This value may be null . Returns Parcelable[] the Parcelable array, or null if the array is null readParcelableCreator Added in API level 30 Deprecated in API level
+      33 public Creator <?> readParcelableCreator ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readParcelableCreator(java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Read and return a Parcelable.Creator from the parcel. The given class loader will be used to
+ load the Parcelable.Creator . If it is null, the default class loader will be used. Parameters loader ClassLoader : A ClassLoader from which to instantiate the Parcelable.Creator object, or null for the default class loader. Returns Creator <?> the previously written Parcelable.Creator , or null if a null Creator was
+ written. Throws BadParcelableException Throws BadParcelableException if there was an error trying to
+ read the Parcelable.Creator . See also: writeParcelableCreator(Parcelable) readParcelableCreator Added in API level 33} public Creator <T> readParcelableCreator ( ClassLoader loader, Class <T> clazz) Same as readParcelableCreator(java.lang.ClassLoader) but accepts clazz parameter
+ as the required type. Warning: the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated {@link #readParcelableCreator(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns Creator <T> This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there there was an error
+ trying to read the Parcelable.Creator . readParcelableList Added in API level 33 public List <T> readParcelableList ( List <T> list, ClassLoader cl, Class <? extends T> clazz) Same as readParcelableList(java.util.List, java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: if the list contains items implementing the Parcelable interface,
+ the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readParcelableList(java.util.List, java.lang.ClassLoader) instead. Parameters list List : This value cannot be null . cl ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns List <T> This value cannot be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readParcelableList Added in API level 29 Deprecated in API level
+      33 public List <T> readParcelableList ( List <T> list, ClassLoader cl) This method was deprecated
+      in API level 33. Use the type-safer version readParcelableList(java.util.List, java.lang.ClassLoader, java.lang.Class) starting from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the
+      format to use readTypedList(java.util.List, android.os.Parcelable.Creator) if possible (eg. if the
+      items' class is final) since this is also more performant. Note that changing to the
+      latter also requires changing the writes. Read the list of Parcelable objects at the current data position into the
+ given list . The contents of the list are replaced. If the serialized
+ list was null , list is cleared. Parameters list List : This value cannot be null . cl ClassLoader : This value may be null . Returns List <T> See also: writeParcelableList(List, int) readPersistableBundle Added in API level 21 public PersistableBundle readPersistableBundle () Read and return a new Bundle object from the parcel at the current
+ dataPosition().  Returns null if the previously written Bundle object was
+ null. Returns PersistableBundle readPersistableBundle Added in API level 21 public PersistableBundle readPersistableBundle ( ClassLoader loader) Read and return a new Bundle object from the parcel at the current
+ dataPosition(), using the given class loader to initialize the class
+ loader of the Bundle for later retrieval of Parcelable objects.
+ Returns null if the previously written Bundle object was null. Parameters loader ClassLoader : This value may be null . Returns PersistableBundle readSerializable Added in API level 1 Deprecated in API level
+      33 public Serializable readSerializable () This method was deprecated
+      in API level 33. Use the type-safer version readSerializable(java.lang.ClassLoader, java.lang.Class) starting
+       from Android Build.VERSION_CODES.TIRAMISU . Read and return a new Serializable object from the parcel. Returns Serializable the Serializable object, or null if the Serializable name
+ wasn't found in the parcel.
+
+ Unlike readSerializable(java.lang.ClassLoader, java.lang.Class) , it uses the nearest valid class loader
+ up the execution stack to instantiate the Serializable object. readSerializable Added in API level 33 public T readSerializable ( ClassLoader loader, Class <T> clazz) Same as readSerializable() but accepts loader and clazz parameters. Parameters loader ClassLoader : A ClassLoader from which to instantiate the Serializable object,
+ or null for the default class loader. clazz Class : The type of the object expected.
+
+ This value cannot be null . Returns T This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children class or there there was an error
+ deserializing the object. readSize Added in API level 21 public Size readSize () Read a Size from the parcel at the current dataPosition(). Returns Size This value cannot be null . readSizeF Added in API level 21 public SizeF readSizeF () Read a SizeF from the parcel at the current dataPosition(). Returns SizeF This value cannot be null . readSparseArray Added in API level 1 Deprecated in API level
+      33 public SparseArray <T> readSparseArray ( ClassLoader loader) This method was deprecated
+      in API level 33. Use the type-safer version readSparseArray(java.lang.ClassLoader, java.lang.Class) starting
+      from Android Build.VERSION_CODES.TIRAMISU . Also consider changing the format to
+      use createTypedSparseArray(android.os.Parcelable.Creator) if possible (eg. if the items'
+      class is final) since this is also more performant. Note that changing to the latter
+      also requires changing the writes. Read and return a new SparseArray object from the parcel at the current
+ dataPosition().  Returns null if the previously written list object was
+ null.  The given class loader will be used to load any enclosed
+ Parcelables. Parameters loader ClassLoader : This value may be null . Returns SparseArray <T> readSparseArray Added in API level 33 public SparseArray <T> readSparseArray ( ClassLoader loader, Class <? extends T> clazz) Same as readSparseArray(java.lang.ClassLoader) but accepts clazz parameter as
+ the type required for each item. Warning: if the list contains items implementing the Parcelable interface,
+ the class that implements Parcelable has to be the immediately
+ enclosing class of the runtime type of its CREATOR field (that is, Class.getEnclosingClass() has to return the parcelable implementing class),
+ otherwise this method might throw an exception. If the Parcelable class does not enclose the
+ CREATOR, use the deprecated readSparseArray(java.lang.ClassLoader) instead. Parameters loader ClassLoader : This value may be null . clazz Class : This value cannot be null . Returns SparseArray <T> This value may be null . Throws BadParcelableException Throws BadParcelableException if the item to be deserialized
+ is not an instance of that class or any of its children classes or there was an error
+ trying to instantiate an element. readSparseBooleanArray Added in API level 1 public SparseBooleanArray readSparseBooleanArray () Read and return a new SparseBooleanArray object from the parcel at the current
+ dataPosition().  Returns null if the previously written list object was
+ null. Returns SparseBooleanArray readString Added in API level 1 public String readString () Read a string value from the parcel at the current dataPosition(). Returns String This value may be null . readStringArray Added in API level 1 public void readStringArray ( String[] val) Parameters val String : This value cannot be null . readStringList Added in API level 1 public void readStringList ( List < String > list) Read into the given List items String objects that were written with writeStringList(List) at the current dataPosition(). Parameters list List : This value cannot be null . See also: writeStringList(List) readStrongBinder Added in API level 1 public IBinder readStrongBinder () Read an object from the parcel at the current dataPosition(). Returns IBinder readTypedArray Added in API level 1 public void readTypedArray (T[] val, Creator <T> c) Parameters val T : This value cannot be null . c Creator : This value cannot be null . readTypedList Added in API level 1 public void readTypedList ( List <T> list, Creator <T> c) Read into the given List items containing a particular object type
+ that were written with writeTypedList(List) at the
+ current dataPosition().  The list must have
+ previously been written via writeTypedList(List) with the same object
+ type. Parameters list List : This value cannot be null . c Creator : This value cannot be null . See also: writeTypedList(List) readTypedObject Added in API level 23 public T readTypedObject ( Creator <T> c) Read and return a typed Parcelable object from a parcel.
+ Returns null if the previous written object was null.
+ The object must have previous been written via writeTypedObject(T, int) with the same object type. Parameters c Creator : This value cannot be null . Returns T A newly created object of the type that was previously
+         written. See also: writeTypedObject(T, int) readValue Added in API level 1 public Object readValue ( ClassLoader loader) Read a typed object from a parcel.  The given class loader will be
+ used to load any enclosed Parcelables.  If it is null, the default class
+ loader will be used. Parameters loader ClassLoader : This value may be null . Returns Object recycle Added in API level 1 public void recycle () Put a Parcel object back into the pool.  You must not touch
+ the object after this call. setDataCapacity Added in API level 1 public void setDataCapacity (int size) Change the capacity (current available space) of the parcel. Parameters size int : The new capacity of the parcel, in bytes.  Can not be
+ less than dataSize() -- that is, you can not drop existing data
+ with this method. setDataPosition Added in API level 1 public void setDataPosition (int pos) Move the current read/write position in the parcel. Parameters pos int : New offset in the parcel; must be between 0 and dataSize() . setDataSize Added in API level 1 public void setDataSize (int size) Change the amount of data in the parcel.  Can be either smaller or
+ larger than the current size.  If larger than the current capacity,
+ more memory will be allocated. Parameters size int : The new number of bytes in the Parcel. setPropagateAllowBlocking Added in API level 33 public void setPropagateAllowBlocking () This method is used by the AIDL compiler for system components. Not intended to be
+ used by non-system apps. unmarshall Added in API level 1 public void unmarshall (byte[] data, 
+                int offset, 
+                int length) Fills the raw bytes of this Parcel with the supplied data. Parameters data byte : This value cannot be null . offset int length int writeArray Added in API level 1 public void writeArray ( Object[] val) Flatten an Object array into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed.  The array values are written using writeValue(Object) and must follow the specification there. Parameters val Object : This value may be null . writeBinderArray Added in API level 1 public void writeBinderArray ( IBinder[] val) Parameters val IBinder : This value may be null . writeBinderList Added in API level 1 public void writeBinderList ( List < IBinder > val) Flatten a List containing IBinder objects into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed.  They
+ can later be retrieved with createBinderArrayList() or readBinderList(List) . Parameters val List : The list of strings to be written.
+
+ This value may be null . See also: createBinderArrayList() readBinderList(List) writeBlob Added in API level 33 public void writeBlob (byte[] b) Write a blob of data into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. If the blob is small, then it is stored in-place, otherwise it is transferred by way of
+ an anonymous shared memory region. If you prefer send in-place, please use writeByteArray(byte[]) . Parameters b byte : Bytes to place into the parcel.
+
+ This value may be null . See also: readBlob() writeBlob Added in API level 33 public void writeBlob (byte[] b, 
+                int offset, 
+                int len) Write a blob of data into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. If the blob is small, then it is stored in-place, otherwise it is transferred by way of
+ an anonymous shared memory region. If you prefer send in-place, please use writeByteArray(byte[], int, int) . Parameters b byte : Bytes to place into the parcel.
+ This value may be null . offset int : Index of first byte to be written. len int : Number of bytes to write. See also: readBlob() writeBoolean Added in API level 29 public void writeBoolean (boolean val) Write a boolean value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Note: This method currently delegates to writeInt with a value of 1 or 0
+ for true or false, respectively, but may change in the future. Parameters val boolean writeBooleanArray Added in API level 1 public void writeBooleanArray (boolean[] val) Parameters val boolean : This value may be null . writeBundle Added in API level 1 public void writeBundle ( Bundle val) Flatten a Bundle into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val Bundle : This value may be null . writeByte Added in API level 1 public void writeByte (byte val) Write a byte value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Note: This method currently delegates to writeInt but may change in
+ the future. Parameters val byte writeByteArray Added in API level 1 public void writeByteArray (byte[] b) Write a byte array into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. Parameters b byte : Bytes to place into the parcel.
+
+ This value may be null . writeByteArray Added in API level 1 public void writeByteArray (byte[] b, 
+                int offset, 
+                int len) Write a byte array into the parcel at the current dataPosition() ,
+ growing dataCapacity() if needed. Parameters b byte : Bytes to place into the parcel.
+ This value may be null . offset int : Index of first byte to be written. len int : Number of bytes to write. writeCharArray Added in API level 1 public void writeCharArray (char[] val) Parameters val char : This value may be null . writeDouble Added in API level 1 public void writeDouble (double val) Write a double precision floating point value into the parcel at the
+ current dataPosition(), growing dataCapacity() if needed. Parameters val double writeDoubleArray Added in API level 1 public void writeDoubleArray (double[] val) Parameters val double : This value may be null . writeException Added in API level 1 public void writeException ( Exception e) Special function for writing an exception result at the header of
+ a parcel, to be used when returning an exception from a transaction.
+ Note that this currently only supports a few exception types; any other
+ exception will be re-thrown by this function as a RuntimeException
+ (to be caught by the system's last-resort exception handling when
+ dispatching a transaction). The supported exception types are: BadParcelableException IllegalArgumentException IllegalStateException NullPointerException SecurityException UnsupportedOperationException NetworkOnMainThreadException Parameters e Exception : The Exception to be written.
+
+ This value cannot be null . See also: writeNoException() readException() writeFileDescriptor Added in API level 1 public void writeFileDescriptor ( FileDescriptor val) Write a FileDescriptor into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. The file descriptor will not be closed, which may
+ result in file descriptor leaks when objects are returned from Binder
+ calls.  Use ParcelFileDescriptor.writeToParcel instead, which
+ accepts contextual flags and will close the original file descriptor
+ if Parcelable.PARCELABLE_WRITE_RETURN_VALUE is set. Parameters val FileDescriptor : This value cannot be null . writeFixedArray Added in API level 33 public void writeFixedArray (T val, 
+                int parcelableFlags, 
+                int... dimensions) Flatten a homogeneous multi-dimensional array with fixed-size.  This delegates to other
+ APIs to write a one-dimensional array.  Use readFixedArray(java.lang.Object) or createFixedArray(java.lang.Class, int[]) with the same dimensions to unmarshal. Parameters val T : The array to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() .
+   Used only if val is an array of Parcelable objects. dimensions int : an array of int representing length of each dimension. The array should be
+   sized with the exact size of dimensions.
+
+ This value cannot be null . Throws BadParcelableException If the array's component type is not supported or if its
+   size doesn't match with the given dimensions. See also: readFixedArray(T) createFixedArray(Class<T>, Parcelable.Creator<S>, int...) writeBooleanArray(boolean) writeByteArray(byte) writeCharArray(char) writeIntArray(int) writeLongArray(long) writeFloatArray(float) writeDoubleArray(double) writeBinderArray(IBinder) writeInterfaceArray(T) writeTypedArray(T, int) writeFloat Added in API level 1 public void writeFloat (float val) Write a floating point value into the parcel at the current
+ dataPosition(), growing dataCapacity() if needed. Parameters val float writeFloatArray Added in API level 1 public void writeFloatArray (float[] val) Parameters val float : This value may be null . writeInt Added in API level 1 public void writeInt (int val) Write an integer value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val int writeIntArray Added in API level 1 public void writeIntArray (int[] val) Parameters val int : This value may be null . writeInterfaceArray Added in API level 33 public void writeInterfaceArray (T[] val) Flatten a homogeneous array containing an IInterface type into the parcel,
+ at the current dataPosition() and growing dataCapacity() if needed.  The
+ type of the objects in the array must be one that implements IInterface. Parameters val T : The array of objects to be written.
+
+ This value may be null . See also: createInterfaceArray(IntFunction, Function) readInterfaceArray(T, Function) IInterface writeInterfaceList Added in API level 33 public void writeInterfaceList ( List <T> val) Flatten a List containing T (IInterface) objects into this parcel
+ at the current position. They can later be retrieved with createInterfaceArrayList(Function) or readInterfaceList(List, Function) . Parameters val List : This value may be null . See also: createInterfaceArrayList(Function) readInterfaceList(List, Function) writeInterfaceToken Added in API level 1 public void writeInterfaceToken ( String interfaceName) Store or read an IBinder interface token in the parcel at the current dataPosition() . This is used to validate that the marshalled
+ transaction is intended for the target interface. This is typically written
+ at the beginning of transactions as a header. Parameters interfaceName String : This value cannot be null . writeList Added in API level 1 public void writeList ( List <E> val) Flatten a List into the parcel at the current dataPosition(), growing
+ dataCapacity() if needed.  The List values are written using writeValue(Object) and must follow the specification there. Parameters val List : This value may be null . writeLong Added in API level 1 public void writeLong (long val) Write a long integer value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val long writeLongArray Added in API level 1 public void writeLongArray (long[] val) Parameters val long : This value may be null . writeMap Added in API level 1 public void writeMap ( Map <K, V> val) Please use writeBundle(Bundle) instead.  Flattens a Map into the parcel
+ at the current dataPosition(),
+ growing dataCapacity() if needed.  The Map keys must be String objects.
+ The Map values are written using writeValue(Object) and must follow
+ the specification there. It is strongly recommended to use writeBundle(Bundle) instead of
+ this method, since the Bundle class provides a type-safe API that
+ allows you to avoid mysterious type errors at the point of marshalling. Parameters val Map : This value may be null . writeNoException Added in API level 1 public void writeNoException () Special function for writing information at the front of the Parcel
+ indicating that no exception occurred. See also: writeException(Exception) readException() writeParcelable Added in API level 1 public void writeParcelable ( Parcelable p, 
+                int parcelableFlags) Flatten the name of the class of the Parcelable and its contents
+ into the parcel. Parameters p Parcelable : The Parcelable object to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() . writeParcelableArray Added in API level 1 public void writeParcelableArray (T[] value, 
+                int parcelableFlags) Write a heterogeneous array of Parcelable objects into the Parcel.
+ Each object in the array is written along with its class name, so
+ that the correct class can later be instantiated.  As a result, this
+ has significantly more overhead than writeTypedArray(T, int) , but will
+ correctly handle an array containing more than one type of object. Parameters value T : The array of objects to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() . See also: writeTypedArray(T, int) writeParcelableCreator Added in API level 30 public void writeParcelableCreator ( Parcelable p) Flatten the name of the class of the Parcelable into this Parcel. Parameters p Parcelable : The Parcelable object to be written.
+ This value cannot be null . See also: readParcelableCreator(ClassLoader) writeParcelableList Added in API level 29 public void writeParcelableList ( List <T> val, 
+                int flags) Flatten a List containing arbitrary Parcelable objects into this parcel
+ at the current position. They can later be retrieved using readParcelableList(java.util.List, java.lang.ClassLoader) if required. Parameters val List : This value may be null . flags int See also: readParcelableList(List, ClassLoader) writePersistableBundle Added in API level 21 public void writePersistableBundle ( PersistableBundle val) Flatten a PersistableBundle into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val PersistableBundle : This value may be null . writeSerializable Added in API level 1 public void writeSerializable ( Serializable s) Write a generic serializable object in to a Parcel.  It is strongly
+ recommended that this method be avoided, since the serialization
+ overhead is extremely large, and this approach will be much slower than
+ using the other approaches to writing data in to a Parcel. Parameters s Serializable : This value may be null . writeSize Added in API level 21 public void writeSize ( Size val) Flatten a Size into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val Size : This value cannot be null . writeSizeF Added in API level 21 public void writeSizeF ( SizeF val) Flatten a SizeF into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val SizeF : This value cannot be null . writeSparseArray Added in API level 1 public void writeSparseArray ( SparseArray <T> val) Flatten a generic SparseArray into the parcel at the current
+ dataPosition(), growing dataCapacity() if needed.  The SparseArray
+ values are written using writeValue(Object) and must follow the
+ specification there. Parameters val SparseArray : This value may be null . writeSparseBooleanArray Added in API level 1 public void writeSparseBooleanArray ( SparseBooleanArray val) Parameters val SparseBooleanArray : This value may be null . writeString Added in API level 1 public void writeString ( String val) Write a string value into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val String : This value may be null . writeStringArray Added in API level 1 public void writeStringArray ( String[] val) Parameters val String : This value may be null . writeStringList Added in API level 1 public void writeStringList ( List < String > val) Flatten a List containing String objects into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed.  They
+ can later be retrieved with createStringArrayList() or readStringList(List) . Parameters val List : The list of strings to be written.
+
+ This value may be null . See also: createStringArrayList() readStringList(List) writeStrongBinder Added in API level 1 public void writeStrongBinder ( IBinder val) Write an object into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val IBinder writeStrongInterface Added in API level 1 public void writeStrongInterface ( IInterface val) Write an object into the parcel at the current dataPosition(),
+ growing dataCapacity() if needed. Parameters val IInterface writeTypedArray Added in API level 1 public void writeTypedArray (T[] val, 
+                int parcelableFlags) Flatten a homogeneous array containing a particular object type into
+ the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed.  The
+ type of the objects in the array must be one that implements Parcelable.
+ Unlike the writeParcelableArray(T, int) method, however, only the
+ raw data of the objects is written and not their type, so you must use readTypedArray(T, Creator) with the correct corresponding Parcelable.Creator implementation to unmarshall them. Parameters val T : The array of objects to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() . See also: readTypedArray(T, Creator) writeParcelableArray(T, int) Parcelable.Creator writeTypedArrayMap Added in API level 29 public void writeTypedArrayMap ( ArrayMap < String , T> val, 
+                int parcelableFlags) Flatten an ArrayMap with string keys containing a particular object
+ type into the parcel at the current dataPosition() and growing dataCapacity()
+ if needed. The type of the objects in the array must be one that implements
+ Parcelable. Only the raw data of the objects is written and not their type,
+ so you must use the corresponding createTypedArrayMap(android.os.Parcelable.Creator) Parameters val ArrayMap : The map of objects to be written.
+ This value may be null . parcelableFlags int : The parcelable flags to use. See also: createTypedArrayMap(Parcelable.Creator) Parcelable writeTypedList Added in API level 34 public void writeTypedList ( List <T> val, 
+                int parcelableFlags) Flatten a List containing a particular object type into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed.  The
+ type of the objects in the list must be one that implements Parcelable.
+ Unlike the generic writeList() method, however, only the raw data of the
+ objects is written and not their type, so you must use the corresponding
+ readTypedList() to unmarshall them. Parameters val List : The list of objects to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() . See also: createTypedArrayList(Creator) readTypedList(List, Creator) Parcelable writeTypedList Added in API level 1 public void writeTypedList ( List <T> val) Flatten a List containing a particular object type into the parcel, at
+ the current dataPosition() and growing dataCapacity() if needed.  The
+ type of the objects in the list must be one that implements Parcelable.
+ Unlike the generic writeList() method, however, only the raw data of the
+ objects is written and not their type, so you must use the corresponding
+ readTypedList() to unmarshall them. Parameters val List : The list of objects to be written.
+
+ This value may be null . See also: createTypedArrayList(Creator) readTypedList(List, Creator) Parcelable writeTypedObject Added in API level 23 public void writeTypedObject (T val, 
+                int parcelableFlags) Flatten the Parcelable object into the parcel. Parameters val T : The Parcelable object to be written.
+ This value may be null . parcelableFlags int : Contextual flags as per Parcelable.writeToParcel() . See also: readTypedObject(Creator) writeTypedSparseArray Added in API level 29 public void writeTypedSparseArray ( SparseArray <T> val, 
+                int parcelableFlags) Flatten a SparseArray containing a particular object type into the parcel
+ at the current dataPosition() and growing dataCapacity() if needed. The
+ type of the objects in the array must be one that implements Parcelable.
+ Unlike the generic writeSparseArray(android.util.SparseArray) method, however, only
+ the raw data of the objects is written and not their type, so you must use the
+ corresponding createTypedSparseArray(android.os.Parcelable.Creator) . Parameters val SparseArray : The list of objects to be written.
+ This value may be null . parcelableFlags int : The parcelable flags to use. See also: createTypedSparseArray(Parcelable.Creator) Parcelable writeValue Added in API level 1 public void writeValue ( Object v) Flatten a generic object in to a parcel.  The given Object value may
+ currently be one of the following types: null String Byte Short Integer Long Float Double Boolean String[] boolean[] byte[] int[] long[] Object[] (supporting objects of the same type defined here). Bundle Map (as supported by writeMap(Map) ). Any object that implements the Parcelable protocol. Parcelable[] CharSequence (as supported by TextUtils.writeToParcel ). List (as supported by writeList(List) ). SparseArray (as supported by writeSparseArray(android.util.SparseArray) ). IBinder Any object that implements Serializable (but see writeSerializable(Serializable) for caveats).  Note that all of the
+      previous types have relatively efficient implementations for
+      writing to a Parcel; having to rely on the generic serialization
+      approach is much less efficient and should be avoided whenever
+      possible. Parcelable objects are written with Parcelable.writeToParcel using contextual flags of 0.  When
+ serializing objects containing ParcelFileDescriptor s,
+ this may result in file descriptor leaks when they are returned from
+ Binder calls (where Parcelable.PARCELABLE_WRITE_RETURN_VALUE should be used). Parameters v Object : This value may be null . Protected methods finalize Added in API level 1 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored. Throws Throwable</body></html>

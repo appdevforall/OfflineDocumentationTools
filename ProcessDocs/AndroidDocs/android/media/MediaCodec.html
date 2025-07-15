@@ -1,0 +1,918 @@
+<html><head><title>Class Documentation</title></head><body>MediaCodec Kotlin | Java public
+  
+  final
+  
+  class
+  MediaCodec extends Object java.lang.Object ↳ android.media.MediaCodec MediaCodec class can be used to access low-level media codecs, i.e. encoder/decoder components.
+ It is part of the Android low-level multimedia support infrastructure (normally used together
+ with MediaExtractor , MediaSync , MediaMuxer , MediaCrypto , MediaDrm , Image , Surface , and AudioTrack .) In broad terms, a codec processes input data to generate output data. It processes data
+ asynchronously and uses a set of input and output buffers. At a simplistic level, you request
+ (or receive) an empty input buffer, fill it up with data and send it to the codec for
+ processing. The codec uses up the data and transforms it into one of its empty output buffers.
+ Finally, you request (or receive) a filled output buffer, consume its contents and release it
+ back to the codec. Minimum Quality Floor for Video Encoding Beginning with Build.VERSION_CODES.S , Android's Video MediaCodecs enforce a
+ minimum quality floor. The intent is to eliminate poor quality video encodings. This quality
+ floor is applied when the codec is in Variable Bitrate (VBR) mode; it is not applied when
+ the codec is in Constant Bitrate (CBR) mode. The quality floor enforcement is also restricted
+ to a particular size range; this size range is currently for video resolutions
+ larger than 320x240 up through 1920x1080. When this quality floor is in effect, the codec and supporting framework code will work to
+ ensure that the generated video is of at least a "fair" or "good" quality. The metric
+ used to choose these targets is the VMAF (Video Multi-method Assessment Function) with a
+ target score of 70 for selected test sequences. The typical effect is that
+ some videos will generate a higher bitrate than originally configured. This will be most
+ notable for videos which were configured with very low bitrates; the codec will use a bitrate
+ that is determined to be more likely to generate an "fair" or "good" quality video. Another
+ situation is where a video includes very complicated content (lots of motion and detail);
+ in such configurations, the codec will use extra bitrate as needed to avoid losing all of
+ the content's finer detail. This quality floor will not impact content captured at high bitrates (a high bitrate should
+ already provide the codec with sufficient capacity to encode all of the detail).
+ The quality floor does not operate on CBR encodings.
+ The quality floor currently does not operate on resolutions of 320x240 or lower, nor on
+ videos with resolution above 1920x1080. Data Types Codecs operate on three kinds of data: compressed data, raw audio data and raw video data.
+ All three kinds of data can be processed using ByteBuffers , but you should use
+ a Surface for raw video data to improve codec performance. Surface uses native video
+ buffers without mapping or copying them to ByteBuffers; thus, it is much more efficient.
+ You normally cannot access the raw video data when using a Surface, but you can use the ImageReader class to access unsecured decoded (raw) video frames. This may still be more
+ efficient than using ByteBuffers, as some native buffers may be mapped into direct ByteBuffers. When using ByteBuffer mode, you can access raw video
+ frames using the Image class and getInput / OutputImage(int) . Compressed Buffers Input buffers (for decoders) and output buffers (for encoders) contain compressed data according
+ to the format's type . For video types this is normally a single
+ compressed video frame. For audio data this is normally a single access unit (an encoded audio
+ segment typically containing a few milliseconds of audio as dictated by the format type), but
+ this requirement is slightly relaxed in that a buffer may contain multiple encoded access units
+ of audio. In either case, buffers do not start or end on arbitrary byte boundaries, but rather on
+ frame/access unit boundaries unless they are flagged with BUFFER_FLAG_PARTIAL_FRAME . Raw Audio Buffers Raw audio buffers contain entire frames of PCM audio data, which is one sample for each channel
+ in channel order. Each PCM audio sample is either a 16 bit signed integer or a float,
+ in native byte order.
+ Raw audio buffers in the float PCM encoding are only possible
+ if the MediaFormat's MediaFormat.KEY_PCM_ENCODING is set to AudioFormat.ENCODING_PCM_FLOAT during MediaCodec configure(…) and confirmed by getOutputFormat() for decoders
+ or getInputFormat() for encoders.
+ A sample method to check for float PCM in the MediaFormat is as follows: static boolean isPcmFloat(MediaFormat format) {
+  return format.getInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+      == AudioFormat.ENCODING_PCM_FLOAT;
+ } In order to extract, in a short array,
+ one channel of a buffer containing 16 bit signed integer audio data,
+ the following code may be used: // Assumes the buffer PCM encoding is 16 bit . short [] getSamplesForChannel ( MediaCodec codec , int bufferId , int channelIx ) { ByteBuffer outputBuffer = codec . getOutputBuffer ( bufferId ); MediaFormat format = codec . getOutputFormat ( bufferId ); ShortBuffer samples = outputBuffer . order ( ByteOrder . nativeOrder ()). asShortBuffer (); int numChannels = format . getInteger ( MediaFormat . KEY_CHANNEL_COUNT ); if ( channelIx < 0 || channelIx > = numChannels ) { return null ; } short [] res = new short [ samples.remaining() / numChannels ] ; for ( int i = 0 ; i < res . length ; ++ i ) { res [ i ] = samples . get ( i * numChannels + channelIx ); } return res ; } Raw Video Buffers In ByteBuffer mode video buffers are laid out according to their color format . You can get the supported color formats as an array
+ from getCodecInfo() . getCapabilitiesForType(…) . colorFormats .
+ Video codecs may support three kinds of color formats: native raw video format: This is marked by CodecCapabilities.COLOR_FormatSurface and it can be used with an input or output Surface. flexible YUV buffers (such as CodecCapabilities.COLOR_FormatYUV420Flexible ): These can be used with an input/output Surface,
+ as well as in ByteBuffer mode, by using getInput / OutputImage(int) . other, specific formats: These are normally only supported in ByteBuffer
+ mode. Some color formats are vendor specific. Others are defined in CodecCapabilities .
+ For color formats that are equivalent to a flexible format, you can still use getInput / OutputImage(int) . All video codecs support flexible YUV 4:2:0 buffers since Build.VERSION_CODES.LOLLIPOP_MR1 . Accessing Raw Video ByteBuffers on Older Devices Prior to Build.VERSION_CODES.LOLLIPOP and Image support, you need to
+ use the MediaFormat.KEY_STRIDE and MediaFormat.KEY_SLICE_HEIGHT output format
+ values to understand the layout of the raw output buffers. Note that on some devices the slice-height is advertised as 0. This could mean either that the
+ slice-height is the same as the frame height, or that the slice-height is the frame height
+ aligned to some value (usually a power of 2). Unfortunately, there is no standard and simple way
+ to tell the actual slice height in this case. Furthermore, the vertical stride of the U plane in planar formats is also not specified or defined, though usually it is half of the slice
+ height. The MediaFormat.KEY_WIDTH and MediaFormat.KEY_HEIGHT keys specify the size of the
+ video frames; however, for most encondings the video (picture) only occupies a portion of the
+ video frame. This is represented by the 'crop rectangle'. You need to use the following keys to get the crop rectangle of raw output images from the output format . If these keys are not present, the video occupies the
+ entire video frame.The crop rectangle is understood in the context of the output frame before applying any rotation . Format Key Type Description MediaFormat.KEY_CROP_LEFT Integer The left-coordinate (x) of the crop rectangle MediaFormat.KEY_CROP_TOP Integer The top-coordinate (y) of the crop rectangle MediaFormat.KEY_CROP_RIGHT Integer The right-coordinate (x) MINUS 1 of the crop rectangle MediaFormat.KEY_CROP_BOTTOM Integer The bottom-coordinate (y) MINUS 1 of the crop rectangle The right and bottom coordinates can be understood as the coordinates of the right-most
+    valid column/bottom-most valid row of the cropped output image. The size of the video frame (before rotation) can be calculated as such: MediaFormat format = decoder.getOutputFormat(…);
+ int width = format.getInteger(MediaFormat.KEY_WIDTH);
+ if (format.containsKey(MediaFormat.KEY_CROP_LEFT)
+        && format.containsKey(MediaFormat.KEY_CROP_RIGHT)) {
+    width = format.getInteger(MediaFormat.KEY_CROP_RIGHT) + 1 - format.getInteger(MediaFormat.KEY_CROP_LEFT);
+ }
+ int height = format.getInteger(MediaFormat.KEY_HEIGHT);
+ if (format.containsKey(MediaFormat.KEY_CROP_TOP)
+        && format.containsKey(MediaFormat.KEY_CROP_BOTTOM)) {
+    height = format.getInteger(MediaFormat.KEY_CROP_BOTTOM) + 1 - format.getInteger(MediaFormat.KEY_CROP_TOP);
+ } Also note that the meaning of BufferInfo.offset was not consistent across
+ devices. On some devices the offset pointed to the top-left pixel of the crop rectangle, while on
+ most devices it pointed to the top-left pixel of the entire frame. States During its life a codec conceptually exists in one of three states: Stopped, Executing or
+ Released. The Stopped collective state is actually the conglomeration of three states:
+ Uninitialized, Configured and Error, whereas the Executing state conceptually progresses through
+ three sub-states: Flushed, Running and End-of-Stream. When you create a codec using one of the factory methods, the codec is in the Uninitialized
+ state. First, you need to configure it via configure(…) , which brings
+ it to the Configured state, then call start() to move it to the Executing state. In this
+ state you can process data through the buffer queue manipulation described above. The Executing state has three sub-states: Flushed, Running and End-of-Stream. Immediately after start() the codec is in the Flushed sub-state, where it holds all the buffers. As soon
+ as the first input buffer is dequeued, the codec moves to the Running sub-state, where it spends
+ most of its life. When you queue an input buffer with the end-of-stream marker , the codec transitions to the End-of-Stream sub-state. In this state the
+ codec no longer accepts further input buffers, but still generates output buffers until the
+ end-of-stream is reached on the output. For decoders, you can move back to the Flushed sub-state
+ at any time while in the Executing state using flush() . Note: Going back to Flushed state is only supported for decoders, and may not
+ work for encoders (the behavior is undefined). Call stop() to return the codec to the Uninitialized state, whereupon it may be configured
+ again. When you are done using a codec, you must release it by calling release() . On rare occasions the codec may encounter an error and move to the Error state. This is
+ communicated using an invalid return value from a queuing operation, or sometimes via an
+ exception. Call reset() to make the codec usable again. You can call it from any state to
+ move the codec back to the Uninitialized state. Otherwise, call release() to move to the
+ terminal Released state. Creation Use MediaCodecList to create a MediaCodec for a specific MediaFormat . When
+ decoding a file or a stream, you can get the desired format from MediaExtractor.getTrackFormat . Inject any specific features that
+ you want to add using MediaFormat.setFeatureEnabled , then
+ call MediaCodecList.findDecoderForFormat to get the
+ name of a codec that can handle that specific media format. Finally, create the codec using createByCodecName(String) . Note: On Build.VERSION_CODES.LOLLIPOP , the format to MediaCodecList.findDecoder / EncoderForFormat must not contain a frame rate . Use format.setString(MediaFormat.KEY_FRAME_RATE, null) to clear any existing frame rate setting in the format. You can also create the preferred codec for a specific MIME type using createDecoder / EncoderByType(java.lang.String) .
+ This, however, cannot be used to inject features, and may create a codec that cannot handle the
+ specific desired media format. Creating secure decoders On versions Build.VERSION_CODES.KITKAT_WATCH and earlier, secure codecs might
+ not be listed in MediaCodecList , but may still be available on the system. Secure codecs
+ that exist can be instantiated by name only, by appending ".secure" to the name of a
+ regular codec (the name of all secure codecs must end in ".secure" .) createByCodecName(String) will throw an IOException if the codec is not present on the system. From Build.VERSION_CODES.LOLLIPOP onwards, you should use the CodecCapabilities.FEATURE_SecurePlayback feature in the media format to create a secure decoder. Initialization After creating the codec, you can set a callback using setCallback if you
+ want to process data asynchronously. Then, configure the codec using the
+ specific media format. This is when you can specify the output Surface for video
+ producers – codecs that generate raw video data (e.g. video decoders). This is also when
+ you can set the decryption parameters for secure codecs (see MediaCrypto ). Finally, since
+ some codecs can operate in multiple modes, you must specify whether you want it to work as a
+ decoder or an encoder. Since Build.VERSION_CODES.LOLLIPOP , you can query the resulting input and
+ output format in the Configured state. You can use this to verify the resulting configuration,
+ e.g. color formats, before starting the codec. If you want to process raw input video buffers natively with a video consumer – a codec
+ that processes raw video input, such as a video encoder – create a destination Surface for
+ your input data using createInputSurface() after configuration. Alternately, set up the
+ codec to use a previously created persistent input
+ surface by calling setInputSurface(Surface) . Encoder Profiles When using an encoder, it is recommended to set the desired codec profile during configure() . (This is only meaningful for media formats for which profiles are defined.) If a profile is not specified during configure , the encoder will choose a profile for the
+ session based on the available information. We will call this value the default profile .
+ The selection of the default profile is device specific and may not be deterministic
+ (could be ad hoc or even experimental). The encoder may choose a default profile that is not
+ suitable for the intended encoding session, which may result in the encoder ultimately rejecting
+ the session. The encoder may reject the encoding session if the configured (or default if unspecified) profile
+ does not support the codec input (mainly the color format for
+ video/image codecs, or the sample encoding and the number of channels for audio codecs, but also possibly width , height , frame rate , bitrate or sample rate .)
+ Alternatively, the encoder may choose to (but is not required to) convert the input to support the
+ selected (or default) profile - or adjust the chosen profile based on the presumed or detected
+ input format - to ensure a successful encoding session. Note : Converting the input to match
+ an incompatible profile will in most cases result in decreased codec performance. To ensure backward compatibility, the following guarantees are provided by Android: The default video encoder profile always supports 8-bit YUV 4:2:0 color format ( COLOR_FormatYUV420Flexible and equivalent supported formats ) for both Surface and ByteBuffer modes. The default video encoder profile always supports the default 8-bit RGBA color format in
+ Surface mode even if no such formats are enumerated in the supported formats . Note : the accepted profile can be queried through the output
+ format of the encoder after configure to allow applications to set up their
+ codec input to a format supported by the encoder profile. Implication: Applications that want to encode 4:2:2, 4:4:4, 10+ bit or HDR video input MUST configure
+ a suitable profile for encoders. Codec-specific Data Some formats, notably AAC audio and MPEG4, H.264 and H.265 video formats require the actual data
+ to be prefixed by a number of buffers containing setup data, or codec specific data. When
+ processing such compressed formats, this data must be submitted to the codec after start() and before any frame data. Such data must be marked using the flag BUFFER_FLAG_CODEC_CONFIG in a call to queueInputBuffer . Codec-specific data can also be included in the format passed to configure in
+ ByteBuffer entries with keys "csd-0", "csd-1", etc. These keys are always included in the track MediaFormat obtained from the MediaExtractor .
+ Codec-specific data in the format is automatically submitted to the codec upon start() ;
+ you MUST NOT submit this data explicitly. If the format did not contain codec
+ specific data, you can choose to submit it using the specified number of buffers in the correct
+ order, according to the format requirements. In case of H.264 AVC, you can also concatenate all
+ codec-specific data and submit it as a single codec-config buffer. Android uses the following codec-specific data buffers. These are also required to be set in
+ the track format for proper MediaMuxer track configuration. Each parameter set and the
+ codec-specific-data sections marked with ( * ) must start with a start code of "\x00\x00\x00\x01" . Format CSD buffer #0 CSD buffer #1 CSD buffer #2 AAC Decoder-specific information from ESDS * Not Used Not Used VORBIS Identification header Setup header Not Used OPUS Identification header Pre-skip in nanosecs (unsigned 64-bit native-order integer.) This overrides the pre-skip value in the identification header. Seek Pre-roll in nanosecs (unsigned 64-bit native-order integer.) FLAC "fLaC", the FLAC stream marker in ASCII, followed by the STREAMINFO block (the mandatory metadata block), optionally followed by any number of other metadata blocks Not Used Not Used MPEG-4 Decoder-specific information from ESDS * Not Used Not Used H.264 AVC SPS (Sequence Parameter Sets * ) PPS (Picture Parameter Sets * ) Not Used H.265 HEVC VPS (Video Parameter Sets * ) + SPS (Sequence Parameter Sets * ) + PPS (Picture Parameter Sets * ) Not Used Not Used VP9 VP9 CodecPrivate Data
+       (optional) Not Used Not Used AV1 AV1 AV1CodecConfigurationRecord Data (optional) Not Used Not Used Note: care must be taken if the codec is flushed immediately or shortly
+ after start, before any output buffer or output format change has been returned, as the codec
+ specific data may be lost during the flush. You must resubmit the data using buffers marked with BUFFER_FLAG_CODEC_CONFIG after such flush to ensure proper codec operation. Encoders (or codecs that generate compressed data) will create and return the codec specific data
+ before any valid output buffer in output buffers marked with the codec-config flag . Buffers containing codec-specific-data have no
+ meaningful timestamps. Data Processing Each codec maintains a set of input and output buffers that are referred to by a buffer-ID in
+ API calls. After a successful call to start() the client "owns" neither input nor output
+ buffers. In synchronous mode, call dequeueInput / OutputBuffer(…) to obtain (get ownership of) an input or output
+ buffer from the codec. In asynchronous mode, you will automatically receive available buffers via
+ the MediaCodec.Callback.onInput / OutputBufferAvailable(…) callbacks. Upon obtaining an input buffer, fill it with data and submit it to the codec using queueInputBuffer – or queueSecureInputBuffer if using decryption. Do not submit multiple input buffers with the same
+ timestamp (unless it is codec-specific data marked as such). The codec in turn will return a read-only output buffer via the onOutputBufferAvailable callback in asynchronous mode, or in
+ response to a dequeueOutputBuffer call in synchronous mode. After the
+ output buffer has been processed, call one of the releaseOutputBuffer methods to return the buffer to the codec. While you are not required to resubmit/release buffers immediately to the codec, holding onto
+ input and/or output buffers may stall the codec, and this behavior is device dependent. Specifically, it is possible that a codec may hold off on generating output buffers until all outstanding buffers have been released/resubmitted. Therefore, try to
+ hold onto to available buffers as little as possible. Depending on the API version, you can process data in three ways: Processing Mode API version <= 20 Jelly Bean/KitKat API version >= 21 Lollipop and later Synchronous API using buffer arrays Supported Deprecated Synchronous API using buffers Not Available Supported Asynchronous API using buffers Not Available Supported Asynchronous Processing using Buffers Since Build.VERSION_CODES.LOLLIPOP , the preferred method is to process data
+ asynchronously by setting a callback before calling configure . Asynchronous
+ mode changes the state transitions slightly, because you must call start() after flush() to transition the codec to the Running sub-state and start receiving input buffers.
+ Similarly, upon an initial call to start the codec will move directly to the Running
+ sub-state and start passing available input buffers via the callback. MediaCodec is typically used like this in asynchronous mode: MediaCodec codec = MediaCodec . createByCodecName ( name ); MediaFormat mOutputFormat ; // member variable codec . setCallback ( new MediaCodec . Callback () { @ Override void onInputBufferAvailable ( MediaCodec mc , int inputBufferId ) { ByteBuffer inputBuffer = codec . getInputBuffer ( inputBufferId ); // fill inputBuffer with valid data … codec . queueInputBuffer ( inputBufferId , … ); } @ Override void onOutputBufferAvailable ( MediaCodec mc , int outputBufferId , … ) { ByteBuffer outputBuffer = codec . getOutputBuffer ( outputBufferId ); MediaFormat bufferFormat = codec . getOutputFormat ( outputBufferId ); // option A // bufferFormat is equivalent to mOutputFormat // outputBuffer is ready to be processed or rendered . … codec . releaseOutputBuffer ( outputBufferId , … ); } @ Override void onOutputFormatChanged ( MediaCodec mc , MediaFormat format ) { // Subsequent data will conform to new format . // Can ignore if using getOutputFormat ( outputBufferId ) mOutputFormat = format ; // option B } @ Override void onError (…) { … } @ Override void onCryptoError (…) { … } }); codec . configure ( format , … ); mOutputFormat = codec . getOutputFormat (); // option B codec . start (); // wait for processing to complete codec . stop (); codec . release (); Synchronous Processing using Buffers Since Build.VERSION_CODES.LOLLIPOP , you should retrieve input and output
+ buffers using getInput / OutputBuffer(int) and/or getInput / OutputImage(int) even when using the
+ codec in synchronous mode. This allows certain optimizations by the framework, e.g. when
+ processing dynamic content. This optimization is disabled if you call getInput / OutputBuffers() . Note: do not mix the methods of using buffers and buffer arrays at the same
+ time. Specifically, only call getInput / OutputBuffers directly after start() or after having dequeued an output buffer ID with the value of INFO_OUTPUT_FORMAT_CHANGED . MediaCodec is typically used like this in synchronous mode: MediaCodec codec = MediaCodec.createByCodecName(name);
+ codec.configure(format, …);
+ MediaFormat outputFormat = codec.getOutputFormat(); // option B
+ codec.start();
+ for (;;) {
+  int inputBufferId = codec.dequeueInputBuffer(timeoutUs);
+  if (inputBufferId >= 0) {
+    ByteBuffer inputBuffer = codec.getInputBuffer(…);
+    // fill inputBuffer with valid data
+    …
+    codec.queueInputBuffer(inputBufferId, …);
+  }
+  int outputBufferId = codec.dequeueOutputBuffer(…);
+  if (outputBufferId >= 0) {
+    ByteBuffer outputBuffer = codec.getOutputBuffer(outputBufferId);
+    MediaFormat bufferFormat = codec.getOutputFormat(outputBufferId); // option A
+    // bufferFormat is identical to outputFormat
+    // outputBuffer is ready to be processed or rendered.
+    …
+    codec.releaseOutputBuffer(outputBufferId, …);
+  } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+    // Subsequent data will conform to new format.
+    // Can ignore if using getOutputFormat(outputBufferId)
+    outputFormat = codec.getOutputFormat(); // option B
+  }
+ }
+ codec.stop();
+ codec.release(); Synchronous Processing using Buffer Arrays (deprecated) In versions Build.VERSION_CODES.KITKAT_WATCH and before, the set of input and
+ output buffers are represented by the ByteBuffer[] arrays. After a successful call to start() , retrieve the buffer arrays using getInput / OutputBuffers() . Use the buffer ID-s as indices into these arrays (when
+ non-negative), as demonstrated in the sample below. Note that there is no inherent correlation
+ between the size of the arrays and the number of input and output buffers used by the system,
+ although the array size provides an upper bound. MediaCodec codec = MediaCodec.createByCodecName(name);
+ codec.configure(format, …);
+ codec.start();
+ ByteBuffer[] inputBuffers = codec.getInputBuffers();
+ ByteBuffer[] outputBuffers = codec.getOutputBuffers();
+ for (;;) {
+  int inputBufferId = codec.dequeueInputBuffer(…);
+  if (inputBufferId >= 0) {
+    // fill inputBuffers[inputBufferId] with valid data
+    …
+    codec.queueInputBuffer(inputBufferId, …);
+  }
+  int outputBufferId = codec.dequeueOutputBuffer(…);
+  if (outputBufferId >= 0) {
+    // outputBuffers[outputBufferId] is ready to be processed or rendered.
+    …
+    codec.releaseOutputBuffer(outputBufferId, …);
+  } else if (outputBufferId == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+    outputBuffers = codec.getOutputBuffers();
+  } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+    // Subsequent data will conform to new format.
+    MediaFormat format = codec.getOutputFormat();
+  }
+ }
+ codec.stop();
+ codec.release(); End-of-stream Handling When you reach the end of the input data, you must signal it to the codec by specifying the BUFFER_FLAG_END_OF_STREAM flag in the call to queueInputBuffer . You can do this on the last valid input buffer, or by submitting an additional
+ empty input buffer with the end-of-stream flag set. If using an empty buffer, the timestamp will
+ be ignored. The codec will continue to return output buffers until it eventually signals the end of the
+ output stream by specifying the same end-of-stream flag in the BufferInfo set in dequeueOutputBuffer or returned via onOutputBufferAvailable . This can be set on the last valid output buffer, or on an empty buffer
+ after the last valid output buffer. The timestamp of such empty buffer should be ignored. Do not submit additional input buffers after signaling the end of the input stream, unless the
+ codec has been flushed, or stopped and restarted. Using an Output Surface The data processing is nearly identical to the ByteBuffer mode when using an output Surface ; however, the output buffers will not be accessible, and are represented as null values. E.g. getOutputBuffer / Image(int) will
+ return null and getOutputBuffers() will return an array containing only null -s. When using an output Surface, you can select whether or not to render each output buffer on the
+ surface. You have three choices: Do not render the buffer: Call releaseOutputBuffer(bufferId, false) . Render the buffer with the default timestamp: Call releaseOutputBuffer(bufferId, true) . Render the buffer with a specific timestamp: Call releaseOutputBuffer(bufferId, timestamp) . Since Build.VERSION_CODES.M , the default timestamp is the presentation timestamp of the buffer (converted to nanoseconds).
+ It was not defined prior to that. Also since Build.VERSION_CODES.M , you can change the output Surface
+ dynamically using setOutputSurface . When rendering output to a Surface, the Surface may be configured to drop excessive frames (that
+ are not consumed by the Surface in a timely manner). Or it may be configured to not drop excessive
+ frames. In the latter mode if the Surface is not consuming output frames fast enough, it will
+ eventually block the decoder. Prior to Build.VERSION_CODES.Q the exact behavior
+ was undefined, with the exception that View surfaces (SurfaceView or TextureView) always dropped
+ excessive frames. Since Build.VERSION_CODES.Q the default behavior is to drop
+ excessive frames. Applications can opt out of this behavior for non-View surfaces (such as
+ ImageReader or SurfaceTexture) by targeting SDK Build.VERSION_CODES.Q and
+ setting the key MediaFormat.KEY_ALLOW_FRAME_DROP to 0 in their configure format. Transformations When Rendering onto Surface If the codec is configured into Surface mode, any crop rectangle, rotation and video scaling
+ mode will be automatically applied with one exception: Prior to the Build.VERSION_CODES.M release, software decoders may not
+ have applied the rotation when being rendered onto a Surface. Unfortunately, there is no standard
+ and simple way to identify software decoders, or if they apply the rotation other than by trying
+ it out. There are also some caveats. Note that the pixel aspect ratio is not considered when displaying the output onto the
+ Surface. This means that if you are using VIDEO_SCALING_MODE_SCALE_TO_FIT mode, you
+ must position the output Surface so that it has the proper final display aspect ratio. Conversely,
+ you can only use VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING mode for content with
+ square pixels (pixel aspect ratio or 1:1). Note also that as of Build.VERSION_CODES.N release, VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING mode may not work correctly for videos rotated
+ by 90 or 270 degrees. When setting the video scaling mode, note that it must be reset after each time the output
+ buffers change. Since the INFO_OUTPUT_BUFFERS_CHANGED event is deprecated, you can
+ do this after each time the output format changes. Using an Input Surface When using an input Surface, there are no accessible input buffers, as buffers are automatically
+ passed from the input surface to the codec. Calling dequeueInputBuffer will throw an IllegalStateException , and getInputBuffers() returns a bogus ByteBuffer[] array that MUST NOT be written into. Call signalEndOfInputStream() to signal end-of-stream. The input surface will stop
+ submitting data to the codec immediately after this call. Seeking & Adaptive Playback Support Video decoders (and in general codecs that consume compressed video data) behave differently
+ regarding seek and format change whether or not they support and are configured for adaptive
+ playback. You can check if a decoder supports adaptive playback via CodecCapabilities.isFeatureSupported(String) . Adaptive
+ playback support for video decoders is only activated if you configure the codec to decode onto a Surface . Stream Boundary and Key Frames It is important that the input data after start() or flush() starts at a suitable
+ stream boundary: the first frame must be a key frame. A key frame can be decoded
+ completely on its own (for most codecs this means an I-frame), and no frames that are to be
+ displayed after a key frame refer to frames before the key frame. The following table summarizes suitable key frames for various video formats. Format Suitable key frame VP9/VP8 a suitable intraframe where no subsequent frames refer to frames prior to this frame. (There is no specific name for such key frame.) H.265 HEVC IDR or CRA H.264 AVC IDR MPEG-4 H.263 MPEG-2 a suitable I-frame where no subsequent frames refer to frames prior to this frame. (There is no specific name for such key frame.) For decoders that do not support adaptive playback (including when not decoding onto a
+ Surface) In order to start decoding data that is not adjacent to previously submitted data (i.e. after a
+ seek) you MUST flush the decoder. Since all output buffers are immediately
+ revoked at the point of the flush, you may want to first signal then wait for the end-of-stream
+ before you call flush . It is important that the input data after a flush starts at a
+ suitable stream boundary/key frame. Note: the format of the data submitted after a flush must not change; flush() does not support format discontinuities; for that, a full stop() - configure(…) - start() cycle is necessary. Also note: if you flush the codec too soon after start() –
+ generally, before the first output buffer or output format change is received – you
+ will need to resubmit the codec-specific-data to the codec. See the codec-specific-data section for more info. For decoders that support and are configured for adaptive playback In order to start decoding data that is not adjacent to previously submitted data (i.e. after a
+ seek) it is not necessary to flush the decoder; however, input data after the
+ discontinuity must start at a suitable stream boundary/key frame. For some video formats - namely H.264, H.265, VP8 and VP9 - it is also possible to change the
+ picture size or configuration mid-stream. To do this you must package the entire new
+ codec-specific configuration data together with the key frame into a single buffer (including
+ any start codes), and submit it as a regular input buffer. You will receive an INFO_OUTPUT_FORMAT_CHANGED return value from dequeueOutputBuffer or a onOutputFormatChanged callback just after the picture-size change takes place and before any
+ frames with the new size have been returned. Note: just as the case for codec-specific data, be careful when calling flush() shortly after you have changed the picture size. If you have not received
+ confirmation of the picture size change, you will need to repeat the request for the new picture
+ size. Error handling The factory methods createByCodecName and createDecoder / EncoderByType throw IOException on failure
+ which you must catch or declare to pass up. MediaCodec methods throw IllegalStateException when the method is called from a codec state that does not allow it; this
+ is typically due to incorrect application API usage. Methods involving secure buffers may throw CryptoException , which has further error information obtainable from CryptoException.getErrorCode . Internal codec errors result in a CodecException , which may be due to media content
+ corruption, hardware failure, resource exhaustion, and so forth, even when the application is
+ correctly using the API. The recommended action when receiving a CodecException can be determined by calling CodecException.isRecoverable and CodecException.isTransient : recoverable errors: If isRecoverable() returns true, then call stop() , configure(…) , and start() to recover. transient errors: If isTransient() returns true, then resources are
+ temporarily unavailable and the method may be retried at a later time. fatal errors: If both isRecoverable() and isTransient() return false, then the CodecException is fatal and the codec must be reset or released . Both isRecoverable() and isTransient() do not return true at the same time. Valid API Calls and API History This sections summarizes the valid API calls in each state and the API history of the MediaCodec
+ class. For API version numbers, see Build.VERSION_CODES . Symbol Meaning ● Supported ⁕ Semantics changed ○ Experimental support [ ] Deprecated ⎋ Restricted to surface input mode ⎆ Restricted to surface output mode ▧ Restricted to ByteBuffer input mode ↩ Restricted to synchronous mode ⇄ Restricted to asynchronous mode ( ) Can be called, but shouldn't Uninitialized Configured Flushed Running End of Stream Error Released SDK Version State Method 16 17 18 19 20 21 22 23 createByCodecName ● ● ● ● ● ● ● ● createDecoderByType ● ● ● ● ● ● ● ● createEncoderByType ● ● ● ● ● ● ● ● createPersistentInputSurface ● 16+ - - - - - - configure ● ● ● ● ● ⁕ ● ● - 18+ - - - - - createInputSurface ⎋ ⎋ ⎋ ⎋ ⎋ ⎋ - - 16+ 16+ (16+) - - dequeueInputBuffer ● ● ▧ ▧ ▧ ⁕▧↩ ▧↩ ▧↩ - - 16+ 16+ 16+ - - dequeueOutputBuffer ● ● ● ● ● ⁕↩ ↩ ↩ - - 16+ 16+ 16+ - - flush ● ● ● ● ● ● ● ● 18+ 18+ 18+ 18+ 18+ 18+ - getCodecInfo ● ● ● ● ● ● - - (21+) 21+ (21+) - - getInputBuffer ● ● ● - - 16+ (16+) (16+) - - getInputBuffers ● ● ● ● ● [⁕↩] [↩] [↩] - 21+ (21+) (21+) (21+) - - getInputFormat ● ● ● - - (21+) 21+ (21+) - - getInputImage ○ ● ● 18+ 18+ 18+ 18+ 18+ 18+ - getName ● ● ● ● ● ● - - (21+) 21+ 21+ - - getOutputBuffer ● ● ● - - 16+ 16+ 16+ - - getOutputBuffers ● ● ● ● ● [⁕↩] [↩] [↩] - 21+ 16+ 16+ 16+ - - getOutputFormat() ● ● ● ● ● ● ● ● - - (21+) 21+ 21+ - - getOutputFormat(int) ● ● ● - - (21+) 21+ 21+ - - getOutputImage ○ ● ● - - - 16+ (16+) - - queueInputBuffer ● ● ● ● ● ⁕ ● ● - - - 16+ (16+) - - queueSecureInputBuffer ● ● ● ● ● ⁕ ● ● 16+ 16+ 16+ 16+ 16+ 16+ 16+ release ● ● ● ● ● ● ● ● - - - 16+ 16+ - - releaseOutputBuffer(int, boolean) ● ● ● ● ● ⁕ ● ⁕ - - - 21+ 21+ - - releaseOutputBuffer(int, long) ⎆ ⎆ ⎆ 21+ 21+ 21+ 21+ 21+ 21+ - reset ● ● ● 21+ - - - - - - setCallback ● ● ⁕ - 23+ - - - - - setInputSurface ⎋ 23+ 23+ 23+ 23+ 23+ (23+) (23+) setOnFrameRenderedListener ○ ⎆ - 23+ 23+ 23+ 23+ - - setOutputSurface ⎆ 19+ 19+ 19+ 19+ 19+ (19+) - setParameters ● ● ● ● ● - (16+) (16+) 16+ (16+) (16+) - setVideoScalingMode ⎆ ⎆ ⎆ ⎆ ⎆ ⎆ ⎆ ⎆ (29+) 29+ 29+ 29+ (29+) (29+) - setAudioPresentation - - 18+ 18+ - - - signalEndOfInputStream ⎋ ⎋ ⎋ ⎋ ⎋ ⎋ - 16+ 21+(⇄) - - - - start ● ● ● ● ● ⁕ ● ● - - 16+ 16+ 16+ - - stop ● ● ● ● ● ● ● ● Summary Nested classes class MediaCodec.BufferInfo Per buffer metadata includes an offset and size specifying
+ the range of valid data in the associated codec (output) buffer. class MediaCodec.Callback MediaCodec callback interface. class MediaCodec.CodecException Thrown when an internal codec error occurs. class MediaCodec.CryptoException Thrown when a crypto error occurs while queueing a secure input buffer. class MediaCodec.CryptoInfo Metadata describing the structure of an encrypted input sample. class MediaCodec.IncompatibleWithBlockModelException Thrown when the codec is configured for block model and an incompatible API is called. class MediaCodec.InvalidBufferFlagsException Thrown when a buffer is marked with an invalid combination of flags
+ (e.g. both MediaCodec.BUFFER_FLAG_END_OF_STREAM and MediaCodec.BUFFER_FLAG_DECODE_ONLY ) class MediaCodec.LinearBlock Section of memory that represents a linear block. class MediaCodec.MetricsConstants interface MediaCodec.OnFirstTunnelFrameReadyListener Listener to be called when the first output frame has been decoded
+ and is ready to be rendered for a codec configured for tunnel mode with KEY_AUDIO_SESSION_ID . interface MediaCodec.OnFrameRenderedListener Listener to be called when an output frame has rendered on the output surface class MediaCodec.OutputFrame A single output frame and its associated metadata. class MediaCodec.ParameterDescriptor Contains description of a parameter. class MediaCodec.QueueRequest Builder-like class for queue requests. Constants int BUFFER_FLAG_CODEC_CONFIG This indicated that the buffer marked as such contains codec
+ initialization / codec specific data instead of media data. int BUFFER_FLAG_DECODE_ONLY This indicates that the buffer is decoded and updates the internal state of the decoder,
+ but does not produce any output buffer. int BUFFER_FLAG_END_OF_STREAM This signals the end of stream, i.e. int BUFFER_FLAG_KEY_FRAME This indicates that the (encoded) buffer marked as such contains
+ the data for a key frame. int BUFFER_FLAG_PARTIAL_FRAME This indicates that the buffer only contains part of a frame,
+ and the decoder should batch the data until a buffer without
+ this flag appears before decoding the frame. int BUFFER_FLAG_SYNC_FRAME This constant was deprecated
+      in API level 21.
+    Use BUFFER_FLAG_KEY_FRAME instead. int CONFIGURE_FLAG_DETACHED_SURFACE Configure the codec with a detached output surface. int CONFIGURE_FLAG_ENCODE If this codec is to be used as an encoder, pass this flag. int CONFIGURE_FLAG_USE_BLOCK_MODEL If this codec is to be used with LinearBlock and/or HardwareBuffer , pass this flag. int CONFIGURE_FLAG_USE_CRYPTO_ASYNC This flag should be used on a secure decoder only. int CRYPTO_MODE_AES_CBC int CRYPTO_MODE_AES_CTR int CRYPTO_MODE_UNENCRYPTED int INFO_OUTPUT_BUFFERS_CHANGED This constant was deprecated
+      in API level 21.
+    This return value can be ignored as getOutputBuffers() has been deprecated.  Client should
+ request a current buffer using on of the get-buffer or
+ get-image methods each time one has been dequeued. int INFO_OUTPUT_FORMAT_CHANGED The output format has changed, subsequent data will follow the new
+ format. int INFO_TRY_AGAIN_LATER If a non-negative timeout had been specified in the call
+ to dequeueOutputBuffer(BufferInfo, long) , indicates that the call timed out. String PARAMETER_KEY_HDR10_PLUS_INFO Set the HDR10+ metadata on the next queued input frame. String PARAMETER_KEY_LOW_LATENCY Enable/disable low latency decoding mode. String PARAMETER_KEY_OFFSET_TIME Specify an offset (in micro-second) to be added on top of the timestamps
+ onward. String PARAMETER_KEY_QP_OFFSET_MAP Set the region of interest as QpOffset-Map on the next queued input frame. String PARAMETER_KEY_QP_OFFSET_RECTS Set the region of interest as QpOffset-Rects on the next queued input frame. String PARAMETER_KEY_REQUEST_SYNC_FRAME Request that the encoder produce a sync frame "soon". String PARAMETER_KEY_SUSPEND Temporarily suspend/resume encoding of input data. String PARAMETER_KEY_SUSPEND_TIME When PARAMETER_KEY_SUSPEND is present, the client can also
+ optionally use this key to specify the timestamp (in micro-second)
+ at which the suspend/resume operation takes effect. String PARAMETER_KEY_TUNNEL_PEEK Control video peek of the first frame when a codec is configured for tunnel mode with MediaFormat.KEY_AUDIO_SESSION_ID while the AudioTrack is paused. String PARAMETER_KEY_VIDEO_BITRATE Change a video encoder's target bitrate on the fly. int VIDEO_SCALING_MODE_SCALE_TO_FIT The content is scaled to the surface dimensions int VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING The content is scaled, maintaining its aspect ratio, the whole
+ surface area is used, content may be cropped. Public methods void configure ( MediaFormat format, Surface surface, MediaCrypto crypto, int flags) Configures a component. void configure ( MediaFormat format, Surface surface, int flags, MediaDescrambler descrambler) Configure a component to be used with a descrambler. static MediaCodec createByCodecName ( String name) If you know the exact name of the component you want to instantiate
+ use this method to instantiate it. static MediaCodec createDecoderByType ( String type) Instantiate the preferred decoder supporting input data of the given mime type. static MediaCodec createEncoderByType ( String type) Instantiate the preferred encoder supporting output data of the given mime type. Surface createInputSurface () Requests a Surface to use as the input to an encoder, in place of input buffers. static Surface createPersistentInputSurface () Create a persistent input surface that can be used with codecs that normally have an input
+ surface, such as video encoders. int dequeueInputBuffer (long timeoutUs) Returns the index of an input buffer to be filled with valid data
+ or -1 if no such buffer is currently available. int dequeueOutputBuffer ( MediaCodec.BufferInfo info, long timeoutUs) Dequeue an output buffer, block at most "timeoutUs" microseconds. void detachOutputSurface () Detach the current output surface of a codec. void flush () Flush both input and output ports of the component. String getCanonicalName () Retrieve the underlying codec name. MediaCodecInfo getCodecInfo () Get the codec info. ByteBuffer getInputBuffer (int index) Returns a cleared , writable ByteBuffer
+ object for a dequeued input buffer index to contain the input data. ByteBuffer[] getInputBuffers () This method was deprecated
+      in API level 21.
+    Use the new getInputBuffer(int) method instead
+ each time an input buffer is dequeued. Note: As of API 21, dequeued input buffers are
+ automatically cleared . Do not use this method if using an input surface. MediaFormat getInputFormat () Call this after configure(MediaFormat, Surface, MediaCrypto, int) returns successfully to
+ get the input format accepted by the codec. Image getInputImage (int index) Returns a writable Image object for a dequeued input buffer
+ index to contain the raw input video frame. PersistableBundle getMetrics () Return Metrics data about the current codec instance. String getName () Retrieve the codec name. ByteBuffer getOutputBuffer (int index) Returns a read-only ByteBuffer for a dequeued output buffer
+ index. ByteBuffer[] getOutputBuffers () This method was deprecated
+      in API level 21.
+    Use the new getOutputBuffer(int) method instead
+ each time an output buffer is dequeued.  This method is not
+ supported if codec is configured in asynchronous mode. Note: As of API 21, the position and limit of output
+ buffers that are dequeued will be set to the valid data
+ range. Do not use this method if using an output surface. MediaFormat getOutputFormat (int index) Returns the output format for a specific output buffer. MediaFormat getOutputFormat () Call this after dequeueOutputBuffer signals a format change by returning INFO_OUTPUT_FORMAT_CHANGED . MediaCodec.OutputFrame getOutputFrame (int index) Returns an OutputFrame object. Image getOutputImage (int index) Returns a read-only Image object for a dequeued output buffer
+ index that contains the raw video frame. MediaCodec.ParameterDescriptor getParameterDescriptor ( String name) Describe a parameter with the name. MediaCodec.QueueRequest getQueueRequest (int index) Return a QueueRequest object for an input slot index. List < String > getSupportedVendorParameters () Returns a list of vendor parameter names. static Image mapHardwareBuffer ( HardwareBuffer hardwareBuffer) Map a HardwareBuffer object into Image , so that the content of the buffer is
+ accessible. void queueInputBuffer (int index, int offset, int size, long presentationTimeUs, int flags) After filling a range of the input buffer at the specified index
+ submit it to the component. void queueInputBuffers (int index, ArrayDeque < MediaCodec.BufferInfo > bufferInfos) Submit multiple access units to the codec along with multiple MediaCodec.BufferInfo describing the contents of the buffer. void queueSecureInputBuffer (int index, int offset, MediaCodec.CryptoInfo info, long presentationTimeUs, int flags) Similar to queueInputBuffer but submits a buffer that is
+ potentially encrypted. void queueSecureInputBuffers (int index, ArrayDeque < MediaCodec.BufferInfo > bufferInfos, ArrayDeque < MediaCodec.CryptoInfo > cryptoInfos) Similar to queueInputBuffers but submits multiple access units
+ in a buffer that is potentially encrypted. void release () Free up resources used by the codec instance. void releaseOutputBuffer (int index, boolean render) If you are done with a buffer, use this call to return the buffer to the codec
+ or to render it on the output surface. void releaseOutputBuffer (int index, long renderTimestampNs) If you are done with a buffer, use this call to update its surface timestamp
+ and return it to the codec to render it on the output surface. void reset () Returns the codec to its initial (Uninitialized) state. void setAudioPresentation ( AudioPresentation presentation) Sets the audio presentation. void setCallback ( MediaCodec.Callback cb, Handler handler) Sets an asynchronous callback for actionable MediaCodec events. void setCallback ( MediaCodec.Callback cb) Sets an asynchronous callback for actionable MediaCodec events on the default
+ looper. void setInputSurface ( Surface surface) Configures the codec (e.g. encoder) to use a persistent input surface in place of input
+ buffers. void setOnFirstTunnelFrameReadyListener ( Handler handler, MediaCodec.OnFirstTunnelFrameReadyListener listener) Registers a callback to be invoked when the first output frame has been decoded
+ and is ready to be rendered on a codec configured for tunnel mode with KEY_AUDIO_SESSION_ID . void setOnFrameRenderedListener ( MediaCodec.OnFrameRenderedListener listener, Handler handler) Registers a callback to be invoked when an output frame is rendered on the output surface. void setOutputSurface ( Surface surface) Dynamically sets the output surface of a codec. void setParameters ( Bundle params) void setVideoScalingMode (int mode) If a surface has been specified in a previous call to configure(MediaFormat, Surface, MediaCrypto, int) specifies the scaling mode to use. void signalEndOfInputStream () Signals end-of-stream on input. void start () After successfully configuring the component, call start . void stop () Finish the decode/encode session, note that the codec instance
+ remains active and ready to be start() ed again. void subscribeToVendorParameters ( List < String > names) Subscribe to vendor parameters, so that these parameters will be present in getOutputFormat() and changes to these parameters generate
+ output format change event. void unsubscribeFromVendorParameters ( List < String > names) Unsubscribe from vendor parameters, so that these parameters will not be present in getOutputFormat() and changes to these parameters no longer generate
+ output format change event. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Constants BUFFER_FLAG_CODEC_CONFIG Added in API level 16 public static final int BUFFER_FLAG_CODEC_CONFIG This indicated that the buffer marked as such contains codec
+ initialization / codec specific data instead of media data. Constant Value:
+      
+          2
+          (0x00000002) BUFFER_FLAG_DECODE_ONLY Added in API level 34 public static final int BUFFER_FLAG_DECODE_ONLY This indicates that the buffer is decoded and updates the internal state of the decoder,
+ but does not produce any output buffer.
+
+ When a buffer has this flag set, OnFrameRenderedListener.onFrameRendered(MediaCodec, long, long) and Callback.onOutputBufferAvailable(MediaCodec, int, BufferInfo) will not be called for
+ that given buffer.
+
+ For example, when seeking to a certain frame, that frame may need to reference previous
+ frames in order for it to produce output. The preceding frames can be marked with this flag
+ so that they are only decoded and their data is used when decoding the latter frame that
+ should be initially displayed post-seek.
+ Another example would be trick play, trick play is when a video is fast-forwarded and only a
+ subset of the frames is to be rendered on the screen. The frames not to be rendered can be
+ marked with this flag for the same reason as the above one.
+ Marking frames with this flag improves the overall performance of playing a video stream as
+ fewer frames need to be passed back to the app.
+
+ In CodecCapabilities.FEATURE_TunneledPlayback , buffers marked with this flag
+ are not rendered on the output surface.
+
+ A frame should not be marked with this flag and BUFFER_FLAG_END_OF_STREAM simultaneously, doing so will produce a InvalidBufferFlagsException Constant Value:
+      
+          32
+          (0x00000020) BUFFER_FLAG_END_OF_STREAM Added in API level 16 public static final int BUFFER_FLAG_END_OF_STREAM This signals the end of stream, i.e. no buffers will be available
+ after this, unless of course, flush() follows. Constant Value:
+      
+          4
+          (0x00000004) BUFFER_FLAG_KEY_FRAME Added in API level 21 public static final int BUFFER_FLAG_KEY_FRAME This indicates that the (encoded) buffer marked as such contains
+ the data for a key frame. Constant Value:
+      
+          1
+          (0x00000001) BUFFER_FLAG_PARTIAL_FRAME Added in API level 26 public static final int BUFFER_FLAG_PARTIAL_FRAME This indicates that the buffer only contains part of a frame,
+ and the decoder should batch the data until a buffer without
+ this flag appears before decoding the frame. Constant Value:
+      
+          8
+          (0x00000008) BUFFER_FLAG_SYNC_FRAME Added in API level 16 Deprecated in API level
+      21 public static final int BUFFER_FLAG_SYNC_FRAME This constant was deprecated
+      in API level 21. Use BUFFER_FLAG_KEY_FRAME instead. This indicates that the (encoded) buffer marked as such contains
+ the data for a key frame. Constant Value:
+      
+          1
+          (0x00000001) CONFIGURE_FLAG_DETACHED_SURFACE Added in API level 35 public static final int CONFIGURE_FLAG_DETACHED_SURFACE Configure the codec with a detached output surface. This flag is only defined for a video decoder. MediaCodec
+ configured with this flag will be in Surface mode even though
+ the surface parameter is null. See also: ERROR(/detachOutputSurface) Constant Value:
+      
+          8
+          (0x00000008) CONFIGURE_FLAG_ENCODE Added in API level 16 public static final int CONFIGURE_FLAG_ENCODE If this codec is to be used as an encoder, pass this flag. Constant Value:
+      
+          1
+          (0x00000001) CONFIGURE_FLAG_USE_BLOCK_MODEL Added in API level 30 public static final int CONFIGURE_FLAG_USE_BLOCK_MODEL If this codec is to be used with LinearBlock and/or HardwareBuffer , pass this flag. When this flag is set, the following APIs throw IncompatibleWithBlockModelException . getInputBuffer(int) getInputImage(int) getInputBuffers() getOutputBuffer(int) getOutputImage(int) getOutputBuffers() queueInputBuffer(int, int, int, long, int) queueSecureInputBuffer(int, int, CryptoInfo, long, int) dequeueInputBuffer(long) dequeueOutputBuffer(BufferInfo, long) Constant Value:
+      
+          2
+          (0x00000002) CONFIGURE_FLAG_USE_CRYPTO_ASYNC Added in API level 34 public static final int CONFIGURE_FLAG_USE_CRYPTO_ASYNC This flag should be used on a secure decoder only. MediaCodec configured with this
+ flag does decryption in a separate thread. The flag requires MediaCodec to operate
+ asynchronously and will throw CryptoException if any, in the onCryptoError()
+ callback. Applications should override the default implementation of
+ onCryptoError() and access the associated CryptoException.
+
+ CryptoException thrown will contain MediaCodec.CryptoInfo This can be accessed using getCryptoInfo() Constant Value:
+      
+          4
+          (0x00000004) CRYPTO_MODE_AES_CBC Added in API level 24 public static final int CRYPTO_MODE_AES_CBC Constant Value:
+      
+          2
+          (0x00000002) CRYPTO_MODE_AES_CTR Added in API level 16 public static final int CRYPTO_MODE_AES_CTR Constant Value:
+      
+          1
+          (0x00000001) CRYPTO_MODE_UNENCRYPTED Added in API level 16 public static final int CRYPTO_MODE_UNENCRYPTED Constant Value:
+      
+          0
+          (0x00000000) INFO_OUTPUT_BUFFERS_CHANGED Added in API level 16 Deprecated in API level
+      21 public static final int INFO_OUTPUT_BUFFERS_CHANGED This constant was deprecated
+      in API level 21. This return value can be ignored as getOutputBuffers() has been deprecated.  Client should
+ request a current buffer using on of the get-buffer or
+ get-image methods each time one has been dequeued. The output buffers have changed, the client must refer to the new
+ set of output buffers returned by getOutputBuffers() from
+ this point on. Additionally, this event signals that the video scaling mode
+ may have been reset to the default. Constant Value:
+      
+          -3
+          (0xfffffffd) INFO_OUTPUT_FORMAT_CHANGED Added in API level 16 public static final int INFO_OUTPUT_FORMAT_CHANGED The output format has changed, subsequent data will follow the new
+ format. getOutputFormat() returns the new format.  Note, that
+ you can also use the new getOutputFormat(int) method to
+ get the format for a specific output buffer.  This frees you from
+ having to track output format changes. Constant Value:
+      
+          -2
+          (0xfffffffe) INFO_TRY_AGAIN_LATER Added in API level 16 public static final int INFO_TRY_AGAIN_LATER If a non-negative timeout had been specified in the call
+ to dequeueOutputBuffer(BufferInfo, long) , indicates that the call timed out. Constant Value:
+      
+          -1
+          (0xffffffff) PARAMETER_KEY_HDR10_PLUS_INFO Added in API level 29 public static final String PARAMETER_KEY_HDR10_PLUS_INFO Set the HDR10+ metadata on the next queued input frame.
+
+ Provide a byte array of data that's conforming to the
+ user_data_registered_itu_t_t35() syntax of SEI message for ST 2094-40. For decoders: When a decoder is configured for one of the HDR10+ profiles that uses
+ out-of-band metadata (such as MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR10Plus or MediaCodecInfo.CodecProfileLevel.VP9Profile3HDR10Plus ), this
+ parameter sets the HDR10+ metadata on the next input buffer queued
+ to the decoder. A decoder supporting these profiles must propagate
+ the metadata to the format of the output buffer corresponding to this
+ particular input buffer (under key MediaFormat.KEY_HDR10_PLUS_INFO ).
+ The metadata should be applied to that output buffer and the buffers
+ following it (in display order), until the next output buffer (in
+ display order) upon which an HDR10+ metadata is set. This parameter shouldn't be set if the decoder is not configured for
+ an HDR10+ profile that uses out-of-band metadata. In particular,
+ it shouldn't be set for HDR10+ profiles that uses in-band metadata
+ where the metadata is embedded in the input buffers, for example MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus . For encoders: When an encoder is configured for one of the HDR10+ profiles and the
+ operates in byte buffer input mode (instead of surface input mode),
+ this parameter sets the HDR10+ metadata on the next input buffer queued
+ to the encoder. For the HDR10+ profiles that uses out-of-band metadata
+ (such as MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR10Plus ,
+ or MediaCodecInfo.CodecProfileLevel.VP9Profile3HDR10Plus ),
+ the metadata must be propagated to the format of the output buffer
+ corresponding to this particular input buffer (under key MediaFormat.KEY_HDR10_PLUS_INFO ). For the HDR10+ profiles that uses
+ in-band metadata (such as MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus ), the
+ metadata info must be embedded in the corresponding output buffer itself. This parameter shouldn't be set if the encoder is not configured for
+ an HDR10+ profile, or if it's operating in surface input mode. See also: MediaFormat.KEY_HDR10_PLUS_INFO Constant Value:
+      
+          "hdr10-plus-info" PARAMETER_KEY_LOW_LATENCY Added in API level 30 public static final String PARAMETER_KEY_LOW_LATENCY Enable/disable low latency decoding mode.
+ When enabled, the decoder doesn't hold input and output data more than
+ required by the codec standards.
+ The value is an Integer object containing the value 1 to enable
+ or the value 0 to disable. See also: setParameters(Bundle) MediaFormat.KEY_LOW_LATENCY Constant Value:
+      
+          "low-latency" PARAMETER_KEY_OFFSET_TIME Added in API level 29 public static final String PARAMETER_KEY_OFFSET_TIME Specify an offset (in micro-second) to be added on top of the timestamps
+ onward. A typical use case is to apply an adjust to the timestamps after
+ a period of pause by the user.
+
+ This parameter can only be used on an encoder in "surface-input" mode.
+
+ The value is a long int, indicating the timestamp offset to be applied. See also: setParameters(Bundle) Constant Value:
+      
+          "time-offset-us" PARAMETER_KEY_QP_OFFSET_MAP Added in API level 35 public static final String PARAMETER_KEY_QP_OFFSET_MAP Set the region of interest as QpOffset-Map on the next queued input frame. The associated value is a byte array containing quantization parameter (QP) offsets in
+ raster scan order for the entire frame at 16x16 granularity. The size of the byte array
+ shall be ((frame_width + 15) / 16) * ((frame_height + 15) / 16), where frame_width and
+ frame_height correspond to width and height configured using MediaFormat.KEY_WIDTH and MediaFormat.KEY_HEIGHT keys respectively. During encoding, if the coding unit
+ size is larger than 16x16, then the qpOffset information of all 16x16 blocks that
+ encompass the coding unit is combined and used. The QP of target block will be calculated
+ as 'frameQP + offsetQP'. If the result exceeds minQP or maxQP configured then the value
+ will be clamped. Negative offset results in blocks encoded at lower QP than frame QP and
+ positive offsets will result in encoding blocks at higher QP than frame QP. If the areas
+ of negative QP and positive QP are chosen wisely, the overall viewing experience can be
+ improved. If byte array size is smaller than the expected size, components will ignore the
+ configuration and print an error message. If the byte array exceeds the expected size,
+ components will use the initial portion and ignore the rest. The scope of this key is throughout the encoding session until it is reconfigured during
+ running state. See also: setParameters(Bundle) Constant Value:
+      
+          "qp-offset-map" PARAMETER_KEY_QP_OFFSET_RECTS Added in API level 35 public static final String PARAMETER_KEY_QP_OFFSET_RECTS Set the region of interest as QpOffset-Rects on the next queued input frame. The associated value is a String in the format "Top1,Left1-Bottom1,Right1=Offset1;Top2,
+ Left2-Bottom2,Right2=Offset2;...". If the configuration doesn't follow this pattern,
+ it will be ignored. Co-ordinates (Top, Left), (Top, Right), (Bottom, Left)
+ and (Bottom, Right) form the vertices of bounding box of region of interest in pixels.
+ Pixel (0, 0) points to the top-left corner of the frame. Offset is the suggested
+ quantization parameter (QP) offset of the blocks in the bounding box. The bounding box
+ will get stretched outwards to align to LCU boundaries during encoding. The Qp Offset is
+ integral and shall be in the range [-128, 127]. The QP of target block will be calculated
+ as frameQP + offsetQP. If the result exceeds minQP or maxQP configured then the value will
+ be clamped. Negative offset results in blocks encoded at lower QP than frame QP and
+ positive offsets will result in blocks encoded at higher QP than frame QP. If the areas of
+ negative QP and positive QP are chosen wisely, the overall viewing experience can be
+ improved. If roi (region of interest) rect is outside the frame boundaries, that is, left < 0 or
+ top < 0 or right > width or bottom > height, then rect shall be clamped to the frame
+ boundaries. If roi rect is not valid, that is left > right or top > bottom, then the
+ parameter setting is ignored. The scope of this key is throughout the encoding session until it is reconfigured during
+ running state. The maximum number of contours (rectangles) that can be specified for a given input frame
+ is device specific. Implementations will drop/ignore the rectangles that are beyond their
+ supported limit. Hence it is preferable to place the rects in descending order of
+ importance. Transitively, if the bounding boxes overlap, then the most preferred
+ rectangle's qp offset (earlier rectangle qp offset) will be used to quantize the block. See also: setParameters(Bundle) Constant Value:
+      
+          "qp-offset-rects" PARAMETER_KEY_REQUEST_SYNC_FRAME Added in API level 19 public static final String PARAMETER_KEY_REQUEST_SYNC_FRAME Request that the encoder produce a sync frame "soon".
+ Provide an Integer with the value 0. See also: setParameters(Bundle) Constant Value:
+      
+          "request-sync" PARAMETER_KEY_SUSPEND Added in API level 19 public static final String PARAMETER_KEY_SUSPEND Temporarily suspend/resume encoding of input data. While suspended
+ input data is effectively discarded instead of being fed into the
+ encoder. This parameter really only makes sense to use with an encoder
+ in "surface-input" mode, as the client code has no control over the
+ input-side of the encoder in that case.
+ The value is an Integer object containing the value 1 to suspend
+ or the value 0 to resume. See also: setParameters(Bundle) Constant Value:
+      
+          "drop-input-frames" PARAMETER_KEY_SUSPEND_TIME Added in API level 29 public static final String PARAMETER_KEY_SUSPEND_TIME When PARAMETER_KEY_SUSPEND is present, the client can also
+ optionally use this key to specify the timestamp (in micro-second)
+ at which the suspend/resume operation takes effect.
+
+ Note that the specified timestamp must be greater than or equal to the
+ timestamp of any previously queued suspend/resume operations.
+
+ The value is a long int, indicating the timestamp to suspend/resume. See also: setParameters(Bundle) Constant Value:
+      
+          "drop-start-time-us" PARAMETER_KEY_TUNNEL_PEEK Added in API level 31 public static final String PARAMETER_KEY_TUNNEL_PEEK Control video peek of the first frame when a codec is configured for tunnel mode with MediaFormat.KEY_AUDIO_SESSION_ID while the AudioTrack is paused. When disabled (1) after a flush() or start() , (2) while the corresponding AudioTrack is paused and (3) before any buffers are queued, the first frame is not to
+ be rendered until either this parameter is enabled or the corresponding AudioTrack has begun playback. Once the frame is decoded and ready to be rendered, OnFirstTunnelFrameReadyListener.onFirstTunnelFrameReady is called but the frame is
+ not rendered. The surface continues to show the previously-rendered content, or black if the
+ surface is new. A subsequent call to AudioTrack.play renders this frame and triggers
+ a callback to OnFrameRenderedListener.onFrameRendered , and video playback begins. Note : To clear any previously rendered content and show black, configure the
+ MediaCodec with KEY_PUSH_BLANK_BUFFERS_ON_STOP(1) , and call stop() before
+ pushing new video frames to the codec. When enabled (1) after a flush() or start() and (2) while the corresponding AudioTrack is paused, the first frame is rendered as soon as it is decoded, or
+ immediately, if it has already been decoded. If not already decoded, when the frame is
+ decoded and ready to be rendered, OnFirstTunnelFrameReadyListener.onFirstTunnelFrameReady is called. The frame is then
+ immediately rendered and OnFrameRenderedListener.onFrameRendered is subsequently
+ called. The value is an Integer object containing the value 1 to enable or the value 0 to disable. The default for this parameter is enabled . Once a frame has been rendered, changing
+ this parameter has no effect until a subsequent flush() or stop() / start() . See also: setParameters(Bundle) Constant Value:
+      
+          "tunnel-peek" PARAMETER_KEY_VIDEO_BITRATE Added in API level 19 public static final String PARAMETER_KEY_VIDEO_BITRATE Change a video encoder's target bitrate on the fly. The value is an
+ Integer object containing the new bitrate in bps. See also: setParameters(Bundle) Constant Value:
+      
+          "video-bitrate" VIDEO_SCALING_MODE_SCALE_TO_FIT Added in API level 16 public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT The content is scaled to the surface dimensions Constant Value:
+      
+          1
+          (0x00000001) VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING Added in API level 16 public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING The content is scaled, maintaining its aspect ratio, the whole
+ surface area is used, content may be cropped. This mode is only suitable for content with 1:1 pixel aspect ratio as you cannot
+ configure the pixel aspect ratio for a Surface . As of Build.VERSION_CODES.N release, this mode may not work if
+ the video is rotated by 90 or 270 degrees. Constant Value:
+      
+          2
+          (0x00000002) Public methods configure Added in API level 16 public void configure ( MediaFormat format, Surface surface, MediaCrypto crypto, 
+                int flags) Configures a component. Parameters format MediaFormat : The format of the input data (decoder) or the desired
+               format of the output data (encoder). Passing null as format is equivalent to passing an an empty mediaformat . surface Surface : Specify a surface on which to render the output of this
+                decoder. Pass null as surface if the
+                codec does not generate raw video output (e.g. not a video
+                decoder) and/or if you want to configure the codec for ByteBuffer output. crypto MediaCrypto : Specify a crypto object to facilitate secure decryption
+                of the media data. Pass null as crypto for
+                non-secure codecs.
+                Please note that MediaCodec does NOT take ownership
+                of the MediaCrypto object; it is the application's
+                responsibility to properly cleanup the MediaCrypto object
+                when not in use. flags int : Specify CONFIGURE_FLAG_ENCODE to configure the
+                component as an encoder.
+ Value is either 0 or a combination of CONFIGURE_FLAG_ENCODE , CONFIGURE_FLAG_USE_BLOCK_MODEL , and CONFIGURE_FLAG_USE_CRYPTO_ASYNC Throws IllegalArgumentException if the surface has been released (or is invalid),
+ or the format is unacceptable (e.g. missing a mandatory key),
+ or the flags are not set properly
+ (e.g. missing CONFIGURE_FLAG_ENCODE for an encoder). IllegalStateException if not in the Uninitialized state. MediaCodec.CryptoException upon DRM error. MediaCodec.CodecException upon codec error. configure Added in API level 26 public void configure ( MediaFormat format, Surface surface, 
+                int flags, MediaDescrambler descrambler) Configure a component to be used with a descrambler. Parameters format MediaFormat : The format of the input data (decoder) or the desired
+               format of the output data (encoder). Passing null as format is equivalent to passing an an empty mediaformat . surface Surface : Specify a surface on which to render the output of this
+                decoder. Pass null as surface if the
+                codec does not generate raw video output (e.g. not a video
+                decoder) and/or if you want to configure the codec for ByteBuffer output. flags int : Specify CONFIGURE_FLAG_ENCODE to configure the
+                component as an encoder.
+ Value is either 0 or a combination of CONFIGURE_FLAG_ENCODE , CONFIGURE_FLAG_USE_BLOCK_MODEL , and CONFIGURE_FLAG_USE_CRYPTO_ASYNC descrambler MediaDescrambler : Specify a descrambler object to facilitate secure
+                descrambling of the media data, or null for non-secure codecs. Throws IllegalArgumentException if the surface has been released (or is invalid),
+ or the format is unacceptable (e.g. missing a mandatory key),
+ or the flags are not set properly
+ (e.g. missing CONFIGURE_FLAG_ENCODE for an encoder). IllegalStateException if not in the Uninitialized state. MediaCodec.CryptoException upon DRM error. MediaCodec.CodecException upon codec error. createByCodecName Added in API level 16 public static MediaCodec createByCodecName ( String name) If you know the exact name of the component you want to instantiate
+ use this method to instantiate it. Use with caution.
+ Likely to be used with information obtained from MediaCodecList Parameters name String : The name of the codec to be instantiated.
+ This value cannot be null . Returns MediaCodec This value cannot be null . Throws IOException if the codec cannot be created. IllegalArgumentException if name is not valid. NullPointerException if name is null. createDecoderByType Added in API level 16 public static MediaCodec createDecoderByType ( String type) Instantiate the preferred decoder supporting input data of the given mime type.
+
+ The following is a partial list of defined mime types and their semantics: "video/x-vnd.on2.vp8" - VP8 video (i.e. video in .webm) "video/x-vnd.on2.vp9" - VP9 video (i.e. video in .webm) "video/avc" - H.264/AVC video "video/hevc" - H.265/HEVC video "video/mp4v-es" - MPEG4 video "video/3gpp" - H.263 video "audio/3gpp" - AMR narrowband audio "audio/amr-wb" - AMR wideband audio "audio/mpeg" - MPEG1/2 audio layer III "audio/mp4a-latm" - AAC audio (note, this is raw AAC packets, not packaged in LATM!) "audio/vorbis" - vorbis audio "audio/g711-alaw" - G.711 alaw audio "audio/g711-mlaw" - G.711 ulaw audio Note: It is preferred to use MediaCodecList.findDecoderForFormat and createByCodecName(String) to ensure that the resulting codec can handle a
+ given format. Parameters type String : The mime type of the input data.
+ This value cannot be null . Returns MediaCodec This value cannot be null . Throws IOException if the codec cannot be created. IllegalArgumentException if type is not a valid mime type. NullPointerException if type is null. createEncoderByType Added in API level 16 public static MediaCodec createEncoderByType ( String type) Instantiate the preferred encoder supporting output data of the given mime type. Note: It is preferred to use MediaCodecList.findEncoderForFormat and createByCodecName(String) to ensure that the resulting codec can handle a
+ given format. Parameters type String : The desired mime type of the output data.
+ This value cannot be null . Returns MediaCodec This value cannot be null . Throws IOException if the codec cannot be created. IllegalArgumentException if type is not a valid mime type. NullPointerException if type is null. createInputSurface Added in API level 18 public Surface createInputSurface () Requests a Surface to use as the input to an encoder, in place of input buffers.  This
+ may only be called after configure(MediaFormat, Surface, MediaCrypto, int) and before start() . The application is responsible for calling release() on the Surface when
+ done. The Surface must be rendered with a hardware-accelerated API, such as OpenGL ES. Surface.lockCanvas(android.graphics.Rect) may fail or produce
+ unexpected results. Returns Surface This value cannot be null . Throws IllegalStateException if not in the Configured state. createPersistentInputSurface Added in API level 23 public static Surface createPersistentInputSurface () Create a persistent input surface that can be used with codecs that normally have an input
+ surface, such as video encoders. A persistent input can be reused by subsequent MediaCodec or MediaRecorder instances, but can only be used by at
+ most one codec or recorder instance concurrently. The application is responsible for calling release() on the Surface when done. Returns Surface an input surface that can be used with setInputSurface(Surface) .
+
+ This value cannot be null . dequeueInputBuffer Added in API level 16 public int dequeueInputBuffer (long timeoutUs) Returns the index of an input buffer to be filled with valid data
+ or -1 if no such buffer is currently available.
+ This method will return immediately if timeoutUs == 0, wait indefinitely
+ for the availability of an input buffer if timeoutUs < 0 or wait up
+ to "timeoutUs" microseconds if timeoutUs > 0. Parameters timeoutUs long : The timeout in microseconds, a negative timeout indicates "infinite". Returns int Throws IllegalStateException if not in the Executing state,
+         or codec is configured in asynchronous mode. MediaCodec.CodecException upon codec error. dequeueOutputBuffer Added in API level 16 public int dequeueOutputBuffer ( MediaCodec.BufferInfo info, 
+                long timeoutUs) Dequeue an output buffer, block at most "timeoutUs" microseconds.
+ Returns the index of an output buffer that has been successfully
+ decoded or one of the INFO_* constants. Parameters info MediaCodec.BufferInfo : Will be filled with buffer meta data.
+ This value cannot be null . timeoutUs long : The timeout in microseconds, a negative timeout indicates "infinite". Returns int Value is INFO_TRY_AGAIN_LATER , INFO_OUTPUT_FORMAT_CHANGED , or INFO_OUTPUT_BUFFERS_CHANGED Throws IllegalStateException if not in the Executing state,
+         or codec is configured in asynchronous mode. MediaCodec.CodecException upon codec error. detachOutputSurface Added in API level 35 public void detachOutputSurface () Detach the current output surface of a codec. Detaches the currently associated output Surface from the
+  MediaCodec decoder. This allows the SurfaceView or other
+  component holding the Surface to be safely destroyed or
+  modified without affecting the decoder's operation. After
+  calling this method (and after it returns), the decoder will
+  enter detached-Surface mode and will no longer render
+  output. Throws IllegalStateException if the codec was not
+            configured in surface mode or if the codec does not support
+            detaching the output surface. See also: ERROR(/CONFIGURE_FLAG_DETACHED_SURFACE) flush Added in API level 16 public void flush () Flush both input and output ports of the component. Upon return, all indices previously returned in calls to dequeueInputBuffer and dequeueOutputBuffer — or obtained
+ via onInputBufferAvailable or onOutputBufferAvailable callbacks — become
+ invalid, and all buffers are owned by the codec. If the codec is configured in asynchronous mode, call start() after flush has returned to resume codec operations. The codec
+ will not request input buffers until this has happened. Note, however, that there may still be outstanding onOutputBufferAvailable callbacks that were not handled prior to calling flush .
+ The indices returned via these callbacks also become invalid upon calling flush and
+ should be discarded. If the codec is configured in synchronous mode, codec will resume
+ automatically if it is configured with an input surface.  Otherwise, it
+ will resume when dequeueInputBuffer is called. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. getCanonicalName Added in API level 29 public String getCanonicalName () Retrieve the underlying codec name.
+
+ This method is similar to getName() , except that it returns the underlying component
+ name even if an alias was used to create this MediaCodec object by name, Returns String This value cannot be null . Throws IllegalStateException if in the Released state. getCodecInfo Added in API level 18 public MediaCodecInfo getCodecInfo () Get the codec info. If the codec was created by createDecoderByType
+ or createEncoderByType, what component is chosen is not known beforehand,
+ and thus the caller does not have the MediaCodecInfo. Returns MediaCodecInfo This value cannot be null . Throws IllegalStateException if in the Released state. getInputBuffer Added in API level 21 public ByteBuffer getInputBuffer (int index) Returns a cleared , writable ByteBuffer
+ object for a dequeued input buffer index to contain the input data.
+
+ After calling this method any ByteBuffer or Image object
+ previously returned for the same input index MUST no longer
+ be used. Parameters index int : The index of a client-owned input buffer previously
+              returned from a call to dequeueInputBuffer(long) ,
+              or received via an onInputBufferAvailable callback. Returns ByteBuffer the input buffer, or null if the index is not a dequeued
+ input buffer, or if the codec is configured for surface input. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. getInputBuffers Added in API level 16 Deprecated in API level
+      21 public ByteBuffer[] getInputBuffers () This method was deprecated
+      in API level 21. Use the new getInputBuffer(int) method instead
+ each time an input buffer is dequeued. Note: As of API 21, dequeued input buffers are
+ automatically cleared . Do not use this method if using an input surface. Retrieve the set of input buffers.  Call this after start()
+ returns. After calling this method, any ByteBuffers
+ previously returned by an earlier call to this method MUST no
+ longer be used. Returns ByteBuffer[] This value cannot be null . Throws IllegalStateException if not in the Executing state,
+         or codec is configured in asynchronous mode. MediaCodec.CodecException upon codec error. getInputFormat Added in API level 21 public MediaFormat getInputFormat () Call this after configure(MediaFormat, Surface, MediaCrypto, int) returns successfully to
+ get the input format accepted by the codec. Do this to
+ determine what optional configuration parameters were
+ supported by the codec. Returns MediaFormat This value cannot be null . Throws IllegalStateException if not in the Executing or
+                               Configured state. MediaCodec.CodecException upon codec error. getInputImage Added in API level 21 public Image getInputImage (int index) Returns a writable Image object for a dequeued input buffer
+ index to contain the raw input video frame.
+
+ After calling this method any ByteBuffer or Image object
+ previously returned for the same input index MUST no longer
+ be used. Parameters index int : The index of a client-owned input buffer previously
+              returned from a call to dequeueInputBuffer(long) ,
+              or received via an onInputBufferAvailable callback. Returns Image the input image, or null if the index is not a
+ dequeued input buffer, or not a ByteBuffer that contains a
+ raw image. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. getMetrics Added in API level 26 public PersistableBundle getMetrics () Return Metrics data about the current codec instance. Call this method after configuration, during execution, or after
+ the codec has been already stopped. Beginning with ERROR(/android.os.Build.VERSION_CODES#B) this method can be used to get the Metrics data prior to an error.
+ (e.g. in Callback.onError or after a method throws MediaCodec.CodecException .) Before that, the Metrics data was
+ cleared on error, resulting in a null return value. Returns PersistableBundle a PersistableBundle containing the set of attributes and values
+ available for the media being handled by this instance of MediaCodec
+ The attributes are descibed in MetricsConstants .
+
+ Additional vendor-specific fields may also be present in
+ the return value. Returns null if there is no Metrics data. getName Added in API level 18 public String getName () Retrieve the codec name.
+
+ If the codec was created by createDecoderByType or createEncoderByType, what component is
+ chosen is not known beforehand. This method returns the name of the codec that was
+ selected by the platform. Note: Implementations may provide multiple aliases (codec
+ names) for the same underlying codec, any of which can be used to instantiate the same
+ underlying codec in MediaCodec.createByCodecName . This method returns the
+ name used to create the codec in this case. Returns String This value cannot be null . Throws IllegalStateException if in the Released state. getOutputBuffer Added in API level 21 public ByteBuffer getOutputBuffer (int index) Returns a read-only ByteBuffer for a dequeued output buffer
+ index. The position and limit of the returned buffer are set
+ to the valid output data.
+
+ After calling this method, any ByteBuffer or Image object
+ previously returned for the same output index MUST no longer
+ be used. Parameters index int : The index of a client-owned output buffer previously
+              returned from a call to dequeueOutputBuffer(BufferInfo, long) ,
+              or received via an onOutputBufferAvailable callback. Returns ByteBuffer the output buffer, or null if the index is not a dequeued
+ output buffer, or the codec is configured with an output surface. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. getOutputBuffers Added in API level 16 Deprecated in API level
+      21 public ByteBuffer[] getOutputBuffers () This method was deprecated
+      in API level 21. Use the new getOutputBuffer(int) method instead
+ each time an output buffer is dequeued.  This method is not
+ supported if codec is configured in asynchronous mode. Note: As of API 21, the position and limit of output
+ buffers that are dequeued will be set to the valid data
+ range. Do not use this method if using an output surface. Retrieve the set of output buffers.  Call this after start()
+ returns and whenever dequeueOutputBuffer signals an output
+ buffer change by returning INFO_OUTPUT_BUFFERS_CHANGED . After calling this method, any
+ ByteBuffers previously returned by an earlier call to this
+ method MUST no longer be used. Returns ByteBuffer[] This value cannot be null . Throws IllegalStateException if not in the Executing state,
+         or codec is configured in asynchronous mode. MediaCodec.CodecException upon codec error. getOutputFormat Added in API level 21 public MediaFormat getOutputFormat (int index) Returns the output format for a specific output buffer. Parameters index int : The index of a client-owned input buffer previously
+              returned from a call to dequeueInputBuffer(long) . Returns MediaFormat the format for the output buffer, or null if the index
+ is not a dequeued output buffer. getOutputFormat Added in API level 16 public MediaFormat getOutputFormat () Call this after dequeueOutputBuffer signals a format change by returning INFO_OUTPUT_FORMAT_CHANGED .
+ You can also call this after configure(MediaFormat, Surface, MediaCrypto, int) returns
+ successfully to get the output format initially configured
+ for the codec.  Do this to determine what optional
+ configuration parameters were supported by the codec. Returns MediaFormat This value cannot be null . Throws IllegalStateException if not in the Executing or
+                               Configured state. MediaCodec.CodecException upon codec error. getOutputFrame Added in API level 30 public MediaCodec.OutputFrame getOutputFrame (int index) Returns an OutputFrame object. Parameters index int : output buffer index from Callback.onOutputBufferAvailable Returns MediaCodec.OutputFrame OutputFrame object describing the output buffer
+ This value cannot be null . Throws IllegalStateException if not using block model IllegalArgumentException if the output buffer is not available or
+                                  the index is out of range getOutputImage Added in API level 21 public Image getOutputImage (int index) Returns a read-only Image object for a dequeued output buffer
+ index that contains the raw video frame.
+
+ After calling this method, any ByteBuffer or Image object previously
+ returned for the same output index MUST no longer be used. Parameters index int : The index of a client-owned output buffer previously
+              returned from a call to dequeueOutputBuffer(BufferInfo, long) ,
+              or received via an onOutputBufferAvailable callback. Returns Image the output image, or null if the index is not a
+ dequeued output buffer, not a raw video frame, or if the codec
+ was configured with an output surface. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. getParameterDescriptor Added in API level 31 public MediaCodec.ParameterDescriptor getParameterDescriptor ( String name) Describe a parameter with the name. This method can be called in any codec state except for released state. Parameters name String : name of the parameter to describe, typically one from getSupportedVendorParameters() .
+ This value cannot be null . Returns MediaCodec.ParameterDescriptor ParameterDescriptor object that describes the parameter. null if unrecognized / not able to describe. Throws IllegalStateException if in the Released state. getQueueRequest Added in API level 30 public MediaCodec.QueueRequest getQueueRequest (int index) Return a QueueRequest object for an input slot index. Parameters index int : input slot index from Callback.onInputBufferAvailable Returns MediaCodec.QueueRequest queue request object
+ This value cannot be null . Throws IllegalStateException if not using block model IllegalArgumentException if the input slot is not available or
+                                  the index is out of range getSupportedVendorParameters Added in API level 31 public List < String > getSupportedVendorParameters () Returns a list of vendor parameter names. This method can be called in any codec state except for released state. Returns List < String > a list containing supported vendor parameters; an empty
+         list if no vendor parameters are supported. The order of the
+         parameters is arbitrary.
+ This value cannot be null . Throws IllegalStateException if in the Released state. mapHardwareBuffer Added in API level 30 public static Image mapHardwareBuffer ( HardwareBuffer hardwareBuffer) Map a HardwareBuffer object into Image , so that the content of the buffer is
+ accessible. Depending on the usage and pixel format of the hardware buffer, it may not be
+ mappable; this method returns null in that case. Parameters hardwareBuffer HardwareBuffer : HardwareBuffer to map.
+ This value cannot be null . Returns Image Mapped Image object, or null if the buffer is not mappable. queueInputBuffer Added in API level 16 public void queueInputBuffer (int index, 
+                int offset, 
+                int size, 
+                long presentationTimeUs, 
+                int flags) After filling a range of the input buffer at the specified index
+ submit it to the component. Once an input buffer is queued to
+ the codec, it MUST NOT be used until it is later retrieved by getInputBuffer(int) in response to a dequeueInputBuffer(long) return value or a Callback.onInputBufferAvailable callback. Many decoders require the actual compressed data stream to be
+ preceded by "codec specific data", i.e. setup data used to initialize
+ the codec such as PPS/SPS in the case of AVC video or code tables
+ in the case of vorbis audio.
+ The class MediaExtractor provides codec
+ specific data as part of
+ the returned track format in entries named "csd-0", "csd-1" ... These buffers can be submitted directly after start() or flush() by specifying the flag BUFFER_FLAG_CODEC_CONFIG .  However, if you configure the
+ codec with a MediaFormat containing these keys, they
+ will be automatically submitted by MediaCodec directly after
+ start.  Therefore, the use of BUFFER_FLAG_CODEC_CONFIG flag is discouraged and is
+ recommended only for advanced users. To indicate that this is the final piece of input data (or rather that
+ no more input data follows unless the decoder is subsequently flushed)
+ specify the flag BUFFER_FLAG_END_OF_STREAM . Note: Prior to Build.VERSION_CODES.M , presentationTimeUs was not propagated to the frame timestamp of (rendered)
+ Surface output buffers, and the resulting frame timestamp was undefined.
+ Use releaseOutputBuffer(int, long) to ensure a specific frame timestamp is set.
+ Similarly, since frame timestamps can be used by the destination surface for rendering
+ synchronization, care must be taken to normalize presentationTimeUs so as to not be
+ mistaken for a system time. (See SurfaceView specifics ). Parameters index int : The index of a client-owned input buffer previously returned
+              in a call to dequeueInputBuffer(long) . offset int : The byte offset into the input buffer at which the data starts. size int : The number of bytes of valid input data. presentationTimeUs long : The presentation timestamp in microseconds for this
+                           buffer. This is normally the media time at which this
+                           buffer should be presented (rendered). When using an output
+                           surface, this will be propagated as the timestamp for the frame (after
+                           conversion to nanoseconds). flags int : A bitmask of flags BUFFER_FLAG_CODEC_CONFIG and BUFFER_FLAG_END_OF_STREAM .
+              While not prohibited, most codecs do not use the BUFFER_FLAG_KEY_FRAME flag for input buffers. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. MediaCodec.CryptoException if a crypto object has been specified in configure(MediaFormat, Surface, MediaCrypto, int) queueInputBuffers Added in API level 35 public void queueInputBuffers (int index, ArrayDeque < MediaCodec.BufferInfo > bufferInfos) Submit multiple access units to the codec along with multiple MediaCodec.BufferInfo describing the contents of the buffer. This method
+ is supported only in asynchronous mode. While this method can be used for all codecs,
+ it is meant for buffer batching, which is only supported by codecs that advertise
+ FEATURE_MultipleFrames. Other codecs will not output large output buffers via
+ onOutputBuffersAvailable, and instead will output single-access-unit output via
+ onOutputBufferAvailable. Output buffer size can be configured using the following MediaFormat keys. MediaFormat.KEY_BUFFER_BATCH_MAX_OUTPUT_SIZE and MediaFormat.KEY_BUFFER_BATCH_THRESHOLD_OUTPUT_SIZE .
+ Details for each access unit present in the buffer should be described using MediaCodec.BufferInfo . Access units must be laid out contiguously (without any gaps)
+ and in order. Multiple access units in the output if present, will be available in Callback.onOutputBuffersAvailable or Callback.onOutputBufferAvailable in case of single-access-unit output or when output does not contain any buffers,
+ such as flags. All other details for populating MediaCodec.BufferInfo is the same as described in queueInputBuffer(int, int, int, long, int) . Parameters index int : The index of a client-owned input buffer previously returned
+              in a call to dequeueInputBuffer(long) . bufferInfos ArrayDeque : ArrayDeque of MediaCodec.BufferInfo that describes the
+                    contents in the buffer. The ArrayDeque and the BufferInfo objects provided
+                    can be recycled by the caller for re-use.
+ This value cannot be null . Throws IllegalStateException if not in the Executing state or not in asynchronous mode. MediaCodec.CodecException upon codec error. IllegalArgumentException upon if bufferInfos is empty, contains null, or if the
+                    access units are not contiguous. MediaCodec.CryptoException if a crypto object has been specified in configure(MediaFormat, Surface, MediaCrypto, int) queueSecureInputBuffer Added in API level 16 public void queueSecureInputBuffer (int index, 
+                int offset, MediaCodec.CryptoInfo info, 
+                long presentationTimeUs, 
+                int flags) Similar to queueInputBuffer but submits a buffer that is
+ potentially encrypted. Check out further notes at queueInputBuffer . Parameters index int : The index of a client-owned input buffer previously returned
+              in a call to dequeueInputBuffer(long) . offset int : The byte offset into the input buffer at which the data starts. info MediaCodec.CryptoInfo : Metadata required to facilitate decryption, the object can be
+             reused immediately after this call returns.
+ This value cannot be null . presentationTimeUs long : The presentation timestamp in microseconds for this
+                           buffer. This is normally the media time at which this
+                           buffer should be presented (rendered). flags int : A bitmask of flags BUFFER_FLAG_CODEC_CONFIG and BUFFER_FLAG_END_OF_STREAM .
+              While not prohibited, most codecs do not use the BUFFER_FLAG_KEY_FRAME flag for input buffers. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. MediaCodec.CryptoException if an error occurs while attempting to decrypt the buffer.
+              An error code associated with the exception helps identify the
+              reason for the failure. queueSecureInputBuffers Added in API level 35 public void queueSecureInputBuffers (int index, ArrayDeque < MediaCodec.BufferInfo > bufferInfos, ArrayDeque < MediaCodec.CryptoInfo > cryptoInfos) Similar to queueInputBuffers but submits multiple access units
+ in a buffer that is potentially encrypted. Check out further notes at queueInputBuffers . Parameters index int : The index of a client-owned input buffer previously returned
+              in a call to dequeueInputBuffer(long) . bufferInfos ArrayDeque : ArrayDeque of MediaCodec.BufferInfo that describes the
+                    contents in the buffer. The ArrayDeque and the BufferInfo objects provided
+                    can be recycled by the caller for re-use.
+ This value cannot be null . cryptoInfos ArrayDeque : ArrayDeque of MediaCodec.CryptoInfo objects to facilitate the
+                    decryption of the contents. The ArrayDeque and the CryptoInfo objects
+                    provided can be reused immediately after the call returns. These objects
+                    should correspond to bufferInfo objects to ensure correct decryption.
+ This value cannot be null . Throws IllegalStateException if not in the Executing state or not in asynchronous mode. MediaCodec.CodecException upon codec error. IllegalArgumentException upon if bufferInfos is empty, contains null, or if the
+                    access units are not contiguous. MediaCodec.CryptoException if an error occurs while attempting to decrypt the buffer.
+              An error code associated with the exception helps identify the
+              reason for the failure. release Added in API level 16 public void release () Free up resources used by the codec instance.
+
+ Make sure you call this when you're done to free up any opened
+ component instance instead of relying on the garbage collector
+ to do this for you at some point in the future. releaseOutputBuffer Added in API level 16 public void releaseOutputBuffer (int index, 
+                boolean render) If you are done with a buffer, use this call to return the buffer to the codec
+ or to render it on the output surface. If you configured the codec with an
+ output surface, setting render to true will first send the buffer
+ to that output surface. The surface will release the buffer back to the codec once
+ it is no longer used/displayed.
+
+ Once an output buffer is released to the codec, it MUST NOT
+ be used until it is later retrieved by getOutputBuffer(int) in response
+ to a dequeueOutputBuffer(BufferInfo, long) return value or a Callback.onOutputBufferAvailable callback. Parameters index int : The index of a client-owned output buffer previously returned
+              from a call to dequeueOutputBuffer(BufferInfo, long) . render boolean : If a valid surface was specified when configuring the codec,
+               passing true renders this output buffer to the surface. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. releaseOutputBuffer Added in API level 21 public void releaseOutputBuffer (int index, 
+                long renderTimestampNs) If you are done with a buffer, use this call to update its surface timestamp
+ and return it to the codec to render it on the output surface. If you
+ have not specified an output surface when configuring this video codec,
+ this call will simply return the buffer to the codec. The timestamp may have special meaning depending on the destination surface. SurfaceView specifics If you render your buffer on a SurfaceView ,
+ you can use the timestamp to render the buffer at a specific time (at the
+ VSYNC at or after the buffer timestamp).  For this to work, the timestamp
+ needs to be reasonably close to the current System.nanoTime .
+ Currently, this is set as within one (1) second. A few notes: the buffer will not be returned to the codec until the timestamp
+ has passed and the buffer is no longer used by the Surface . buffers are processed sequentially, so you may block subsequent buffers to
+ be displayed on the Surface .  This is important if you
+ want to react to user action, e.g. stop the video or seek. if multiple buffers are sent to the Surface to be
+ rendered at the same VSYNC, the last one will be shown, and the other ones
+ will be dropped. if the timestamp is not "reasonably close" to the current system
+ time, the Surface will ignore the timestamp, and
+ display the buffer at the earliest feasible time.  In this mode it will not
+ drop frames. for best performance and quality, call this method when you are about
+ two VSYNCs' time before the desired render time.  For 60Hz displays, this is
+ about 33 msec. Once an output buffer is released to the codec, it MUST NOT
+ be used until it is later retrieved by getOutputBuffer(int) in response
+ to a dequeueOutputBuffer(BufferInfo, long) return value or a Callback.onOutputBufferAvailable callback. Parameters index int : The index of a client-owned output buffer previously returned
+              from a call to dequeueOutputBuffer(BufferInfo, long) . renderTimestampNs long : The timestamp to associate with this buffer when
+              it is sent to the Surface. Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. reset Added in API level 21 public void reset () Returns the codec to its initial (Uninitialized) state.
+
+ Call this if an unrecoverable error has occured to reset the codec to its initial state after creation. Throws MediaCodec.CodecException if an unrecoverable error has occured and the codec
+ could not be reset. IllegalStateException if in the Released state. setAudioPresentation Added in API level 29 public void setAudioPresentation ( AudioPresentation presentation) Sets the audio presentation. Parameters presentation AudioPresentation : see AudioPresentation . In particular, id should be set.
+
+ This value cannot be null . setCallback Added in API level 23 public void setCallback ( MediaCodec.Callback cb, Handler handler) Sets an asynchronous callback for actionable MediaCodec events.
+
+ If the client intends to use the component in asynchronous mode,
+ a valid callback should be provided before configure(MediaFormat, Surface, MediaCrypto, int) is called.
+
+ When asynchronous callback is enabled, the client should not call getInputBuffers() , getOutputBuffers() , dequeueInputBuffer(long) or dequeueOutputBuffer(android.media.MediaCodec.BufferInfo, long) . Also, flush() behaves differently in asynchronous mode.  After calling flush , you must call start() to "resume" receiving input buffers,
+ even if an input surface was created. Parameters cb MediaCodec.Callback : The callback that will run.  Use null to clear a previously
+           set callback (before configure is called and run
+           in synchronous mode). handler Handler : Callbacks will happen on the handler's thread. If null ,
+           callbacks are done on the default thread (the caller's thread or the
+           main thread.) setCallback Added in API level 21 public void setCallback ( MediaCodec.Callback cb) Sets an asynchronous callback for actionable MediaCodec events on the default
+ looper. Same as setCallback(android.media.MediaCodec.Callback, android.os.Handler) with handler set to null. Parameters cb MediaCodec.Callback : The callback that will run.  Use null to clear a previously
+           set callback (before configure is called and run
+           in synchronous mode). See also: setCallback(Callback, Handler) setInputSurface Added in API level 23 public void setInputSurface ( Surface surface) Configures the codec (e.g. encoder) to use a persistent input surface in place of input
+ buffers.  This may only be called after configure(MediaFormat, Surface, MediaCrypto, int) and before start() , in
+ lieu of createInputSurface() . Parameters surface Surface : a persistent input surface created by createPersistentInputSurface() This value cannot be null . Throws IllegalStateException if not in the Configured state or does not require an input
+           surface. IllegalArgumentException if the surface was not created by createPersistentInputSurface() . setOnFirstTunnelFrameReadyListener Added in API level 31 public void setOnFirstTunnelFrameReadyListener ( Handler handler, MediaCodec.OnFirstTunnelFrameReadyListener listener) Registers a callback to be invoked when the first output frame has been decoded
+ and is ready to be rendered on a codec configured for tunnel mode with KEY_AUDIO_SESSION_ID . Parameters handler Handler : the callback will be run on the handler's thread. If null , the callback will be run on the default thread, which is the looper from
+ which the codec was created, or a new thread if there was none. listener MediaCodec.OnFirstTunnelFrameReadyListener : the callback that will be run. If null , clears any registered
+ listener. setOnFrameRenderedListener Added in API level 23 public void setOnFrameRenderedListener ( MediaCodec.OnFrameRenderedListener listener, Handler handler) Registers a callback to be invoked when an output frame is rendered on the output surface. This method can be called in any codec state, but will only have an effect in the
+ Executing state for codecs that render buffers to the output surface. Note: This callback is for informational purposes only: to get precise
+ render timing samples, and can be significantly delayed and batched. Some frames may have
+ been rendered even if there was no callback generated. Parameters listener MediaCodec.OnFrameRenderedListener : the callback that will be run
+ This value may be null . handler Handler : the callback will be run on the handler's thread. If null ,
+           the callback will be run on the default thread, which is the looper
+           from which the codec was created, or a new thread if there was none. setOutputSurface Added in API level 23 public void setOutputSurface ( Surface surface) Dynamically sets the output surface of a codec. This can only be used if the codec was configured with an output surface.  The
+  new output surface should have a compatible usage type to the original output surface.
+  E.g. codecs may not support switching from a SurfaceTexture (GPU readable) output
+  to ImageReader (software readable) output. Parameters surface Surface : the output surface to use. It must not be null . Throws IllegalStateException if the codec does not support setting the output
+            surface in the current state. IllegalArgumentException if the new surface is not of a suitable type for the codec. setParameters Added in API level 19 public void setParameters ( Bundle params) Parameters params Bundle : This value may be null . setVideoScalingMode Added in API level 16 public void setVideoScalingMode (int mode) If a surface has been specified in a previous call to configure(MediaFormat, Surface, MediaCrypto, int) specifies the scaling mode to use. The default is "scale to fit". The scaling mode may be reset to the default each time an INFO_OUTPUT_BUFFERS_CHANGED event is received from the codec; therefore, the client
+ must call this method after every buffer change event (and before the first output buffer is
+ released for rendering) to ensure consistent scaling mode. Since the INFO_OUTPUT_BUFFERS_CHANGED event is deprecated, this can also be done
+ after each INFO_OUTPUT_FORMAT_CHANGED event. Parameters mode int : Value is VIDEO_SCALING_MODE_SCALE_TO_FIT , or VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING Throws IllegalArgumentException if mode is not recognized. IllegalStateException if in the Released state. signalEndOfInputStream Added in API level 18 public void signalEndOfInputStream () Signals end-of-stream on input.  Equivalent to submitting an empty buffer with BUFFER_FLAG_END_OF_STREAM set.  This may only be used with
+ encoders receiving input from a Surface created by createInputSurface() . Throws IllegalStateException if not in the Executing state. MediaCodec.CodecException upon codec error. start Added in API level 16 public void start () After successfully configuring the component, call start . Call start also if the codec is configured in asynchronous mode,
+ and it has just been flushed, to resume requesting input buffers. Throws IllegalStateException if not in the Configured state
+         or just after flush() for a codec that is configured
+         in asynchronous mode. MediaCodec.CodecException upon codec error. Note that some codec errors
+ for start may be attributed to future method calls. stop Added in API level 16 public void stop () Finish the decode/encode session, note that the codec instance
+ remains active and ready to be start() ed again.
+ To ensure that it is available to other client call release() and don't just rely on garbage collection to eventually do this for you. Throws IllegalStateException if in the Released state. subscribeToVendorParameters Added in API level 31 public void subscribeToVendorParameters ( List < String > names) Subscribe to vendor parameters, so that these parameters will be present in getOutputFormat() and changes to these parameters generate
+ output format change event. Unrecognized parameter names or standard (non-vendor) parameter names will be ignored. reset() also resets the list of subscribed parameters.
+ If a parameter in names is already subscribed, it will remain subscribed. This method can be called in any codec state except for released state. When called in
+ running state with newly subscribed parameters, it takes effect no later than the
+ processing of the subsequently queued buffer. For the new parameters, the codec will generate
+ output format change event. Note that any vendor parameters set in a configure(MediaFormat, Surface, MediaCrypto, int) or setParameters(Bundle) call are automatically subscribed. See also INFO_OUTPUT_FORMAT_CHANGED or Callback.onOutputFormatChanged for output format change events. Parameters names List : names of the vendor parameters to subscribe. This may be an empty list,
+              and in that case this method will not change the list of subscribed parameters.
+ This value cannot be null . Throws IllegalStateException if in the Released state. unsubscribeFromVendorParameters Added in API level 31 public void unsubscribeFromVendorParameters ( List < String > names) Unsubscribe from vendor parameters, so that these parameters will not be present in getOutputFormat() and changes to these parameters no longer generate
+ output format change event. Unrecognized parameter names, standard (non-vendor) parameter names will be ignored. reset() also resets the list of subscribed parameters.
+ If a parameter in names is already unsubscribed, it will remain unsubscribed. This method can be called in any codec state except for released state. When called in
+ running state with newly unsubscribed parameters, it takes effect no later than the
+ processing of the subsequently queued buffer. For the removed parameters, the codec will
+ generate output format change event. Note that any vendor parameters set in a configure(MediaFormat, Surface, MediaCrypto, int) or setParameters(Bundle) call are automatically subscribed, and with this method
+ they can be unsubscribed. See also INFO_OUTPUT_FORMAT_CHANGED or Callback.onOutputFormatChanged for output format change events. Parameters names List : names of the vendor parameters to unsubscribe. This may be an empty list,
+              and in that case this method will not change the list of subscribed parameters.
+ This value cannot be null . Throws IllegalStateException if in the Released state. Protected methods finalize Added in API level 16 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored.</body></html>

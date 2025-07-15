@@ -1,0 +1,271 @@
+<html><head><title>Class Documentation</title></head><body>ImageDecoder Kotlin | Java public
+  
+  final
+  
+  class
+  ImageDecoder extends Object implements AutoCloseable java.lang.Object ↳ android.graphics.ImageDecoder A class for converting encoded images (like PNG , JPEG , WEBP , GIF , or HEIF ) into Drawable or Bitmap objects. To use it, first create a Source using one of the createSource overloads. For example, to decode from a Uri , call createSource(android.content.ContentResolver, android.net.Uri) and pass the result to decodeDrawable(android.graphics.ImageDecoder.Source) or decodeBitmap(android.graphics.ImageDecoder.Source) : File file = new File(...);
+  ImageDecoder.Source source = ImageDecoder.createSource(file);
+  Drawable drawable = ImageDecoder.decodeDrawable(source); To change the default settings, pass the Source and an OnHeaderDecodedListener to decodeDrawable(android.graphics.ImageDecoder.Source, android.graphics.ImageDecoder.OnHeaderDecodedListener) or decodeBitmap(android.graphics.ImageDecoder.Source, android.graphics.ImageDecoder.OnHeaderDecodedListener) . For example, to
+  create a sampled image with half the width and height of the original image,
+  call setTargetSampleSize(2) inside onHeaderDecoded : OnHeaderDecodedListener listener = new OnHeaderDecodedListener() {
+      public void onHeaderDecoded(ImageDecoder decoder, ImageInfo info, Source source) {
+          decoder.setTargetSampleSize(2);
+      }
+  };
+  Drawable drawable = ImageDecoder.decodeDrawable(source, listener); The ImageInfo contains information about the encoded image, like
+  its width and height, and the Source can be used to match to a particular Source if a single OnHeaderDecodedListener is used with multiple Source objects. The OnHeaderDecodedListener can also be implemented
+  as a lambda: Drawable drawable = ImageDecoder.decodeDrawable(source, (decoder, info, src) -> {
+      decoder.setTargetSampleSize(2);
+  }); If the encoded image is an animated GIF or WEBP , decodeDrawable will return an AnimatedImageDrawable . To
+  start its animation, call AnimatedImageDrawable.start() : Drawable drawable = ImageDecoder.decodeDrawable(source);
+  if (drawable instanceof AnimatedImageDrawable) {
+      ((AnimatedImageDrawable) drawable).start();
+  } By default, a Bitmap created by ImageDecoder (including
+  one that is inside a Drawable ) will be immutable (i.e. Bitmap.isMutable() returns false ), and it
+  will typically have Config Bitmap.Config.HARDWARE . Although
+  these properties can be changed with setMutableRequired(true) (which is only compatible with decodeBitmap(android.graphics.ImageDecoder.Source) and decodeBitmap(android.graphics.ImageDecoder.Source, android.graphics.ImageDecoder.OnHeaderDecodedListener) ) and setAllocator(int) ,
+  it is also possible to apply custom effects regardless of the mutability of
+  the final returned object by passing a PostProcessor to setPostProcessor . A PostProcessor can also be a lambda: Drawable drawable = ImageDecoder.decodeDrawable(source, (decoder, info, src) -> {
+      decoder.setPostProcessor((canvas) -> {
+              // This will create rounded corners.
+              Path path = new Path();
+              path.setFillType(Path.FillType.INVERSE_EVEN_ODD);
+              int width = canvas.getWidth();
+              int height = canvas.getHeight();
+              path.addRoundRect(0, 0, width, height, 20, 20, Path.Direction.CW);
+              Paint paint = new Paint();
+              paint.setAntiAlias(true);
+              paint.setColor(Color.TRANSPARENT);
+              paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC));
+              canvas.drawPath(path, paint);
+              return PixelFormat.TRANSLUCENT;
+      });
+  }); If the encoded image is incomplete or contains an error, or if an Exception occurs during decoding, a DecodeException will be thrown. In some cases, the ImageDecoder may have decoded part of
+  the image. In order to display the partial image, an OnPartialImageListener must be passed to setOnPartialImageListener . For example: Drawable drawable = ImageDecoder.decodeDrawable(source, (decoder, info, src) -> {
+      decoder.setOnPartialImageListener((DecodeException e) -> {
+              // Returning true indicates to create a Drawable or Bitmap even
+              // if the whole image could not be decoded. Any remaining lines
+              // will be blank.
+              return true;
+      });
+  }); Summary Nested classes class ImageDecoder.DecodeException Information about an interrupted decode. class ImageDecoder.ImageInfo Information about an encoded image. interface ImageDecoder.OnHeaderDecodedListener Interface for changing the default settings of a decode. interface ImageDecoder.OnPartialImageListener Interface for inspecting a DecodeException and potentially preventing it from being thrown. class ImageDecoder.Source Source of encoded image data. Constants int ALLOCATOR_DEFAULT Use the default allocation for the pixel memory. int ALLOCATOR_HARDWARE Require a Bitmap.Config.HARDWARE Bitmap . int ALLOCATOR_SHARED_MEMORY Use shared memory for the pixel memory. int ALLOCATOR_SOFTWARE Use a software allocation for the pixel memory. int MEMORY_POLICY_DEFAULT Use the most natural Bitmap.Config for the internal Bitmap . int MEMORY_POLICY_LOW_RAM Save memory if possible by using a denser Bitmap.Config at the
+ cost of some image quality. Public methods void close () Closes this resource, relinquishing any underlying resources. static ImageDecoder.Source createSource (byte[] data) Create a new Source from a byte array. static ImageDecoder.Source createSource ( AssetManager assets, String fileName) Create a new Source from a file in the "assets" directory. static ImageDecoder.Source createSource ( Callable < AssetFileDescriptor > callable) Create a new Source from a Callable that returns a
+ new AssetFileDescriptor for each request. static ImageDecoder.Source createSource ( ByteBuffer buffer) Create a new Source from a ByteBuffer . static ImageDecoder.Source createSource ( File file) Create a new Source from a File . static ImageDecoder.Source createSource ( Resources res, int resId) Create a new Source from a resource. static ImageDecoder.Source createSource ( ContentResolver cr, Uri uri) Create a new Source from a Uri . static ImageDecoder.Source createSource (byte[] data, int offset, int length) Create a new Source from a byte array. static Bitmap decodeBitmap ( ImageDecoder.Source src, ImageDecoder.OnHeaderDecodedListener listener) Create a Bitmap from a Source . static Bitmap decodeBitmap ( ImageDecoder.Source src) Create a Bitmap from a Source . static Drawable decodeDrawable ( ImageDecoder.Source src) Create a Drawable from a Source . static Drawable decodeDrawable ( ImageDecoder.Source src, ImageDecoder.OnHeaderDecodedListener listener) Create a Drawable from a Source . int getAllocator () Return the allocator for the pixel memory. Rect getCrop () Return the cropping rectangle, if set. int getMemorySizePolicy () Retrieve the memory policy for the decoded Bitmap . ImageDecoder.OnPartialImageListener getOnPartialImageListener () Return the OnPartialImageListener currently set. PostProcessor getPostProcessor () Return the PostProcessor currently set. boolean isDecodeAsAlphaMaskEnabled () Return whether to treat single channel input as alpha. static
+        
+        
+        boolean isMimeTypeSupported ( String mimeType) Return if the given MIME type is a supported file format that can be
+ decoded by this class. boolean isMutableRequired () Return whether the decoded Bitmap will be mutable. boolean isUnpremultipliedRequired () Return whether the Bitmap will have unpremultiplied pixels. void setAllocator (int allocator) Choose the backing for the pixel memory. void setCrop ( Rect subset) Crop the output to subset of the (possibly) scaled image. void setDecodeAsAlphaMaskEnabled (boolean enabled) Specify whether to potentially treat the output as an alpha mask. void setMemorySizePolicy (int policy) Specify the memory policy for the decoded Bitmap . void setMutableRequired (boolean mutable) Specify whether the Bitmap should be mutable. void setOnPartialImageListener ( ImageDecoder.OnPartialImageListener listener) Set (replace) the OnPartialImageListener on this object. void setPostProcessor ( PostProcessor postProcessor) Modify the image after decoding and scaling. void setTargetColorSpace ( ColorSpace colorSpace) Specify the desired ColorSpace for the output. void setTargetSampleSize (int sampleSize) Set the target size with a sampleSize. void setTargetSize (int width, int height) Specify the size of the output Drawable or Bitmap . void setUnpremultipliedRequired (boolean unpremultipliedRequired) Specify whether the Bitmap should have unpremultiplied pixels. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Constants ALLOCATOR_DEFAULT Added in API level 28 public static final int ALLOCATOR_DEFAULT Use the default allocation for the pixel memory.
+
+  Will typically result in a Bitmap.Config.HARDWARE allocation, but may be software for small images. In addition, this will
+  switch to software when HARDWARE is incompatible, e.g. setMutableRequired(true) or setDecodeAsAlphaMaskEnabled(true) . Constant Value:
+      
+          0
+          (0x00000000) ALLOCATOR_HARDWARE Added in API level 28 public static final int ALLOCATOR_HARDWARE Require a Bitmap.Config.HARDWARE Bitmap . When this is combined with incompatible options, like setMutableRequired(true) or setDecodeAsAlphaMaskEnabled(true) , decodeDrawable or decodeBitmap will throw an IllegalStateException . Constant Value:
+      
+          3
+          (0x00000003) ALLOCATOR_SHARED_MEMORY Added in API level 28 public static final int ALLOCATOR_SHARED_MEMORY Use shared memory for the pixel memory. Useful for sharing across processes. Constant Value:
+      
+          2
+          (0x00000002) ALLOCATOR_SOFTWARE Added in API level 28 public static final int ALLOCATOR_SOFTWARE Use a software allocation for the pixel memory. Useful for drawing to a software Canvas or for
+  accessing the pixels on the final output. Constant Value:
+      
+          1
+          (0x00000001) MEMORY_POLICY_DEFAULT Added in API level 28 public static final int MEMORY_POLICY_DEFAULT Use the most natural Bitmap.Config for the internal Bitmap . This is the recommended default for most applications and usages. This
+ will use the closest Bitmap.Config for the encoded source. If the
+ encoded source does not exactly match any Bitmap.Config , the next
+ highest quality Bitmap.Config will be used avoiding any loss in
+ image quality. Constant Value:
+      
+          1
+          (0x00000001) MEMORY_POLICY_LOW_RAM Added in API level 28 public static final int MEMORY_POLICY_LOW_RAM Save memory if possible by using a denser Bitmap.Config at the
+ cost of some image quality. For example an opaque 8-bit image may be compressed into an Bitmap.Config.RGB_565 configuration, sacrificing image
+ quality to save memory. Constant Value:
+      
+          0
+          (0x00000000) Public methods close Added in API level 28 public void close () Closes this resource, relinquishing any underlying resources. This method
+ is invoked automatically on objects managed by the try-with-resources
+ statement. This is an implementation detail of ImageDecoder , and should
+ never be called manually. createSource Added in API level 31 public static ImageDecoder.Source createSource (byte[] data) Create a new Source from a byte array. Note: If this Source is passed to decodeDrawable ,
+ and the encoded image is animated, the returned AnimatedImageDrawable will continue reading from data , so its contents must not
+ be modified, even after the AnimatedImageDrawable is returned. data 's contents should never be modified during decode. This method is safe to call from any thread. Parameters data byte : byte array of compressed image data.
+ This value cannot be null . Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+ This value cannot be null . Throws NullPointerException if data is null. createSource Added in API level 28 public static ImageDecoder.Source createSource ( AssetManager assets, String fileName) Create a new Source from a file in the "assets" directory. This method is safe to call from any thread. Parameters assets AssetManager : This value cannot be null . fileName String : This value cannot be null . Returns ImageDecoder.Source This value cannot be null . createSource Added in API level 29 public static ImageDecoder.Source createSource ( Callable < AssetFileDescriptor > callable) Create a new Source from a Callable that returns a
+ new AssetFileDescriptor for each request. This provides control
+ over how the AssetFileDescriptor is created, such as passing
+ options into ContentResolver.openTypedAssetFileDescriptor , or
+ enabling use of a CancellationSignal . It's important for the given Callable to return a new, unique AssetFileDescriptor for each invocation, to support reuse of the
+ returned Source . This method is safe to call from any thread. Parameters callable Callable : This value cannot be null . Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+
+ This value cannot be null . createSource Added in API level 28 public static ImageDecoder.Source createSource ( ByteBuffer buffer) Create a new Source from a ByteBuffer . Decoding will start from buffer.position() .
+ The position of buffer will not be affected. Note: If this Source is passed to decodeDrawable ,
+ and the encoded image is animated, the returned AnimatedImageDrawable will continue reading from the buffer , so its contents must not
+ be modified, even after the AnimatedImageDrawable is returned. buffer 's contents should never be modified during decode. This method is safe to call from any thread. Parameters buffer ByteBuffer : This value cannot be null . Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+
+ This value cannot be null . createSource Added in API level 28 public static ImageDecoder.Source createSource ( File file) Create a new Source from a File . This method should only be used for files that you have direct access to;
+ if you'd like to work with files hosted outside your app, use an API like createSource(java.util.concurrent.Callable) or createSource(android.content.ContentResolver, android.net.Uri) . This method is safe to call from any thread. Parameters file File : This value cannot be null . Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+
+ This value cannot be null . createSource Added in API level 28 public static ImageDecoder.Source createSource ( Resources res, 
+                int resId) Create a new Source from a resource. This method is safe to call from any thread. Parameters res Resources : the Resources object containing the image data.
+ This value cannot be null . resId int : resource ID of the image data. Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+
+ This value cannot be null . createSource Added in API level 28 public static ImageDecoder.Source createSource ( ContentResolver cr, Uri uri) Create a new Source from a Uri . Accepts the following URI schemes: content ( ContentResolver.SCHEME_CONTENT ) android.resource ( ContentResolver.SCHEME_ANDROID_RESOURCE ) file ( ContentResolver.SCHEME_FILE ) This method is safe to call from any thread. Parameters cr ContentResolver : to retrieve from.
+ This value cannot be null . uri Uri : of the image file.
+ This value cannot be null . Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+
+ This value cannot be null . createSource Added in API level 31 public static ImageDecoder.Source createSource (byte[] data, 
+                int offset, 
+                int length) Create a new Source from a byte array. Note: If this Source is passed to decodeDrawable ,
+ and the encoded image is animated, the returned AnimatedImageDrawable will continue reading from data , so its contents must not
+ be modified, even after the AnimatedImageDrawable is returned. data 's contents should never be modified during decode. This method is safe to call from any thread. Parameters data byte : byte array of compressed image data.
+ This value cannot be null . offset int : offset into data for where the decoder should begin
+      parsing. length int : number of bytes, beginning at offset, to parse. Returns ImageDecoder.Source a new Source object, which can be passed to decodeDrawable or decodeBitmap .
+ This value cannot be null . Throws NullPointerException if data is null. ArrayIndexOutOfBoundsException if offset and length are
+      not within data. decodeBitmap Added in API level 28 public static Bitmap decodeBitmap ( ImageDecoder.Source src, ImageDecoder.OnHeaderDecodedListener listener) Create a Bitmap from a Source . This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters src ImageDecoder.Source : representing the encoded image.
+
+ This value cannot be null . listener ImageDecoder.OnHeaderDecodedListener : for learning the ImageInfo and changing any
+      default settings on the ImageDecoder . This will be called on
+      the same thread as decodeBitmap before that method returns.
+      This is required in order to change any of the default settings.
+
+ This value cannot be null . Returns Bitmap Bitmap containing the image.
+
+ This value cannot be null . Throws IOException if src is not found, is an unsupported
+      format, or cannot be decoded for any reason. decodeBitmap Added in API level 28 public static Bitmap decodeBitmap ( ImageDecoder.Source src) Create a Bitmap from a Source . Since there is no OnHeaderDecodedListener ,
+  the default settings will be used. In order to change any settings, call decodeBitmap(android.graphics.ImageDecoder.Source, android.graphics.ImageDecoder.OnHeaderDecodedListener) instead. This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters src ImageDecoder.Source : representing the encoded image.
+
+ This value cannot be null . Returns Bitmap Bitmap containing the image.
+
+ This value cannot be null . Throws IOException if src is not found, is an unsupported
+      format, or cannot be decoded for any reason. decodeDrawable Added in API level 28 public static Drawable decodeDrawable ( ImageDecoder.Source src) Create a Drawable from a Source . Since there is no OnHeaderDecodedListener ,
+  the default settings will be used. In order to change any settings, call decodeDrawable(android.graphics.ImageDecoder.Source, android.graphics.ImageDecoder.OnHeaderDecodedListener) instead. This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters src ImageDecoder.Source : representing the encoded image.
+
+ This value cannot be null . Returns Drawable Drawable for displaying the image.
+
+ This value cannot be null . Throws IOException if src is not found, is an unsupported
+      format, or cannot be decoded for any reason. decodeDrawable Added in API level 28 public static Drawable decodeDrawable ( ImageDecoder.Source src, ImageDecoder.OnHeaderDecodedListener listener) Create a Drawable from a Source . This method may take several seconds to complete, so it should
+ only be called from a worker thread. Parameters src ImageDecoder.Source : representing the encoded image.
+
+ This value cannot be null . listener ImageDecoder.OnHeaderDecodedListener : for learning the ImageInfo and changing any
+      default settings on the ImageDecoder . This will be called on
+      the same thread as decodeDrawable before that method returns.
+      This is required in order to change any of the default settings.
+
+ This value cannot be null . Returns Drawable Drawable for displaying the image.
+
+ This value cannot be null . Throws IOException if src is not found, is an unsupported
+      format, or cannot be decoded for any reason. getAllocator Added in API level 28 public int getAllocator () Return the allocator for the pixel memory. Returns int Value is ALLOCATOR_DEFAULT , ALLOCATOR_SOFTWARE , ALLOCATOR_SHARED_MEMORY , or ALLOCATOR_HARDWARE getCrop Added in API level 28 public Rect getCrop () Return the cropping rectangle, if set. Returns Rect This value may be null . getMemorySizePolicy Added in API level 28 public int getMemorySizePolicy () Retrieve the memory policy for the decoded Bitmap . Returns int Value is MEMORY_POLICY_DEFAULT , or MEMORY_POLICY_LOW_RAM getOnPartialImageListener Added in API level 28 public ImageDecoder.OnPartialImageListener getOnPartialImageListener () Return the OnPartialImageListener currently set. Returns ImageDecoder.OnPartialImageListener This value may be null . getPostProcessor Added in API level 28 public PostProcessor getPostProcessor () Return the PostProcessor currently set. Returns PostProcessor This value may be null . isDecodeAsAlphaMaskEnabled Added in API level 28 public boolean isDecodeAsAlphaMaskEnabled () Return whether to treat single channel input as alpha. This returns whether setDecodeAsAlphaMaskEnabled(boolean) was set to true . It may still return true even if the image has
+  more than one channel and therefore will not be treated as an alpha
+  mask. Returns boolean isMimeTypeSupported Added in API level 29 public static boolean isMimeTypeSupported ( String mimeType) Return if the given MIME type is a supported file format that can be
+ decoded by this class. This can be useful to determine if a file can be
+ decoded directly, or if it needs to be converted into a more general
+ format using an API like ContentResolver.openTypedAssetFile . Parameters mimeType String : This value cannot be null . Returns boolean isMutableRequired Added in API level 28 public boolean isMutableRequired () Return whether the decoded Bitmap will be mutable. Returns boolean isUnpremultipliedRequired Added in API level 28 public boolean isUnpremultipliedRequired () Return whether the Bitmap will have unpremultiplied pixels. Returns boolean setAllocator Added in API level 28 public void setAllocator (int allocator) Choose the backing for the pixel memory. This is ignored for animated drawables. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters allocator int : Type of allocator to use.
+
+ Value is ALLOCATOR_DEFAULT , ALLOCATOR_SOFTWARE , ALLOCATOR_SHARED_MEMORY , or ALLOCATOR_HARDWARE setCrop Added in API level 28 public void setCrop ( Rect subset) Crop the output to subset of the (possibly) scaled image. subset must be contained within the size set by setTargetSize(int, int) or the bounds of the image if setTargetSize was
+  not called. Otherwise an IllegalStateException will be thrown by decodeDrawable / decodeBitmap . NOT intended as a replacement for BitmapRegionDecoder.decodeRegion() .
+  This supports all formats, but merely crops the output. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters subset Rect : This value may be null . setDecodeAsAlphaMaskEnabled Added in API level 28 public void setDecodeAsAlphaMaskEnabled (boolean enabled) Specify whether to potentially treat the output as an alpha mask. If this is set to true and the image is encoded in a format
+  with only one channel, treat that channel as alpha. Otherwise this call has
+  no effect. This is incompatible with ALLOCATOR_HARDWARE . Trying to
+  combine them will result in decodeDrawable / decodeBitmap throwing an IllegalStateException . Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters enabled boolean setMemorySizePolicy Added in API level 28 public void setMemorySizePolicy (int policy) Specify the memory policy for the decoded Bitmap . Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters policy int : Value is MEMORY_POLICY_DEFAULT , or MEMORY_POLICY_LOW_RAM setMutableRequired Added in API level 28 public void setMutableRequired (boolean mutable) Specify whether the Bitmap should be mutable. By default, a Bitmap created by decodeBitmap will be immutable i.e. Bitmap.isMutable() returns false . This can be changed with setMutableRequired(true) . Mutable Bitmaps are incompatible with ALLOCATOR_HARDWARE ,
+  because Bitmap.Config.HARDWARE Bitmaps cannot be mutable.
+  Attempting to combine them will throw an IllegalStateException . Mutable Bitmaps are also incompatible with decodeDrawable ,
+  which would require retrieving the Bitmap from the returned Drawable in
+  order to modify. Attempting to decode a mutable Drawable will
+  throw an IllegalStateException . Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters mutable boolean setOnPartialImageListener Added in API level 28 public void setOnPartialImageListener ( ImageDecoder.OnPartialImageListener listener) Set (replace) the OnPartialImageListener on this object. Will be called if there is an error in the input. Without one, an
+  error will result in an Exception being thrown. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters listener ImageDecoder.OnPartialImageListener : This value may be null . setPostProcessor Added in API level 28 public void setPostProcessor ( PostProcessor postProcessor) Modify the image after decoding and scaling. This allows adding effects prior to returning a Drawable or Bitmap . For a Drawable or an immutable Bitmap ,
+  this is the only way to process the image after decoding. If combined with setTargetSize(int, int) and/or setCrop(Rect) , PostProcessor.onPostProcess occurs last. If set on a nine-patch image, the nine-patch data is ignored. For an animated image, the drawing commands drawn on the Canvas will be recorded immediately and then applied to each
+  frame. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters postProcessor PostProcessor : This value may be null . setTargetColorSpace Added in API level 28 public void setTargetColorSpace ( ColorSpace colorSpace) Specify the desired ColorSpace for the output. If non-null, the decoder will try to decode into colorSpace .
+ If it is null, which is the default, or the request cannot be met, the
+ decoder will pick either the color space embedded in the image or the ColorSpace best suited for the requested image configuration
+ (for instance sRGB for the Bitmap.Config.ARGB_8888 configuration and EXTENDED_SRGB for Bitmap.Config.RGBA_F16 ). Only ColorSpace.Model.RGB color spaces are
+ currently supported. An IllegalArgumentException will
+ be thrown by decodeDrawable / decodeBitmap when setting a non-RGB color space
+ such as Lab . Prior to Build.VERSION_CODES.UPSIDE_DOWN_CAKE ,
+ the specified color space's transfer function must be
+ an ICC parametric curve . An IllegalArgumentException will be thrown by the decode methods
+ if calling ColorSpace.Rgb.getTransferParameters() on the
+ specified color space returns null.
+ Starting from Build.VERSION_CODES.UPSIDE_DOWN_CAKE ,
+ the color spaces with non ICC parametric curve transfer function are allowed.
+ E.g., BT2020_HLG . Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters colorSpace ColorSpace setTargetSampleSize Added in API level 28 public void setTargetSampleSize (int sampleSize) Set the target size with a sampleSize. By default, the output size will match the size of the encoded
+  image, which can be retrieved from the ImageInfo in onHeaderDecoded . Requests the decoder to subsample the original image, returning a
+  smaller image to save memory. The sampleSize is the number of pixels
+  in either dimension that correspond to a single pixel in the output.
+  For example, sampleSize == 4 returns an image that is 1/4 the
+  width/height of the original, and 1/16 the number of pixels. Must be greater than or equal to 1. This has the same effect as calling setTargetSize(int, int) with
+  dimensions based on the sampleSize . Unlike dividing the original
+  width and height by the sampleSize manually, calling this method
+  allows ImageDecoder to round in the direction that it can do most
+  efficiently. Only the last call to this or setTargetSize(int, int) is respected. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters sampleSize int : sampling rate of the encoded image.
+
+ Value is 1 or greater setTargetSize Added in API level 28 public void setTargetSize (int width, 
+                int height) Specify the size of the output Drawable or Bitmap . By default, the output size will match the size of the encoded
+  image, which can be retrieved from the ImageInfo in onHeaderDecoded . This will sample or scale the output to an arbitrary size that may
+  be smaller or larger than the encoded size. Only the last call to this or setTargetSampleSize(int) is
+  respected. Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters width int : width in pixels of the output, must be greater than 0
+
+ The units of this value are pixels.
+ Value is 1 or greater height int : height in pixels of the output, must be greater than 0
+
+ The units of this value are pixels.
+
+ Value is 1 or greater setUnpremultipliedRequired Added in API level 28 public void setUnpremultipliedRequired (boolean unpremultipliedRequired) Specify whether the Bitmap should have unpremultiplied pixels. By default, ImageDecoder will create a Bitmap with
+  premultiplied pixels, which is required for drawing with the View system (i.e. to a Canvas ). Calling
+  this method with a value of true will result in decodeBitmap(Source) returning a Bitmap with unpremultiplied
+  pixels. See Bitmap.isPremultiplied() .
+  This is incompatible with decodeDrawable ;
+  attempting to decode an unpremultiplied Drawable will throw an IllegalStateException . Like all setters on ImageDecoder, this must be called inside onHeaderDecoded . Parameters unpremultipliedRequired boolean Protected methods finalize Added in API level 28 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored. Throws Throwable</body></html>

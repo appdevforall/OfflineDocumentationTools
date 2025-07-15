@@ -1,0 +1,172 @@
+<html><head><title>Class Documentation</title></head><body>ImageReader Kotlin | Java public
+  
+  
+  
+  class
+  ImageReader extends Object implements AutoCloseable java.lang.Object ↳ android.media.ImageReader The ImageReader class allows direct application access to image data
+ rendered into a Surface Several Android media API classes accept Surface objects as targets to
+ render to, including MediaPlayer , MediaCodec , CameraDevice , ImageWriter and RenderScript Allocations . The image
+ sizes and formats that can be used with each source vary, and should be
+ checked in the documentation for the specific API. The image data is encapsulated in Image objects, and multiple such
+ objects can be accessed at the same time, up to the number specified by the maxImages constructor parameter. New images sent to an ImageReader
+ through its Surface are queued until accessed through the acquireLatestImage() or acquireNextImage() call. Due to memory limits, an image source will
+ eventually stall or drop Images in trying to render to the Surface if the
+ ImageReader does not obtain and release Images at a rate equal to the
+ production rate. Summary Nested classes class ImageReader.Builder Builder class for ImageReader objects. interface ImageReader.OnImageAvailableListener Callback interface for being notified that a new image is available. Public methods Image acquireLatestImage () Acquire the latest Image from the ImageReader's queue, dropping older images . Image acquireNextImage () Acquire the next Image from the ImageReader's queue. void close () Free up all the resources associated with this ImageReader. void discardFreeBuffers () Discard any free buffers owned by this ImageReader. int getDataSpace () The default dataspace of Images . int getHardwareBufferFormat () The default HardwareBuffer format of Images . int getHeight () The default height of Images , in pixels. int getImageFormat () The default image format of Images . int getMaxImages () Maximum number of images that can be acquired from the ImageReader by any time (for example,
+ with acquireNextImage() ). Surface getSurface () Get a Surface that can be used to produce Images for this ImageReader . long getUsage () The usage flag of images that can be produced by the ImageReader. int getWidth () The default width of Images , in pixels. static ImageReader newInstance (int width, int height, int format, int maxImages, long usage) Create a new reader for images of the desired size, format and consumer usage flag. static ImageReader newInstance (int width, int height, int format, int maxImages) Create a new reader for images of the desired size and format. void setOnImageAvailableListener ( ImageReader.OnImageAvailableListener listener, Handler handler) Register a listener to be invoked when a new image becomes available
+ from the ImageReader. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public methods acquireLatestImage Added in API level 19 public Image acquireLatestImage () Acquire the latest Image from the ImageReader's queue, dropping older images . Returns null if no new image is available. This operation will acquire all the images possible from the ImageReader,
+ but close() all images that aren't the latest. This function is
+ recommended to use over acquireNextImage() for most use-cases, as it's
+ more suited for real-time processing. Note that maxImages should be at least 2 for acquireLatestImage() to be any different than acquireNextImage() -
+ discarding all-but-the-newest Image requires temporarily acquiring two Images at once. Or more generally, calling acquireLatestImage() with less than two images of margin, that is (maxImages - currentAcquiredImages < 2) will not discard as expected. This operation will fail by throwing an IllegalStateException if maxImages have been acquired with acquireLatestImage() or acquireNextImage() . In particular a sequence of acquireLatestImage() calls greater than getMaxImages() without calling Image.close in-between
+ will exhaust the underlying queue. At such a time, IllegalStateException will be thrown until more images are
+ released with Image.close . Returns Image latest frame of image data, or null if no image data is available. Throws IllegalStateException if too many images are currently acquired acquireNextImage Added in API level 19 public Image acquireNextImage () Acquire the next Image from the ImageReader's queue. Returns null if
+ no new image is available. Warning: Consider using acquireLatestImage() instead, as it will
+ automatically release older images, and allow slower-running processing routines to catch
+ up to the newest frame. Usage of acquireNextImage() is recommended for
+ batch/background processing. Incorrectly using this function can cause images to appear
+ with an ever-increasing delay, followed by a complete stall where no new images seem to
+ appear. This operation will fail by throwing an IllegalStateException if maxImages have been acquired with acquireNextImage() or acquireLatestImage() . In particular a sequence of acquireNextImage() or acquireLatestImage() calls greater than maxImages without
+ calling Image.close in-between will exhaust the underlying queue. At such a time, IllegalStateException will be thrown until more images are released with Image.close . Returns Image a new frame of image data, or null if no image data is available. Throws IllegalStateException if maxImages images are currently acquired See also: acquireLatestImage() close Added in API level 19 public void close () Free up all the resources associated with this ImageReader. After calling this method, this ImageReader can not be used. Calling
+ any methods on this ImageReader and Images previously provided by acquireNextImage() or acquireLatestImage() will result in an IllegalStateException , and attempting to read from ByteBuffers returned by an earlier Plane#getBuffer call will
+ have undefined behavior. discardFreeBuffers Added in API level 28 public void discardFreeBuffers () Discard any free buffers owned by this ImageReader. Generally, the ImageReader caches buffers for reuse once they have been
+ allocated, for best performance. However, sometimes it may be important to
+ release all the cached, unused buffers to save on memory. Calling this method will discard all free cached buffers. This does not include any buffers
+ associated with Images acquired from the ImageReader, any filled buffers waiting to be
+ acquired, and any buffers currently in use by the source rendering buffers into the
+ ImageReader's Surface. The ImageReader continues to be usable after this call, but may need to reallocate buffers
+ when more buffers are needed for rendering. getDataSpace Added in API level 33 public int getDataSpace () The default dataspace of Images . Use this function if the ImageReader instance is created by builder pattern ImageReader.Builder and Builder.setDefaultDataSpace . Returns int the expected dataspace of an Image.
+
+ Value is either 0 or a combination of DataSpace.DATASPACE_DEPTH , DataSpace.DATASPACE_DYNAMIC_DEPTH , DataSpace.DATASPACE_HEIF , DataSpace.DATASPACE_HEIF_ULTRAHDR , DataSpace.DATASPACE_JPEG_R , DataSpace.DATASPACE_UNKNOWN , DataSpace.DATASPACE_SCRGB_LINEAR , DataSpace.DATASPACE_SRGB , DataSpace.DATASPACE_SCRGB , DataSpace.DATASPACE_DISPLAY_P3 , DataSpace.DATASPACE_BT2020_HLG , DataSpace.DATASPACE_BT2020_PQ , DataSpace.DATASPACE_ADOBE_RGB , DataSpace.DATASPACE_JFIF , DataSpace.DATASPACE_BT601_625 , DataSpace.DATASPACE_BT601_525 , DataSpace.DATASPACE_BT2020 , DataSpace.DATASPACE_BT709 , DataSpace.DATASPACE_DCI_P3 , DataSpace.DATASPACE_SRGB_LINEAR , and android.hardware.DataSpace.DATASPACE_DISPLAY_BT2020 getHardwareBufferFormat Added in API level 33 public int getHardwareBufferFormat () The default HardwareBuffer format of Images . Use this function if the ImageReader instance is created by builder pattern ImageReader.Builder and using Builder.setDefaultHardwareBufferFormat and Builder.setDefaultDataSpace . Returns int the expected HardwareBuffer format of an Image.
+
+ Value is HardwareBuffer.RGBA_8888 , HardwareBuffer.RGBA_FP16 , HardwareBuffer.RGBA_1010102 , HardwareBuffer.RGBX_8888 , HardwareBuffer.RGB_888 , HardwareBuffer.RGB_565 , HardwareBuffer.BLOB , HardwareBuffer.YCBCR_420_888 , HardwareBuffer.D_16 , HardwareBuffer.D_24 , HardwareBuffer.DS_24UI8 , HardwareBuffer.D_FP32 , HardwareBuffer.DS_FP32UI8 , HardwareBuffer.S_UI8 , HardwareBuffer.YCBCR_P010 , HardwareBuffer.YCBCR_P210 , HardwareBuffer.R_8 , HardwareBuffer.R_16 , HardwareBuffer.RG_1616 , or HardwareBuffer.RGBA_10101010 getHeight Added in API level 19 public int getHeight () The default height of Images , in pixels. The height may be overridden by the producer sending buffers to this
+ ImageReader's Surface. If so, the actual height of the images can be
+ found using Image.getHeight . Returns int the expected height of an Image getImageFormat Added in API level 19 public int getImageFormat () The default image format of Images . Some color formats may be overridden by the producer sending buffers to
+ this ImageReader's Surface if the default color format allows. ImageReader
+ guarantees that all Images acquired from ImageReader
+ (for example, with acquireNextImage() ) will have a "compatible"
+ format to what was specified in newInstance(int, int, int, int) .
+ As of now, each format is only compatible to itself.
+ The actual format of the images can be found using Image.getFormat . Use this function if the ImageReader instance is created by factory method newInstance function or by builder pattern ImageReader.Builder and using Builder.setImageFormat . Returns int the expected format of an Image See also: ImageFormat getMaxImages Added in API level 19 public int getMaxImages () Maximum number of images that can be acquired from the ImageReader by any time (for example,
+ with acquireNextImage() ). An image is considered acquired after it's returned by a function from ImageReader, and
+ until the Image is closed to release the image back to the ImageReader. Attempting to acquire more than maxImages concurrently will result in the
+ acquire function throwing a IllegalStateException . Furthermore,
+ while the max number of images have been acquired by the ImageReader user, the producer
+ enqueueing additional images may stall until at least one image has been released. Returns int Maximum number of images for this ImageReader. See also: Image.close() getSurface Added in API level 19 public Surface getSurface () Get a Surface that can be used to produce Images for this ImageReader . Until valid image data is rendered into this Surface , the acquireNextImage() method will return null . Only one source
+ can be producing data into this Surface at the same time, although the
+ same Surface can be reused with a different API once the first source is
+ disconnected from the Surface . Please note that holding on to the Surface object returned by this method is not enough
+ to keep its parent ImageReader from being reclaimed. In that sense, a Surface acts like a weak reference to the ImageReader that provides it. Returns Surface A Surface to use for a drawing target for various APIs. getUsage Added in API level 33 public long getUsage () The usage flag of images that can be produced by the ImageReader. Returns long The usage flag of the images for this ImageReader.
+
+ Value is either 0 or a combination of HardwareBuffer.USAGE_CPU_READ_RARELY , HardwareBuffer.USAGE_CPU_READ_OFTEN , HardwareBuffer.USAGE_CPU_WRITE_RARELY , HardwareBuffer.USAGE_CPU_WRITE_OFTEN , HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE , HardwareBuffer.USAGE_GPU_COLOR_OUTPUT , HardwareBuffer.USAGE_COMPOSER_OVERLAY , HardwareBuffer.USAGE_PROTECTED_CONTENT , HardwareBuffer.USAGE_VIDEO_ENCODE , HardwareBuffer.USAGE_GPU_DATA_BUFFER , HardwareBuffer.USAGE_SENSOR_DIRECT_DATA , HardwareBuffer.USAGE_GPU_CUBE_MAP , HardwareBuffer.USAGE_GPU_MIPMAP_COMPLETE , and HardwareBuffer.USAGE_FRONT_BUFFER getWidth Added in API level 19 public int getWidth () The default width of Images , in pixels. The width may be overridden by the producer sending buffers to this
+ ImageReader's Surface. If so, the actual width of the images can be
+ found using Image.getWidth . Returns int the expected width of an Image newInstance Added in API level 29 public static ImageReader newInstance (int width, 
+                int height, 
+                int format, 
+                int maxImages, 
+                long usage) Create a new reader for images of the desired size, format and consumer usage flag. The maxImages parameter determines the maximum number of Image objects that
+ can be be acquired from the ImageReader simultaneously. Requesting more buffers will
+ use up more memory, so it is important to use only the minimum number necessary for the use
+ case. The valid sizes and formats depend on the source of the image data. The format and usage flag combination describes how the buffer will be used by
+ consumer end-points. For example, if the application intends to send the images to MediaCodec or MediaRecorder for hardware video
+ encoding, the format and usage flag combination needs to be PRIVATE and HardwareBuffer.USAGE_VIDEO_ENCODE . When an ImageReader object is created with a valid size and such format/usage flag
+ combination, the application can send the images to an ImageWriter that
+ is created with the input Surface provided by the MediaCodec or MediaRecorder . If the format is PRIVATE , the created ImageReader will produce images that are not directly accessible by the application. The application can
+ still acquire images from this ImageReader , and send them to the camera for reprocessing, or to the MediaCodec / MediaRecorder for hardware video
+ encoding via ImageWriter interface. However, the getPlanes() will return an empty array for PRIVATE format
+ images. The application can check if an existing reader's format by calling getImageFormat() . PRIVATE format ImageReaders are more
+ efficient to use when application access to image data is not necessary, compared to
+ ImageReaders using other format such as YUV_420_888 . Note that not all format and usage flag combinations are supported by the ImageReader . Below are the supported combinations by the ImageReader (assuming the consumer end-points support the such image consumption, e.g., hardware video
+ encoding). Format Compatible usage flags non- PRIVATE formats defined by ImageFormat or PixelFormat HardwareBuffer.USAGE_CPU_READ_RARELY or HardwareBuffer.USAGE_CPU_READ_OFTEN ImageFormat.PRIVATE HardwareBuffer.USAGE_VIDEO_ENCODE or HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE , or combined Using other combinations may result in IllegalArgumentException . Additionally,
+ specifying HardwareBuffer.USAGE_CPU_WRITE_RARELY or HardwareBuffer.USAGE_CPU_WRITE_OFTEN and writing to the ImageReader's buffers
+ might break assumptions made by some producers, and should be used with caution. If the ImageReader is used as an output target for a CameraDevice , and if the usage flag contains HardwareBuffer.USAGE_VIDEO_ENCODE , the timestamps of the images produced by the ImageReader won't be in the same timebase as SystemClock.elapsedRealtimeNanos() , even if CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE is CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME .
+ Instead, the timestamps will be roughly in the same timebase as in SystemClock.uptimeMillis() , so that A/V synchronization could work for
+ video recording. In this case, the timestamps from the ImageReader with HardwareBuffer.USAGE_VIDEO_ENCODE usage flag may not be directly comparable with
+ timestamps of other streams or capture result metadata. Parameters width int : The default width in pixels of the Images that this reader will produce.
+ Value is 1 or greater height int : The default height in pixels of the Images that this reader will produce.
+ Value is 1 or greater format int : The format of the Image that this reader will produce. This must be one of the ImageFormat or PixelFormat constants. Note that not all formats are supported, like ImageFormat.NV21.
+ Value is ImageFormat.UNKNOWN , PixelFormat.RGBA_8888 , PixelFormat.RGBX_8888 , PixelFormat.RGB_888 , ImageFormat.RGB_565 , ImageFormat.YV12 , ImageFormat.Y8 , android.graphics.ImageFormat.Y16, ImageFormat.YCBCR_P010 , ImageFormat.YCBCR_P210 , ImageFormat.NV16 , ImageFormat.NV21 , ImageFormat.YUY2 , ImageFormat.JPEG , ImageFormat.DEPTH_JPEG , ImageFormat.YUV_420_888 , ImageFormat.YUV_422_888 , ImageFormat.YUV_444_888 , ImageFormat.FLEX_RGB_888 , ImageFormat.FLEX_RGBA_8888 , ImageFormat.RAW_SENSOR , ImageFormat.RAW_PRIVATE , ImageFormat.RAW10 , ImageFormat.RAW12 , ImageFormat.DEPTH16 , ImageFormat.DEPTH_POINT_CLOUD , android.graphics.ImageFormat.RAW_DEPTH, android.graphics.ImageFormat.RAW_DEPTH10, ImageFormat.PRIVATE , ImageFormat.HEIC , ImageFormat.HEIC_ULTRAHDR , or ImageFormat.JPEG_R maxImages int : The maximum number of images the user will want to access simultaneously.
+            This should be as small as possible to limit memory use. Once maxImages Images are
+            obtained by the user, one of them has to be released before a new Image will
+            become available for access through acquireLatestImage() or acquireNextImage() . Must be greater than 0.
+ Value is 1 or greater usage long : The intended usage of the images produced by this ImageReader. See the usages
+              on HardwareBuffer for a list of valid usage bits. See also HardwareBuffer.isSupported(int, int, int, int, long) for checking
+              if a combination is supported. If it's not supported this will throw
+              an IllegalArgumentException .
+ Value is either 0 or a combination of HardwareBuffer.USAGE_CPU_READ_RARELY , HardwareBuffer.USAGE_CPU_READ_OFTEN , HardwareBuffer.USAGE_CPU_WRITE_RARELY , HardwareBuffer.USAGE_CPU_WRITE_OFTEN , HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE , HardwareBuffer.USAGE_GPU_COLOR_OUTPUT , HardwareBuffer.USAGE_COMPOSER_OVERLAY , HardwareBuffer.USAGE_PROTECTED_CONTENT , HardwareBuffer.USAGE_VIDEO_ENCODE , HardwareBuffer.USAGE_GPU_DATA_BUFFER , HardwareBuffer.USAGE_SENSOR_DIRECT_DATA , HardwareBuffer.USAGE_GPU_CUBE_MAP , HardwareBuffer.USAGE_GPU_MIPMAP_COMPLETE , and HardwareBuffer.USAGE_FRONT_BUFFER Returns ImageReader This value cannot be null . See also: Image HardwareBuffer newInstance Added in API level 19 public static ImageReader newInstance (int width, 
+                int height, 
+                int format, 
+                int maxImages) Create a new reader for images of the desired size and format. The maxImages parameter determines the maximum number of Image objects that can be be acquired from the ImageReader simultaneously. Requesting more buffers will use up
+ more memory, so it is important to use only the minimum number necessary
+ for the use case. The valid sizes and formats depend on the source of the image data. If the format is PRIVATE , the created ImageReader will produce images that are not directly accessible
+ by the application. The application can still acquire images from this ImageReader , and send them to the camera for reprocessing via ImageWriter interface. However, the getPlanes() will return an empty array for PRIVATE format images. The application can check if an existing reader's
+ format by calling getImageFormat() . PRIVATE format ImageReaders are more efficient to use when application access to image
+ data is not necessary, compared to ImageReaders using other format such
+ as YUV_420_888 . Parameters width int : The default width in pixels of the Images that this reader
+            will produce.
+ Value is 1 or greater height int : The default height in pixels of the Images that this reader
+            will produce.
+ Value is 1 or greater format int : The format of the Image that this reader will produce. This
+            must be one of the ImageFormat or PixelFormat constants. Note that not
+            all formats are supported, like ImageFormat.NV21.
+ Value is ImageFormat.UNKNOWN , PixelFormat.RGBA_8888 , PixelFormat.RGBX_8888 , PixelFormat.RGB_888 , ImageFormat.RGB_565 , ImageFormat.YV12 , ImageFormat.Y8 , android.graphics.ImageFormat.Y16, ImageFormat.YCBCR_P010 , ImageFormat.YCBCR_P210 , ImageFormat.NV16 , ImageFormat.NV21 , ImageFormat.YUY2 , ImageFormat.JPEG , ImageFormat.DEPTH_JPEG , ImageFormat.YUV_420_888 , ImageFormat.YUV_422_888 , ImageFormat.YUV_444_888 , ImageFormat.FLEX_RGB_888 , ImageFormat.FLEX_RGBA_8888 , ImageFormat.RAW_SENSOR , ImageFormat.RAW_PRIVATE , ImageFormat.RAW10 , ImageFormat.RAW12 , ImageFormat.DEPTH16 , ImageFormat.DEPTH_POINT_CLOUD , android.graphics.ImageFormat.RAW_DEPTH, android.graphics.ImageFormat.RAW_DEPTH10, ImageFormat.PRIVATE , ImageFormat.HEIC , ImageFormat.HEIC_ULTRAHDR , or ImageFormat.JPEG_R maxImages int : The maximum number of images the user will want to
+            access simultaneously. This should be as small as possible to
+            limit memory use. Once maxImages Images are obtained by the
+            user, one of them has to be released before a new Image will
+            become available for access through acquireLatestImage() or acquireNextImage() .
+            Must be greater than 0.
+ Value is 1 or greater Returns ImageReader This value cannot be null . See also: Image setOnImageAvailableListener Added in API level 19 public void setOnImageAvailableListener ( ImageReader.OnImageAvailableListener listener, Handler handler) Register a listener to be invoked when a new image becomes available
+ from the ImageReader. Parameters listener ImageReader.OnImageAvailableListener : The listener that will be run. handler Handler : The handler on which the listener should be invoked, or null
+            if the listener should be invoked on the calling thread's looper. Throws IllegalArgumentException If no handler specified and the calling thread has no looper. Protected methods finalize Added in API level 19 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored. Throws Throwable</body></html>

@@ -1,0 +1,434 @@
+<html><head><title>Class Documentation</title></head><body>Transition Kotlin | Java public
+  
+  
+  abstract
+  class
+  Transition extends Object implements Cloneable java.lang.Object ↳ android.transition.Transition Known direct subclasses ChangeBounds , ChangeClipBounds , ChangeImageTransform , ChangeScroll , ChangeTransform , TransitionSet , Visibility ChangeBounds This transition captures the layout bounds of target views before and after
+ the scene change and animates those changes during the transition. ChangeClipBounds ChangeClipBounds captures the View.getClipBounds() before and after the
+ scene change and animates those changes during the transition. ChangeImageTransform This Transition captures an ImageView's matrix before and after the
+ scene change and animates it during the transition. ChangeScroll This transition captures the scroll properties of targets before and after
+ the scene change and animates any changes. ChangeTransform This Transition captures scale and rotation for Views before and after the
+ scene change and animates those changes during the transition. TransitionSet A TransitionSet is a parent of child transitions (including other
+ TransitionSets). Visibility This transition tracks changes to the visibility of target views in the
+ start and end scenes. Known indirect subclasses AutoTransition , Explode , Fade , Slide AutoTransition Utility class for creating a default transition that automatically fades,
+ moves, and resizes views during a scene change. Explode This transition tracks changes to the visibility of target views in the
+ start and end scenes and moves views in or out from the edges of the
+ scene. Fade This transition tracks changes to the visibility of target views in the
+ start and end scenes and fades views in or out when they become visible
+ or non-visible. Slide This transition tracks changes to the visibility of target views in the
+ start and end scenes and moves views in or out from one of the edges of the
+ scene. A Transition holds information about animations that will be run on its
+ targets during a scene change. Subclasses of this abstract class may
+ choreograph several child transitions ( TransitionSet or they may
+ perform custom animations themselves. Any Transition has two main jobs:
+ (1) capture property values, and (2) play animations based on changes to
+ captured property values. A custom transition knows what property values
+ on View objects are of interest to it, and also knows how to animate
+ changes to those values. For example, the Fade transition tracks
+ changes to visibility-related properties and is able to construct and run
+ animations that fade items in or out based on changes to those properties. Note: Transitions may not work correctly with either SurfaceView or TextureView , due to the way that these views are displayed
+ on the screen. For SurfaceView, the problem is that the view is updated from
+ a non-UI thread, so changes to the view due to transitions (such as moving
+ and resizing the view) may be out of sync with the display inside those bounds.
+ TextureView is more compatible with transitions in general, but some
+ specific transitions (such as Fade ) may not be compatible
+ with TextureView because they rely on ViewOverlay functionality,
+ which does not currently work with TextureView. Transitions can be declared in XML resource files inside the res/transition directory. Transition resources consist of a tag name for one of the Transition
+ subclasses along with attributes to define some of the attributes of that transition.
+ For example, here is a minimal resource file that declares a ChangeBounds transition: <changeBounds/> This TransitionSet contains Explode for visibility, ChangeBounds , ChangeTransform ,
+ and ChangeClipBounds and ChangeImageTransform : <transitionSet xmlns:android="http://schemas.android.com/apk/res/android">
+    <explode/>
+    <changeBounds/>
+    <changeTransform/>
+    <changeClipBounds/>
+    <changeImageTransform/>
+</transitionSet> Custom transition classes may be instantiated with a transition tag: <transition class="my.app.transition.CustomTransition"/> Custom transition classes loaded from XML should have a public constructor taking
+ a Context and AttributeSet . Note that attributes for the transition are not required, just as they are
+ optional when declared in code; Transitions created from XML resources will use
+ the same defaults as their code-created equivalents. Here is a slightly more
+ elaborate example which declares a TransitionSet transition with ChangeBounds and Fade child transitions: <transitionSet xmlns:android="http://schemas.android.com/apk/res/android"
+     android:transitionOrdering="sequential">
+    <changeBounds/>
+    <fade android:fadingMode="fade_out" >
+        <targets>
+            <target android:targetId="@id/grayscaleContainer" />
+        </targets>
+    </fade>
+</transitionSet> In this example, the transitionOrdering attribute is used on the TransitionSet
+ object to change from the default TransitionSet.ORDERING_TOGETHER behavior
+ to be TransitionSet.ORDERING_SEQUENTIAL instead. Also, the Fade transition uses a fadingMode of Fade.OUT instead of the default
+ out-in behavior. Finally, note the use of the targets sub-tag, which
+ takes a set of target tags, each
+ of which lists a specific targetId , targetClass , targetName , excludeId , excludeClass , or excludeName , which this transition acts upon.
+ Use of targets is optional, but can be used to either limit the time spent checking
+ attributes on unchanging views, or limiting the types of animations run on specific views.
+ In this case, we know that only the grayscaleContainer will be
+ disappearing, so we choose to limit the Fade transition to only that view. Further information on XML resource descriptions for transitions can be found for R.styleable.Transition , R.styleable.TransitionSet , R.styleable.TransitionTarget , R.styleable.Fade , R.styleable.Slide , and R.styleable.ChangeTransform . Summary Nested classes class Transition.EpicenterCallback Class to get the epicenter of Transition. interface Transition.TransitionListener A transition listener receives notifications from a transition. XML attributes android:duration Amount of time (in milliseconds) that the transition should run. android:interpolator Interpolator to be used in the animations spawned by this transition. android:startDelay Delay in milliseconds before the transition starts. Constants int MATCH_ID With setMatchOrder(int) , chooses to match by View.getId() . int MATCH_INSTANCE With setMatchOrder(int) , chooses to match by View instance. int MATCH_ITEM_ID With setMatchOrder(int) , chooses to match by the Adapter item id. int MATCH_NAME With setMatchOrder(int) , chooses to match by View.getTransitionName() . Public constructors Transition () Constructs a Transition object with no target objects. Transition ( Context context, AttributeSet attrs) Perform inflation from XML and apply a class-specific base style from a
+ theme attribute or style resource. Public methods Transition addListener ( Transition.TransitionListener listener) Adds a listener to the set of listeners that are sent events through the
+ life of an animation, such as start, repeat, and end. Transition addTarget ( View target) Sets the target view instances that this Transition is interested in
+ animating. Transition addTarget (int targetId) Adds the id of a target view that this Transition is interested in
+ animating. Transition addTarget ( Class <T> targetType) Adds the Class of a target view that this Transition is interested in
+ animating. Transition addTarget ( String targetName) Adds the transitionName of a target view that this Transition is interested in
+ animating. boolean canRemoveViews () abstract
+        
+        
+        
+        
+        void captureEndValues ( TransitionValues transitionValues) Captures the values in the end scene for the properties that this
+ transition monitors. abstract
+        
+        
+        
+        
+        void captureStartValues ( TransitionValues transitionValues) Captures the values in the start scene for the properties that this
+ transition monitors. Transition clone () Creates and returns a copy of this object. Animator createAnimator ( ViewGroup sceneRoot, TransitionValues startValues, TransitionValues endValues) This method creates an animation that will be run for this transition
+ given the information in the startValues and endValues structures captured
+ earlier for the start and end scenes. Transition excludeChildren (int targetId, boolean exclude) Whether to add the children of the given id to the list of targets to exclude
+ from this transition. Transition excludeChildren ( Class <T> type, boolean exclude) Whether to add the given type to the list of types whose children should
+ be excluded from this transition. Transition excludeChildren ( View target, boolean exclude) Whether to add the children of given target to the list of target children
+ to exclude from this transition. Transition excludeTarget ( View target, boolean exclude) Whether to add the given target to the list of targets to exclude from this
+ transition. Transition excludeTarget ( Class <T> type, boolean exclude) Whether to add the given type to the list of types to exclude from this
+ transition. Transition excludeTarget ( String targetName, boolean exclude) Whether to add the given transitionName to the list of target transitionNames to exclude
+ from this transition. Transition excludeTarget (int targetId, boolean exclude) Whether to add the given id to the list of target ids to exclude from this
+ transition. long getDuration () Returns the duration set on this transition. Rect getEpicenter () Returns the epicenter as specified by the Transition.EpicenterCallback or null if no callback exists. Transition.EpicenterCallback getEpicenterCallback () Returns the callback used to find the epicenter of the Transition. TimeInterpolator getInterpolator () Returns the interpolator set on this transition. String getName () Returns the name of this Transition. PathMotion getPathMotion () Returns the algorithm object used to interpolate along two dimensions. TransitionPropagation getPropagation () Returns the TransitionPropagation used to calculate Animator start
+ delays. long getStartDelay () Returns the startDelay set on this transition. List < Integer > getTargetIds () Returns the list of target IDs that this transition limits itself to
+ tracking and animating. List < String > getTargetNames () Returns the list of target transitionNames that this transition limits itself to
+ tracking and animating. List < Class <T>> getTargetTypes () Returns the list of target transitionNames that this transition limits itself to
+ tracking and animating. List < View > getTargets () Returns the list of target views that this transition limits itself to
+ tracking and animating. String[] getTransitionProperties () Returns the set of property names used stored in the TransitionValues object passed into captureStartValues(android.transition.TransitionValues) that
+ this transition cares about for the purposes of canceling overlapping animations. TransitionValues getTransitionValues ( View view, boolean start) This method can be called by transitions to get the TransitionValues for
+ any particular view during the transition-playing process. boolean isTransitionRequired ( TransitionValues startValues, TransitionValues endValues) Returns whether or not the transition should create an Animator, based on the values
+ captured during captureStartValues(android.transition.TransitionValues) and captureEndValues(android.transition.TransitionValues) . Transition removeListener ( Transition.TransitionListener listener) Removes a listener from the set listening to this animation. Transition removeTarget (int targetId) Removes the given targetId from the list of ids that this Transition
+ is interested in animating. Transition removeTarget ( View target) Removes the given target from the list of targets that this Transition
+ is interested in animating. Transition removeTarget ( String targetName) Removes the given targetName from the list of transitionNames that this Transition
+ is interested in animating. Transition removeTarget ( Class <T> target) Removes the given target from the list of targets that this Transition
+ is interested in animating. Transition setDuration (long duration) Sets the duration of this transition. void setEpicenterCallback ( Transition.EpicenterCallback epicenterCallback) Sets the callback to use to find the epicenter of a Transition. Transition setInterpolator ( TimeInterpolator interpolator) Sets the interpolator of this transition. void setMatchOrder (int... matches) Sets the order in which Transition matches View start and end values. void setPathMotion ( PathMotion pathMotion) Sets the algorithm used to calculate two-dimensional interpolation. void setPropagation ( TransitionPropagation transitionPropagation) Sets the method for determining Animator start delays. Transition setStartDelay (long startDelay) Sets the startDelay of this transition. String toString () Returns a string representation of the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . XML attributes android:duration Amount of time (in milliseconds) that the transition should run. May be an integer value, such as " 100 ". Related methods: setDuration(long) android:interpolator Interpolator to be used in the animations spawned by this transition. May be a reference to another resource, in the form
+ " @[+][ package :] type / name " or a theme
+ attribute in the form
+ " ?[ package :] type / name ". Related methods: setInterpolator(TimeInterpolator) android:startDelay Delay in milliseconds before the transition starts. May be an integer value, such as " 100 ". Related methods: setStartDelay(long) Constants MATCH_ID Added in API level 21 public static final int MATCH_ID With setMatchOrder(int) , chooses to match by View.getId() . Negative IDs will not be matched. Constant Value:
+      
+          3
+          (0x00000003) MATCH_INSTANCE Added in API level 21 public static final int MATCH_INSTANCE With setMatchOrder(int) , chooses to match by View instance. Constant Value:
+      
+          1
+          (0x00000001) MATCH_ITEM_ID Added in API level 21 public static final int MATCH_ITEM_ID With setMatchOrder(int) , chooses to match by the Adapter item id. When Adapter.hasStableIds() returns false, no match
+ will be made for items. Constant Value:
+      
+          4
+          (0x00000004) MATCH_NAME Added in API level 21 public static final int MATCH_NAME With setMatchOrder(int) , chooses to match by View.getTransitionName() . Null names will not be matched. Constant Value:
+      
+          2
+          (0x00000002) Public constructors Transition Added in API level 19 public Transition () Constructs a Transition object with no target objects. A transition with
+ no targets defaults to running on all target objects in the scene hierarchy
+ (if the transition is not contained in a TransitionSet), or all target
+ objects passed down from its parent (if it is in a TransitionSet). Transition Added in API level 21 public Transition ( Context context, AttributeSet attrs) Perform inflation from XML and apply a class-specific base style from a
+ theme attribute or style resource. This constructor of Transition allows
+ subclasses to use their own base style when they are inflating. Parameters context Context : The Context the transition is running in, through which it can
+        access the current theme, resources, etc. attrs AttributeSet : The attributes of the XML tag that is inflating the transition. Public methods addListener Added in API level 19 public Transition addListener ( Transition.TransitionListener listener) Adds a listener to the set of listeners that are sent events through the
+ life of an animation, such as start, repeat, and end. Parameters listener Transition.TransitionListener : the listener to be added to the current set of listeners
+ for this animation. Returns Transition This transition object. addTarget Added in API level 19 public Transition addTarget ( View target) Sets the target view instances that this Transition is interested in
+ animating. By default, there are no targets, and a Transition will
+ listen for changes on every view in the hierarchy below the sceneRoot
+ of the Scene being transitioned into. Setting targets constrains
+ the Transition to only listen for, and act on, these views.
+ All other views will be ignored. The target list is like the targetId list except this list specifies the actual View instances, not the ids
+ of the views. This is an important distinction when scene changes involve
+ view hierarchies which have been inflated separately; different views may
+ share the same id but not actually be the same instance. If the transition
+ should treat those views as the same, then addTarget(int) should be used
+ instead of addTarget(android.view.View) . If, on the other hand, scene changes involve
+ changes all within the same view hierarchy, among views which do not
+ necessarily have ids set on them, then the target list of views may be more
+ convenient. Parameters target View : A View on which the Transition will act, must be non-null. Returns Transition The Transition to which the target is added.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).addTarget(someView); See also: addTarget(int) addTarget Added in API level 19 public Transition addTarget (int targetId) Adds the id of a target view that this Transition is interested in
+ animating. By default, there are no targetIds, and a Transition will
+ listen for changes on every view in the hierarchy below the sceneRoot
+ of the Scene being transitioned into. Setting targetIds constrains
+ the Transition to only listen for, and act on, views with these IDs.
+ Views with different IDs, or no IDs whatsoever, will be ignored. Note that using ids to specify targets implies that ids should be unique
+ within the view hierarchy underneath the scene root. Parameters targetId int : The id of a target view, must be a positive number. Returns Transition The Transition to which the targetId is added.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).addTarget(someId); See also: View.getId() addTarget Added in API level 21 public Transition addTarget ( Class <T> targetType) Adds the Class of a target view that this Transition is interested in
+ animating. By default, there are no targetTypes, and a Transition will
+ listen for changes on every view in the hierarchy below the sceneRoot
+ of the Scene being transitioned into. Setting targetTypes constrains
+ the Transition to only listen for, and act on, views with these classes.
+ Views with different classes will be ignored. Note that any View that can be cast to targetType will be included, so
+ if targetType is View.class , all Views will be included. Parameters targetType Class : The type to include when running this transition. Returns Transition The Transition to which the target class was added.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).addTarget(ImageView.class); See also: addTarget(int) addTarget(android.view.View) excludeTarget(Class, boolean) excludeChildren(Class, boolean) addTarget Added in API level 21 public Transition addTarget ( String targetName) Adds the transitionName of a target view that this Transition is interested in
+ animating. By default, there are no targetNames, and a Transition will
+ listen for changes on every view in the hierarchy below the sceneRoot
+ of the Scene being transitioned into. Setting targetNames constrains
+ the Transition to only listen for, and act on, views with these transitionNames.
+ Views with different transitionNames, or no transitionName whatsoever, will be ignored. Note that transitionNames should be unique within the view hierarchy. Parameters targetName String : The transitionName of a target view, must be non-null. Returns Transition The Transition to which the target transitionName is added.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).addTarget(someName); See also: View.getTransitionName() canRemoveViews Added in API level 21 public boolean canRemoveViews () Returns boolean captureEndValues Added in API level 19 public abstract void captureEndValues ( TransitionValues transitionValues) Captures the values in the end scene for the properties that this
+ transition monitors. These values are then passed as the endValues
+ structure in a later call to createAnimator(android.view.ViewGroup, android.transition.TransitionValues, android.transition.TransitionValues) .
+ The main concern for an implementation is what the
+ properties are that the transition cares about and what the values are
+ for all of those properties. The start and end values will be compared
+ later during the createAnimator(android.view.ViewGroup, android.transition.TransitionValues, android.transition.TransitionValues) method to determine what, if any, animations, should be run. Subclasses must implement this method. The method should only be called by the
+ transition system; it is not intended to be called from external classes. Parameters transitionValues TransitionValues : The holder for any values that the Transition
+ wishes to store. Values are stored in the values field
+ of this TransitionValues object and are keyed from
+ a String value. For example, to store a view's rotation value,
+ a transition might call transitionValues.values.put("appname:transitionname:rotation",
+ view.getRotation()) . The target view will already be stored in
+ the transitionValues structure when this method is called. See also: captureStartValues(TransitionValues) createAnimator(ViewGroup, TransitionValues, TransitionValues) captureStartValues Added in API level 19 public abstract void captureStartValues ( TransitionValues transitionValues) Captures the values in the start scene for the properties that this
+ transition monitors. These values are then passed as the startValues
+ structure in a later call to createAnimator(android.view.ViewGroup, android.transition.TransitionValues, android.transition.TransitionValues) .
+ The main concern for an implementation is what the
+ properties are that the transition cares about and what the values are
+ for all of those properties. The start and end values will be compared
+ later during the createAnimator(android.view.ViewGroup, android.transition.TransitionValues, android.transition.TransitionValues) method to determine what, if any, animations, should be run. Subclasses must implement this method. The method should only be called by the
+ transition system; it is not intended to be called from external classes. Parameters transitionValues TransitionValues : The holder for any values that the Transition
+ wishes to store. Values are stored in the values field
+ of this TransitionValues object and are keyed from
+ a String value. For example, to store a view's rotation value,
+ a transition might call transitionValues.values.put("appname:transitionname:rotation",
+ view.getRotation()) . The target view will already be stored in
+ the transitionValues structure when this method is called. See also: captureEndValues(TransitionValues) createAnimator(ViewGroup, TransitionValues, TransitionValues) clone Added in API level 19 public Transition clone () Creates and returns a copy of this object.  The precise meaning
+ of "copy" may depend on the class of the object. The general
+ intent is that, for any object x , the expression: x.clone() != x will be true, and that the expression: x.clone().getClass() == x.getClass() will be true , but these are not absolute requirements.
+ While it is typically the case that: x.clone().equals(x) will be true , this is not an absolute requirement. By convention, the returned object should be obtained by calling super.clone .  If a class and all of its superclasses (except Object ) obey this convention, it will be the case that x.clone().getClass() == x.getClass() . By convention, the object returned by this method should be independent
+ of this object (which is being cloned).  To achieve this independence,
+ it may be necessary to modify one or more fields of the object returned
+ by super.clone before returning it.  Typically, this means
+ copying any mutable objects that comprise the internal "deep structure"
+ of the object being cloned and replacing the references to these
+ objects with references to the copies.  If a class contains only
+ primitive fields or references to immutable objects, then it is usually
+ the case that no fields in the object returned by super.clone need to be modified. Returns Transition a clone of this instance. createAnimator Added in API level 19 public Animator createAnimator ( ViewGroup sceneRoot, TransitionValues startValues, TransitionValues endValues) This method creates an animation that will be run for this transition
+ given the information in the startValues and endValues structures captured
+ earlier for the start and end scenes. Subclasses of Transition should override
+ this method. The method should only be called by the transition system; it is
+ not intended to be called from external classes. This method is called by the transition's parent (all the way up to the
+ topmost Transition in the hierarchy) with the sceneRoot and start/end
+ values that the transition may need to set up initial target values
+ and construct an appropriate animation. For example, if an overall
+ Transition is a TransitionSet consisting of several
+ child transitions in sequence, then some of the child transitions may
+ want to set initial values on target views prior to the overall
+ Transition commencing, to put them in an appropriate state for the
+ delay between that start and the child Transition start time. For
+ example, a transition that fades an item in may wish to set the starting
+ alpha value to 0, to avoid it blinking in prior to the transition
+ actually starting the animation. This is necessary because the scene
+ change that triggers the Transition will automatically set the end-scene
+ on all target views, so a Transition that wants to animate from a
+ different value should set that value prior to returning from this method. Additionally, a Transition can perform logic to determine whether
+ the transition needs to run on the given target and start/end values.
+ For example, a transition that resizes objects on the screen may wish
+ to avoid running for views which are not present in either the start
+ or end scenes. If there is an animator created and returned from this method, the
+ transition mechanism will apply any applicable duration, startDelay,
+ and interpolator to that animation and start it. A return value of null indicates that no animation should run. The default
+ implementation returns null. The method is called for every applicable target object, which is
+ stored in the TransitionValues.view field. Parameters sceneRoot ViewGroup : The root of the transition hierarchy.
+ This value cannot be null . startValues TransitionValues : The values for a specific target in the start scene, or null if
+                   the target doesn't exist in the start scene. endValues TransitionValues : The values for the target in the end scene, or null if the target
+                 doesn't exist in the end scene. Returns Animator an Animator to be started at the appropriate time in the overall transition
+ for this scene change. A null value means no animation should be run. excludeChildren Added in API level 19 public Transition excludeChildren (int targetId, 
+                boolean exclude) Whether to add the children of the given id to the list of targets to exclude
+ from this transition. The exclude parameter specifies whether
+ the children of the target should be added to or removed from the excluded list.
+ Excluding children in this way provides a simple mechanism for excluding all
+ children of specific targets, rather than individually excluding each
+ child individually. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters targetId int : The id of a target whose children should be ignored when running
+ this transition. exclude boolean : Whether to add the target to or remove the target from the
+ current list of excluded-child targets. Returns Transition This transition object. See also: excludeTarget(int, boolean) excludeChildren(View, boolean) excludeChildren(Class, boolean) excludeChildren Added in API level 19 public Transition excludeChildren ( Class <T> type, 
+                boolean exclude) Whether to add the given type to the list of types whose children should
+ be excluded from this transition. The exclude parameter
+ specifies whether the target type should be added to or removed from
+ the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters type Class : The type to ignore when running this transition. exclude boolean : Whether to add the target type to or remove it from the
+ current list of excluded target types. Returns Transition This transition object. See also: excludeTarget(Class, boolean) excludeChildren(int, boolean) excludeChildren(View, boolean) excludeChildren Added in API level 19 public Transition excludeChildren ( View target, 
+                boolean exclude) Whether to add the children of given target to the list of target children
+ to exclude from this transition. The exclude parameter specifies
+ whether the target should be added to or removed from the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters target View : The target to ignore when running this transition. exclude boolean : Whether to add the target to or remove the target from the
+ current list of excluded targets. Returns Transition This transition object. See also: excludeTarget(View, boolean) excludeChildren(int, boolean) excludeChildren(Class, boolean) excludeTarget Added in API level 19 public Transition excludeTarget ( View target, 
+                boolean exclude) Whether to add the given target to the list of targets to exclude from this
+ transition. The exclude parameter specifies whether the target
+ should be added to or removed from the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters target View : The target to ignore when running this transition. exclude boolean : Whether to add the target to or remove the target from the
+ current list of excluded targets. Returns Transition This transition object. See also: excludeChildren(View, boolean) excludeTarget(int, boolean) excludeTarget(Class, boolean) excludeTarget Added in API level 19 public Transition excludeTarget ( Class <T> type, 
+                boolean exclude) Whether to add the given type to the list of types to exclude from this
+ transition. The exclude parameter specifies whether the target
+ type should be added to or removed from the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters type Class : The type to ignore when running this transition. exclude boolean : Whether to add the target type to or remove it from the
+ current list of excluded target types. Returns Transition This transition object. See also: excludeChildren(Class, boolean) excludeTarget(int, boolean) excludeTarget(View, boolean) excludeTarget Added in API level 21 public Transition excludeTarget ( String targetName, 
+                boolean exclude) Whether to add the given transitionName to the list of target transitionNames to exclude
+ from this transition. The exclude parameter specifies whether the target
+ should be added to or removed from the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded by their
+ id, their instance reference, their transitionName, or by the Class of that view
+ (eg, Spinner ). Parameters targetName String : The name of a target to ignore when running this transition. exclude boolean : Whether to add the target to or remove the target from the
+ current list of excluded targets. Returns Transition This transition object. See also: excludeTarget(View, boolean) excludeTarget(int, boolean) excludeTarget(Class, boolean) excludeTarget Added in API level 19 public Transition excludeTarget (int targetId, 
+                boolean exclude) Whether to add the given id to the list of target ids to exclude from this
+ transition. The exclude parameter specifies whether the target
+ should be added to or removed from the excluded list. Excluding targets is a general mechanism for allowing transitions to run on
+ a view hierarchy while skipping target views that should not be part of
+ the transition. For example, you may want to avoid animating children
+ of a specific ListView or Spinner. Views can be excluded either by their
+ id, or by their instance reference, or by the Class of that view
+ (eg, Spinner ). Parameters targetId int : The id of a target to ignore when running this transition. exclude boolean : Whether to add the target to or remove the target from the
+ current list of excluded targets. Returns Transition This transition object. See also: excludeChildren(int, boolean) excludeTarget(View, boolean) excludeTarget(Class, boolean) getDuration Added in API level 19 public long getDuration () Returns the duration set on this transition. If no duration has been set,
+ the returned value will be negative, indicating that resulting animators will
+ retain their own durations. Returns long The duration set on this transition, in milliseconds, if one has been
+ set, otherwise returns a negative number. getEpicenter Added in API level 21 public Rect getEpicenter () Returns the epicenter as specified by the Transition.EpicenterCallback or null if no callback exists. Returns Rect the epicenter as specified by the Transition.EpicenterCallback or null if no callback exists. See also: setEpicenterCallback(android.transition.Transition.EpicenterCallback) getEpicenterCallback Added in API level 21 public Transition.EpicenterCallback getEpicenterCallback () Returns the callback used to find the epicenter of the Transition.
+ Transitions like Explode use a point or Rect to orient
+ the direction of travel. This is called the epicenter of the Transition and is
+ typically centered on a touched View. The Transition.EpicenterCallback allows a Transition to
+ dynamically retrieve the epicenter during a Transition. Returns Transition.EpicenterCallback the callback used to find the epicenter of the Transition. getInterpolator Added in API level 19 public TimeInterpolator getInterpolator () Returns the interpolator set on this transition. If no interpolator has been set,
+ the returned value will be null, indicating that resulting animators will
+ retain their own interpolators. Returns TimeInterpolator The interpolator set on this transition, if one has been set, otherwise
+ returns null. getName Added in API level 19 public String getName () Returns the name of this Transition. This name is used internally to distinguish
+ between different transitions to determine when interrupting transitions overlap.
+ For example, a ChangeBounds running on the same target view as another ChangeBounds
+ should determine whether the old transition is animating to different end values
+ and should be canceled in favor of the new transition. By default, a Transition's name is simply the value of Class.getName() ,
+ but subclasses are free to override and return something different. Returns String The name of this transition. getPathMotion Added in API level 21 public PathMotion getPathMotion () Returns the algorithm object used to interpolate along two dimensions. This is typically
+ used to determine the View motion between two points. When describing in XML, use a nested XML tag for the path motion. It can be one of
+     the built-in tags arcMotion or patternPathMotion or it can
+     be a custom PathMotion using pathMotion with the class attributed with the fully-described class name. For example: <changeBounds>
+     <pathMotion class="my.app.transition.MyPathMotion"/>
+ </changeBounds> or <changeBounds>
+   <arcMotion android:minimumHorizontalAngle="15"
+              android:minimumVerticalAngle="0"
+              android:maximumAngle="90"/>
+ </changeBounds> Returns PathMotion The algorithm object used to interpolate along two dimensions. See also: ArcMotion PatternPathMotion PathMotion getPropagation Added in API level 21 public TransitionPropagation getPropagation () Returns the TransitionPropagation used to calculate Animator start
+ delays.
+ When a Transition affects several Views like Explode or Slide , there may be a desire to have a "wave-front" effect
+ such that the Animator start delay depends on position of the View. The
+ TransitionPropagation specifies how the start delays are calculated. Returns TransitionPropagation the TransitionPropagation used to calculate Animator start
+ delays. This is null by default. getStartDelay Added in API level 19 public long getStartDelay () Returns the startDelay set on this transition. If no startDelay has been set,
+ the returned value will be negative, indicating that resulting animators will
+ retain their own startDelays. Returns long The startDelay set on this transition, in milliseconds, if one has
+ been set, otherwise returns a negative number. getTargetIds Added in API level 19 public List < Integer > getTargetIds () Returns the list of target IDs that this transition limits itself to
+ tracking and animating. If the list is null or empty for getTargetIds() , getTargets() , getTargetNames() , and getTargetTypes() then this transition is
+ not limited to specific views, and will handle changes to any views
+ in the hierarchy of a scene change. Returns List < Integer > the list of target IDs getTargetNames Added in API level 21 public List < String > getTargetNames () Returns the list of target transitionNames that this transition limits itself to
+ tracking and animating. If the list is null or empty for getTargetIds() , getTargets() , getTargetNames() , and getTargetTypes() then this transition is
+ not limited to specific views, and will handle changes to any views
+ in the hierarchy of a scene change. Returns List < String > the list of target transitionNames getTargetTypes Added in API level 21 public List < Class <T>> getTargetTypes () Returns the list of target transitionNames that this transition limits itself to
+ tracking and animating. If the list is null or empty for getTargetIds() , getTargets() , getTargetNames() , and getTargetTypes() then this transition is
+ not limited to specific views, and will handle changes to any views
+ in the hierarchy of a scene change. Returns List < Class <T>> the list of target Types getTargets Added in API level 19 public List < View > getTargets () Returns the list of target views that this transition limits itself to
+ tracking and animating. If the list is null or empty for getTargetIds() , getTargets() , getTargetNames() , and getTargetTypes() then this transition is
+ not limited to specific views, and will handle changes to any views
+ in the hierarchy of a scene change. Returns List < View > the list of target views getTransitionProperties Added in API level 19 public String[] getTransitionProperties () Returns the set of property names used stored in the TransitionValues object passed into captureStartValues(android.transition.TransitionValues) that
+ this transition cares about for the purposes of canceling overlapping animations.
+ When any transition is started on a given scene root, all transitions
+ currently running on that same scene root are checked to see whether the
+ properties on which they based their animations agree with the end values of
+ the same properties in the new transition. If the end values are not equal,
+ then the old animation is canceled since the new transition will start a new
+ animation to these new values. If the values are equal, the old animation is
+ allowed to continue and no new animation is started for that transition. A transition does not need to override this method. However, not doing so
+ will mean that the cancellation logic outlined in the previous paragraph
+ will be skipped for that transition, possibly leading to artifacts as
+ old transitions and new transitions on the same targets run in parallel,
+ animating views toward potentially different end values. Returns String[] An array of property names as described in the class documentation for TransitionValues . The default implementation returns null . getTransitionValues Added in API level 19 public TransitionValues getTransitionValues ( View view, 
+                boolean start) This method can be called by transitions to get the TransitionValues for
+ any particular view during the transition-playing process. This might be
+ necessary, for example, to query the before/after state of related views
+ for a given transition. Parameters view View start boolean Returns TransitionValues isTransitionRequired Added in API level 23 public boolean isTransitionRequired ( TransitionValues startValues, TransitionValues endValues) Returns whether or not the transition should create an Animator, based on the values
+ captured during captureStartValues(android.transition.TransitionValues) and captureEndValues(android.transition.TransitionValues) . The default implementation compares the
+ property values returned from getTransitionProperties() , or all property values if getTransitionProperties() returns null. Subclasses may override this method to
+ provide logic more specific to the transition implementation. Parameters startValues TransitionValues : the values from captureStartValues, This may be null if the
+                    View did not exist in the start state. endValues TransitionValues : the values from captureEndValues. This may be null if the View
+                  did not exist in the end state. Returns boolean removeListener Added in API level 19 public Transition removeListener ( Transition.TransitionListener listener) Removes a listener from the set listening to this animation. Parameters listener Transition.TransitionListener : the listener to be removed from the current set of
+ listeners for this transition. Returns Transition This transition object. removeTarget Added in API level 19 public Transition removeTarget (int targetId) Removes the given targetId from the list of ids that this Transition
+ is interested in animating. Parameters targetId int : The id of a target view, must be a positive number. Returns Transition The Transition from which the targetId is removed.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).removeTargetId(someId); removeTarget Added in API level 19 public Transition removeTarget ( View target) Removes the given target from the list of targets that this Transition
+ is interested in animating. Parameters target View : The target view, must be non-null. Returns Transition Transition The Transition from which the target is removed.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).removeTarget(someView); removeTarget Added in API level 21 public Transition removeTarget ( String targetName) Removes the given targetName from the list of transitionNames that this Transition
+ is interested in animating. Parameters targetName String : The transitionName of a target view, must not be null. Returns Transition The Transition from which the targetName is removed.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).removeTargetName(someName); removeTarget Added in API level 21 public Transition removeTarget ( Class <T> target) Removes the given target from the list of targets that this Transition
+ is interested in animating. Parameters target Class : The type of the target view, must be non-null. Returns Transition Transition The Transition from which the target is removed.
+ Returning the same object makes it easier to chain calls during
+ construction, such as transitionSet.addTransitions(new Fade()).removeTarget(someType); setDuration Added in API level 19 public Transition setDuration (long duration) Sets the duration of this transition. By default, there is no duration
+ (indicated by a negative number), which means that the Animator created by
+ the transition will have its own specified duration. If the duration of a
+ Transition is set, that duration will override the Animator duration. Related XML Attributes: android:duration Parameters duration long : The length of the animation, in milliseconds. Returns Transition This transition object. setEpicenterCallback Added in API level 21 public void setEpicenterCallback ( Transition.EpicenterCallback epicenterCallback) Sets the callback to use to find the epicenter of a Transition. A null value indicates
+ that there is no epicenter in the Transition and onGetEpicenter() will return null.
+ Transitions like Explode use a point or Rect to orient
+ the direction of travel. This is called the epicenter of the Transition and is
+ typically centered on a touched View. The Transition.EpicenterCallback allows a Transition to
+ dynamically retrieve the epicenter during a Transition. Parameters epicenterCallback Transition.EpicenterCallback : The callback to use to find the epicenter of the Transition. setInterpolator Added in API level 19 public Transition setInterpolator ( TimeInterpolator interpolator) Sets the interpolator of this transition. By default, the interpolator
+ is null, which means that the Animator created by the transition
+ will have its own specified interpolator. If the interpolator of a
+ Transition is set, that interpolator will override the Animator interpolator. Related XML Attributes: android:interpolator Parameters interpolator TimeInterpolator : The time interpolator used by the transition Returns Transition This transition object. setMatchOrder Added in API level 21 public void setMatchOrder (int... matches) Sets the order in which Transition matches View start and end values. The default behavior is to match first by View.getTransitionName() ,
+ then by View instance, then by View.getId() and finally
+ by its item ID if it is in a direct child of ListView. The caller can
+ choose to have only some or all of the values of MATCH_INSTANCE , MATCH_NAME , MATCH_ITEM_ID , and MATCH_ID . Only
+ the match algorithms supplied will be used to determine whether Views are the
+ the same in both the start and end Scene. Views that do not match will be considered
+ as entering or leaving the Scene. Parameters matches int : A list of zero or more of MATCH_INSTANCE , MATCH_NAME , MATCH_ITEM_ID , and MATCH_ID .
+                If none are provided, then the default match order will be set. setPathMotion Added in API level 21 public void setPathMotion ( PathMotion pathMotion) Sets the algorithm used to calculate two-dimensional interpolation. Transitions such as ChangeBounds move Views, typically
+     in a straight path between the start and end positions. Applications that desire to
+     have these motions move in a curve can change how Views interpolate in two dimensions
+     by extending PathMotion and implementing PathMotion.getPath(float, float, float, float) . When describing in XML, use a nested XML tag for the path motion. It can be one of
+     the built-in tags arcMotion or patternPathMotion or it can
+     be a custom PathMotion using pathMotion with the class attributed with the fully-described class name. For example: <changeBounds>
+     <pathMotion class="my.app.transition.MyPathMotion"/>
+ </changeBounds> or <changeBounds>
+   <arcMotion android:minimumHorizontalAngle="15"
+     android:minimumVerticalAngle="0" android:maximumAngle="90"/>
+ </changeBounds> Parameters pathMotion PathMotion : Algorithm object to use for determining how to interpolate in two
+                   dimensions. If null, a straight-path algorithm will be used. See also: ArcMotion PatternPathMotion PathMotion setPropagation Added in API level 21 public void setPropagation ( TransitionPropagation transitionPropagation) Sets the method for determining Animator start delays.
+ When a Transition affects several Views like Explode or Slide , there may be a desire to have a "wave-front" effect
+ such that the Animator start delay depends on position of the View. The
+ TransitionPropagation specifies how the start delays are calculated. Parameters transitionPropagation TransitionPropagation : The class used to determine the start delay of
+                              Animators created by this Transition. A null value
+                              indicates that no delay should be used. setStartDelay Added in API level 19 public Transition setStartDelay (long startDelay) Sets the startDelay of this transition. By default, there is no delay
+ (indicated by a negative number), which means that the Animator created by
+ the transition will have its own specified startDelay. If the delay of a
+ Transition is set, that delay will override the Animator delay. Related XML Attributes: android:startDelay Parameters startDelay long : The length of the delay, in milliseconds. Returns Transition This transition object. toString Added in API level 19 public String toString () Returns a string representation of the object. Returns String a string representation of the object.</body></html>

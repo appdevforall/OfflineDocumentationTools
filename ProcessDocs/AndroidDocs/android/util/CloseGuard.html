@@ -1,0 +1,102 @@
+<html><head><title>Class Documentation</title></head><body>CloseGuard Kotlin | Java public
+  
+  final
+  
+  class
+  CloseGuard extends Object java.lang.Object ↳ android.util.CloseGuard CloseGuard is a mechanism for flagging implicit finalizer cleanup of
+ resources that should have been cleaned up by explicit close
+ methods (aka "explicit termination methods" in Effective Java). A simple example: class Foo {
+
+       private final CloseGuard guard = new CloseGuard();
+
+       ...
+
+       public Foo() {
+           ...;
+           guard.open("cleanup");
+       }
+
+       public void cleanup() {
+          guard.close();
+          ...;
+          if (Build.VERSION.SDK_INT >= 28) {
+              Reference.reachabilityFence(this);
+          }
+          // For full correctness in the absence of a close() call, other methods may also need
+          // reachabilityFence() calls.
+       }
+
+       protected void finalize() throws Throwable {
+           try {
+               // Note that guard could be null if the constructor threw.
+               if (guard != null) {
+                   guard.warnIfOpen();
+               }
+               cleanup();
+           } finally {
+               super.finalize();
+           }
+       }
+   } In usage where the resource to be explicitly cleaned up is
+ allocated after object construction, CloseGuard protection can
+ be deferred. For example: class Bar {
+
+       private final CloseGuard guard = new CloseGuard();
+
+       ...
+
+       public Bar() {
+           ...;
+       }
+
+       public void connect() {
+          ...;
+          guard.open("cleanup");
+       }
+
+       public void cleanup() {
+          guard.close();
+          ...;
+          if (Build.VERSION.SDK_INT >= 28) {
+              Reference.reachabilityFence(this);
+          }
+          // For full correctness in the absence of a close() call, other methods may also need
+          // reachabilityFence() calls.
+       }
+
+       protected void finalize() throws Throwable {
+           try {
+               // Note that guard could be null if the constructor threw.
+               if (guard != null) {
+                   guard.warnIfOpen();
+               }
+               cleanup();
+           } finally {
+               super.finalize();
+           }
+       }
+   } When used in a constructor, calls to open should occur at
+ the end of the constructor since an exception that would cause
+ abrupt termination of the constructor will mean that the user will
+ not have a reference to the object to cleanup explicitly. When used
+ in a method, the call to open should occur just after
+ resource acquisition. Summary Public constructors CloseGuard () Constructs a new CloseGuard instance. Public methods void close () Marks this CloseGuard instance as closed to avoid warnings on finalization. void open ( String closeMethodName) Initializes the instance with a warning that the caller should have explicitly called the closeMethodName method instead of relying on finalization. void warnIfOpen () Logs a warning if the caller did not properly cleanup by calling an explicit close method
+ before finalization. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . Public constructors CloseGuard Added in API level 30 public CloseGuard () Constructs a new CloseGuard instance. open(java.lang.String) can be used to set up the instance to warn on failure to close. Public methods close Added in API level 30 public void close () Marks this CloseGuard instance as closed to avoid warnings on finalization. open Added in API level 30 public void open ( String closeMethodName) Initializes the instance with a warning that the caller should have explicitly called the closeMethodName method instead of relying on finalization. Parameters closeMethodName String : non-null name of explicit termination method. Printed by warnIfOpen. Throws NullPointerException if closeMethodName is null. warnIfOpen Added in API level 30 public void warnIfOpen () Logs a warning if the caller did not properly cleanup by calling an explicit close method
+ before finalization.</body></html>

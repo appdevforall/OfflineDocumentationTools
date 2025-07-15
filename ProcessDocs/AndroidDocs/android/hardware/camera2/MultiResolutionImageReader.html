@@ -1,0 +1,149 @@
+<html><head><title>Class Documentation</title></head><body>MultiResolutionImageReader Kotlin | Java public
+  
+  
+  
+  class
+  MultiResolutionImageReader extends Object implements AutoCloseable java.lang.Object ↳ android.hardware.camera2.MultiResolutionImageReader The MultiResolutionImageReader class wraps a group of ImageReaders with
+ the same format and different sizes, source camera Id, or camera sensor modes. The main use case of this class is for a multi-camera or an ultra high resolution sensor camera to output variable-size images. For a
+ logical multi-camera which implements optical zoom, different physical cameras may have different
+ maximum resolutions. As a result, when the camera device switches between physical cameras
+ depending on zoom ratio, the maximum resolution for a particular format may change. For an
+ ultra high resolution sensor camera, the camera device may deem it better or worse to run in
+ maximum resolution mode / default mode depending on lighting conditions. So the application may
+ choose to let the camera device decide on its behalf. MultiResolutionImageReader should be used for a camera device only if the camera device
+ supports multi-resolution output stream by advertising the specified output format in CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP . To acquire images from the MultiResolutionImageReader, the application must use the ImageReader object passed by ImageReader.OnImageAvailableListener.onImageAvailable callback to call ImageReader.acquireNextImage or ImageReader.acquireLatestImage . The application
+ must not use the ImageReader passed by an ImageReader.OnImageAvailableListener.onImageAvailable(ImageReader) callback to acquire future images
+ because future images may originate from a different ImageReader contained within the MultiResolutionImageReader . See also: ImageReader CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP Summary Public constructors MultiResolutionImageReader ( Collection < MultiResolutionStreamInfo > streams, int format, int maxImages) Create a new multi-resolution reader based on a group of camera stream properties returned
+ by a camera device. MultiResolutionImageReader ( Collection < MultiResolutionStreamInfo > streams, int format, int maxImages, long usage) Create a new multi-resolution reader based on a group of camera stream properties returned
+ by a camera device, and the desired format, maximum buffer capacity and consumer usage flag. Public methods void close () Closes this resource, relinquishing any underlying resources. void flush () Flush pending images from all internal ImageReaders Acquire and close pending images from all internal ImageReaders. MultiResolutionStreamInfo getStreamInfoForImageReader ( ImageReader reader) Get the MultiResolutionStreamInfo describing the ImageReader an image originates from An image from a MultiResolutionImageReader is produced from one of the underlying ImageReader s. Surface getSurface () Get the surface that is used as a target for CaptureRequest The application must use the surface returned by this function as a target for CaptureRequest . void setOnImageAvailableListener ( ImageReader.OnImageAvailableListener listener, Executor executor) Set onImageAvailableListener callback. Protected methods void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.AutoCloseable abstract
+        
+        
+        
+        
+        void close () Closes this resource, relinquishing any underlying resources. Public constructors MultiResolutionImageReader Added in API level 31 public MultiResolutionImageReader ( Collection < MultiResolutionStreamInfo > streams, 
+                int format, 
+                int maxImages) Create a new multi-resolution reader based on a group of camera stream properties returned
+ by a camera device. The valid size and formats depend on the camera characteristics. MultiResolutionImageReader for an image format is supported by the camera device if
+ the format is in the supported multi-resolution output stream formats returned by MultiResolutionStreamConfigurationMap.getOutputFormats() .
+ If the image format is supported, the MultiResolutionImageReader object can be
+ created with the streams objects returned by MultiResolutionStreamConfigurationMap.getOutputInfo(int) . The maxImages parameter determines the maximum number of Image objects that can be acquired from each of the ImageReader within the MultiResolutionImageReader . However, requesting more buffers will
+ use up more memory, so it is important to use only the minimum number necessary. The
+ application is strongly recommended to acquire no more than maxImages images
+ from all of the internal ImageReader objects combined. By keeping track of the number of
+ acquired images for the MultiResolutionImageReader, the application doesn't need to do the
+ bookkeeping for each internal ImageReader returned from onImageAvailable callback. Unlike the normal ImageReader, the MultiResolutionImageReader has a more complex
+ configuration sequence. Instead of passing the same surface to OutputConfiguration and
+ CaptureRequest, the OutputConfiguration.createInstancesForMultiResolutionOutput(MultiResolutionImageReader) call needs to be used to create the OutputConfigurations for session creation, and then getSurface() is used to get CaptureRequest . Parameters streams Collection : The group of multi-resolution stream info, which is used to create
+            a multi-resolution reader containing a number of ImageReader objects. Each
+            ImageReader object represents a multi-resolution stream in the group.
+ This value cannot be null . format int : The format of the Image that this multi-resolution reader will produce.
+            This must be one of the ImageFormat or PixelFormat constants. Note that not all formats are
+            supported, like ImageFormat.NV21. The supported multi-resolution
+            reader format can be queried by MultiResolutionStreamConfigurationMap.getOutputFormats() .
+ Value is ImageFormat.UNKNOWN , PixelFormat.RGBA_8888 , PixelFormat.RGBX_8888 , PixelFormat.RGB_888 , ImageFormat.RGB_565 , ImageFormat.YV12 , ImageFormat.Y8 , android.graphics.ImageFormat.Y16, ImageFormat.YCBCR_P010 , ImageFormat.YCBCR_P210 , ImageFormat.NV16 , ImageFormat.NV21 , ImageFormat.YUY2 , ImageFormat.JPEG , ImageFormat.DEPTH_JPEG , ImageFormat.YUV_420_888 , ImageFormat.YUV_422_888 , ImageFormat.YUV_444_888 , ImageFormat.FLEX_RGB_888 , ImageFormat.FLEX_RGBA_8888 , ImageFormat.RAW_SENSOR , ImageFormat.RAW_PRIVATE , ImageFormat.RAW10 , ImageFormat.RAW12 , ImageFormat.DEPTH16 , ImageFormat.DEPTH_POINT_CLOUD , android.graphics.ImageFormat.RAW_DEPTH, android.graphics.ImageFormat.RAW_DEPTH10, ImageFormat.PRIVATE , ImageFormat.HEIC , ImageFormat.HEIC_ULTRAHDR , or ImageFormat.JPEG_R maxImages int : The maximum number of images the user will want to
+            access simultaneously. This should be as small as possible to
+            limit memory use. Once maxImages images are obtained by the
+            user from any given internal ImageReader, one of them has to be released before
+            a new Image will become available for access through the ImageReader's ImageReader.acquireLatestImage() or ImageReader.acquireNextImage() . Must be greater than 0.
+ Value is 1 or greater See also: Image CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP MultiResolutionStreamConfigurationMap MultiResolutionImageReader Added in API level 36 public MultiResolutionImageReader ( Collection < MultiResolutionStreamInfo > streams, 
+                int format, 
+                int maxImages, 
+                long usage) Create a new multi-resolution reader based on a group of camera stream properties returned
+ by a camera device, and the desired format, maximum buffer capacity and consumer usage flag. The valid size and formats depend on the camera characteristics. MultiResolutionImageReader for an image format is supported by the camera device if
+ the format is in the supported multi-resolution output stream formats returned by MultiResolutionStreamConfigurationMap.getOutputFormats() .
+ If the image format is supported, the MultiResolutionImageReader object can be
+ created with the streams objects returned by MultiResolutionStreamConfigurationMap.getOutputInfo(int) . The maxImages parameter determines the maximum number of Image objects that can be acquired from each of the ImageReader within the MultiResolutionImageReader . However, requesting more buffers will
+ use up more memory, so it is important to use only the minimum number necessary. The
+ application is strongly recommended to acquire no more than maxImages images
+ from all of the internal ImageReader objects combined. By keeping track of the number of
+ acquired images for the MultiResolutionImageReader, the application doesn't need to do the
+ bookkeeping for each internal ImageReader returned from onImageAvailable callback. Unlike the normal ImageReader, the MultiResolutionImageReader has a more complex
+ configuration sequence. Instead of passing the same surface to OutputConfiguration and
+ CaptureRequest, the OutputConfiguration.createInstancesForMultiResolutionOutput(MultiResolutionImageReader) call needs to be used to create the OutputConfigurations for session creation, and then getSurface() is used to get CaptureRequest . Parameters streams Collection : The group of multi-resolution stream info, which is used to create
+            a multi-resolution reader containing a number of ImageReader objects. Each
+            ImageReader object represents a multi-resolution stream in the group.
+ This value cannot be null . format int : The format of the Image that this multi-resolution reader will produce.
+            This must be one of the ImageFormat or PixelFormat constants. Note that not all formats are
+            supported, like ImageFormat.NV21. The supported multi-resolution
+            reader format can be queried by MultiResolutionStreamConfigurationMap.getOutputFormats() .
+ Value is ImageFormat.UNKNOWN , PixelFormat.RGBA_8888 , PixelFormat.RGBX_8888 , PixelFormat.RGB_888 , ImageFormat.RGB_565 , ImageFormat.YV12 , ImageFormat.Y8 , android.graphics.ImageFormat.Y16, ImageFormat.YCBCR_P010 , ImageFormat.YCBCR_P210 , ImageFormat.NV16 , ImageFormat.NV21 , ImageFormat.YUY2 , ImageFormat.JPEG , ImageFormat.DEPTH_JPEG , ImageFormat.YUV_420_888 , ImageFormat.YUV_422_888 , ImageFormat.YUV_444_888 , ImageFormat.FLEX_RGB_888 , ImageFormat.FLEX_RGBA_8888 , ImageFormat.RAW_SENSOR , ImageFormat.RAW_PRIVATE , ImageFormat.RAW10 , ImageFormat.RAW12 , ImageFormat.DEPTH16 , ImageFormat.DEPTH_POINT_CLOUD , android.graphics.ImageFormat.RAW_DEPTH, android.graphics.ImageFormat.RAW_DEPTH10, ImageFormat.PRIVATE , ImageFormat.HEIC , ImageFormat.HEIC_ULTRAHDR , or ImageFormat.JPEG_R maxImages int : The maximum number of images the user will want to
+            access simultaneously. This should be as small as possible to
+            limit memory use. Once maxImages images are obtained by the
+            user from any given internal ImageReader, one of them has to be released before
+            a new Image will become available for access through the ImageReader's ImageReader.acquireLatestImage() or ImageReader.acquireNextImage() . Must be greater than 0.
+ Value is 1 or greater usage long : The intended usage of the images produced by the internal ImageReader. See the usages
+              on HardwareBuffer for a list of valid usage bits. See also HardwareBuffer.isSupported(int, int, int, int, long) for checking
+              if a combination is supported. If it's not supported this will throw
+              an IllegalArgumentException .
+ Value is either 0 or a combination of HardwareBuffer.USAGE_CPU_READ_RARELY , HardwareBuffer.USAGE_CPU_READ_OFTEN , HardwareBuffer.USAGE_CPU_WRITE_RARELY , HardwareBuffer.USAGE_CPU_WRITE_OFTEN , HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE , HardwareBuffer.USAGE_GPU_COLOR_OUTPUT , HardwareBuffer.USAGE_COMPOSER_OVERLAY , HardwareBuffer.USAGE_PROTECTED_CONTENT , HardwareBuffer.USAGE_VIDEO_ENCODE , HardwareBuffer.USAGE_GPU_DATA_BUFFER , HardwareBuffer.USAGE_SENSOR_DIRECT_DATA , HardwareBuffer.USAGE_GPU_CUBE_MAP , HardwareBuffer.USAGE_GPU_MIPMAP_COMPLETE , and HardwareBuffer.USAGE_FRONT_BUFFER See also: Image CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP MultiResolutionStreamConfigurationMap Public methods close Added in API level 31 public void close () Closes this resource, relinquishing any underlying resources.
+ This method is invoked automatically on objects managed by the try -with-resources statement. flush Added in API level 31 public void flush () Flush pending images from all internal ImageReaders Acquire and close pending images from all internal ImageReaders. This has the same
+ effect as calling acquireLatestImage() on all internal ImageReaders, and closing all
+ latest images. getStreamInfoForImageReader Added in API level 31 public MultiResolutionStreamInfo getStreamInfoForImageReader ( ImageReader reader) Get the MultiResolutionStreamInfo describing the ImageReader an image originates from An image from a MultiResolutionImageReader is produced from one of the underlying ImageReader s. This function returns the MultiResolutionStreamInfo to describe
+the property for that ImageReader , such as width, height, and physical camera Id. Parameters reader ImageReader : An internal ImageReader within MultiResolutionImageReader .
+
+ This value cannot be null . Returns MultiResolutionStreamInfo The stream info describing the internal ImageReader .
+
+ This value cannot be null . getSurface Added in API level 31 public Surface getSurface () Get the surface that is used as a target for CaptureRequest The application must use the surface returned by this function as a target for CaptureRequest . The camera device makes the decision on which internal ImageReader will receive the output image. Please note that holding on to the Surface objects returned by this method is not enough
+ to keep their parent MultiResolutionImageReaders from being reclaimed. In that sense, a
+ Surface acts like a weak reference to the
+ MultiResolutionImageReader that provides it. Returns Surface a Surface to use as the target for a capture request.
+
+ This value cannot be null . setOnImageAvailableListener Added in API level 31 public void setOnImageAvailableListener ( ImageReader.OnImageAvailableListener listener, Executor executor) Set onImageAvailableListener callback. This function sets the onImageAvailableListener for all the internal ImageReader objects. For a multi-resolution ImageReader, the timestamps of images acquired in
+ onImageAvailable callback from different internal ImageReaders may become
+ out-of-order due to the asynchronous callbacks between the different resolution
+ image queues. Parameters listener ImageReader.OnImageAvailableListener : The listener that will be run.
+ This value may be null . executor Executor : The executor which will be used when invoking the callback.
+
+ This value may be null .
+
+ Callback and listener events are dispatched through this Executor , providing an easy way to control which thread is
+ used. To dispatch events through the main thread of your
+ application, you can use Context.getMainExecutor() .
+ Otherwise, provide an Executor that dispatches to an appropriate thread. Protected methods finalize Added in API level 31 protected void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object.
+ A subclass overrides the finalize method to dispose of
+ system resources or to perform other cleanup. The general contract of finalize is that it is invoked
+ if and when the Java virtual
+ machine has determined that there is no longer any
+ means by which this object can be accessed by any thread that has
+ not yet died, except as a result of an action taken by the
+ finalization of some other object or class which is ready to be
+ finalized. The finalize method may take any action, including
+ making this object available again to other threads; the usual purpose
+ of finalize , however, is to perform cleanup actions before
+ the object is irrevocably discarded. For example, the finalize method
+ for an object that represents an input/output connection might perform
+ explicit I/O transactions to break the connection before the object is
+ permanently discarded. The finalize method of class Object performs no
+ special action; it simply returns normally. Subclasses of Object may override this definition. The Java programming language does not guarantee which thread will
+ invoke the finalize method for any given object. It is
+ guaranteed, however, that the thread that invokes finalize will not
+ be holding any user-visible synchronization locks when finalize is
+ invoked. If an uncaught exception is thrown by the finalize method,
+ the exception is ignored and finalization of that object terminates. After the finalize method has been invoked for an object, no
+ further action is taken until the Java virtual machine has again
+ determined that there is no longer any means by which this object can
+ be accessed by any thread that has not yet died, including possible
+ actions by other objects or classes which are ready to be finalized,
+ at which point the object may be discarded. The finalize method is never invoked more than once by a Java
+ virtual machine for any given object. Any exception thrown by the finalize method causes
+ the finalization of this object to be halted, but is otherwise
+ ignored.</body></html>

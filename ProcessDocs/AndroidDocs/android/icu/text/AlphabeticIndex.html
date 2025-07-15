@@ -1,0 +1,97 @@
+<html><head><title>Class Documentation</title></head><body>AlphabeticIndex Kotlin | Java public
+  
+  final
+  
+  class
+  AlphabeticIndex extends Object implements Iterable < Bucket <V>> java.lang.Object ↳ android.icu.text.AlphabeticIndex<V> AlphabeticIndex supports the creation of a UI index appropriate for a given language.
+ It can support either direct use, or use with a client that doesn't support localized collation.
+ The following is an example of what an index might look like in a UI: ... A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  ... A Addison
+     Albertson
+     Azensky B Baecker
+  ... The class can generate a list of labels for use as a UI "index", that is, a list of
+ clickable characters (or character sequences) that allow the user to see a segment
+ (bucket) of a larger "target" list. That is, each label corresponds to a bucket in
+ the target list, where everything in the bucket is greater than or equal to the character
+ (according to the locale's collation). Strings can be added to the index;
+ they will be in sorted order in the right bucket. The class also supports having buckets for strings before the first (underflow),
+ after the last (overflow), and between scripts (inflow). For example, if the index
+ is constructed with labels for Russian and English, Greek characters would fall
+ into an inflow bucket between the other two scripts. Note: If you expect to have a lot of ASCII or Latin characters
+ as well as characters from the user's language,
+ then it is a good idea to call addLabels(ULocale.English). Direct Use The following shows an example of building an index directly.
+  The "show..." methods below are just to illustrate usage. // Create a simple index where the values for the strings are Integers, and add the strings
+
+ AlphabeticIndex<Integer> index = new AlphabeticIndex<Integer>(desiredLocale).addLabels(additionalLocale);
+ int counter = 0;
+ for (String item : test) {
+     index.addRecord(item, counter++);
+ }
+ ...
+ // Show index at top. We could skip or gray out empty buckets
+
+ for (AlphabeticIndex.Bucket<Integer> bucket : index) {
+     if (showAll || bucket.size() != 0) {
+         showLabelAtTop(UI, bucket.getLabel());
+     }
+ }
+  ...
+ // Show the buckets with their contents, skipping empty buckets
+
+ for (AlphabeticIndex.Bucket<Integer> bucket : index) {
+     if (bucket.size() != 0) {
+         showLabelInList(UI, bucket.getLabel());
+         for (AlphabeticIndex.Record<Integer> item : bucket) {
+             showIndexedItem(UI, item.getName(), item.getData());
+         } The caller can build different UIs using this class.
+ For example, an index character could be omitted or grayed-out
+ if its bucket is empty. Small buckets could also be combined based on size, such as: ... A-F G-N O-Z ... Client Support Callers can also use the AlphabeticIndex.ImmutableIndex , or the AlphabeticIndex itself,
+ to support sorting on a client that doesn't support AlphabeticIndex functionality. The ImmutableIndex is both immutable and thread-safe.
+ The corresponding AlphabeticIndex methods are not thread-safe because
+ they "lazily" build the index buckets. ImmutableIndex.getBucket(index) provides random access to all
+     buckets and their labels and label types. AlphabeticIndex.getBucketLabels() or the bucket iterator on either class
+     can be used to get a list of the labels,
+     such as "...", "A", "B",..., and send that list to the client. When the client has a new name, it sends that name to the server.
+ The server needs to call the following methods,
+ and communicate the bucketIndex and collationKey back to the client. int bucketIndex = index.getBucketIndex(name);
+ String label = immutableIndex.getBucket(bucketIndex).getLabel();  // optional
+ RawCollationKey collationKey = collator.getRawCollationKey(name, null); The client would put the name (and associated information) into its bucket for bucketIndex. The collationKey is a
+ sequence of bytes that can be compared with a binary compare, and produce the right localized result. Summary Nested classes class AlphabeticIndex.Bucket <V> An index "bucket" with a label string and type. class AlphabeticIndex.ImmutableIndex <V> Immutable, thread-safe version of AlphabeticIndex . class AlphabeticIndex.Record <V> A (name, data) pair, to be sorted by name into one of the index buckets. Public constructors AlphabeticIndex ( RuleBasedCollator collator) Create an AlphabeticIndex that uses a specific collator. AlphabeticIndex ( ULocale locale) Create the index object. AlphabeticIndex ( Locale locale) Create the index object. Public methods AlphabeticIndex <V> addLabels ( ULocale... additions) Add more index characters (aside from what are in the locale) AlphabeticIndex <V> addLabels ( UnicodeSet additions) Add more index characters (aside from what are in the locale) AlphabeticIndex <V> addLabels ( Locale... additions) Add more index characters (aside from what are in the locale) AlphabeticIndex <V> addRecord ( CharSequence name, V data) Add a record (name and data) to the index. ImmutableIndex <V> buildImmutableIndex () Builds an immutable, thread-safe version of this instance, without data records. AlphabeticIndex <V> clearRecords () Clear the index. int getBucketCount () Return the number of buckets in the index. int getBucketIndex ( CharSequence name) Get the bucket number for the given name. List < String > getBucketLabels () Get the labels. RuleBasedCollator getCollator () Get a clone of the collator used internally. String getInflowLabel () Get the default label used for abbreviated buckets between other labels. int getMaxLabelCount () Get the limit on the number of labels in the index. String getOverflowLabel () Get the default label used in the IndexCharacters' locale for overflow, eg the first item in: ... int getRecordCount () Return the number of records in the index: that is, the total number of distinct <name,data> pairs added with addRecord(...), over all the buckets. String getUnderflowLabel () Get the default label used in the IndexCharacters' locale for underflow, eg the last item in: X Y Z ... Iterator < Bucket <V>> iterator () Return an iterator over the buckets. AlphabeticIndex <V> setInflowLabel ( String inflowLabel) Set the inflowLabel label AlphabeticIndex <V> setMaxLabelCount (int maxLabelCount) Set a limit on the number of labels in the index. AlphabeticIndex <V> setOverflowLabel ( String overflowLabel) Set the overflow label AlphabeticIndex <V> setUnderflowLabel ( String underflowLabel) Set the underflowLabel label Inherited methods From class java.lang.Object Object clone () Creates and returns a copy of this object. boolean equals ( Object obj) Indicates whether some other object is "equal to" this one. void finalize () Called by the garbage collector on an object when garbage collection
+ determines that there are no more references to the object. final Class <?> getClass () Returns the runtime class of this Object . int hashCode () Returns a hash code value for the object. final
+        
+        void notify () Wakes up a single thread that is waiting on this object's
+ monitor. final
+        
+        void notifyAll () Wakes up all threads that are waiting on this object's monitor. String toString () Returns a string representation of the object. final
+        
+        void wait (long timeoutMillis, int nanos) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait (long timeoutMillis) Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted , or until a
+ certain amount of real time has elapsed. final
+        
+        void wait () Causes the current thread to wait until it is awakened, typically
+ by being notified or interrupted . From interface java.lang.Iterable default
+        
+        
+        
+        void forEach ( Consumer <? super T> action) Performs the given action for each element of the Iterable until all elements have been processed or the action throws an
+ exception. abstract Iterator < Bucket <V>> iterator () Returns an iterator over elements of type T . default Spliterator < Bucket <V>> spliterator () Creates a Spliterator over the elements described by this Iterable . Public constructors AlphabeticIndex Added in API level 24 public AlphabeticIndex ( RuleBasedCollator collator) Create an AlphabeticIndex that uses a specific collator. The index will be created with no labels; the addLabels() function must be called
+ after creation to add the desired labels to the index. The index will work directly with the supplied collator. If the caller will need to
+ continue working with the collator it should be cloned first, so that the
+ collator provided to the AlphabeticIndex remains unchanged after creation of the index. Parameters collator RuleBasedCollator : The collator to use to order the contents of this index. AlphabeticIndex Added in API level 24 public AlphabeticIndex ( ULocale locale) Create the index object. Parameters locale ULocale : The locale for the index. AlphabeticIndex Added in API level 24 public AlphabeticIndex ( Locale locale) Create the index object. Parameters locale Locale : The locale for the index. Public methods addLabels Added in API level 24 public AlphabeticIndex <V> addLabels ( ULocale... additions) Add more index characters (aside from what are in the locale) Parameters additions ULocale : additional characters to add to the index, such as those in Swedish. Returns AlphabeticIndex <V> this, for chaining addLabels Added in API level 24 public AlphabeticIndex <V> addLabels ( UnicodeSet additions) Add more index characters (aside from what are in the locale) Parameters additions UnicodeSet : additional characters to add to the index, such as A-Z. Returns AlphabeticIndex <V> this, for chaining addLabels Added in API level 24 public AlphabeticIndex <V> addLabels ( Locale... additions) Add more index characters (aside from what are in the locale) Parameters additions Locale : additional characters to add to the index, such as those in Swedish. Returns AlphabeticIndex <V> this, for chaining addRecord Added in API level 24 public AlphabeticIndex <V> addRecord ( CharSequence name, 
+                V data) Add a record (name and data) to the index. The name will be used to sort the items into buckets, and to sort
+ within the bucket. Two records may have the same name. When they do, the sort order is according to the order added:
+ the first added comes first. Parameters name CharSequence : Name, such as a name data V : Data, such as an address or link Returns AlphabeticIndex <V> this, for chaining buildImmutableIndex Added in API level 24 public ImmutableIndex <V> buildImmutableIndex () Builds an immutable, thread-safe version of this instance, without data records. Returns ImmutableIndex <V> an immutable index instance clearRecords Added in API level 24 public AlphabeticIndex <V> clearRecords () Clear the index. Returns AlphabeticIndex <V> this, for chaining getBucketCount Added in API level 24 public int getBucketCount () Return the number of buckets in the index. This will be the same as the number of labels, plus buckets for the underflow, overflow, and inflow(s). Returns int number of buckets getBucketIndex Added in API level 24 public int getBucketIndex ( CharSequence name) Get the bucket number for the given name. This routine permits callers to implement their own bucket handling
+ mechanisms, including client-server handling. For example, when a new name is created on the client, it can ask
+ the server for the bucket for that name, and the sortkey (using getCollator). Once the client has that
+ information, it can put the name into the right bucket, and sort it within that bucket, without having access to
+ the index or collator. Note that the bucket number (and sort key) are only valid for the settings of the current AlphabeticIndex; if
+ those are changed, then the bucket number and sort key must be regenerated. Parameters name CharSequence : Name, such as a name Returns int the bucket index for the name getBucketLabels Added in API level 24 public List < String > getBucketLabels () Get the labels. Returns List < String > The list of bucket labels, after processing. getCollator Added in API level 24 public RuleBasedCollator getCollator () Get a clone of the collator used internally. Note that for performance reasons, the clone is only done once, and
+ then stored. The next time it is accessed, the same instance is returned. Don't use this method across threads if you are changing the settings on the collator, at least not without
+ synchronizing. Returns RuleBasedCollator a clone of the collator used internally getInflowLabel Added in API level 24 public String getInflowLabel () Get the default label used for abbreviated buckets between other labels. For example, consider the labels
+ for Latin and Greek are used: X Y Z ... Α Β Γ. Returns String inflow label getMaxLabelCount Added in API level 24 public int getMaxLabelCount () Get the limit on the number of labels in the index. The number of buckets can be slightly larger: see getBucketCount(). Returns int maxLabelCount maximum number of labels. getOverflowLabel Added in API level 24 public String getOverflowLabel () Get the default label used in the IndexCharacters' locale for overflow, eg the first item in: ... A B C Returns String overflow label getRecordCount Added in API level 24 public int getRecordCount () Return the number of records in the index: that is, the total number of distinct <name,data> pairs added with addRecord(...), over all the buckets. Returns int total number of records in buckets getUnderflowLabel Added in API level 24 public String getUnderflowLabel () Get the default label used in the IndexCharacters' locale for underflow, eg the last item in: X Y Z ... Returns String underflow label iterator Added in API level 24 public Iterator < Bucket <V>> iterator () Return an iterator over the buckets. Returns Iterator < Bucket <V>> iterator over buckets. setInflowLabel Added in API level 24 public AlphabeticIndex <V> setInflowLabel ( String inflowLabel) Set the inflowLabel label Parameters inflowLabel String : see class description Returns AlphabeticIndex <V> this, for chaining setMaxLabelCount Added in API level 24 public AlphabeticIndex <V> setMaxLabelCount (int maxLabelCount) Set a limit on the number of labels in the index. The number of buckets can be slightly larger: see
+ getBucketCount(). Parameters maxLabelCount int : Set the maximum number of labels. Currently, if the number is exceeded, then every
+         nth item is removed to bring the count down. A more sophisticated mechanism may be available in the
+         future. Returns AlphabeticIndex <V> this, for chaining setOverflowLabel Added in API level 24 public AlphabeticIndex <V> setOverflowLabel ( String overflowLabel) Set the overflow label Parameters overflowLabel String : see class description Returns AlphabeticIndex <V> this, for chaining setUnderflowLabel Added in API level 24 public AlphabeticIndex <V> setUnderflowLabel ( String underflowLabel) Set the underflowLabel label Parameters underflowLabel String : see class description Returns AlphabeticIndex <V> this, for chaining</body></html>
