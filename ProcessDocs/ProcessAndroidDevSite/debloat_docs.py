@@ -160,6 +160,11 @@ def adjust_href_attributes(soup, input_fname_set, menu_file):
         path = url_parts.path
         fragment = url_parts.fragment
         # Skip first forward slash (if present) and convert remaining "/" to "_"
+        if len(path) == 0 and fragment:
+            a["linkstatus"] = "existing"
+            a["class"] = a.get("class", []) + ["existing"]
+            continue
+
         if path.startswith("/"):
             path = path[1:]
         new_path = path.replace("/", "_")
@@ -167,8 +172,8 @@ def adjust_href_attributes(soup, input_fname_set, menu_file):
         if new_path != menu_file:
             new_path += ".html"
         # Reattach any fragment.
-        if fragment:
-            new_path += "#" + fragment
+        # if fragment:
+        #    new_path += "#" + fragment
         # Set an extra attribute: linkstatus
         # Determine if the target file exists by comparing with input_fname_set.
         if new_path in input_fname_set:
@@ -178,6 +183,9 @@ def adjust_href_attributes(soup, input_fname_set, menu_file):
             a["linkstatus"] = "non-existing"
             a["class"] = a.get("class", []) + ["non-existing"]
         a["href"] = new_path
+
+        if fragment:
+            a["href"] += "#" + fragment
     return soup
 
 def remove_unwanted_tags(soup):
