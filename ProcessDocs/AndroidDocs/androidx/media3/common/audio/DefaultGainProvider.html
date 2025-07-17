@@ -1,1 +1,837 @@
-<html><head><title>Class Documentation</title></head><body>DefaultGainProvider Artifact: androidx.media3:media3-common View Source Kotlin | Java @ UnstableApi public final class DefaultGainProvider implements GainProcessor.GainProvider Provides gain automation information to be applied on an audio stream. The class allows combining multiple fade shapes into one single automation line, with common fade shapes already implemented (e.g. FADE_IN_LINEAR ). See also GainProcessor Summary Nested types public final class DefaultGainProvider.Builder A builder for DefaultGainProvider instances. public interface DefaultGainProvider.FadeProvider Represents a time unit-agnostic fade shape to be applied over an automation. Constants static&nbsp;final DefaultGainProvider.FadeProvider FADE_IN_EQUAL_POWER Equal power fade in. static&nbsp;final DefaultGainProvider.FadeProvider FADE_IN_LINEAR Equal gain fade in. static&nbsp;final DefaultGainProvider.FadeProvider FADE_OUT_EQUAL_POWER Equal power fade out. static&nbsp;final DefaultGainProvider.FadeProvider FADE_OUT_LINEAR Equal gain fade out. Public methods float getGainFactorAtSamplePosition ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) long&nbsp;samplePosition, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;sampleRate ) Returns a gain factor between [0f; 1f] to apply at the given sample position relative to sampleRate . long isUnityUntil ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) long&nbsp;samplePosition, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;sampleRate ) Returns the exclusive upper limit of the range starting at samplePosition where the gain value is 1f (unity), or TIME_UNSET if samplePosition does not correspond to a gain of 1f. Constants FADE_IN_EQUAL_POWER public&nbsp;static&nbsp;final&nbsp; DefaultGainProvider.FadeProvider &nbsp; FADE_IN_EQUAL_POWER Equal power fade in. Ramps from 0 to 1 using an equal power curve. Summing this with FADE_OUT_EQUAL_POWER returns a constant power of 1 for all valid indexes. FADE_IN_LINEAR public&nbsp;static&nbsp;final&nbsp; DefaultGainProvider.FadeProvider &nbsp; FADE_IN_LINEAR Equal gain fade in. Ramps linearly from 0 to 1. Summing this with FADE_OUT_LINEAR returns a constant gain of 1 for all valid indexes. FADE_OUT_EQUAL_POWER public&nbsp;static&nbsp;final&nbsp; DefaultGainProvider.FadeProvider &nbsp; FADE_OUT_EQUAL_POWER Equal power fade out. Ramps from 1 to 0 using an equal power curve. Summing this with FADE_IN_EQUAL_POWER returns a constant power of 1 for all valid indexes. FADE_OUT_LINEAR public&nbsp;static&nbsp;final&nbsp; DefaultGainProvider.FadeProvider &nbsp; FADE_OUT_LINEAR Equal gain fade out. Ramps linearly from 1 to 0. Summing this with FADE_IN_LINEAR returns a constant gain of 1 for all valid indexes. Public methods getGainFactorAtSamplePosition public&nbsp;float&nbsp; getGainFactorAtSamplePosition ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) long&nbsp;samplePosition, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;sampleRate ) Returns a gain factor between [0f; 1f] to apply at the given sample position relative to sampleRate . Returned values must not change for the same pair of parameter values within the lifetime of the instance. isUnityUntil public&nbsp;long&nbsp; isUnityUntil ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) long&nbsp;samplePosition, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;sampleRate ) Returns the exclusive upper limit of the range starting at samplePosition where the gain value is 1f (unity), or TIME_UNSET if samplePosition does not correspond to a gain of 1f. If the range continues until the end of the stream, this method returns TIME_END_OF_SOURCE . Returned values must not change for the same pair of parameter values within the lifetime of the instance. Parameters @ IntRange (from&nbsp;=&nbsp;0) long&nbsp;samplePosition Inclusive starting position of the unity range. @ IntRange (from&nbsp;=&nbsp;1) int&nbsp;sampleRate Sample rate in Hertz related to samplePosition .</body></html>
+<html><head><title>DefaultGainProvider</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="DefaultGainProvider">
+      <meta itemprop="path" content="androidx.media3.common.audio">
+      <meta itemprop="property" content="getGainFactorAtSamplePosition(long,int)">
+      <meta itemprop="property" content="isUnityUntil(long,int)">
+      <meta itemprop="property" content="FADE_IN_EQUAL_POWER()">
+      <meta itemprop="property" content="FADE_IN_LINEAR()">
+      <meta itemprop="property" content="FADE_OUT_EQUAL_POWER()">
+      <meta itemprop="property" content="FADE_OUT_LINEAR()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="defaultgainprovider" data-text="DefaultGainProvider" tabindex="-1">DefaultGainProvider</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/common/audio/DefaultGainProvider.java+class:androidx.media3.common.audio.DefaultGainProvider" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/common/audio/DefaultGainProvider" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/common/audio/DefaultGainProvider">DefaultGainProvider</a> implements <a href="/reference/androidx/media3/common/audio/GainProcessor.GainProvider">GainProcessor.GainProvider</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Provides gain automation information to be applied on an audio stream. </p>
+    <p>The class allows combining multiple <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">fade shapes</a></code> into one single automation line, with common fade shapes already implemented (e.g. <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_LINEAR()">FADE_IN_LINEAR</a></code>).</p>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">See also</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/GainProcessor">GainProcessor</a></code></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.Builder">DefaultGainProvider.Builder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider">DefaultGainProvider</a></code> instances.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a></code></div>
+              <p>Represents a time unit-agnostic fade shape to be applied over an automation.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_EQUAL_POWER()">FADE_IN_EQUAL_POWER</a></code></div>
+              <p>Equal power fade in.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_LINEAR()">FADE_IN_LINEAR</a></code></div>
+              <p>Equal gain fade in.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_EQUAL_POWER()">FADE_OUT_EQUAL_POWER</a></code></div>
+              <p>Equal power fade out.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_LINEAR()">FADE_OUT_LINEAR</a></code></div>
+              <p>Equal gain fade out.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">float</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#getGainFactorAtSamplePosition(long,int)">getGainFactorAtSamplePosition</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) long&nbsp;samplePosition,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;sampleRate<br>)</code></div>
+              <p>Returns a gain factor between [0f; 1f] to apply at the given sample position relative to <code translate="no" dir="ltr">sampleRate</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#isUnityUntil(long,int)">isUnityUntil</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) long&nbsp;samplePosition,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;sampleRate<br>)</code></div>
+              <p>Returns the exclusive upper limit of the range starting at <code translate="no" dir="ltr">samplePosition</code> where the gain value is 1f (unity), or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if <code translate="no" dir="ltr">samplePosition</code> does not correspond to a gain of 1f.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getFADE_IN_EQUAL_POWER()"></a><a name="setFADE_IN_EQUAL_POWER()"></a><a name="getFADE_IN_EQUAL_POWER--"></a><a name="setFADE_IN_EQUAL_POWER--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="FADE_IN_EQUAL_POWER()" data-text="FADE_IN_EQUAL_POWER" tabindex="-1">FADE_IN_EQUAL_POWER</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a>&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_EQUAL_POWER()">FADE_IN_EQUAL_POWER</a></pre></devsite-code>
+        <p>Equal power fade in. </p>
+        <p>Ramps from 0 to 1 using an equal power curve. </p>
+        <p>Summing this with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_EQUAL_POWER()">FADE_OUT_EQUAL_POWER</a></code> returns a constant power of 1 for all valid indexes.</p>
+      </div>
+      <div class="api-item"><a name="getFADE_IN_LINEAR()"></a><a name="setFADE_IN_LINEAR()"></a><a name="getFADE_IN_LINEAR--"></a><a name="setFADE_IN_LINEAR--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="FADE_IN_LINEAR()" data-text="FADE_IN_LINEAR" tabindex="-1">FADE_IN_LINEAR</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a>&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_LINEAR()">FADE_IN_LINEAR</a></pre></devsite-code>
+        <p>Equal gain fade in. </p>
+        <p>Ramps linearly from 0 to 1. </p>
+        <p>Summing this with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_LINEAR()">FADE_OUT_LINEAR</a></code> returns a constant gain of 1 for all valid indexes.</p>
+      </div>
+      <div class="api-item"><a name="getFADE_OUT_EQUAL_POWER()"></a><a name="setFADE_OUT_EQUAL_POWER()"></a><a name="getFADE_OUT_EQUAL_POWER--"></a><a name="setFADE_OUT_EQUAL_POWER--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="FADE_OUT_EQUAL_POWER()" data-text="FADE_OUT_EQUAL_POWER" tabindex="-1">FADE_OUT_EQUAL_POWER</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a>&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_EQUAL_POWER()">FADE_OUT_EQUAL_POWER</a></pre></devsite-code>
+        <p>Equal power fade out. </p>
+        <p>Ramps from 1 to 0 using an equal power curve. </p>
+        <p>Summing this with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_EQUAL_POWER()">FADE_IN_EQUAL_POWER</a></code> returns a constant power of 1 for all valid indexes.</p>
+      </div>
+      <div class="api-item"><a name="getFADE_OUT_LINEAR()"></a><a name="setFADE_OUT_LINEAR()"></a><a name="getFADE_OUT_LINEAR--"></a><a name="setFADE_OUT_LINEAR--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="FADE_OUT_LINEAR()" data-text="FADE_OUT_LINEAR" tabindex="-1">FADE_OUT_LINEAR</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider.FadeProvider">DefaultGainProvider.FadeProvider</a>&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_OUT_LINEAR()">FADE_OUT_LINEAR</a></pre></devsite-code>
+        <p>Equal gain fade out. </p>
+        <p>Ramps linearly from 1 to 0. </p>
+        <p>Summing this with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/DefaultGainProvider#FADE_IN_LINEAR()">FADE_IN_LINEAR</a></code> returns a constant gain of 1 for all valid indexes.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getGainFactorAtSamplePosition(long, int)"></a><a name="getGainFactorAtSamplePosition-long-int-"></a><a name="getgainfactoratsampleposition"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getGainFactorAtSamplePosition(long,int)" data-text="getGainFactorAtSamplePosition" tabindex="-1">getGainFactorAtSamplePosition</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;float&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#getGainFactorAtSamplePosition(long,int)">getGainFactorAtSamplePosition</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) long&nbsp;samplePosition,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;sampleRate<br>)</pre></devsite-code>
+        <p>Returns a gain factor between [0f; 1f] to apply at the given sample position relative to <code translate="no" dir="ltr">sampleRate</code>. </p>
+        <p>Returned values must not change for the same pair of parameter values within the lifetime of the instance.</p>
+      </div>
+      <div class="api-item"><a name="isUnityUntil(long, int)"></a><a name="isUnityUntil-long-int-"></a><a name="isunityuntil"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isUnityUntil(long,int)" data-text="isUnityUntil" tabindex="-1">isUnityUntil</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/audio/DefaultGainProvider#isUnityUntil(long,int)">isUnityUntil</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) long&nbsp;samplePosition,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;sampleRate<br>)</pre></devsite-code>
+        <p>Returns the exclusive upper limit of the range starting at <code translate="no" dir="ltr">samplePosition</code> where the gain value is 1f (unity), or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if <code translate="no" dir="ltr">samplePosition</code> does not correspond to a gain of 1f. </p>
+        <p>If the range continues until the end of the stream, this method returns <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_END_OF_SOURCE()">TIME_END_OF_SOURCE</a></code>. </p>
+        <p>Returned values must not change for the same pair of parameter values within the lifetime of the instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) long&nbsp;samplePosition</code></td>
+                <td>
+                  <p>Inclusive starting position of the unity range.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;sampleRate</code></td>
+                <td>
+                  <p>Sample rate in Hertz related to <code translate="no" dir="ltr">samplePosition</code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

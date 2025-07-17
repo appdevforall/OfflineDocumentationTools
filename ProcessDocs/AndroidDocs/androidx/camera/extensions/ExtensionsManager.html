@@ -1,1 +1,1139 @@
-<html><head><title>Class Documentation</title></head><body>ExtensionsManager Artifact: androidx.camera:camera-extensions View Source Added in 1.1.0 Kotlin | Java public final class ExtensionsManager Provides interfaces for third party app developers to get capabilities info of extension functions. Many Android devices contain powerful cameras, with manufacturers devoting a lot of effort to build many cutting-edge features, or special effects, into these camera devices. CameraX Extensions allows third party apps to enable the available extension modes on the supported devices. The extension modes which might be supported via CameraX Extensions are BOKEH , HDR , NIGHT , FACE_RETOUCH and AUTO . The known supported devices are listed in the Supported devices page. CameraX Extensions are built on the top of CameraX Core libraries . To enable an extension mode, an ExtensionsManager instance needs to be retrieved first with getInstanceAsync . Only a single ExtensionsManager instance can exist within a process. After retrieving the ExtensionsManager instance, the availability of a specific extension mode can be checked by isExtensionAvailable . For an available extension mode, an extension enabled CameraSelector can be obtained by calling getExtensionEnabledCameraSelector . After binding use cases by the extension enabled CameraSelector , the extension mode will be applied to the bound Preview and ImageCapture . The following sample code describes how to enable an extension mode for use cases. void bindUseCasesWithBokehMode () { // Create a camera provider ProcessCameraProvider cameraProvider = ... // Get the provider instance // Call the getInstance function to retrieve a ListenableFuture object ListenableFuture future = ExtensionsManager . getInstance ( context , cameraProvider ); // Obtain the ExtensionsManager instance from the returned ListenableFuture object future . addListener (() - &gt; { try { ExtensionsManager extensionsManager = future . get () // Query if extension is available. if ( mExtensionsManager . isExtensionAvailable ( DEFAULT_BACK_CAMERA , ExtensionMode . BOKEH )) { // Needs to unbind all use cases before enabling different extension mode. cameraProvider . unbindAll (); // Retrieve extension enabled camera selector CameraSelector extensionCameraSelector ; extensionCameraSelector = extensionsManager . getExtensionEnabledCameraSelector ( DEFAULT_BACK_CAMERA , ExtensionMode . BOKEH ); // Bind image capture and preview use cases with the extension enabled camera // selector. ImageCapture imageCapture = new ImageCapture . Builder () . build (); Preview preview = new Preview . Builder () . build (); cameraProvider . bindToLifecycle ( lifecycleOwner , extensionCameraSelector , imageCapture , preview ); } } catch ( ExecutionException | InterruptedException e ) { // This should not happen unless the future is cancelled or the thread is // interrupted by applications. } }, ContextCompact . getMainExecutor ( context )); } Without enabling CameraX Extensions , any device should be able to support the use cases combination of ImageCapture , Preview and ImageAnalysis . To support the CameraX Extensions functionality, the ImageCapture or Preview might need to occupy a different format of stream. This might restrict the app to not be able to bind ImageCapture , Preview and ImageAnalysis at the same time if the device's hardware level is not INFO_SUPPORTED_HARDWARE_LEVEL_FULL or above. If enabling an extension mode is more important and the ImageAnalysis could be optional to the app design, the extension mode can be enabled successfully when only binding ImageCapture , Preview even if the device's hardware level is INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED . While CameraX Extensions dose not directly support androidx.camera.video.VideoCapture , androidx.camera.video.VideoCapture can still be used when any extension mode is enabled. When the app binds androidx.camera.video.VideoCapture and enables any extension mode, androidx.camera.video.VideoCapture can obtain the shared stream of Preview and record it as a video. For some devices, the vendor library implementation might only support a subset of the all supported sizes retrieved by getOutputSizes . CameraX will select the supported sizes for the use cases according to the use cases' configuration and combination. Summary Public methods @ Nullable CameraExtensionsControl getCameraExtensionsControl (@ NonNull CameraControl &nbsp;cameraControl) Retrieves a CameraExtensionsControl object that allows customization of capture request settings for supported camera extensions. @ NonNull CameraExtensionsInfo getCameraExtensionsInfo (@ NonNull CameraInfo &nbsp;cameraInfo) Retrieves a CameraExtensionsInfo object that allows to observe or monitor capture request settings and results for supported camera extensions. @ Nullable Range &lt; Long &gt; getEstimatedCaptureLatencyRange ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns the estimated capture latency range in milliseconds for the target camera and extension mode. @ NonNull CameraSelector getExtensionEnabledCameraSelector ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;baseCameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns a modified CameraSelector that will enable the specified extension mode. static @ NonNull ListenableFuture &lt; ExtensionsManager &gt; getInstanceAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraProvider &nbsp;cameraProvider ) Retrieves the ExtensionsManager associated with the current process. boolean isExtensionAvailable ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;baseCameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns true if the particular extension mode is available for the specified CameraSelector . boolean isImageAnalysisSupported ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns whether the given extension mode supports the ImageAnalysis use case on the camera specified by the given CameraSelector . Public methods getCameraExtensionsControl Added in 1.4.0 public&nbsp;@ Nullable CameraExtensionsControl &nbsp; getCameraExtensionsControl (@ NonNull CameraControl &nbsp;cameraControl) Retrieves a CameraExtensionsControl object that allows customization of capture request settings for supported camera extensions. Parameters @ NonNull CameraControl &nbsp;cameraControl the camera control for a camera with a specific extension mode turned on. Returns @ Nullable CameraExtensionsControl a CameraExtensionsControl object to manage extension-related settings. Or returns null if the provided CameraControl doesn't represent a camera with enabled extensions. getCameraExtensionsInfo Added in 1.4.0 public&nbsp;@ NonNull CameraExtensionsInfo &nbsp; getCameraExtensionsInfo (@ NonNull CameraInfo &nbsp;cameraInfo) Retrieves a CameraExtensionsInfo object that allows to observe or monitor capture request settings and results for supported camera extensions. If the provided CameraInfo doesn't represent a camera with enabled extensions, a placeholder CameraExtensionsInfo object will be returned, indicating no extension type and strength support. Parameters @ NonNull CameraInfo &nbsp;cameraInfo the camera info for a camera with a specific extension mode turned on. Returns @ NonNull CameraExtensionsInfo a CameraExtensionsInfo object for observing extension-specific capture request settings and results. getEstimatedCaptureLatencyRange Added in 1.1.0 public&nbsp;@ Nullable Range &lt; Long &gt;&nbsp; getEstimatedCaptureLatencyRange ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns the estimated capture latency range in milliseconds for the target camera and extension mode. This includes the time spent processing the multi-frame capture request along with any additional time for encoding of the processed buffer in the framework if necessary. Parameters @ NonNull CameraSelector &nbsp;cameraSelector The CameraSelector to find a camera which supports the specified extension mode. int&nbsp;mode The extension mode to check. Returns @ Nullable Range &lt; Long &gt; the range of estimated minimal and maximal capture latency in milliseconds. Returns null if no capture latency info can be provided or if the device doesn't support the extension mode on this camera. getExtensionEnabledCameraSelector Added in 1.1.0 public&nbsp;@ NonNull CameraSelector &nbsp; getExtensionEnabledCameraSelector ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;baseCameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns a modified CameraSelector that will enable the specified extension mode. The returned extension CameraSelector can be used to bind use cases to a desired LifecycleOwner and then the specified extension mode will be enabled on the camera. Parameters @ NonNull CameraSelector &nbsp;baseCameraSelector The base CameraSelector on top of which the extension config is applied. isExtensionAvailable can be used to check whether any camera can support the specified extension mode for the base camera selector. int&nbsp;mode The target extension mode. Returns @ NonNull CameraSelector a CameraSelector for the specified Extensions mode. Throws java.lang.IllegalArgumentException If this device doesn't support extensions function, no camera can be found to support the specified extension mode, or the base CameraSelector has contained extension related configuration in it. getInstanceAsync Added in 1.1.0 public&nbsp;static&nbsp;@ NonNull ListenableFuture &lt; ExtensionsManager &gt;&nbsp; getInstanceAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraProvider &nbsp;cameraProvider ) Retrieves the ExtensionsManager associated with the current process. An application must wait until the ListenableFuture completes to get an ExtensionsManager instance. The ExtensionsManager instance can be used to access the extensions related functions. Parameters @ NonNull Context &nbsp;context The context to initialize the extensions library. @ NonNull CameraProvider &nbsp;cameraProvider A CameraProvider will be used to query the information of cameras on the device. The CameraProvider can be the androidx.camera.lifecycle.ProcessCameraProvider which is obtained by getInstance . isExtensionAvailable Added in 1.1.0 public&nbsp;boolean&nbsp; isExtensionAvailable ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;baseCameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns true if the particular extension mode is available for the specified CameraSelector . Note that Extensions are not supported for use with 10-bit capture output (e.g. setting a dynamic range other than SDR ). Parameters @ NonNull CameraSelector &nbsp;baseCameraSelector The base CameraSelector to find a camera to use. int&nbsp;mode The target extension mode to support. isImageAnalysisSupported Added in 1.3.0 public&nbsp;boolean&nbsp; isImageAnalysisSupported ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode ) Returns whether the given extension mode supports the ImageAnalysis use case on the camera specified by the given CameraSelector . If it returns false, invoking ProcessCameraProvider.bindToLifecycle with an ImageAnalysis use case will throw an IllegalArgumentException . Parameters @ NonNull CameraSelector &nbsp;cameraSelector The CameraSelector to find a camera which supports the specified extension mode. int&nbsp;mode The extension mode to check. Returns boolean true if ImageAnalysis can be bound when the specified extension mode is enabled on the camera specified by the given CameraSelector . Returns false otherwise. If the device doesn't support this extension mode on this camera, it will also return false.</body></html>
+<html><head><title>ExtensionsManager</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ExtensionsManager">
+      <meta itemprop="path" content="androidx.camera.extensions">
+      <meta itemprop="property" content="getCameraExtensionsControl(androidx.camera.core.CameraControl)">
+      <meta itemprop="property" content="getCameraExtensionsInfo(androidx.camera.core.CameraInfo)">
+      <meta itemprop="property" content="getEstimatedCaptureLatencyRange(androidx.camera.core.CameraSelector,int)">
+      <meta itemprop="property" content="getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector,int)">
+      <meta itemprop="property" content="getInstanceAsync(android.content.Context,androidx.camera.core.CameraProvider)">
+      <meta itemprop="property" content="isExtensionAvailable(androidx.camera.core.CameraSelector,int)">
+      <meta itemprop="property" content="isImageAnalysisSupported(androidx.camera.core.CameraSelector,int)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="extensionsmanager" data-text="ExtensionsManager" tabindex="-1">ExtensionsManager</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-extensions</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/extensions/ExtensionsManager.java+class:androidx.camera.extensions.ExtensionsManager" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/extensions/ExtensionsManager" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Provides interfaces for third party app developers to get capabilities info of extension functions. </p>
+    <p>Many Android devices contain powerful cameras, with manufacturers devoting a lot of effort to build many cutting-edge features, or special effects, into these camera devices. <code translate="no" dir="ltr">CameraX Extensions</code> allows third party apps to enable the available extension modes on the supported devices. The extension modes which might be supported via <code translate="no" dir="ltr">CameraX 
+ Extensions</code> are <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionMode#BOKEH()">BOKEH</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionMode#HDR()">HDR</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionMode#NIGHT()">NIGHT</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionMode#FACE_RETOUCH()">FACE_RETOUCH</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionMode#AUTO()">AUTO</a></code> . The known supported devices are listed in the <a href="https://developer.android.com/training/camera/supported-devices">Supported devices</a> page. </p>
+    <p><code translate="no" dir="ltr">CameraX Extensions</code> are built on the top of <code translate="no" dir="ltr">CameraX Core</code> libraries . To enable an extension mode, an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> instance needs to be retrieved first with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getInstanceAsync(android.content.Context,androidx.camera.core.CameraProvider)">getInstanceAsync</a></code>. Only a single <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> instance can exist within a process. After retrieving the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> instance, the availability of a specific extension mode can be checked by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#isExtensionAvailable(androidx.camera.core.CameraSelector,int)">isExtensionAvailable</a></code>. For an available extension mode, an extension enabled <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> can be obtained by calling <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector,int)">getExtensionEnabledCameraSelector</a></code>. After binding use cases by the extension enabled <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>, the extension mode will be applied to the bound <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>. The following sample code describes how to enable an extension mode for use cases. </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="POVRay"><span class="devsite-syntax-n">void</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">bindUseCasesWithBokehMode</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Create a camera provider</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">ProcessCameraProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">...</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-c1">// Get the provider instance</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Call the getInstance function to retrieve a ListenableFuture object</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">ListenableFuture</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">future</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ExtensionsManager</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-p">);</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Obtain the ExtensionsManager instance from the returned ListenableFuture object</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">future</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">addListener</span><span class="devsite-syntax-p">(()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">try</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">ExtensionsManager</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">extensionsManager</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">future</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">get</span><span class="devsite-syntax-p">()</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Query if extension is available.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">mExtensionsManager</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">isExtensionAvailable</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">DEFAULT_BACK_CAMERA</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">                       </span><span class="devsite-syntax-n">ExtensionMode</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">BOKEH</span><span class="devsite-syntax-p">))</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Needs to unbind all use cases before enabling different extension mode.</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">unbindAll</span><span class="devsite-syntax-p">();</span>
+
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Retrieve extension enabled camera selector</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">CameraSelector</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">extensionCameraSelector</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">extensionCameraSelector</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">extensionsManager</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">getExtensionEnabledCameraSelector</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">DEFAULT_BACK_CAMERA</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ExtensionMode</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">BOKEH</span><span class="devsite-syntax-p">);</span>
+
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Bind image capture and preview use cases with the extension enabled camera</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// selector.</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">ImageCapture</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">imageCapture</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ImageCapture</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">Builder</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">build</span><span class="devsite-syntax-p">();</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">Preview</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">preview</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Preview</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">Builder</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">build</span><span class="devsite-syntax-p">();</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">bindToLifecycle</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">lifecycleOwner</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">extensionCameraSelector</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">imageCapture</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">preview</span><span class="devsite-syntax-p">);</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">catch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">ExecutionException</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">InterruptedException</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// This should not happen unless the future is cancelled or the thread is</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// interrupted by applications.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">},</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ContextCompact</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">getMainExecutor</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">));</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+    <p>Without enabling <code translate="no" dir="ltr">CameraX Extensions</code>, any device should be able to support the use cases combination of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>. To support the <code translate="no" dir="ltr">CameraX Extensions</code> functionality, the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> might need to occupy a different format of stream. This might restrict the app to not be able to bind <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> at the same time if the device's hardware level is not <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraMetadata.html#INFO_SUPPORTED_HARDWARE_LEVEL_FULL()">INFO_SUPPORTED_HARDWARE_LEVEL_FULL</a></code> or above. If enabling an extension mode is more important and the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> could be optional to the app design, the extension mode can be enabled successfully when only binding <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> even if the device's hardware level is <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraMetadata.html#INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED()">INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED</a></code>. </p>
+    <p>While <code translate="no" dir="ltr">CameraX Extensions</code> dose not directly support <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture">androidx.camera.video.VideoCapture</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture">androidx.camera.video.VideoCapture</a></code> can still be used when any extension mode is enabled. When the app binds <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture">androidx.camera.video.VideoCapture</a></code> and enables any extension mode, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture">androidx.camera.video.VideoCapture</a></code> can obtain the shared stream of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and record it as a video. </p>
+    <p>For some devices, the vendor library implementation might only support a subset of the all supported sizes retrieved by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/params/StreamConfigurationMap.html#getOutputSizes(int)">getOutputSizes</a></code>. <code translate="no" dir="ltr">CameraX 
+ </code> will select the supported sizes for the use cases according to the use cases' configuration and combination.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getCameraExtensionsControl(androidx.camera.core.CameraControl)">getCameraExtensionsControl</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraControl">CameraControl</a>&nbsp;cameraControl)</code></div>
+              <p>Retrieves a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a></code> object that allows customization of capture request settings for supported camera extensions.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getCameraExtensionsInfo(androidx.camera.core.CameraInfo)">getCameraExtensionsInfo</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&nbsp;cameraInfo)</code></div>
+              <p>Retrieves a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code> object that allows to observe or monitor capture request settings and results for supported camera extensions.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Long.html">Long</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getEstimatedCaptureLatencyRange(androidx.camera.core.CameraSelector,int)">getEstimatedCaptureLatencyRange</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</code></div>
+              <p>Returns the estimated capture latency range in milliseconds for the target camera and extension mode.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector,int)">getExtensionEnabledCameraSelector</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</code></div>
+              <p>Returns a modified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> that will enable the specified extension mode.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#getInstanceAsync(android.content.Context,androidx.camera.core.CameraProvider)">getInstanceAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a>&nbsp;cameraProvider<br>)</code></div>
+              <p>Retrieves the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> associated with the current process.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#isExtensionAvailable(androidx.camera.core.CameraSelector,int)">isExtensionAvailable</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</code></div>
+              <p>Returns true if the particular extension mode is available for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#isImageAnalysisSupported(androidx.camera.core.CameraSelector,int)">isImageAnalysisSupported</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</code></div>
+              <p>Returns whether the given extension mode supports the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> use case on the camera specified by the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getCameraExtensionsControl-androidx.camera.core.CameraControl-"></a><a name="getcameraextensionscontrol"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCameraExtensionsControl(androidx.camera.core.CameraControl)" data-text="getCameraExtensionsControl" tabindex="-1">getCameraExtensionsControl</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a>&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#getCameraExtensionsControl(androidx.camera.core.CameraControl)">getCameraExtensionsControl</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraControl">CameraControl</a>&nbsp;cameraControl)</pre></devsite-code>
+        <p>Retrieves a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a></code> object that allows customization of capture request settings for supported camera extensions.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraControl">CameraControl</a>&nbsp;cameraControl</code></td>
+                <td>
+                  <p>the camera control for a camera with a specific extension mode turned on.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a></code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsControl">CameraExtensionsControl</a></code> object to manage extension-related settings. Or returns <code translate="no" dir="ltr">null</code> if the provided <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraControl">CameraControl</a></code> doesn't represent a camera with enabled extensions.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCameraExtensionsInfo-androidx.camera.core.CameraInfo-"></a><a name="getcameraextensionsinfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCameraExtensionsInfo(androidx.camera.core.CameraInfo)" data-text="getCameraExtensionsInfo" tabindex="-1">getCameraExtensionsInfo</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a>&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#getCameraExtensionsInfo(androidx.camera.core.CameraInfo)">getCameraExtensionsInfo</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&nbsp;cameraInfo)</pre></devsite-code>
+        <p>Retrieves a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code> object that allows to observe or monitor capture request settings and results for supported camera extensions. </p>
+        <p>If the provided <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> doesn't represent a camera with enabled extensions, a placeholder <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code> object will be returned, indicating no extension type and strength support.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&nbsp;cameraInfo</code></td>
+                <td>
+                  <p>the camera info for a camera with a specific extension mode turned on.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/CameraExtensionsInfo">CameraExtensionsInfo</a></code> object for observing extension-specific capture request settings and results.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getEstimatedCaptureLatencyRange(androidx.camera.core.CameraSelector, int)"></a><a name="getEstimatedCaptureLatencyRange-androidx.camera.core.CameraSelector-int-"></a><a name="getestimatedcapturelatencyrange"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getEstimatedCaptureLatencyRange(androidx.camera.core.CameraSelector,int)" data-text="getEstimatedCaptureLatencyRange" tabindex="-1">getEstimatedCaptureLatencyRange</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Long.html">Long</a>&gt;&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#getEstimatedCaptureLatencyRange(androidx.camera.core.CameraSelector,int)">getEstimatedCaptureLatencyRange</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</pre></devsite-code>
+        <p>Returns the estimated capture latency range in milliseconds for the target camera and extension mode. </p>
+        <p>This includes the time spent processing the multi-frame capture request along with any additional time for encoding of the processed buffer in the framework if necessary.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> to find a camera which supports the specified extension mode.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;mode</code></td>
+                <td>
+                  <p>The extension mode to check.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Long.html">Long</a>&gt;</code></td>
+                <td>
+                  <p>the range of estimated minimal and maximal capture latency in milliseconds. Returns null if no capture latency info can be provided or if the device doesn't support the extension mode on this camera.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector, int)"></a><a name="getExtensionEnabledCameraSelector-androidx.camera.core.CameraSelector-int-"></a><a name="getextensionenabledcameraselector"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector,int)" data-text="getExtensionEnabledCameraSelector" tabindex="-1">getExtensionEnabledCameraSelector</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#getExtensionEnabledCameraSelector(androidx.camera.core.CameraSelector,int)">getExtensionEnabledCameraSelector</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</pre></devsite-code>
+        <p>Returns a modified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> that will enable the specified extension mode. </p>
+        <p>The returned extension <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> can be used to bind use cases to a desired <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code> and then the specified extension mode will be enabled on the camera.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector</code></td>
+                <td>
+                  <p>The base <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> on top of which the extension config is applied. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager#isExtensionAvailable(androidx.camera.core.CameraSelector,int)">isExtensionAvailable</a></code> can be used to check whether any camera can support the specified extension mode for the base camera selector.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;mode</code></td>
+                <td>
+                  <p>The target extension mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> for the specified Extensions mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If this device doesn't support extensions function, no camera can be found to support the specified extension mode, or the base <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> has contained extension related configuration in it.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getInstanceAsync(android.content.Context, androidx.camera.core.CameraProvider)"></a><a name="getInstanceAsync-android.content.Context-androidx.camera.core.CameraProvider-"></a><a name="getinstanceasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInstanceAsync(android.content.Context,androidx.camera.core.CameraProvider)" data-text="getInstanceAsync" tabindex="-1">getInstanceAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a>&gt;&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#getInstanceAsync(android.content.Context,androidx.camera.core.CameraProvider)">getInstanceAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a>&nbsp;cameraProvider<br>)</pre></devsite-code>
+        <p>Retrieves the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> associated with the current process. </p>
+        <p>An application must wait until the <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> completes to get an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> instance. The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/extensions/ExtensionsManager">ExtensionsManager</a></code> instance can be used to access the extensions related functions.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>The context to initialize the extensions library.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a>&nbsp;cameraProvider</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a></code> will be used to query the information of cameras on the device. The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a></code> can be the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider">androidx.camera.lifecycle.ProcessCameraProvider</a></code> which is obtained by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isExtensionAvailable(androidx.camera.core.CameraSelector, int)"></a><a name="isExtensionAvailable-androidx.camera.core.CameraSelector-int-"></a><a name="isextensionavailable"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isExtensionAvailable(androidx.camera.core.CameraSelector,int)" data-text="isExtensionAvailable" tabindex="-1">isExtensionAvailable</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#isExtensionAvailable(androidx.camera.core.CameraSelector,int)">isExtensionAvailable</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</pre></devsite-code>
+        <p>Returns true if the particular extension mode is available for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>. </p>
+        <p> Note that Extensions are not supported for use with 10-bit capture output (e.g. setting a dynamic range other than <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#SDR()">SDR</a></code>).</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;baseCameraSelector</code></td>
+                <td>
+                  <p>The base <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> to find a camera to use.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;mode</code></td>
+                <td>
+                  <p>The target extension mode to support.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isImageAnalysisSupported(androidx.camera.core.CameraSelector, int)"></a><a name="isImageAnalysisSupported-androidx.camera.core.CameraSelector-int-"></a><a name="isimageanalysissupported"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isImageAnalysisSupported(androidx.camera.core.CameraSelector,int)" data-text="isImageAnalysisSupported" tabindex="-1">isImageAnalysisSupported</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/extensions/ExtensionsManager#isImageAnalysisSupported(androidx.camera.core.CameraSelector,int)">isImageAnalysisSupported</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;mode<br>)</pre></devsite-code>
+        <p>Returns whether the given extension mode supports the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> use case on the camera specified by the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>. If it returns false, invoking <code translate="no" dir="ltr">ProcessCameraProvider.bindToLifecycle</code> with an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> use case will throw an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">IllegalArgumentException</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> to find a camera which supports the specified extension mode.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;mode</code></td>
+                <td>
+                  <p>The extension mode to check.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> can be bound when the specified extension mode is enabled on the camera specified by the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>. Returns false otherwise. If the device doesn't support this extension mode on this camera, it will also return false.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

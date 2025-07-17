@@ -1,1 +1,907 @@
-<html><head><title>Class Documentation</title></head><body>NavDisplayKt Added in 1.0.0-alpha05 Kotlin | Java public final class NavDisplayKt Summary Public methods static&nbsp;final void @ Composable &lt;T&nbsp;extends&nbsp; Object &gt; NavDisplay ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt;@ NonNull T&gt;&nbsp;backStack, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Modifier &nbsp;modifier, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Alignment &nbsp;contentAlignment, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull Integer ,&nbsp; Unit &gt;&nbsp;onBack, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt;@ NonNull NavEntryDecorator &lt;@ NonNull ?&gt;&gt;&nbsp;entryDecorators, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SceneStrategy &lt;@ NonNull T&gt;&nbsp;sceneStrategy, &nbsp;&nbsp;&nbsp;&nbsp; SizeTransform &nbsp;sizeTransform, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;transitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;popTransitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;predictivePopTransitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull key,&nbsp;@ NonNull NavEntry &lt;@ NonNull T&gt;&gt;&nbsp;entryProvider ) A nav display that renders and animates between different Scene s, each of which can render one or more NavEntry s. Public methods NavDisplay Artifact: androidx.navigation3:navigation3-ui View Source @ Composable public&nbsp;static&nbsp;final&nbsp;void&nbsp;&lt;T&nbsp;extends&nbsp; Object &gt; NavDisplay ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt;@ NonNull T&gt;&nbsp;backStack, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Modifier &nbsp;modifier, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Alignment &nbsp;contentAlignment, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull Integer ,&nbsp; Unit &gt;&nbsp;onBack, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt;@ NonNull NavEntryDecorator &lt;@ NonNull ?&gt;&gt;&nbsp;entryDecorators, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SceneStrategy &lt;@ NonNull T&gt;&nbsp;sceneStrategy, &nbsp;&nbsp;&nbsp;&nbsp; SizeTransform &nbsp;sizeTransform, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;transitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;popTransitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;predictivePopTransitionSpec, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull key,&nbsp;@ NonNull NavEntry &lt;@ NonNull T&gt;&gt;&nbsp;entryProvider ) A nav display that renders and animates between different Scene s, each of which can render one or more NavEntry s. The Scene s are calculated with the given SceneStrategy , which may be an assembled delegated chain of SceneStrategy s. If no Scene is calculated, the fallback will be to a SinglePaneSceneStrategy . It is allowable for different Scene s to render the same NavEntry s, perhaps on some conditions as determined by the sceneStrategy based on window size, form factor, other arbitrary logic. If this happens, and these Scene s are rendered at the same time due to animation or predictive back, then the content for the NavEntry will only be rendered in the most recent Scene that is the target for being the current scene as determined by sceneStrategy . This enforces a unique invocation of each NavEntry , even if it is displayable by two different Scene s. import androidx.compose.animation.core.tween import androidx.compose.animation.slideInHorizontally import androidx.compose.animation.slideOutHorizontally import androidx.compose.animation.togetherWith import androidx.compose.material3.Text import androidx.compose.runtime.mutableStateOf import androidx.compose.runtime.remember import androidx.lifecycle.viewmodel.compose.viewModel import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator import androidx.navigation3.runtime.NavEntry import androidx.navigation3.runtime.NavEntryDecorator import androidx.navigation3.runtime.entry import androidx.navigation3.runtime.entryProvider import androidx.navigation3.runtime.rememberNavBackStack import androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator import androidx.navigation3.runtime.samples.Dashboard import androidx.navigation3.runtime.samples.DialogBase import androidx.navigation3.runtime.samples.DialogContent import androidx.navigation3.runtime.samples.Profile import androidx.navigation3.runtime.samples.ProfileViewModel import androidx.navigation3.runtime.samples.Scrollable import androidx.navigation3.ui.NavDisplay import androidx.navigation3.ui.Scene import androidx.navigation3.ui.rememberSceneSetupNavEntryDecorator val backStack = rememberNavBackStack ( Profile ) val showDialog = remember { mutableStateOf ( false ) } NavDisplay ( backStack = backStack , entryDecorators = listOf ( rememberSceneSetupNavEntryDecorator (), rememberSavedStateNavEntryDecorator (), rememberViewModelStoreNavEntryDecorator (), ), onBack = { backStack . removeAt ( backStack . lastIndex ) }, entryProvider = entryProvider ({ NavEntry ( it ) { Text ( text = "Invalid Key" ) } }) { entry&lt;Profile&gt; { val viewModel = viewModel&lt;ProfileViewModel&gt; () Profile ( viewModel , { backStack . add ( it ) }) { backStack . removeAt ( backStack . lastIndex ) } } entry&lt;Scrollable&gt; { Scrollable ({ backStack . add ( it ) }) { backStack . removeAt ( backStack . lastIndex ) } } entry&lt;DialogBase&gt; { DialogBase ( onClick = { showDialog . value = true }) { backStack . removeAt ( backStack . lastIndex ) } } entry&lt;Dashboard&gt; ( metadata = NavDisplay . predictivePopTransitionSpec { slideInHorizontally ( tween ( 700 )) { it / 2 } togetherWith slideOutHorizontally ( tween ( 700 )) { - it / 2 } } ) { dashboardArgs - &gt; val userId = dashboardArgs . userId Dashboard ( userId , onBack = { backStack . removeAt ( backStack . lastIndex ) }) } }, ) if ( showDialog . value ) { DialogContent ( onDismissRequest = { showDialog . value = false }) } import androidx.compose.animation.SharedTransitionLayout import androidx.compose.animation.SharedTransitionScope import androidx.compose.foundation.layout.Box import androidx.compose.runtime.CompositionLocalProvider import androidx.compose.runtime.ProvidableCompositionLocal import androidx.compose.runtime.compositionLocalOf import androidx.compose.runtime.remember import androidx.compose.ui.Modifier import androidx.navigation3.runtime.NavEntry import androidx.navigation3.runtime.NavEntryDecorator import androidx.navigation3.runtime.entry import androidx.navigation3.runtime.entryProvider import androidx.navigation3.runtime.navEntryDecorator import androidx.navigation3.runtime.rememberNavBackStack import androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator import androidx.navigation3.ui.LocalNavAnimatedContentScope import androidx.navigation3.ui.NavDisplay import androidx.navigation3.ui.Scene import androidx.navigation3.ui.rememberSceneSetupNavEntryDecorator /** The [SharedTransitionScope] of the [NavDisplay]. */ val localNavSharedTransitionScope : ProvidableCompositionLocal&lt;SharedTransitionScope&gt; = compositionLocalOf { throw IllegalStateException ( "Unexpected access to LocalNavSharedTransitionScope. You must provide a " + "SharedTransitionScope from a call to SharedTransitionLayout() or " + "SharedTransitionScope()" ) } /** * A [NavEntryDecorator] that wraps each entry in a shared element that is controlled by the * [Scene]. */ val sharedEntryInSceneNavEntryDecorator = navEntryDecorator&lt;Any&gt; { entry - &gt; with ( localNavSharedTransitionScope . current ) { Box ( Modifier . sharedElement ( rememberSharedContentState ( entry . contentKey ), animatedVisibilityScope = LocalNavAnimatedContentScope . current , ) ) { entry . Content () } } } val backStack = rememberNavBackStack ( CatList ) SharedTransitionLayout { CompositionLocalProvider ( localNavSharedTransitionScope provides this ) { NavDisplay ( backStack = backStack , onBack = { backStack . removeAt ( backStack . lastIndex ) }, entryDecorators = listOf ( sharedEntryInSceneNavEntryDecorator , rememberSceneSetupNavEntryDecorator (), rememberSavedStateNavEntryDecorator (), ), entryProvider = entryProvider { entry&lt;CatList&gt; { CatList ( this @SharedTransitionLayout ) { cat - &gt; backStack . add ( CatDetail ( cat )) } } entry&lt;CatDetail&gt; { args - &gt; CatDetail ( args . cat , this @SharedTransitionLayout ) { backStack . removeAt ( backStack . lastIndex ) } } }, ) } } import androidx.compose.animation.SharedTransitionLayout import androidx.compose.runtime.remember import androidx.navigation3.runtime.entry import androidx.navigation3.runtime.entryProvider import androidx.navigation3.runtime.rememberNavBackStack import androidx.navigation3.ui.NavDisplay val backStack = rememberNavBackStack ( CatList ) SharedTransitionLayout { NavDisplay ( backStack = backStack , onBack = { backStack . removeAt ( backStack . lastIndex ) }, entryProvider = entryProvider { entry&lt;CatList&gt; { CatList ( this @SharedTransitionLayout ) { cat - &gt; backStack . add ( CatDetail ( cat )) } } entry&lt;CatDetail&gt; { args - &gt; CatDetail ( args . cat , this @SharedTransitionLayout ) { backStack . removeAt ( backStack . lastIndex ) } } }, ) } Parameters @ NonNull List &lt;@ NonNull T&gt;&nbsp;backStack the collection of keys that represents the state that needs to be handled @ NonNull Modifier &nbsp;modifier the modifier to be applied to the layout. @ NonNull Alignment &nbsp;contentAlignment The Alignment of the AnimatedContent @ NonNull Function1&lt;@ NonNull Integer ,&nbsp; Unit &gt;&nbsp;onBack a callback for handling system back press. The passed Int refers to the number of entries to pop from the end of the backstack, as calculated by the sceneStrategy . @ NonNull List &lt;@ NonNull NavEntryDecorator &lt;@ NonNull ?&gt;&gt;&nbsp;entryDecorators list of NavEntryDecorator to add information to the entry content @ NonNull SceneStrategy &lt;@ NonNull T&gt;&nbsp;sceneStrategy the SceneStrategy to determine which scene to render a list of entries. SizeTransform &nbsp;sizeTransform the SizeTransform for the AnimatedContent . @ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;transitionSpec Default ContentTransform when navigating to NavEntry s. @ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;popTransitionSpec Default ContentTransform when popping NavEntry s. @ NonNull Function1&lt;@ NonNull AnimatedContentTransitionScope &lt;@ NonNull ?&gt;,&nbsp;@ NonNull ContentTransform &gt;&nbsp;predictivePopTransitionSpec Default ContentTransform when popping with predictive back NavEntry s. @ NonNull Function1&lt;@ NonNull key,&nbsp;@ NonNull NavEntry &lt;@ NonNull T&gt;&gt;&nbsp;entryProvider lambda used to construct each possible NavEntry</body></html>
+<html><head><title>NavDisplayKt</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="NavDisplayKt">
+      <meta itemprop="path" content="androidx.navigation3.ui">
+      <meta itemprop="property" content="NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="navdisplaykt" data-text="NavDisplayKt" tabindex="-1">NavDisplayKt</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="version-metadata">
+          <div id="added-in">Added in 1.0.0-alpha05</div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/navigation3/ui/package-summary" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/navigation3/ui/NavDisplayKt">NavDisplayKt</a></pre></devsite-code>
+    </p>
+    <hr>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/compose/runtime/Composable">Composable</a><br>&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/navigation3/ui/NavDisplayKt#NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">NavDisplay</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;backStack,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Modifier">Modifier</a>&nbsp;modifier,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Alignment">Alignment</a>&nbsp;contentAlignment,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onBack,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntryDecorator">NavEntryDecorator</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;&gt;&nbsp;entryDecorators,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;sceneStrategy,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/compose/animation/SizeTransform">SizeTransform</a>&nbsp;sizeTransform,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;transitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;popTransitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;predictivePopTransitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&gt;&nbsp;entryProvider<br>)</code></div>
+              <p>A nav display that renders and animates between different <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s, each of which can render one or more <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="NavDisplay(kotlin.collections.List, androidx.compose.ui.Modifier, androidx.compose.ui.Alignment, kotlin.Function1, kotlin.collections.List, androidx.navigation3.ui.SceneStrategy, androidx.compose.animation.SizeTransform, kotlin.Function1, kotlin.Function1, kotlin.Function1, kotlin.Function1)"></a><a name="NavDisplay-kotlin.collections.List-androidx.compose.ui.Modifier-androidx.compose.ui.Alignment-kotlin.Function1-kotlin.collections.List-androidx.navigation3.ui.SceneStrategy-androidx.compose.animation.SizeTransform-kotlin.Function1-kotlin.Function1-kotlin.Function1-kotlin.Function1-"></a><a name="navdisplay"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)" data-text="NavDisplay" tabindex="-1">NavDisplay</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/navigation3">androidx.navigation3:navigation3-ui</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/navigation3/ui/NavDisplay.kt+function:NavDisplay" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/compose/runtime/Composable">Composable</a><br>public&nbsp;static&nbsp;final&nbsp;void&nbsp;&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/navigation3/ui/NavDisplayKt#NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">NavDisplay</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;backStack,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Modifier">Modifier</a>&nbsp;modifier,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Alignment">Alignment</a>&nbsp;contentAlignment,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onBack,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntryDecorator">NavEntryDecorator</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;&gt;&nbsp;entryDecorators,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;sceneStrategy,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/compose/animation/SizeTransform">SizeTransform</a>&nbsp;sizeTransform,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;transitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;popTransitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;predictivePopTransitionSpec,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&gt;&nbsp;entryProvider<br>)</pre></devsite-code>
+        <p>A nav display that renders and animates between different <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s, each of which can render one or more <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s.</p>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s are calculated with the given <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a></code>, which may be an assembled delegated chain of <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a></code>s. If no <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code> is calculated, the fallback will be to a <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/SinglePaneSceneStrategy">SinglePaneSceneStrategy</a></code>.</p>
+        <p>It is allowable for different <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s to render the same <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s, perhaps on some conditions as determined by the <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/package-summary#NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">sceneStrategy</a></code> based on window size, form factor, other arbitrary logic.</p>
+        <p>If this happens, and these <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s are rendered at the same time due to animation or predictive back, then the content for the <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code> will only be rendered in the most recent <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code> that is the target for being the current scene as determined by <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/package-summary#NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">sceneStrategy</a></code>. This enforces a unique invocation of each <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>, even if it is displayable by two different <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/Scene">Scene</a></code>s.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.core.tween</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.slideInHorizontally</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.slideOutHorizontally</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.togetherWith</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.material3.Text</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.mutableStateOf</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.remember</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.lifecycle.viewmodel.compose.viewModel</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.NavEntry</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.NavEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entry</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entryProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.rememberNavBackStack</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.Dashboard</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.DialogBase</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.DialogContent</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.Profile</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.ProfileViewModel</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.samples.Scrollable</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.NavDisplay</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.Scene</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.rememberSceneSetupNavEntryDecorator</span>
+
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">rememberNavBackStack</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">Profile</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">showDialog</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">remember</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">mutableStateOf</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-kc">false</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-n">NavDisplay</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">entryDecorators</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">listOf</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">rememberSceneSetupNavEntryDecorator</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">rememberSavedStateNavEntryDecorator</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">rememberViewModelStoreNavEntryDecorator</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">),</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">onBack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-p">({</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">NavEntry</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nb">it</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Text</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">text</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-s">"Invalid Key"</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entry&lt;Profile&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">viewModel</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">viewModel&lt;ProfileViewModel&gt;</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">Profile</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">viewModel</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">add</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nb">it</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entry&lt;Scrollable&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">Scrollable</span><span class="devsite-syntax-p">({</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">add</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nb">it</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entry&lt;DialogBase&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">DialogBase</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">onClick</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">showDialog</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">value</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entry&lt;Dashboard&gt;</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">metadata</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">NavDisplay</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">predictivePopTransitionSpec</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">slideInHorizontally</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">tween</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-m">700</span><span class="devsite-syntax-p">))</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nb">it</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">/</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-m">2</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">togetherWith</span>
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-n">slideOutHorizontally</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">tween</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-m">700</span><span class="devsite-syntax-p">))</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-nb">it</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">/</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-m">2</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">dashboardArgs</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">userId</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">dashboardArgs</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">userId</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">Dashboard</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">userId</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">onBack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">showDialog</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">value</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">DialogContent</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">onDismissRequest</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">showDialog</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">value</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">false</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">})</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.SharedTransitionLayout</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.SharedTransitionScope</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.foundation.layout.Box</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.CompositionLocalProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.ProvidableCompositionLocal</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.compositionLocalOf</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.remember</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.ui.Modifier</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.NavEntry</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.NavEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entry</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entryProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.navEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.rememberNavBackStack</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.LocalNavAnimatedContentScope</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.NavDisplay</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.Scene</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.rememberSceneSetupNavEntryDecorator</span>
+
+<span class="devsite-syntax-cm">/** The [SharedTransitionScope] of the [NavDisplay]. */</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">localNavSharedTransitionScope</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ProvidableCompositionLocal&lt;SharedTransitionScope&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">compositionLocalOf</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">throw</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">IllegalStateException</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-s">"Unexpected access to LocalNavSharedTransitionScope. You must provide a "</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">+</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-s">"SharedTransitionScope from a call to SharedTransitionLayout() or "</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">+</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-s">"SharedTransitionScope()"</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-cm">/**</span>
+<span class="devsite-syntax-cm"> * A [NavEntryDecorator] that wraps each entry in a shared element that is controlled by the</span>
+<span class="devsite-syntax-cm"> * [Scene].</span>
+<span class="devsite-syntax-cm"> */</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">sharedEntryInSceneNavEntryDecorator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">navEntryDecorator&lt;Any&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">entry</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">with</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">localNavSharedTransitionScope</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">current</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">Box</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">Modifier</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">sharedElement</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">rememberSharedContentState</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">entry</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">contentKey</span><span class="devsite-syntax-p">),</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">animatedVisibilityScope</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">LocalNavAnimatedContentScope</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">current</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">entry</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Content</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">rememberNavBackStack</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">CatList</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-n">SharedTransitionLayout</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">CompositionLocalProvider</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">localNavSharedTransitionScope</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">provides</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">this</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">NavDisplay</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">onBack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entryDecorators</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">listOf</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">sharedEntryInSceneNavEntryDecorator</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">rememberSceneSetupNavEntryDecorator</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">rememberSavedStateNavEntryDecorator</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">),</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">entry&lt;CatList&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">CatList</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-k">this</span><span class="devsite-syntax-nd">@SharedTransitionLayout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cat</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">add</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">CatDetail</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cat</span><span class="devsite-syntax-p">))</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">entry&lt;CatDetail&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">args</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">CatDetail</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">args</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">cat</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">this</span><span class="devsite-syntax-nd">@SharedTransitionLayout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.animation.SharedTransitionLayout</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.compose.runtime.remember</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entry</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.entryProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.runtime.rememberNavBackStack</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.navigation3.ui.NavDisplay</span>
+
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">rememberNavBackStack</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">CatList</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-n">SharedTransitionLayout</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">NavDisplay</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">onBack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">entryProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">entry&lt;CatList&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">CatList</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-k">this</span><span class="devsite-syntax-nd">@SharedTransitionLayout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cat</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">add</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">CatDetail</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cat</span><span class="devsite-syntax-p">))</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">entry&lt;CatDetail&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">args</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">CatDetail</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">args</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">cat</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">this</span><span class="devsite-syntax-nd">@SharedTransitionLayout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">removeAt</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">backStack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastIndex</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">},</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;backStack</code></td>
+                <td>
+                  <p>the collection of keys that represents the state that needs to be handled</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Modifier">Modifier</a>&nbsp;modifier</code></td>
+                <td>
+                  <p>the modifier to be applied to the layout.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/ui/Alignment">Alignment</a>&nbsp;contentAlignment</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/compose/ui/Alignment">Alignment</a></code> of the <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/package-summary#AnimatedContent(kotlin.Any,androidx.compose.ui.Modifier,kotlin.Function1,androidx.compose.ui.Alignment,kotlin.String,kotlin.Function1,kotlin.Function2)">AnimatedContent</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onBack</code></td>
+                <td>
+                  <p>a callback for handling system back press. The passed <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a></code> refers to the number of entries to pop from the end of the backstack, as calculated by the <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/package-summary#NavDisplay(kotlin.collections.List,androidx.compose.ui.Modifier,androidx.compose.ui.Alignment,kotlin.Function1,kotlin.collections.List,androidx.navigation3.ui.SceneStrategy,androidx.compose.animation.SizeTransform,kotlin.Function1,kotlin.Function1,kotlin.Function1,kotlin.Function1)">sceneStrategy</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntryDecorator">NavEntryDecorator</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;&gt;&nbsp;entryDecorators</code></td>
+                <td>
+                  <p>list of <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntryDecorator">NavEntryDecorator</a></code> to add information to the entry content</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;sceneStrategy</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/ui/SceneStrategy">SceneStrategy</a></code> to determine which scene to render a list of entries.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/SizeTransform">SizeTransform</a>&nbsp;sizeTransform</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/SizeTransform">SizeTransform</a></code> for the <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/package-summary#AnimatedContent(kotlin.Any,androidx.compose.ui.Modifier,kotlin.Function1,androidx.compose.ui.Alignment,kotlin.String,kotlin.Function1,kotlin.Function2)">AnimatedContent</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;transitionSpec</code></td>
+                <td>
+                  <p>Default <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a></code> when navigating to <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;popTransitionSpec</code></td>
+                <td>
+                  <p>Default <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a></code> when popping <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/AnimatedContentTransitionScope">AnimatedContentTransitionScope</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> ?&gt;,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a>&gt;&nbsp;predictivePopTransitionSpec</code></td>
+                <td>
+                  <p>Default <code translate="no" dir="ltr"><a href="/reference/androidx/compose/animation/ContentTransform">ContentTransform</a></code> when popping with predictive back <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code>s.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&gt;&nbsp;entryProvider</code></td>
+                <td>
+                  <p>lambda used to construct each possible <code translate="no" dir="ltr"><a href="/reference/androidx/navigation3/runtime/NavEntry">NavEntry</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

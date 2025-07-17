@@ -1,1 +1,1115 @@
-<html><head><title>Class Documentation</title></head><body>SampleConsumer Artifact: androidx.media3:media3-transformer View Source Kotlin | Java @ UnstableApi public interface SampleConsumer Consumer of encoded media samples, raw audio or raw video frames. Summary Nested types @ Documented @ Retention (value&nbsp;=&nbsp;RetentionPolicy.SOURCE) @ Target (value&nbsp;=&nbsp;TYPE_USE) @ IntDef (value&nbsp;=&nbsp;) public annotation SampleConsumer.InputResult Specifies the result of an input operation. Constants default&nbsp;static&nbsp;final int INPUT_RESULT_END_OF_STREAM = 3 The operation of queueing input successful and end of input has been automatically signalled. default&nbsp;static&nbsp;final int INPUT_RESULT_SUCCESS = 1 The operation of queueing input was successful. default&nbsp;static&nbsp;final int INPUT_RESULT_TRY_AGAIN_LATER = 2 The operation of queueing/registering input was unsuccessful. Public methods default @ Nullable DecoderInputBuffer getInputBuffer () Returns a DecoderInputBuffer , if available. default Surface getInputSurface () Returns the input Surface , where the consumer reads input frames from. default int getPendingVideoFrameCount () Returns the number of input video frames pending in the consumer. default int @ SampleConsumer.InputResult queueInputBitmap ( &nbsp;&nbsp;&nbsp;&nbsp; Bitmap &nbsp;inputBitmap, &nbsp;&nbsp;&nbsp;&nbsp; TimestampIterator &nbsp;timestampIterator ) Attempts to provide an input Bitmap to the consumer. default boolean queueInputBuffer () Attempts to queue new input to the consumer. default int @ SampleConsumer.InputResult queueInputTexture (int&nbsp;texId,&nbsp;long&nbsp;presentationTimeUs) Attempts to provide an input texture to the consumer. default boolean registerVideoFrame (long&nbsp;presentationTimeUs) Attempts to register a video frame to the consumer. default void setOnInputFrameProcessedListener ( &nbsp;&nbsp;&nbsp;&nbsp; OnInputFrameProcessedListener &nbsp;listener ) Provides a OnInputFrameProcessedListener to the consumer. default void setOnInputSurfaceReadyListener ( Runnable &nbsp;runnable) Sets a listener that's called when the input surface has been configured with a default input size, if applicable. default void signalEndOfVideoInput () Informs the consumer that no further input frames will be rendered. Constants INPUT_RESULT_END_OF_STREAM default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_RESULT_END_OF_STREAM = 3 The operation of queueing input successful and end of input has been automatically signalled. The caller should not signal end of input as this has already been done internally. INPUT_RESULT_SUCCESS default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_RESULT_SUCCESS = 1 The operation of queueing input was successful. The caller can queue more input or signal signal end of input . INPUT_RESULT_TRY_AGAIN_LATER default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_RESULT_TRY_AGAIN_LATER = 2 The operation of queueing/registering input was unsuccessful. The caller should queue try again later. Public methods getInputBuffer default&nbsp;@ Nullable DecoderInputBuffer &nbsp; getInputBuffer () Returns a DecoderInputBuffer , if available. This buffer should be filled with new input data and queued to the consumer. If this method returns a non-null buffer: The buffer's data is non-null. The same buffer instance is returned if this method is called multiple times before queuing input. Should only be used for compressed data and raw audio data. getInputSurface default&nbsp; Surface &nbsp; getInputSurface () Returns the input Surface , where the consumer reads input frames from. Should only be used for raw video data. getPendingVideoFrameCount default&nbsp;int&nbsp; getPendingVideoFrameCount () Returns the number of input video frames pending in the consumer. Pending input frames are frames that have been registered but not processed off the input surface yet. Should only be used for raw video data. queueInputBitmap @ SampleConsumer.InputResult default&nbsp;int&nbsp; queueInputBitmap ( &nbsp;&nbsp;&nbsp;&nbsp; Bitmap &nbsp;inputBitmap, &nbsp;&nbsp;&nbsp;&nbsp; TimestampIterator &nbsp;timestampIterator ) Attempts to provide an input Bitmap to the consumer. Should only be used for image data. Parameters Bitmap &nbsp;inputBitmap The Bitmap to queue to the consumer. TimestampIterator &nbsp;timestampIterator A TimestampIterator generating the exact timestamps that the bitmap should be shown at. Returns int The InputResult describing the result of the operation. queueInputBuffer default&nbsp;boolean&nbsp; queueInputBuffer () Attempts to queue new input to the consumer. The input buffer from getInputBuffer should be filled with the new input before calling this method. An input buffer should not be used anymore after it has been successfully queued. Should only be used for compressed data and raw audio data. Returns boolean Whether the input was successfully queued. If false , the caller should try again later. queueInputTexture @ SampleConsumer.InputResult default&nbsp;int&nbsp; queueInputTexture (int&nbsp;texId,&nbsp;long&nbsp;presentationTimeUs) Attempts to provide an input texture to the consumer. Should only be used for raw video data. Parameters int&nbsp;texId The ID of the texture to queue to the consumer. long&nbsp;presentationTimeUs The presentation time for the texture, in microseconds. Returns int The InputResult describing the result of the operation. registerVideoFrame default&nbsp;boolean&nbsp; registerVideoFrame (long&nbsp;presentationTimeUs) Attempts to register a video frame to the consumer. Each frame to consume should be registered using this method. After a frame is successfully registered, it should be rendered to the input surface . Should only be used for raw video data. Parameters long&nbsp;presentationTimeUs The presentation time of the frame to register, in microseconds. Returns boolean Whether the frame was successfully registered. If false , the caller should try again later. setOnInputFrameProcessedListener default&nbsp;void&nbsp; setOnInputFrameProcessedListener ( &nbsp;&nbsp;&nbsp;&nbsp; OnInputFrameProcessedListener &nbsp;listener ) Provides a OnInputFrameProcessedListener to the consumer. Should only be used for raw video data when input is provided by texture ID. Parameters OnInputFrameProcessedListener &nbsp;listener The OnInputFrameProcessedListener . setOnInputSurfaceReadyListener default&nbsp;void&nbsp; setOnInputSurfaceReadyListener ( Runnable &nbsp;runnable) Sets a listener that's called when the input surface has been configured with a default input size, if applicable. Should only be used for raw video data when input is provided by the app to a surface. Parameters Runnable &nbsp;runnable Listener that's called when the input surface is ready. signalEndOfVideoInput default&nbsp;void&nbsp; signalEndOfVideoInput () Informs the consumer that no further input frames will be rendered. Should only be used for raw video data.</body></html>
+<html><head><title>SampleConsumer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SampleConsumer">
+      <meta itemprop="path" content="androidx.media3.transformer">
+      <meta itemprop="property" content="getInputBuffer()">
+      <meta itemprop="property" content="getInputSurface()">
+      <meta itemprop="property" content="getPendingVideoFrameCount()">
+      <meta itemprop="property" content="queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">
+      <meta itemprop="property" content="queueInputBuffer()">
+      <meta itemprop="property" content="queueInputTexture(int,long)">
+      <meta itemprop="property" content="registerVideoFrame(long)">
+      <meta itemprop="property" content="setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">
+      <meta itemprop="property" content="setOnInputSurfaceReadyListener(java.lang.Runnable)">
+      <meta itemprop="property" content="signalEndOfVideoInput()">
+      <meta itemprop="property" content="INPUT_RESULT_END_OF_STREAM()">
+      <meta itemprop="property" content="INPUT_RESULT_SUCCESS()">
+      <meta itemprop="property" content="INPUT_RESULT_TRY_AGAIN_LATER()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="sampleconsumer" data-text="SampleConsumer" tabindex="-1">SampleConsumer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-transformer</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/transformer/SampleConsumer.java+class:androidx.media3.transformer.SampleConsumer" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/transformer/SampleConsumer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public interface <a href="/reference/androidx/media3/transformer/SampleConsumer">SampleConsumer</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Consumer of encoded media samples, raw audio or raw video frames.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="https://developer.android.com/reference/java/lang/annotation/Documented.html">Documented</a><br>@<a href="https://developer.android.com/reference/java/lang/annotation/Retention.html">Retention</a>(value&nbsp;=&nbsp;RetentionPolicy.SOURCE)<br>@<a href="https://developer.android.com/reference/java/lang/annotation/Target.html">Target</a>(value&nbsp;=&nbsp;TYPE_USE)<br>@<a href="/reference/androidx/annotation/IntDef">IntDef</a>(value&nbsp;=&nbsp;)<br>public annotation <a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">SampleConsumer.InputResult</a></code></div>
+              <p>Specifies the result of an input operation.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_END_OF_STREAM()">INPUT_RESULT_END_OF_STREAM</a> = 3</code></div>
+              <p>The operation of queueing input successful and end of input has been automatically signalled.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_SUCCESS()">INPUT_RESULT_SUCCESS</a> = 1</code></div>
+              <p>The operation of queueing input was successful.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_TRY_AGAIN_LATER()">INPUT_RESULT_TRY_AGAIN_LATER</a> = 2</code></div>
+              <p>The operation of queueing/registering input was unsuccessful.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/decoder/DecoderInputBuffer">DecoderInputBuffer</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputBuffer()">getInputBuffer</a>()</code></div>
+              <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/decoder/DecoderInputBuffer">DecoderInputBuffer</a></code>, if available.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">getInputSurface</a>()</code></div>
+              <p>Returns the input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>, where the consumer reads input frames from.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getPendingVideoFrameCount()">getPendingVideoFrameCount</a>()</code></div>
+              <p>Returns the number of input video frames pending in the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">SampleConsumer.InputResult</a><br><a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">queueInputBitmap</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator<br>)</code></div>
+              <p>Attempts to provide an input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> to the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBuffer()">queueInputBuffer</a>()</code></div>
+              <p>Attempts to queue new input to the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">SampleConsumer.InputResult</a><br><a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputTexture(int,long)">queueInputTexture</a>(int&nbsp;texId,&nbsp;long&nbsp;presentationTimeUs)</code></div>
+              <p>Attempts to provide an input texture to the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#registerVideoFrame(long)">registerVideoFrame</a>(long&nbsp;presentationTimeUs)</code></div>
+              <p>Attempts to register a video frame to the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">setOnInputFrameProcessedListener</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener<br>)</code></div>
+              <p>Provides a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code> to the consumer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#setOnInputSurfaceReadyListener(java.lang.Runnable)">setOnInputSurfaceReadyListener</a>(<a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable)</code></div>
+              <p>Sets a listener that's called when the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">input surface</a></code> has been configured with a default input size, if applicable.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#signalEndOfVideoInput()">signalEndOfVideoInput</a>()</code></div>
+              <p>Informs the consumer that no further input frames will be rendered.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getINPUT_RESULT_END_OF_STREAM()"></a><a name="setINPUT_RESULT_END_OF_STREAM()"></a><a name="getINPUT_RESULT_END_OF_STREAM--"></a><a name="setINPUT_RESULT_END_OF_STREAM--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_RESULT_END_OF_STREAM()" data-text="INPUT_RESULT_END_OF_STREAM" tabindex="-1">INPUT_RESULT_END_OF_STREAM</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_END_OF_STREAM()">INPUT_RESULT_END_OF_STREAM</a> = 3</pre></devsite-code>
+        <p>The operation of queueing input successful and end of input has been automatically signalled. </p>
+        <p>The caller should not <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#signalEndOfVideoInput()">signal end of input</a></code> as this has already been done internally.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_RESULT_SUCCESS()"></a><a name="setINPUT_RESULT_SUCCESS()"></a><a name="getINPUT_RESULT_SUCCESS--"></a><a name="setINPUT_RESULT_SUCCESS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_RESULT_SUCCESS()" data-text="INPUT_RESULT_SUCCESS" tabindex="-1">INPUT_RESULT_SUCCESS</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_SUCCESS()">INPUT_RESULT_SUCCESS</a> = 1</pre></devsite-code>
+        <p>The operation of queueing input was successful. </p>
+        <p>The caller can queue more input or signal <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#signalEndOfVideoInput()">signal end of input</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_RESULT_TRY_AGAIN_LATER()"></a><a name="setINPUT_RESULT_TRY_AGAIN_LATER()"></a><a name="getINPUT_RESULT_TRY_AGAIN_LATER--"></a><a name="setINPUT_RESULT_TRY_AGAIN_LATER--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_RESULT_TRY_AGAIN_LATER()" data-text="INPUT_RESULT_TRY_AGAIN_LATER" tabindex="-1">INPUT_RESULT_TRY_AGAIN_LATER</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#INPUT_RESULT_TRY_AGAIN_LATER()">INPUT_RESULT_TRY_AGAIN_LATER</a> = 2</pre></devsite-code>
+        <p>The operation of queueing/registering input was unsuccessful. </p>
+        <p>The caller should queue try again later.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getInputBuffer--"></a><a name="getinputbuffer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInputBuffer()" data-text="getInputBuffer" tabindex="-1">getInputBuffer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/decoder/DecoderInputBuffer">DecoderInputBuffer</a>&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#getInputBuffer()">getInputBuffer</a>()</pre></devsite-code>
+        <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/decoder/DecoderInputBuffer">DecoderInputBuffer</a></code>, if available. </p>
+        <p>This <code translate="no" dir="ltr"><a href="/reference/androidx/media3/decoder/DecoderInputBuffer">buffer</a></code> should be filled with new input data and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBuffer()">queued</a></code> to the consumer. </p>
+        <p>If this method returns a non-null buffer: </p>
+        <ul>
+          <li>The buffer's <code translate="no" dir="ltr"><a href="/reference/androidx/media3/decoder/DecoderInputBuffer#data()">data</a></code> is non-null. </li>
+          <li>The same buffer instance is returned if this method is called multiple times before <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBuffer()">queuing</a></code> input. </li>
+        </ul>
+        <p>Should only be used for compressed data and raw audio data.</p>
+      </div>
+      <div class="api-item"><a name="getInputSurface--"></a><a name="getinputsurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInputSurface()" data-text="getInputSurface" tabindex="-1">getInputSurface</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;<a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">getInputSurface</a>()</pre></devsite-code>
+        <p>Returns the input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>, where the consumer reads input frames from. </p>
+        <p>Should only be used for raw video data.</p>
+      </div>
+      <div class="api-item"><a name="getPendingVideoFrameCount--"></a><a name="getpendingvideoframecount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getPendingVideoFrameCount()" data-text="getPendingVideoFrameCount" tabindex="-1">getPendingVideoFrameCount</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#getPendingVideoFrameCount()">getPendingVideoFrameCount</a>()</pre></devsite-code>
+        <p>Returns the number of input video frames pending in the consumer. Pending input frames are frames that have been <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#registerVideoFrame(long)">registered</a></code> but not processed off the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">input surface</a></code> yet. </p>
+        <p>Should only be used for raw video data.</p>
+      </div>
+      <div class="api-item"><a name="queueInputBitmap(android.graphics.Bitmap, androidx.media3.common.util.TimestampIterator)"></a><a name="queueInputBitmap-android.graphics.Bitmap-androidx.media3.common.util.TimestampIterator-"></a><a name="queueinputbitmap"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)" data-text="queueInputBitmap" tabindex="-1">queueInputBitmap</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">SampleConsumer.InputResult</a><br>default&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">queueInputBitmap</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator<br>)</pre></devsite-code>
+        <p>Attempts to provide an input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> to the consumer. </p>
+        <p>Should only be used for image data.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> to queue to the consumer.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a></code> generating the exact timestamps that the bitmap should be shown at.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">InputResult</a></code> describing the result of the operation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="queueInputBuffer--"></a><a name="queueinputbuffer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInputBuffer()" data-text="queueInputBuffer" tabindex="-1">queueInputBuffer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputBuffer()">queueInputBuffer</a>()</pre></devsite-code>
+        <p>Attempts to queue new input to the consumer. </p>
+        <p>The input buffer from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputBuffer()">getInputBuffer</a></code> should be filled with the new input before calling this method. </p>
+        <p>An input buffer should not be used anymore after it has been successfully queued. </p>
+        <p>Should only be used for compressed data and raw audio data.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the input was successfully queued. If <code translate="no" dir="ltr">false</code>, the caller should try again later.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="queueInputTexture(int, long)"></a><a name="queueInputTexture-int-long-"></a><a name="queueinputtexture"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInputTexture(int,long)" data-text="queueInputTexture" tabindex="-1">queueInputTexture</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">SampleConsumer.InputResult</a><br>default&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#queueInputTexture(int,long)">queueInputTexture</a>(int&nbsp;texId,&nbsp;long&nbsp;presentationTimeUs)</pre></devsite-code>
+        <p>Attempts to provide an input texture to the consumer. </p>
+        <p>Should only be used for raw video data.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;texId</code></td>
+                <td>
+                  <p>The ID of the texture to queue to the consumer.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;presentationTimeUs</code></td>
+                <td>
+                  <p>The presentation time for the texture, in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer.InputResult">InputResult</a></code> describing the result of the operation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="registerVideoFrame-long-"></a><a name="registervideoframe"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="registerVideoFrame(long)" data-text="registerVideoFrame" tabindex="-1">registerVideoFrame</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#registerVideoFrame(long)">registerVideoFrame</a>(long&nbsp;presentationTimeUs)</pre></devsite-code>
+        <p>Attempts to register a video frame to the consumer. </p>
+        <p>Each frame to consume should be registered using this method. After a frame is successfully registered, it should be rendered to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">input surface</a></code>. </p>
+        <p>Should only be used for raw video data.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;presentationTimeUs</code></td>
+                <td>
+                  <p>The presentation time of the frame to register, in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the frame was successfully registered. If <code translate="no" dir="ltr">false</code>, the caller should try again later.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOnInputFrameProcessedListener-androidx.media3.common.OnInputFrameProcessedListener-"></a><a name="setoninputframeprocessedlistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)" data-text="setOnInputFrameProcessedListener" tabindex="-1">setOnInputFrameProcessedListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">setOnInputFrameProcessedListener</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener<br>)</pre></devsite-code>
+        <p>Provides a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code> to the consumer. </p>
+        <p>Should only be used for raw video data when input is provided by texture ID.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOnInputSurfaceReadyListener-java.lang.Runnable-"></a><a name="setoninputsurfacereadylistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOnInputSurfaceReadyListener(java.lang.Runnable)" data-text="setOnInputSurfaceReadyListener" tabindex="-1">setOnInputSurfaceReadyListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#setOnInputSurfaceReadyListener(java.lang.Runnable)">setOnInputSurfaceReadyListener</a>(<a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable)</pre></devsite-code>
+        <p>Sets a listener that's called when the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/SampleConsumer#getInputSurface()">input surface</a></code> has been configured with a default input size, if applicable. </p>
+        <p>Should only be used for raw video data when input is provided by the app to a surface.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable</code></td>
+                <td>
+                  <p>Listener that's called when the input surface is ready.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="signalEndOfVideoInput--"></a><a name="signalendofvideoinput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="signalEndOfVideoInput()" data-text="signalEndOfVideoInput" tabindex="-1">signalEndOfVideoInput</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/SampleConsumer#signalEndOfVideoInput()">signalEndOfVideoInput</a>()</pre></devsite-code>
+        <p>Informs the consumer that no further input frames will be rendered. </p>
+        <p>Should only be used for raw video data.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

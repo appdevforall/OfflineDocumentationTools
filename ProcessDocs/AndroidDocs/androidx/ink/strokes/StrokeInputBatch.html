@@ -1,1 +1,1078 @@
-<html><head><title>Class Documentation</title></head><body>StrokeInputBatch Artifact: androidx.ink:ink-strokes View Source Added in 1.0.0-alpha05 Kotlin | Java public abstract class StrokeInputBatch Known direct subclasses ImmutableStrokeInputBatch , MutableStrokeInputBatch ImmutableStrokeInputBatch An immutable implementation of StrokeInputBatch . MutableStrokeInputBatch A mutable implementation of StrokeInputBatch . A read-only view of an object that stores multiple StrokeInput values together in a more memory-efficient manner than just List&lt;StrokeInput&gt; . The input points in this batch are guaranteed to be consistent with one another – for example, they all have the same toolType and the same set of optional fields like pressure/tilt/orientation, and their timestamps are all monotonically non-decreasing. This can be an ImmutableStrokeInputBatch for data that cannot change, and a MutableStrokeInputBatch for data that is meant to be modified or incrementally built. Summary Nested types public static class StrokeInputBatch.Companion Public methods final @ NonNull StrokeInput get (int&nbsp;index) Gets the value of the i-th input. final long getDurationMillis () The duration between the first and last input in milliseconds. final int getSize () Number of StrokeInput objects in the batch. final float getStrokeUnitLengthCm () The physical distance in centimeters that the pointer must travel in order to produce an input motion of one stroke unit. final @ NonNull InputToolType getToolType () How this input stream should be interpreted, as coming from a InputToolType.MOUSE , InputToolType.TOUCH , or InputToolType.STYLUS . final boolean hasOrientation () Whether all of the individual inputs have a defined value for StrokeInput.orientationRadians . final boolean hasPressure () Whether all of the individual inputs have a defined value for StrokeInput.pressure . final boolean hasStrokeUnitLength () Whether strokeUnitLengthCm has a valid value, which is something other than StrokeInput.NO_STROKE_UNIT_LENGTH . final boolean hasTilt () Whether all of the individual inputs have a defined value for StrokeInput.tiltRadians . final boolean isEmpty () true if there are no StrokeInput objects in the batch, and false otherwise. final @ NonNull StrokeInput populate (int&nbsp;index,&nbsp;@ NonNull StrokeInput &nbsp;outStrokeInput) Gets the value of the i-th input and overwrites outStrokeInput , which it then returns. Protected methods final void finalize () Extension functions final @ NonNull PartitionedMesh MeshCreation . createClosedShape (@ NonNull StrokeInputBatch &nbsp;receiver) Creates a PartitionedMesh of the shape enclosed by the given StrokeInputBatch input points. final void StrokeInputBatchExtensions . encode ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull OutputStream &nbsp;output ) Write a gzip-compressed ink.proto.CodedStrokeInputBatch binary proto message representing the StrokeInputBatch to the given OutputStream . Public methods get Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull StrokeInput &nbsp; get (int&nbsp;index) Gets the value of the i-th input. Requires that index is positive and less than size . In performance-sensitive code, prefer to use populate to pass in a pre-allocated instance and reuse that instance across multiple calls to this function. getDurationMillis Added in 1.0.0-alpha05 public&nbsp;final&nbsp;long&nbsp; getDurationMillis () The duration between the first and last input in milliseconds. getSize Added in 1.0.0-alpha05 public&nbsp;final&nbsp;int&nbsp; getSize () Number of StrokeInput objects in the batch. getStrokeUnitLengthCm Added in 1.0.0-alpha05 public&nbsp;final&nbsp;float&nbsp; getStrokeUnitLengthCm () The physical distance in centimeters that the pointer must travel in order to produce an input motion of one stroke unit. For stylus/touch, this is the real-world distance that the stylus/fingertip must move in physical space; for mouse, this is the visual distance that the mouse pointer must travel along the surface of the display. A value of StrokeInput.NO_STROKE_UNIT_LENGTH indicates that the relationship between stroke space and physical space is unknown or ill-defined. getToolType Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull InputToolType &nbsp; getToolType () How this input stream should be interpreted, as coming from a InputToolType.MOUSE , InputToolType.TOUCH , or InputToolType.STYLUS . hasOrientation Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; hasOrientation () Whether all of the individual inputs have a defined value for StrokeInput.orientationRadians . If not, then no input items have an orientation value. hasPressure Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; hasPressure () Whether all of the individual inputs have a defined value for StrokeInput.pressure . If not, then no input items have a pressure value. hasStrokeUnitLength Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; hasStrokeUnitLength () Whether strokeUnitLengthCm has a valid value, which is something other than StrokeInput.NO_STROKE_UNIT_LENGTH . hasTilt Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; hasTilt () Whether all of the individual inputs have a defined value for StrokeInput.tiltRadians . If not, then no input items have a tilt value. isEmpty Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; isEmpty () true if there are no StrokeInput objects in the batch, and false otherwise. populate Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull StrokeInput &nbsp; populate (int&nbsp;index,&nbsp;@ NonNull StrokeInput &nbsp;outStrokeInput) Gets the value of the i-th input and overwrites outStrokeInput , which it then returns. Requires that index is positive and less than size . Protected methods finalize Added in 1.0.0-alpha05 protected&nbsp;final&nbsp;void&nbsp; finalize () Extension functions MeshCreation.createClosedShape Artifact: androidx.ink:ink-strokes View Source public&nbsp;final&nbsp;@ NonNull PartitionedMesh &nbsp; MeshCreation . createClosedShape (@ NonNull StrokeInputBatch &nbsp;receiver) Creates a PartitionedMesh of the shape enclosed by the given StrokeInputBatch input points. A typical use case is selecting a region of the scene and performing hit testing with the resulting PartitionedMesh . For a given stroke this algorithm aims to: Identify and create any connections that the user may have intended to make but did not fully connect. Trim any extra end points that the user did not intend to be part of the selected area. Example usage: fun onStrokeFinished(stroke: Stroke) { val selectionRegion = stroke.inputs.createClosedShape() for (stroke in myScene.strokes) { if (stroke.shape.intersects(selectionRegion)) { myScene.setSelected(stroke, true) } } } Parameters @ NonNull StrokeInputBatch &nbsp;receiver The StrokeInputBatch to create a closed shape from. Returns @ NonNull PartitionedMesh The PartitionedMesh of the closed shape. If there are fewer than 3 input points, or if there are fewer than 3 points remaining after removing points with the same (x,y) coordinates as the previous point, this function will return a PartitionedMesh that is point-like (1 point remaining) or segment-like (2 points remaining). The resulting mesh will have an area of 0 but can still be used for hit testing via intersection. StrokeInputBatchExtensions.encode Artifact: androidx.ink:ink-storage View Source public&nbsp;final&nbsp;void&nbsp; StrokeInputBatchExtensions . encode ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull OutputStream &nbsp;output ) Write a gzip-compressed ink.proto.CodedStrokeInputBatch binary proto message representing the StrokeInputBatch to the given OutputStream .</body></html>
+<html><head><title>StrokeInputBatch</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="StrokeInputBatch">
+      <meta itemprop="path" content="androidx.ink.strokes">
+      <meta itemprop="property" content="finalize()">
+      <meta itemprop="property" content="get(kotlin.Int)">
+      <meta itemprop="property" content="getDurationMillis()">
+      <meta itemprop="property" content="getSize()">
+      <meta itemprop="property" content="getStrokeUnitLengthCm()">
+      <meta itemprop="property" content="getToolType()">
+      <meta itemprop="property" content="hasOrientation()">
+      <meta itemprop="property" content="hasPressure()">
+      <meta itemprop="property" content="hasStrokeUnitLength()">
+      <meta itemprop="property" content="hasTilt()">
+      <meta itemprop="property" content="isEmpty()">
+      <meta itemprop="property" content="populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">
+      <meta itemprop="property" content="(androidx.ink.strokes.StrokeInputBatch).createClosedShape()">
+      <meta itemprop="property" content="(androidx.ink.strokes.StrokeInputBatch).encode(java.io.OutputStream)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="strokeinputbatch" data-text="StrokeInputBatch" tabindex="-1">StrokeInputBatch</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/ink">androidx.ink:ink-strokes</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/ink/strokes/StrokeInputBatch.kt+class:androidx.ink.strokes.StrokeInputBatch" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/ink/strokes/StrokeInputBatch" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public abstract class <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/ink/strokes/ImmutableStrokeInputBatch">ImmutableStrokeInputBatch</a>, <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/ImmutableStrokeInputBatch">ImmutableStrokeInputBatch</a></code></td>
+                <td>
+                  <p>An immutable implementation of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code></td>
+                <td>
+                  <p>A mutable implementation of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>A read-only view of an object that stores multiple <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> values together in a more memory-efficient manner than just <code translate="no" dir="ltr">List&lt;StrokeInput&gt;</code>. The input points in this batch are guaranteed to be consistent with one another – for example, they all have the same toolType and the same set of optional fields like pressure/tilt/orientation, and their timestamps are all monotonically non-decreasing. This can be an <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/ImmutableStrokeInputBatch">ImmutableStrokeInputBatch</a></code> for data that cannot change, and a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code> for data that is meant to be modified or incrementally built.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public static class <a href="/reference/androidx/ink/strokes/StrokeInputBatch.Companion">StrokeInputBatch.Companion</a></code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#get(kotlin.Int)">get</a>(int&nbsp;index)</code></div>
+              <p>Gets the value of the i-th input.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#getDurationMillis()">getDurationMillis</a>()</code></div>
+              <p>The duration between the first and last input in milliseconds.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#getSize()">getSize</a>()</code></div>
+              <p>Number of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> objects in the batch.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final float</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#getStrokeUnitLengthCm()">getStrokeUnitLengthCm</a>()</code></div>
+              <p>The physical distance in centimeters that the pointer must travel in order to produce an input motion of one stroke unit.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/brush/InputToolType">InputToolType</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#getToolType()">getToolType</a>()</code></div>
+              <p>How this input stream should be interpreted, as coming from a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#MOUSE()">InputToolType.MOUSE</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#TOUCH()">InputToolType.TOUCH</a></code>, or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#STYLUS()">InputToolType.STYLUS</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasOrientation()">hasOrientation</a>()</code></div>
+              <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#orientationRadians()">StrokeInput.orientationRadians</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasPressure()">hasPressure</a>()</code></div>
+              <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#pressure()">StrokeInput.pressure</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasStrokeUnitLength()">hasStrokeUnitLength</a>()</code></div>
+              <p>Whether strokeUnitLengthCm has a valid value, which is something other than <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#NO_STROKE_UNIT_LENGTH()">StrokeInput.NO_STROKE_UNIT_LENGTH</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasTilt()">hasTilt</a>()</code></div>
+              <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#tiltRadians()">StrokeInput.tiltRadians</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#isEmpty()">isEmpty</a>()</code></div>
+              <p><code translate="no" dir="ltr">true</code> if there are no <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> objects in the batch, and <code translate="no" dir="ltr">false</code> otherwise.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">populate</a>(int&nbsp;index,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;outStrokeInput)</code></div>
+              <p>Gets the value of the i-th input and overwrites <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">outStrokeInput</a></code>, which it then returns.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="protected-methods" data-text="Protected methods" tabindex="-1">Protected methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#finalize()">finalize</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="extension-functions" data-text="Extension functions" tabindex="-1">Extension functions</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MeshCreation">MeshCreation</a>.<a href="/reference/androidx/ink/strokes/StrokeInputBatch#(androidx.ink.strokes.StrokeInputBatch).createClosedShape()">createClosedShape</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;receiver)</code></div>
+              <p>Creates a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code> of the shape enclosed by the given <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code> input points.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatchExtensions">StrokeInputBatchExtensions</a>.<a href="/reference/androidx/ink/strokes/StrokeInputBatch#(androidx.ink.strokes.StrokeInputBatch).encode(java.io.OutputStream)">encode</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/io/OutputStream.html">OutputStream</a>&nbsp;output<br>)</code></div>
+              <p>Write a gzip-compressed <code translate="no" dir="ltr">ink.proto.CodedStrokeInputBatch</code> binary proto message representing the <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code> to the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/OutputStream.html">OutputStream</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="get-kotlin.Int-"></a><a name="get"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="get(kotlin.Int)" data-text="get" tabindex="-1">get</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#get(kotlin.Int)">get</a>(int&nbsp;index)</pre></devsite-code>
+        <p>Gets the value of the i-th input. Requires that <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#get(kotlin.Int)">index</a></code> is positive and less than <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#size()">size</a></code>.</p>
+        <p>In performance-sensitive code, prefer to use <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">populate</a></code> to pass in a pre-allocated instance and reuse that instance across multiple calls to this function.</p>
+      </div>
+      <div class="api-item"><a name="getDurationMillis--"></a><a name="getdurationmillis"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getDurationMillis()" data-text="getDurationMillis" tabindex="-1">getDurationMillis</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#getDurationMillis()">getDurationMillis</a>()</pre></devsite-code>
+        <p>The duration between the first and last input in milliseconds.</p>
+      </div>
+      <div class="api-item"><a name="getSize--"></a><a name="getsize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSize()" data-text="getSize" tabindex="-1">getSize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#getSize()">getSize</a>()</pre></devsite-code>
+        <p>Number of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> objects in the batch.</p>
+      </div>
+      <div class="api-item"><a name="getStrokeUnitLengthCm--"></a><a name="getstrokeunitlengthcm"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getStrokeUnitLengthCm()" data-text="getStrokeUnitLengthCm" tabindex="-1">getStrokeUnitLengthCm</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;float&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#getStrokeUnitLengthCm()">getStrokeUnitLengthCm</a>()</pre></devsite-code>
+        <p>The physical distance in centimeters that the pointer must travel in order to produce an input motion of one stroke unit. For stylus/touch, this is the real-world distance that the stylus/fingertip must move in physical space; for mouse, this is the visual distance that the mouse pointer must travel along the surface of the display.</p>
+        <p>A value of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#NO_STROKE_UNIT_LENGTH()">StrokeInput.NO_STROKE_UNIT_LENGTH</a></code> indicates that the relationship between stroke space and physical space is unknown or ill-defined.</p>
+      </div>
+      <div class="api-item"><a name="getToolType--"></a><a name="gettooltype"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getToolType()" data-text="getToolType" tabindex="-1">getToolType</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/brush/InputToolType">InputToolType</a>&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#getToolType()">getToolType</a>()</pre></devsite-code>
+        <p>How this input stream should be interpreted, as coming from a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#MOUSE()">InputToolType.MOUSE</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#TOUCH()">InputToolType.TOUCH</a></code>, or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType#STYLUS()">InputToolType.STYLUS</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="hasOrientation--"></a><a name="hasorientation"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasOrientation()" data-text="hasOrientation" tabindex="-1">hasOrientation</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasOrientation()">hasOrientation</a>()</pre></devsite-code>
+        <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#orientationRadians()">StrokeInput.orientationRadians</a></code>. If not, then no input items have an orientation value.</p>
+      </div>
+      <div class="api-item"><a name="hasPressure--"></a><a name="haspressure"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasPressure()" data-text="hasPressure" tabindex="-1">hasPressure</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasPressure()">hasPressure</a>()</pre></devsite-code>
+        <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#pressure()">StrokeInput.pressure</a></code>. If not, then no input items have a pressure value.</p>
+      </div>
+      <div class="api-item"><a name="hasStrokeUnitLength--"></a><a name="hasstrokeunitlength"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasStrokeUnitLength()" data-text="hasStrokeUnitLength" tabindex="-1">hasStrokeUnitLength</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasStrokeUnitLength()">hasStrokeUnitLength</a>()</pre></devsite-code>
+        <p>Whether strokeUnitLengthCm has a valid value, which is something other than <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#NO_STROKE_UNIT_LENGTH()">StrokeInput.NO_STROKE_UNIT_LENGTH</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="hasTilt--"></a><a name="hastilt"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasTilt()" data-text="hasTilt" tabindex="-1">hasTilt</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#hasTilt()">hasTilt</a>()</pre></devsite-code>
+        <p>Whether all of the individual inputs have a defined value for <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#tiltRadians()">StrokeInput.tiltRadians</a></code>. If not, then no input items have a tilt value.</p>
+      </div>
+      <div class="api-item"><a name="isEmpty--"></a><a name="isempty"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isEmpty()" data-text="isEmpty" tabindex="-1">isEmpty</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#isEmpty()">isEmpty</a>()</pre></devsite-code>
+        <p><code translate="no" dir="ltr">true</code> if there are no <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> objects in the batch, and <code translate="no" dir="ltr">false</code> otherwise.</p>
+      </div>
+      <div class="api-item"><a name="populate(kotlin.Int, androidx.ink.strokes.StrokeInput)"></a><a name="populate-kotlin.Int-androidx.ink.strokes.StrokeInput-"></a><a name="populate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populate(kotlin.Int,androidx.ink.strokes.StrokeInput)" data-text="populate" tabindex="-1">populate</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">populate</a>(int&nbsp;index,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;outStrokeInput)</pre></devsite-code>
+        <p>Gets the value of the i-th input and overwrites <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">outStrokeInput</a></code>, which it then returns. Requires that <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#populate(kotlin.Int,androidx.ink.strokes.StrokeInput)">index</a></code> is positive and less than <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch#size()">size</a></code>.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="protected-methods_1" data-text="Protected methods" tabindex="-1">Protected methods</h2>
+      <div class="api-item"><a name="finalize--"></a><a name="finalize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="finalize()" data-text="finalize" tabindex="-1">finalize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>protected&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatch#finalize()">finalize</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="extension-functions_1" data-text="Extension functions" tabindex="-1">Extension functions</h2>
+      <div class="api-item"><a name="-androidx.ink.strokes.StrokeInputBatch-.createClosedShape--"></a><a name="createclosedshape"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.ink.strokes.StrokeInputBatch).createClosedShape()" data-text="MeshCreation.createClosedShape" tabindex="-1">MeshCreation.createClosedShape</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/ink">androidx.ink:ink-strokes</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/ink/strokes/MeshCreation.kt+function:createClosedShape" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a>&nbsp;<a href="/reference/androidx/ink/strokes/MeshCreation">MeshCreation</a>.<a href="/reference/androidx/ink/strokes/StrokeInputBatch#(androidx.ink.strokes.StrokeInputBatch).createClosedShape()">createClosedShape</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;receiver)</pre></devsite-code>
+        <p>Creates a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code> of the shape enclosed by the given <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code> input points. A typical use case is selecting a region of the scene and performing hit testing with the resulting <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code>.</p>
+        <p>For a given stroke this algorithm aims to:</p>
+        <ol>
+          <li>
+            <p>Identify and create any connections that the user may have intended to make but did not fully     connect.</p>
+          </li>
+          <li>
+            <p>Trim any extra end points that the user did not intend to be part of the selected area.</p>
+          </li>
+        </ol>
+        <p>Example usage:</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">fun onStrokeFinished(stroke: Stroke) {<br>   val selectionRegion = stroke.inputs.createClosedShape()<br>   for (stroke in myScene.strokes) {<br>       if (stroke.shape.intersects(selectionRegion)) {<br>           myScene.setSelected(stroke, true)<br>       }<br>   }<br>}</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;receiver</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code> to create a closed shape from.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code> of the closed shape. If there are fewer than 3 input points, or if there are fewer than 3 points remaining after removing points with the same (x,y) coordinates as the previous point, this function will return a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/PartitionedMesh">PartitionedMesh</a></code> that is point-like (1 point remaining) or segment-like (2 points remaining). The resulting mesh will have an area of 0 but can still be used for hit testing via intersection.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="-androidx.ink.strokes.StrokeInputBatch-.encode-java.io.OutputStream-"></a><a name="encode"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.ink.strokes.StrokeInputBatch).encode(java.io.OutputStream)" data-text="StrokeInputBatchExtensions.encode" tabindex="-1">StrokeInputBatchExtensions.encode</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/ink">androidx.ink:ink-storage</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/ink/storage/StrokeInputBatchExtensions.kt+function:encode" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/StrokeInputBatchExtensions">StrokeInputBatchExtensions</a>.<a href="/reference/androidx/ink/strokes/StrokeInputBatch#(androidx.ink.strokes.StrokeInputBatch).encode(java.io.OutputStream)">encode</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/io/OutputStream.html">OutputStream</a>&nbsp;output<br>)</pre></devsite-code>
+        <p>Write a gzip-compressed <code translate="no" dir="ltr">ink.proto.CodedStrokeInputBatch</code> binary proto message representing the <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a></code> to the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/OutputStream.html">OutputStream</a></code>.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

@@ -1,1 +1,1145 @@
-<html><head><title>Class Documentation</title></head><body>AudioMixer Artifact: androidx.media3:media3-transformer View Source Kotlin | Java @ UnstableApi public interface AudioMixer Known direct subclasses DefaultAudioMixer DefaultAudioMixer An AudioMixer that incrementally mixes source audio into a fixed size mixing buffer. An audio component which combines audio data from multiple sources into a single output. The mixer supports an arbitrary number of concurrent sources and will ensure audio data from all sources are aligned and mixed before producing output. Any periods without sources will be filled with silence. The total duration of the mixed track is controlled with setEndTimeUs , or is unbounded if left unset. Updates: The mixer supports the following updates at any time without the need for a reset . Add source . Source audio will be included in future mixed output only. Remove source . Change source volume . The new volume will apply only to future source samples. Change end time . The new end time may cause an immediate change to the mixer ended state . Changes to the output audio format, buffer size, or mixer start time require the mixer to first be reset , discarding all buffered data. Operation: The mixer must be configured before any methods are called. Once configured, sources can queue audio data via queueInput and the mixer will consume input audio up to the configured buffer size and end time. Once all sources have produced data for a period then getOutput will return the mixed result. The cycle repeats until the mixer isEnded . Summary Nested types public interface AudioMixer.Factory A factory for AudioMixer instances. Public methods abstract int addSource ( AudioProcessor.AudioFormat &nbsp;sourceFormat,&nbsp;long&nbsp;startTimeUs) Adds an audio source to mix starting at the given time. abstract void configure ( &nbsp;&nbsp;&nbsp;&nbsp; AudioProcessor.AudioFormat &nbsp;outputAudioFormat, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferSizeMs, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;startTimeUs ) Configures the mixer. abstract ByteBuffer getOutput () Returns a buffer containing output audio data between its position and limit. abstract boolean hasSource (int&nbsp;sourceId) Returns whether there is an added source with the given sourceId . abstract boolean isEnded () Returns whether the mixer can accept more input or produce more output , based on the end time . abstract void queueInput (int&nbsp;sourceId,&nbsp; ByteBuffer &nbsp;sourceBuffer) Queues audio data between the position and limit of the sourceBuffer . abstract void removeSource (int&nbsp;sourceId) Removes an audio source. abstract void reset () Resets the mixer to its unconfigured state, releasing any resources. abstract void setEndTimeUs (long&nbsp;endTimeUs) Sets the end time of the output audio. abstract void setSourceVolume (int&nbsp;sourceId,&nbsp;float&nbsp;volume) Sets the volume applied to future samples queued from the given source. abstract boolean supportsSourceAudioFormat ( AudioProcessor.AudioFormat &nbsp;sourceFormat) Indicates whether the mixer supports mixing sources with the given audio format. Public methods addSource abstract&nbsp;int&nbsp; addSource ( AudioProcessor.AudioFormat &nbsp;sourceFormat,&nbsp;long&nbsp;startTimeUs) Adds an audio source to mix starting at the given time. If the mixer has already output samples past the startTimeUs , audio from this source will be discarded up to the last output end timestamp. If the source start time is earlier than the configured mixer start time then audio from this source will be discarded up to the mixer start time. All audio sources start with a volume of 1.0 on all channels. Parameters AudioProcessor.AudioFormat &nbsp;sourceFormat Audio format of source buffers. long&nbsp;startTimeUs Source start time in microseconds. Returns int Non-negative integer identifying the source ( sourceId ). Throws androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException If the source format is not supported. configure abstract&nbsp;void&nbsp; configure ( &nbsp;&nbsp;&nbsp;&nbsp; AudioProcessor.AudioFormat &nbsp;outputAudioFormat, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferSizeMs, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;startTimeUs ) Configures the mixer. The mixer must be configured before use and can only be reconfigured after a call to reset . The mixing buffer size is set by bufferSizeMs and indicates how much audio can be queued before getOutput is called. Parameters AudioProcessor.AudioFormat &nbsp;outputAudioFormat The audio format of buffers returned from getOutput . int&nbsp;bufferSizeMs The optional mixing buffer size in milliseconds, or LENGTH_UNSET . long&nbsp;startTimeUs The start time of the mixer output in microseconds. Throws androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException If the output audio format is not supported. getOutput abstract&nbsp; ByteBuffer &nbsp; getOutput () Returns a buffer containing output audio data between its position and limit. The buffer will be no larger than the configured buffer size and will include no more than the frames that have been queued from all sources, up to the end time . Silence will be generated for any periods with no sources. The buffer will always be a direct byte buffer with native byte order. Calling this method invalidates any previously returned buffer. The buffer will be empty if no output is available. Returns ByteBuffer A buffer containing output data between its position and limit. hasSource abstract&nbsp;boolean&nbsp; hasSource (int&nbsp;sourceId) Returns whether there is an added source with the given sourceId . isEnded abstract&nbsp;boolean&nbsp; isEnded () Returns whether the mixer can accept more input or produce more output , based on the end time . Note: If no end time is set this will always return false . queueInput abstract&nbsp;void&nbsp; queueInput (int&nbsp;sourceId,&nbsp; ByteBuffer &nbsp;sourceBuffer) Queues audio data between the position and limit of the sourceBuffer . After calling this method output may be available via getOutput if all sources have queued data. Parameters int&nbsp;sourceId Source identifier from addSource . ByteBuffer &nbsp;sourceBuffer The source buffer to mix. It must be a direct byte buffer with native byte order. Its contents are treated as read-only. Its position will be advanced by the number of bytes consumed (which may be zero). The caller retains ownership of the provided buffer. removeSource abstract&nbsp;void&nbsp; removeSource (int&nbsp;sourceId) Removes an audio source. No more audio can be queued from this source. All audio queued before removal will be output. Parameters int&nbsp;sourceId Source identifier from addSource . reset abstract&nbsp;void&nbsp; reset () Resets the mixer to its unconfigured state, releasing any resources. setEndTimeUs abstract&nbsp;void&nbsp; setEndTimeUs (long&nbsp;endTimeUs) Sets the end time of the output audio. The mixer will not accept input nor produce output past this point. Parameters long&nbsp;endTimeUs The end time in microseconds. Throws java.lang.IllegalArgumentException If endTimeUs is before the configured start time. setSourceVolume abstract&nbsp;void&nbsp; setSourceVolume (int&nbsp;sourceId,&nbsp;float&nbsp;volume) Sets the volume applied to future samples queued from the given source. Parameters int&nbsp;sourceId Source identifier from addSource . float&nbsp;volume Non-negative scalar applied to all source channels. supportsSourceAudioFormat abstract&nbsp;boolean&nbsp; supportsSourceAudioFormat ( AudioProcessor.AudioFormat &nbsp;sourceFormat) Indicates whether the mixer supports mixing sources with the given audio format.</body></html>
+<html><head><title>AudioMixer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="AudioMixer">
+      <meta itemprop="path" content="androidx.media3.transformer">
+      <meta itemprop="property" content="addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">
+      <meta itemprop="property" content="configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)">
+      <meta itemprop="property" content="getOutput()">
+      <meta itemprop="property" content="hasSource(int)">
+      <meta itemprop="property" content="isEnded()">
+      <meta itemprop="property" content="queueInput(int,java.nio.ByteBuffer)">
+      <meta itemprop="property" content="removeSource(int)">
+      <meta itemprop="property" content="reset()">
+      <meta itemprop="property" content="setEndTimeUs(long)">
+      <meta itemprop="property" content="setSourceVolume(int,float)">
+      <meta itemprop="property" content="supportsSourceAudioFormat(androidx.media3.common.audio.AudioProcessor.AudioFormat)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="audiomixer" data-text="AudioMixer" tabindex="-1">AudioMixer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-transformer</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/transformer/AudioMixer.java+class:androidx.media3.transformer.AudioMixer" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/transformer/AudioMixer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public interface <a href="/reference/androidx/media3/transformer/AudioMixer">AudioMixer</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/media3/transformer/DefaultAudioMixer">DefaultAudioMixer</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/DefaultAudioMixer">DefaultAudioMixer</a></code></td>
+                <td>
+                  <p>An <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer">AudioMixer</a></code> that incrementally mixes source audio into a fixed size mixing buffer.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>An audio component which combines audio data from multiple sources into a single output. </p>
+    <p>The mixer supports an arbitrary number of concurrent sources and will ensure audio data from all sources are aligned and mixed before producing output. Any periods without sources will be filled with silence. The total duration of the mixed track is controlled with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">setEndTimeUs</a></code>, or is unbounded if left unset. </p>
+    <p><b>Updates:</b> The mixer supports the following updates at any time without the need for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#reset()">reset</a></code>. </p>
+    <ul>
+      <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">Add source</a></code>. Source audio will be included in future mixed output only. </li>
+      <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#removeSource(int)">Remove source</a></code>. </li>
+      <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setSourceVolume(int,float)">Change source volume</a></code>. The new volume will apply only to future source samples. </li>
+      <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">Change end time</a></code>. The new end time may cause an immediate change to the mixer <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#isEnded()">ended state</a></code>. </li>
+    </ul>
+    <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)">Changes</a></code> to the output audio format, buffer size, or mixer start time require the mixer to first be <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#reset()">reset</a></code>, discarding all buffered data. </p>
+    <p><b>Operation:</b> The mixer must be <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)">configured</a></code> before any methods are called. Once configured, sources can queue audio data via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#queueInput(int,java.nio.ByteBuffer)">queueInput</a></code> and the mixer will consume input audio up to the configured buffer size and end time. Once all sources have produced data for a period then <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a></code> will return the mixed result. The cycle repeats until the mixer <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#isEnded()">isEnded</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/transformer/AudioMixer.Factory">AudioMixer.Factory</a></code></div>
+              <p>A factory for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer">AudioMixer</a></code> instances.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">addSource</a>(<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;sourceFormat,&nbsp;long&nbsp;startTimeUs)</code></div>
+              <p>Adds an audio source to mix starting at the given time.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)">configure</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;outputAudioFormat,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferSizeMs,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;startTimeUs<br>)</code></div>
+              <p>Configures the mixer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a>()</code></div>
+              <p>Returns a buffer containing output audio data between its position and limit.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#hasSource(int)">hasSource</a>(int&nbsp;sourceId)</code></div>
+              <p>Returns whether there is an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">added source</a></code> with the given <code translate="no" dir="ltr">sourceId</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#isEnded()">isEnded</a>()</code></div>
+              <p>Returns whether the mixer can accept more <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#queueInput(int,java.nio.ByteBuffer)">input</a></code> or produce more <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">output</a></code>, based on the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">end time</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#queueInput(int,java.nio.ByteBuffer)">queueInput</a>(int&nbsp;sourceId,&nbsp;<a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;sourceBuffer)</code></div>
+              <p>Queues audio data between the position and limit of the <code translate="no" dir="ltr">sourceBuffer</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#removeSource(int)">removeSource</a>(int&nbsp;sourceId)</code></div>
+              <p>Removes an audio source.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#reset()">reset</a>()</code></div>
+              <p>Resets the mixer to its unconfigured state, releasing any resources.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">setEndTimeUs</a>(long&nbsp;endTimeUs)</code></div>
+              <p>Sets the end time of the output audio.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setSourceVolume(int,float)">setSourceVolume</a>(int&nbsp;sourceId,&nbsp;float&nbsp;volume)</code></div>
+              <p>Sets the volume applied to future samples queued from the given source.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#supportsSourceAudioFormat(androidx.media3.common.audio.AudioProcessor.AudioFormat)">supportsSourceAudioFormat</a>(<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;sourceFormat)</code></div>
+              <p>Indicates whether the mixer supports mixing sources with the given audio format.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat, long)"></a><a name="addSource-androidx.media3.common.audio.AudioProcessor.AudioFormat-long-"></a><a name="addsource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)" data-text="addSource" tabindex="-1">addSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">addSource</a>(<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;sourceFormat,&nbsp;long&nbsp;startTimeUs)</pre></devsite-code>
+        <p>Adds an audio source to mix starting at the given time. </p>
+        <p>If the mixer has already <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">output</a></code> samples past the <code translate="no" dir="ltr">
+startTimeUs</code>, audio from this source will be discarded up to the last output end timestamp. </p>
+        <p>If the source start time is earlier than the configured mixer start time then audio from this source will be discarded up to the mixer start time. </p>
+        <p>All audio sources start with a volume of 1.0 on all channels.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;sourceFormat</code></td>
+                <td>
+                  <p>Audio format of source buffers.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;startTimeUs</code></td>
+                <td>
+                  <p>Source start time in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Non-negative integer identifying the source (<code translate="no" dir="ltr">sourceId</code>).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/AudioProcessor.UnhandledAudioFormatException">androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException</a></code></td>
+                <td>
+                  <p>If the source format is not supported.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="configure(androidx.media3.common.audio.AudioProcessor.AudioFormat, int, long)"></a><a name="configure-androidx.media3.common.audio.AudioProcessor.AudioFormat-int-long-"></a><a name="configure"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)" data-text="configure" tabindex="-1">configure</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#configure(androidx.media3.common.audio.AudioProcessor.AudioFormat,int,long)">configure</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;outputAudioFormat,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferSizeMs,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;startTimeUs<br>)</pre></devsite-code>
+        <p>Configures the mixer. </p>
+        <p>The mixer must be configured before use and can only be reconfigured after a call to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#reset()">reset</a></code>. </p>
+        <p>The mixing buffer size is set by <code translate="no" dir="ltr">bufferSizeMs</code> and indicates how much audio can be queued before <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a></code> is called.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;outputAudioFormat</code></td>
+                <td>
+                  <p>The audio format of buffers returned from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;bufferSizeMs</code></td>
+                <td>
+                  <p>The optional mixing buffer size in milliseconds, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;startTimeUs</code></td>
+                <td>
+                  <p>The start time of the mixer output in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/AudioProcessor.UnhandledAudioFormatException">androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException</a></code></td>
+                <td>
+                  <p>If the output audio format is not supported.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getOutput--"></a><a name="getoutput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOutput()" data-text="getOutput" tabindex="-1">getOutput</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a>()</pre></devsite-code>
+        <p>Returns a buffer containing output audio data between its position and limit. </p>
+        <p>The buffer will be no larger than the configured buffer size and will include no more than the frames that have been queued from all sources, up to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">end time</a></code>. Silence will be generated for any periods with no sources. </p>
+        <p>The buffer will always be a direct byte buffer with native byte order. Calling this method invalidates any previously returned buffer. The buffer will be empty if no output is available.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a></code></td>
+                <td>
+                  <p>A buffer containing output data between its position and limit.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="hasSource-int-"></a><a name="hassource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasSource(int)" data-text="hasSource" tabindex="-1">hasSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#hasSource(int)">hasSource</a>(int&nbsp;sourceId)</pre></devsite-code>
+        <p>Returns whether there is an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">added source</a></code> with the given <code translate="no" dir="ltr">sourceId</code>.</p>
+      </div>
+      <div class="api-item"><a name="isEnded--"></a><a name="isended"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isEnded()" data-text="isEnded" tabindex="-1">isEnded</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#isEnded()">isEnded</a>()</pre></devsite-code>
+        <p>Returns whether the mixer can accept more <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#queueInput(int,java.nio.ByteBuffer)">input</a></code> or produce more <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">output</a></code>, based on the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">end time</a></code>. </p>
+        <p><b>Note:</b> If no end time is set this will always return <code translate="no" dir="ltr">false</code>.</p>
+      </div>
+      <div class="api-item"><a name="queueInput(int, java.nio.ByteBuffer)"></a><a name="queueInput-int-java.nio.ByteBuffer-"></a><a name="queueinput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInput(int,java.nio.ByteBuffer)" data-text="queueInput" tabindex="-1">queueInput</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#queueInput(int,java.nio.ByteBuffer)">queueInput</a>(int&nbsp;sourceId,&nbsp;<a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;sourceBuffer)</pre></devsite-code>
+        <p>Queues audio data between the position and limit of the <code translate="no" dir="ltr">sourceBuffer</code>. </p>
+        <p>After calling this method output may be available via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#getOutput()">getOutput</a></code> if all sources have queued data.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;sourceId</code></td>
+                <td>
+                  <p>Source identifier from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">addSource</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;sourceBuffer</code></td>
+                <td>
+                  <p>The source buffer to mix. It must be a direct byte buffer with native byte order. Its contents are treated as read-only. Its position will be advanced by the number of bytes consumed (which may be zero). The caller retains ownership of the provided buffer.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeSource-int-"></a><a name="removesource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeSource(int)" data-text="removeSource" tabindex="-1">removeSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#removeSource(int)">removeSource</a>(int&nbsp;sourceId)</pre></devsite-code>
+        <p>Removes an audio source. </p>
+        <p>No more audio can be queued from this source. All audio queued before removal will be output.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;sourceId</code></td>
+                <td>
+                  <p>Source identifier from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">addSource</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="reset--"></a><a name="reset"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="reset()" data-text="reset" tabindex="-1">reset</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#reset()">reset</a>()</pre></devsite-code>
+        <p>Resets the mixer to its unconfigured state, releasing any resources.</p>
+      </div>
+      <div class="api-item"><a name="setEndTimeUs-long-"></a><a name="setendtimeus"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setEndTimeUs(long)" data-text="setEndTimeUs" tabindex="-1">setEndTimeUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#setEndTimeUs(long)">setEndTimeUs</a>(long&nbsp;endTimeUs)</pre></devsite-code>
+        <p>Sets the end time of the output audio. </p>
+        <p>The mixer will not accept input nor produce output past this point.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;endTimeUs</code></td>
+                <td>
+                  <p>The end time in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If <code translate="no" dir="ltr">endTimeUs</code> is before the configured start time.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSourceVolume(int, float)"></a><a name="setSourceVolume-int-float-"></a><a name="setsourcevolume"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSourceVolume(int,float)" data-text="setSourceVolume" tabindex="-1">setSourceVolume</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#setSourceVolume(int,float)">setSourceVolume</a>(int&nbsp;sourceId,&nbsp;float&nbsp;volume)</pre></devsite-code>
+        <p>Sets the volume applied to future samples queued from the given source.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;sourceId</code></td>
+                <td>
+                  <p>Source identifier from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/AudioMixer#addSource(androidx.media3.common.audio.AudioProcessor.AudioFormat,long)">addSource</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">float&nbsp;volume</code></td>
+                <td>
+                  <p>Non-negative scalar applied to all source channels.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="supportsSourceAudioFormat-androidx.media3.common.audio.AudioProcessor.AudioFormat-"></a><a name="supportssourceaudioformat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="supportsSourceAudioFormat(androidx.media3.common.audio.AudioProcessor.AudioFormat)" data-text="supportsSourceAudioFormat" tabindex="-1">supportsSourceAudioFormat</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/transformer/AudioMixer#supportsSourceAudioFormat(androidx.media3.common.audio.AudioProcessor.AudioFormat)">supportsSourceAudioFormat</a>(<a href="/reference/androidx/media3/common/audio/AudioProcessor.AudioFormat">AudioProcessor.AudioFormat</a>&nbsp;sourceFormat)</pre></devsite-code>
+        <p>Indicates whether the mixer supports mixing sources with the given audio format.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

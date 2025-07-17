@@ -1,1 +1,1663 @@
-<html><head><title>Class Documentation</title></head><body>ProcessCameraProvider Artifact: androidx.camera:camera-lifecycle View Source Added in 1.0.0 Kotlin | Java public final class ProcessCameraProvider implements CameraProvider A singleton which can be used to bind the lifecycle of cameras to any LifecycleOwner within an application's process. Only a single process camera provider can exist within a process, and it can be retrieved with getInstance . Heavyweight resources, such as open and running camera devices, will be scoped to the lifecycle provided to bindToLifecycle . Other lightweight resources, such as static camera characteristics, may be retrieved and cached upon first retrieval of this provider with getInstance , and will persist for the lifetime of the process. This is the standard provider for applications to use. Summary Nested types public static class ProcessCameraProvider.Companion Public methods final @ NonNull ConcurrentCamera @ MainThread bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt; ConcurrentCamera.SingleCameraConfig &gt;&nbsp;singleCameraConfigs ) Binds list of SingleCameraConfig s to LifecycleOwner . final @ NonNull Camera @ MainThread bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LifecycleOwner &nbsp;lifecycleOwner, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull UseCaseGroup &nbsp;useCaseGroup ) Binds a UseCaseGroup to a LifecycleOwner . final @ NonNull Camera @ MainThread bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LifecycleOwner &nbsp;lifecycleOwner, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp; UseCase &nbsp;useCases ) Binds the collection of UseCase to a LifecycleOwner . static&nbsp;final void @ ExperimentalCameraProviderConfiguration configureInstance (@ NonNull CameraXConfig &nbsp;cameraXConfig) Perform one-time configuration of the ProcessCameraProvider singleton with the given CameraXConfig . @ NonNull List &lt;@ NonNull CameraInfo &gt; getAvailableCameraInfos () The CameraInfo instances of the available cameras. @ NonNull List &lt;@ NonNull List &lt;@ NonNull CameraInfo &gt;&gt; getAvailableConcurrentCameraInfos () Returns list of CameraInfo instances of the available concurrent cameras. @ NonNull CameraInfo getCameraInfo (@ NonNull CameraSelector &nbsp;cameraSelector) Returns the CameraInfo instance of the camera resulted from the specified CameraSelector . static&nbsp;final @ NonNull ListenableFuture &lt;@ NonNull ProcessCameraProvider &gt; getInstance (@ NonNull Context &nbsp;context) Retrieves the ProcessCameraProvider associated with the current process. boolean hasCamera (@ NonNull CameraSelector &nbsp;cameraSelector) Checks whether this provider supports at least one camera that meets the requirements from a CameraSelector . final boolean isBound (@ NonNull UseCase &nbsp;useCase) Returns true if this UseCase is bound to a lifecycle or included in a bound SessionConfig . boolean @ MainThread isConcurrentCameraModeOn () Returns whether there is a ConcurrentCamera bound. final @ NonNull ListenableFuture &lt;@ NonNull Void &gt; @ VisibleForTesting shutdownAsync () Allows shutting down this ProcessCameraProvider instance so a new instance can be retrieved by getInstance . final void @ MainThread unbind ( UseCase &nbsp;useCases) Unbinds all specified use cases from the lifecycle provider. final void @ MainThread unbindAll () Unbinds all use cases from the lifecycle provider and removes them from CameraX. Public methods bindToLifecycle Added in 1.3.0 @ MainThread public&nbsp;final&nbsp;@ NonNull ConcurrentCamera &nbsp; bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt; ConcurrentCamera.SingleCameraConfig &gt;&nbsp;singleCameraConfigs ) Binds list of SingleCameraConfig s to LifecycleOwner . The concurrent camera is only supporting two cameras currently. If the input list of SingleCameraConfig s have less or more than two SingleCameraConfig s, IllegalArgumentException will be thrown. If cameras are already used by other UseCase s, UnsupportedOperationException will be thrown. A logical camera is a grouping of two or more of those physical cameras. See Multi-camera API If we want to open concurrent logical cameras, which are one front camera and one back camera, the device needs to support PackageManager.FEATURE_CAMERA_CONCURRENT . To set up concurrent logical camera, call availableConcurrentCameraInfos to get the list of available combinations of concurrent cameras. Each sub-list contains the CameraInfo s for a combination of cameras that can be operated concurrently. Each logical camera can have its own UseCase s and LifecycleOwner . See {@docRoot}training/camerax/architecture#lifecycles If the concurrent logical cameras are binding the same preview and video capture use cases, the concurrent cameras video recording will be supported. The concurrent camera preview stream will be shared with video capture and record the concurrent cameras streams as a composited stream. The CompositionSettings can be used to configure the position of each camera stream and different layouts can be built. See CompositionSettings for more details. If we want to open concurrent physical cameras, which are two front cameras or two back cameras, the device needs to support physical cameras and the capability could be checked via CameraInfo.isLogicalMultiCameraSupported . Each physical cameras can have its own UseCase s but needs to have the same LifecycleOwner , otherwise IllegalArgumentException will be thrown. If we want to open one physical camera, for example ultra wide, we just need to set physical camera id in CameraSelector and bind to lifecycle. All CameraX features will work normally when only a single physical camera is used. If we want to open multiple physical cameras, we need to have multiple CameraSelector s, each in one SingleCameraConfig and set physical camera id, then bind to lifecycle with the SingleCameraConfig s. Internally each physical camera id will be set on UseCase , for example, Preview and call android.hardware.camera2.params.OutputConfiguration.setPhysicalCameraId . Currently only two physical cameras for the same logical camera id are allowed and the device needs to support physical cameras by checking CameraInfo.isLogicalMultiCameraSupported . In addition, there is no guarantee or API to query whether the device supports multiple physical camera opening or not. Internally the library checks android.hardware.camera2.CameraDevice.isSessionConfigurationSupported , if the device does not support the multiple physical camera configuration, IllegalArgumentException will be thrown. Parameters @ NonNull List &lt; ConcurrentCamera.SingleCameraConfig &gt;&nbsp;singleCameraConfigs Input list of SingleCameraConfig s. Returns @ NonNull ConcurrentCamera Output ConcurrentCamera instance. Throws kotlin.IllegalArgumentException If less or more than two camera configs are provided. kotlin.UnsupportedOperationException If device is not supporting concurrent camera or cameras are already used by other UseCase s. See also ConcurrentCamera availableConcurrentCameraInfos isLogicalMultiCameraSupported getPhysicalCameraInfos bindToLifecycle Added in 1.0.0 @ MainThread public&nbsp;final&nbsp;@ NonNull Camera &nbsp; bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LifecycleOwner &nbsp;lifecycleOwner, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull UseCaseGroup &nbsp;useCaseGroup ) Binds a UseCaseGroup to a LifecycleOwner . Similar to bindToLifecycle , with the addition that the bound collection of UseCase share parameters defined by UseCaseGroup such as consistent camera sensor rect across all UseCase s. If one UseCase is in multiple UseCaseGroup s, it will be linked to the UseCaseGroup in the latest bindToLifecycle call. Throws kotlin.UnsupportedOperationException If the camera is configured in concurrent mode. bindToLifecycle Added in 1.0.0 @ MainThread public&nbsp;final&nbsp;@ NonNull Camera &nbsp; bindToLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LifecycleOwner &nbsp;lifecycleOwner, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CameraSelector &nbsp;cameraSelector, &nbsp;&nbsp;&nbsp;&nbsp; UseCase &nbsp;useCases ) Binds the collection of UseCase to a LifecycleOwner . The state of the lifecycle will determine when the cameras are open, started, stopped and closed. When started, the use cases receive camera data. Binding to a lifecycleOwner in state currently in Lifecycle.State.STARTED or greater will also initialize and start data capture. If the camera was already running this may cause a new initialization to occur temporarily stopping data from the camera before restarting it. Multiple use cases can be bound via adding them all to a single bindToLifecycle call, or by using multiple bindToLifecycle calls. Using a single call that includes all the use cases helps to set up a camera session correctly for all uses cases, such as by allowing determination of resolutions depending on all the use cases bound being bound. If the use cases are bound separately, it will find the supported resolution with the priority depending on the binding sequence. If the use cases are bound with a single call, it will find the supported resolution with the priority in sequence of ImageCapture , Preview and then ImageAnalysis . The resolutions that can be supported depends on the camera device hardware level that there are some default guaranteed resolutions listed in android.hardware.camera2.CameraDevice.createCaptureSession . Currently up to 3 use cases may be bound to a Lifecycle at any time. Exceeding capability of target camera device will throw an IllegalArgumentException. A UseCase should only be bound to a single lifecycle and camera selector a time. Attempting to bind a use case to a lifecycle when it is already bound to another lifecycle is an error, and the use case binding will not change. Attempting to bind the same use case to multiple camera selectors is also an error and will not change the binding. If different use cases are bound to different camera selectors that resolve to distinct cameras, but the same lifecycle, only one of the cameras will operate at a time. The non-operating camera will not become active until it is the only camera with use cases bound. The Camera returned is determined by the given camera selector, plus other internal requirements, possibly from use case configurations. The camera returned from bindToLifecycle may differ from the camera determined solely by a camera selector. If the camera selector can't resolve a valid camera under the requirements, an IllegalArgumentException will be thrown. Only UseCase bound to latest active Lifecycle can keep alive. UseCase bound to other Lifecycle will be stopped. Parameters @ NonNull LifecycleOwner &nbsp;lifecycleOwner The lifecycleOwner which controls the lifecycle transitions of the use cases. @ NonNull CameraSelector &nbsp;cameraSelector The camera selector which determines the camera to use for set of use cases. UseCase &nbsp;useCases The use cases to bind to a lifecycle. Returns @ NonNull Camera The Camera instance which is determined by the camera selector and internal requirements. Throws kotlin.IllegalStateException If the use case has already been bound to another lifecycle or method is not called on main thread. kotlin.IllegalArgumentException If the provided camera selector is unable to resolve a camera to be used for the given use cases. kotlin.UnsupportedOperationException If the camera is configured in concurrent mode. configureInstance Added in 1.4.0 @ ExperimentalCameraProviderConfiguration public&nbsp;static&nbsp;final&nbsp;void&nbsp; configureInstance (@ NonNull CameraXConfig &nbsp;cameraXConfig) Perform one-time configuration of the ProcessCameraProvider singleton with the given CameraXConfig . This method allows configuration of the camera provider via CameraXConfig . All initialization tasks, such as communicating with the camera service, will be executed on the java.util.concurrent.Executor set by CameraXConfig.Builder.setCameraExecutor , or by an internally defined executor if none is provided. This method is not required for every application. If the method is not called and CameraXConfig.Provider is not implemented in Application , default configuration will be used. Once this method is called, the instance configured by the given CameraXConfig can be retrieved with getInstance . CameraXConfig.Provider implemented in Application will be ignored. Configuration can only occur once. Once the ProcessCameraProvider has been configured with configureInstance() or getInstance , this method will throw an IllegalStateException . Because configuration can only occur once, usage of this method from library code is not recommended as the application owner should ultimately be in control of singleton configuration. Parameters @ NonNull CameraXConfig &nbsp;cameraXConfig The configuration options for the singleton process camera provider instance. Throws kotlin.IllegalStateException If the camera provider has already been configured by a previous call to configureInstance() or getInstance . getAvailableCameraInfos Added in 1.1.0 public&nbsp;@ NonNull List &lt;@ NonNull CameraInfo &gt;&nbsp; getAvailableCameraInfos () The CameraInfo instances of the available cameras. While iterating through all the available CameraInfo , if one of them meets some predefined requirements, a CameraSelector that uniquely identifies its camera can be retrieved using CameraInfo.getCameraSelector , which can then be used to bind use cases to that camera. getAvailableConcurrentCameraInfos Added in 1.3.0 public&nbsp;@ NonNull List &lt;@ NonNull List &lt;@ NonNull CameraInfo &gt;&gt;&nbsp; getAvailableConcurrentCameraInfos () Returns list of CameraInfo instances of the available concurrent cameras. The available concurrent cameras include all combinations of cameras which could operate concurrently on the device. Each list maps to one combination of these camera's CameraInfo . For example, to select a front camera and a back camera and bind to LifecycleOwner with preview UseCase , this function could be used with bindToLifecycle . import androidx.camera.core.CameraSelector import androidx.camera.core.ConcurrentCamera.SingleCameraConfig import androidx.camera.core.Preview import androidx.camera.core.UseCaseGroup import androidx.camera.view.PreviewView var cameraSelectorPrimary : CameraSelector? = null var cameraSelectorSecondary : CameraSelector? = null for ( cameraInfoList in cameraProvider . availableConcurrentCameraInfos ) { for ( cameraInfo in cameraInfoList ) { if ( cameraInfo . lensFacing == CameraSelector . LENS_FACING_FRONT ) { cameraSelectorPrimary = cameraInfo . getCameraSelector () } else if ( cameraInfo . lensFacing == CameraSelector . LENS_FACING_BACK ) { cameraSelectorSecondary = cameraInfo . getCameraSelector () } } } if ( cameraSelectorPrimary == null || cameraSelectorSecondary == null ) { return } val previewFront = Preview . Builder (). build () previewFront . surfaceProvider = frontPreviewView . getSurfaceProvider () val primary = SingleCameraConfig ( cameraSelectorPrimary , UseCaseGroup . Builder (). addUseCase ( previewFront ). build (), lifecycleOwner ) val previewBack = Preview . Builder (). build () previewBack . surfaceProvider = backPreviewView . getSurfaceProvider () val secondary = SingleCameraConfig ( cameraSelectorSecondary , UseCaseGroup . Builder (). addUseCase ( previewBack ). build (), lifecycleOwner ) cameraProvider . bindToLifecycle ( listOf ( primary , secondary )) Returns @ NonNull List &lt;@ NonNull List &lt;@ NonNull CameraInfo &gt;&gt; List of combinations of CameraInfo . getCameraInfo public&nbsp;@ NonNull CameraInfo &nbsp; getCameraInfo (@ NonNull CameraSelector &nbsp;cameraSelector) Returns the CameraInfo instance of the camera resulted from the specified CameraSelector . The returned CameraInfo corresponds to the camera that will be bound when calling bindToLifecycle with the specified CameraSelector . Parameters @ NonNull CameraSelector &nbsp;cameraSelector the CameraSelector to use for selecting the camera to receive information about. Returns @ NonNull CameraInfo the corresponding CameraInfo . Throws kotlin.IllegalArgumentException if the given CameraSelector can't result in a valid camera to provide the CameraInfo . getInstance Added in 1.4.0 public&nbsp;static&nbsp;final&nbsp;@ NonNull ListenableFuture &lt;@ NonNull ProcessCameraProvider &gt;&nbsp; getInstance (@ NonNull Context &nbsp;context) Retrieves the ProcessCameraProvider associated with the current process. The instance returned here can be used to bind use cases to any LifecycleOwner with bindToLifecycle . The instance's configuration may be customized by subclassing the application's Application class and implementing CameraXConfig.Provider . For example, the sample implements CameraXConfig.Provider.getCameraXConfig and initializes this process camera provider with a Camera2 implementation from androidx.camera.camera2 , and with a custom executor. import androidx.camera.camera2.Camera2Config import androidx.camera.core.CameraXConfig @Override fun getCameraXConfig (): CameraXConfig { return CameraXConfig . Builder . fromConfig ( Camera2Config . defaultConfig ()) . setCameraExecutor ( executor ) . setSchedulerHandler ( handler ) . build () } If it isn't possible to subclass the Application class, such as in library code, then the singleton can be configured via configureInstance before the first invocation of getInstance(context) , the sample implements a customized camera provider that configures the instance before getting it. import androidx.camera.camera2.Camera2Config import androidx.camera.core.CameraProvider import androidx.camera.core.CameraXConfig import androidx.camera.lifecycle.ExperimentalCameraProviderConfiguration import androidx.camera.lifecycle.ProcessCameraProvider import androidx.camera.lifecycle.ProcessCameraProvider.Companion.configureInstance import androidx.concurrent.futures.await var configured = false // Whether the camera provider has been configured or not. @androidx.annotation.OptIn ( ExperimentalCameraProviderConfiguration :: class ) suspend fun getInstance ( context : Context ): ProcessCameraProvider { synchronized ( CameraProvider :: class . java ) { if ( ! configured ) { configured = true configureInstance ( CameraXConfig . Builder . fromConfig ( Camera2Config . defaultConfig ()) . setCameraExecutor ( executor ) . setSchedulerHandler ( scheduleHandler ) . build () ) } } return ProcessCameraProvider . getInstance ( context ). await () } If no CameraXConfig.Provider is implemented by Application , or if the singleton has not been configured via configureInstance a default configuration will be used. Parameters @ NonNull Context &nbsp;context The application context. Returns @ NonNull ListenableFuture &lt;@ NonNull ProcessCameraProvider &gt; A future which will contain the ProcessCameraProvider. Cancellation of this future is a no-op. This future may fail with an InitializationException and associated cause that can be retrieved by Throwable.cause . The cause will be a androidx.camera.core.CameraUnavailableException if it fails to access any camera during initialization. Throws kotlin.IllegalStateException if CameraX fails to initialize via a default provider or a CameraXConfig.Provider . See also configureInstance hasCamera Added in 1.0.0 public&nbsp;boolean&nbsp; hasCamera (@ NonNull CameraSelector &nbsp;cameraSelector) Checks whether this provider supports at least one camera that meets the requirements from a CameraSelector . If this method returns true , then the camera selector can be used to bind use cases and retrieve a Camera instance. Parameters @ NonNull CameraSelector &nbsp;cameraSelector the CameraSelector that filters available cameras. Returns boolean true if the device has at least one available camera, otherwise false . Throws androidx.camera.core.CameraInfoUnavailableException if unable to access cameras, perhaps due to insufficient permissions. isBound Added in 1.0.0 public&nbsp;final&nbsp;boolean&nbsp; isBound (@ NonNull UseCase &nbsp;useCase) Returns true if this UseCase is bound to a lifecycle or included in a bound SessionConfig . Otherwise returns false . After binding a use case, use cases remain bound until the lifecycle reaches a Lifecycle.State.DESTROYED state or if is unbound by calls to unbind or unbindAll . isConcurrentCameraModeOn Added in 1.3.0 @ MainThread public&nbsp;boolean&nbsp; isConcurrentCameraModeOn () Returns whether there is a ConcurrentCamera bound. Returns boolean true if there is a ConcurrentCamera bound, otherwise false . shutdownAsync Added in 1.4.0 @ VisibleForTesting public&nbsp;final&nbsp;@ NonNull ListenableFuture &lt;@ NonNull Void &gt;&nbsp; shutdownAsync () Allows shutting down this ProcessCameraProvider instance so a new instance can be retrieved by getInstance . Once shutdownAsync is invoked, a new instance can be retrieved with getInstance . This method should be used for testing purposes only. Along with configureInstance , this allows the process camera provider to be used in test suites which may need to initialize CameraX in different ways in between tests. Returns @ NonNull ListenableFuture &lt;@ NonNull Void &gt; A ListenableFuture representing the shutdown status. Cancellation of this future is a no-op. unbind Added in 1.0.0 @ MainThread public&nbsp;final&nbsp;void&nbsp; unbind ( UseCase &nbsp;useCases) Unbinds all specified use cases from the lifecycle provider. This will initiate a close of every open camera which has zero UseCase associated with it at the end of this call. If a use case in the argument list is not bound, then it is simply ignored. After unbinding a UseCase, the UseCase can be bound to another Lifecycle however listeners and settings should be reset by the application. Parameters UseCase &nbsp;useCases The collection of use cases to remove. Throws kotlin.IllegalStateException If not called on main thread. kotlin.UnsupportedOperationException If called in concurrent mode. unbindAll Added in 1.0.0 @ MainThread public&nbsp;final&nbsp;void&nbsp; unbindAll () Unbinds all use cases from the lifecycle provider and removes them from CameraX. This will initiate a close of every currently open camera. Throws kotlin.IllegalStateException If not called on main thread.</body></html>
+<html><head><title>ProcessCameraProvider</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ProcessCameraProvider">
+      <meta itemprop="path" content="androidx.camera.lifecycle">
+      <meta itemprop="property" content="bindToLifecycle(kotlin.collections.List)">
+      <meta itemprop="property" content="bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,androidx.camera.core.UseCaseGroup)">
+      <meta itemprop="property" content="bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">
+      <meta itemprop="property" content="configureInstance(androidx.camera.core.CameraXConfig)">
+      <meta itemprop="property" content="getAvailableCameraInfos()">
+      <meta itemprop="property" content="getAvailableConcurrentCameraInfos()">
+      <meta itemprop="property" content="getCameraInfo(androidx.camera.core.CameraSelector)">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="property" content="hasCamera(androidx.camera.core.CameraSelector)">
+      <meta itemprop="property" content="isBound(androidx.camera.core.UseCase)">
+      <meta itemprop="property" content="getIsConcurrentCameraModeOn()">
+      <meta itemprop="property" content="shutdownAsync()">
+      <meta itemprop="property" content="unbind(kotlin.Array)">
+      <meta itemprop="property" content="unbindAll()">
+      <meta itemprop="property" content="configureInstance(androidx.camera.core.CameraXConfig)">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="processcameraprovider" data-text="ProcessCameraProvider" tabindex="-1">ProcessCameraProvider</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-lifecycle</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/lifecycle/ProcessCameraProvider.kt+class:androidx.camera.lifecycle.ProcessCameraProvider" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/lifecycle/ProcessCameraProvider" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider">ProcessCameraProvider</a> implements <a href="/reference/androidx/camera/core/CameraProvider">CameraProvider</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>A singleton which can be used to bind the lifecycle of cameras to any <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code> within an application's process.</p>
+    <p>Only a single process camera provider can exist within a process, and it can be retrieved with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+    <p>Heavyweight resources, such as open and running camera devices, will be scoped to the lifecycle provided to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a></code>. Other lightweight resources, such as static camera characteristics, may be retrieved and cached upon first retrieval of this provider with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>, and will persist for the lifetime of the process.</p>
+    <p>This is the standard provider for applications to use.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public static class <a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider.Companion">ProcessCameraProvider.Companion</a></code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(kotlin.collections.List)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">ConcurrentCamera.SingleCameraConfig</a>&gt;&nbsp;singleCameraConfigs<br>)</code></div>
+              <p>Binds list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s to <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/Camera">Camera</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,androidx.camera.core.UseCaseGroup)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a>&nbsp;lifecycleOwner,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a>&nbsp;useCaseGroup<br>)</code></div>
+              <p>Binds a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a></code> to a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/Camera">Camera</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a>&nbsp;lifecycleOwner,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases<br>)</code></div>
+              <p>Binds the collection of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> to a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/camera/lifecycle/ExperimentalCameraProviderConfiguration">ExperimentalCameraProviderConfiguration</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a>&nbsp;cameraXConfig)</code></div>
+              <p>Perform one-time configuration of the ProcessCameraProvider singleton with the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getAvailableCameraInfos()">getAvailableCameraInfos</a>()</code></div>
+              <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instances of the available cameras.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getAvailableConcurrentCameraInfos()">getAvailableConcurrentCameraInfos</a>()</code></div>
+              <p>Returns list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instances of the available concurrent cameras.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getCameraInfo(androidx.camera.core.CameraSelector)">getCameraInfo</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector)</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instance of the camera resulted from the specified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider">ProcessCameraProvider</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</code></div>
+              <p>Retrieves the ProcessCameraProvider associated with the current process.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#hasCamera(androidx.camera.core.CameraSelector)">hasCamera</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector)</code></div>
+              <p>Checks whether this provider supports at least one camera that meets the requirements from a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#isBound(androidx.camera.core.UseCase)">isBound</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCase)</code></div>
+              <p>Returns <code translate="no" dir="ltr">true</code> if this <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> is bound to a lifecycle or included in a bound <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SessionConfig">SessionConfig</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getIsConcurrentCameraModeOn()">isConcurrentCameraModeOn</a>()</code></div>
+              <p>Returns whether there is a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code> bound.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/VisibleForTesting">VisibleForTesting</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#shutdownAsync()">shutdownAsync</a>()</code></div>
+              <p>Allows shutting down this ProcessCameraProvider instance so a new instance can be retrieved by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbind(kotlin.Array)">unbind</a>(<a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases)</code></div>
+              <p>Unbinds all specified use cases from the lifecycle provider.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbindAll()">unbindAll</a>()</code></div>
+              <p>Unbinds all use cases from the lifecycle provider and removes them from CameraX.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="bindToLifecycle-kotlin.collections.List-"></a><a name="bindtolifecycle"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="bindToLifecycle(kotlin.collections.List)" data-text="bindToLifecycle" tabindex="-1">bindToLifecycle</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a>&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(kotlin.collections.List)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">ConcurrentCamera.SingleCameraConfig</a>&gt;&nbsp;singleCameraConfigs<br>)</pre></devsite-code>
+        <p>Binds list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s to <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+        <p>The concurrent camera is only supporting two cameras currently. If the input list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s have less or more than two <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s, <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">IllegalArgumentException</a></code> will be thrown. If cameras are already used by other <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>s, <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">UnsupportedOperationException</a></code> will be thrown.</p>
+        <p>A logical camera is a grouping of two or more of those physical cameras. See <a href="https://developer.android.com/media/camera/camera2/multi-camera">Multi-camera API</a></p>
+        <p>If we want to open concurrent logical cameras, which are one front camera and one back camera, the device needs to support <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/pm/PackageManager.html#FEATURE_CAMERA_CONCURRENT()">PackageManager.FEATURE_CAMERA_CONCURRENT</a></code>. To set up concurrent logical camera, call <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#availableConcurrentCameraInfos()">availableConcurrentCameraInfos</a></code> to get the list of available combinations of concurrent cameras. Each sub-list contains the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>s for a combination of cameras that can be operated concurrently. Each logical camera can have its own <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>s and <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>. See {@docRoot}training/camerax/architecture#lifecycles</p>
+        <p>If the concurrent logical cameras are binding the same preview and video capture use cases, the concurrent cameras video recording will be supported. The concurrent camera preview stream will be shared with video capture and record the concurrent cameras streams as a composited stream. The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code> can be used to configure the position of each camera stream and different layouts can be built. See <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code> for more details.</p>
+        <p>If we want to open concurrent physical cameras, which are two front cameras or two back cameras, the device needs to support physical cameras and the capability could be checked via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo#isLogicalMultiCameraSupported()">CameraInfo.isLogicalMultiCameraSupported</a></code>. Each physical cameras can have its own <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>s but needs to have the same <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>, otherwise <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">IllegalArgumentException</a></code> will be thrown.</p>
+        <p>If we want to open one physical camera, for example ultra wide, we just need to set physical camera id in <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> and bind to lifecycle. All CameraX features will work normally when only a single physical camera is used.</p>
+        <p>If we want to open multiple physical cameras, we need to have multiple <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>s, each in one <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code> and set physical camera id, then bind to lifecycle with the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s. Internally each physical camera id will be set on <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>, for example, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and call <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/params/OutputConfiguration.html#setPhysicalCameraId(kotlin.String)">android.hardware.camera2.params.OutputConfiguration.setPhysicalCameraId</a></code>.</p>
+        <p>Currently only two physical cameras for the same logical camera id are allowed and the device needs to support physical cameras by checking <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo#isLogicalMultiCameraSupported()">CameraInfo.isLogicalMultiCameraSupported</a></code>. In addition, there is no guarantee or API to query whether the device supports multiple physical camera opening or not. Internally the library checks <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice.html#isSessionConfigurationSupported(android.hardware.camera2.params.SessionConfiguration)">android.hardware.camera2.CameraDevice.isSessionConfigurationSupported</a></code>, if the device does not support the multiple physical camera configuration, <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">IllegalArgumentException</a></code> will be thrown.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">ConcurrentCamera.SingleCameraConfig</a>&gt;&nbsp;singleCameraConfigs</code></td>
+                <td>
+                  <p>Input list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>s.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code></td>
+                <td>
+                  <p>Output <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code> instance.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">kotlin.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If less or more than two camera configs are provided.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If device is not supporting concurrent camera or cameras are already used by other <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>s.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#availableConcurrentCameraInfos()">availableConcurrentCameraInfos</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo#isLogicalMultiCameraSupported()">isLogicalMultiCameraSupported</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo#getPhysicalCameraInfos()">getPhysicalCameraInfos</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="bindToLifecycle(androidx.lifecycle.LifecycleOwner, androidx.camera.core.CameraSelector, androidx.camera.core.UseCaseGroup)"></a><a name="bindToLifecycle-androidx.lifecycle.LifecycleOwner-androidx.camera.core.CameraSelector-androidx.camera.core.UseCaseGroup-"></a><a name="bindtolifecycle"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,androidx.camera.core.UseCaseGroup)" data-text="bindToLifecycle" tabindex="-1">bindToLifecycle</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/Camera">Camera</a>&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,androidx.camera.core.UseCaseGroup)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a>&nbsp;lifecycleOwner,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a>&nbsp;useCaseGroup<br>)</pre></devsite-code>
+        <p>Binds a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a></code> to a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+        <p>Similar to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a></code>, with the addition that the bound collection of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> share parameters defined by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a></code> such as consistent camera sensor rect across all <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>s.</p>
+        <p>If one <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> is in multiple <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a></code>s, it will be linked to the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCaseGroup">UseCaseGroup</a></code> in the latest <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a></code> call.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the camera is configured in concurrent mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="bindToLifecycle(androidx.lifecycle.LifecycleOwner, androidx.camera.core.CameraSelector, kotlin.Array)"></a><a name="bindToLifecycle-androidx.lifecycle.LifecycleOwner-androidx.camera.core.CameraSelector-kotlin.Array-"></a><a name="bindtolifecycle"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)" data-text="bindToLifecycle" tabindex="-1">bindToLifecycle</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/Camera">Camera</a>&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a>&nbsp;lifecycleOwner,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases<br>)</pre></devsite-code>
+        <p>Binds the collection of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> to a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code>.</p>
+        <p>The state of the lifecycle will determine when the cameras are open, started, stopped and closed. When started, the use cases receive camera data.</p>
+        <p>Binding to a lifecycleOwner in state currently in <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#STARTED">Lifecycle.State.STARTED</a></code> or greater will also initialize and start data capture. If the camera was already running this may cause a new initialization to occur temporarily stopping data from the camera before restarting it.</p>
+        <p>Multiple use cases can be bound via adding them all to a single bindToLifecycle call, or by using multiple bindToLifecycle calls. Using a single call that includes all the use cases helps to set up a camera session correctly for all uses cases, such as by allowing determination of resolutions depending on all the use cases bound being bound. If the use cases are bound separately, it will find the supported resolution with the priority depending on the binding sequence. If the use cases are bound with a single call, it will find the supported resolution with the priority in sequence of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and then <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>. The resolutions that can be supported depends on the camera device hardware level that there are some default guaranteed resolutions listed in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice.html#createCaptureSession(android.hardware.camera2.params.SessionConfiguration)">android.hardware.camera2.CameraDevice.createCaptureSession</a></code>.</p>
+        <p>Currently up to 3 use cases may be bound to a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> at any time. Exceeding capability of target camera device will throw an IllegalArgumentException.</p>
+        <p>A UseCase should only be bound to a single lifecycle and camera selector a time. Attempting to bind a use case to a lifecycle when it is already bound to another lifecycle is an error, and the use case binding will not change. Attempting to bind the same use case to multiple camera selectors is also an error and will not change the binding.</p>
+        <p>If different use cases are bound to different camera selectors that resolve to distinct cameras, but the same lifecycle, only one of the cameras will operate at a time. The non-operating camera will not become active until it is the only camera with use cases bound.</p>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Camera">Camera</a></code> returned is determined by the given camera selector, plus other internal requirements, possibly from use case configurations. The camera returned from bindToLifecycle may differ from the camera determined solely by a camera selector. If the camera selector can't resolve a valid camera under the requirements, an IllegalArgumentException will be thrown.</p>
+        <p>Only <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> bound to latest active <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> can keep alive. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> bound to other <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> will be stopped.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a>&nbsp;lifecycleOwner</code></td>
+                <td>
+                  <p>The lifecycleOwner which controls the lifecycle transitions of the use cases.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector</code></td>
+                <td>
+                  <p>The camera selector which determines the camera to use for set of use cases.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases</code></td>
+                <td>
+                  <p>The use cases to bind to a lifecycle.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/Camera">Camera</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Camera">Camera</a></code> instance which is determined by the camera selector and internal requirements.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If the use case has already been bound to another lifecycle or method is not called on main thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">kotlin.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If the provided camera selector is unable to resolve a camera to be used for the given use cases.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the camera is configured in concurrent mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="configureInstance-androidx.camera.core.CameraXConfig-"></a><a name="configureinstance"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="configureInstance(androidx.camera.core.CameraXConfig)" data-text="configureInstance" tabindex="-1">configureInstance</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/camera/lifecycle/ExperimentalCameraProviderConfiguration">ExperimentalCameraProviderConfiguration</a><br>public&nbsp;static&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a>&nbsp;cameraXConfig)</pre></devsite-code>
+        <p>Perform one-time configuration of the ProcessCameraProvider singleton with the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a></code>.</p>
+        <p>This method allows configuration of the camera provider via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a></code>. All initialization tasks, such as communicating with the camera service, will be executed on the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">java.util.concurrent.Executor</a></code> set by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Builder#setCameraExecutor(java.util.concurrent.Executor)">CameraXConfig.Builder.setCameraExecutor</a></code>, or by an internally defined executor if none is provided.</p>
+        <p>This method is not required for every application. If the method is not called and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider">CameraXConfig.Provider</a></code> is not implemented in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html">Application</a></code>, default configuration will be used.</p>
+        <p>Once this method is called, the instance configured by the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a></code> can be retrieved with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider">CameraXConfig.Provider</a></code> implemented in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html">Application</a></code> will be ignored.</p>
+        <p>Configuration can only occur once. Once the ProcessCameraProvider has been configured with <code translate="no" dir="ltr">configureInstance()</code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>, this method will throw an <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">IllegalStateException</a></code>. Because configuration can only occur once, <b>usage of this method from library code is not recommended</b> as the application owner should ultimately be in control of singleton configuration.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraXConfig">CameraXConfig</a>&nbsp;cameraXConfig</code></td>
+                <td>
+                  <p>The configuration options for the singleton process camera provider instance.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If the camera provider has already been configured by a previous call to <code translate="no" dir="ltr">configureInstance()</code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getAvailableCameraInfos--"></a><a name="getavailablecamerainfos"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getAvailableCameraInfos()" data-text="getAvailableCameraInfos" tabindex="-1">getAvailableCameraInfos</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&gt;&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getAvailableCameraInfos()">getAvailableCameraInfos</a>()</pre></devsite-code>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instances of the available cameras.</p>
+        <p>While iterating through all the available <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>, if one of them meets some predefined requirements, a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> that uniquely identifies its camera can be retrieved using <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo#getCameraSelector()">CameraInfo.getCameraSelector</a></code>, which can then be used to bind <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">use cases</a></code> to that camera.</p>
+      </div>
+      <div class="api-item"><a name="getAvailableConcurrentCameraInfos--"></a><a name="getavailableconcurrentcamerainfos"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getAvailableConcurrentCameraInfos()" data-text="getAvailableConcurrentCameraInfos" tabindex="-1">getAvailableConcurrentCameraInfos</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&gt;&gt;&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getAvailableConcurrentCameraInfos()">getAvailableConcurrentCameraInfos</a>()</pre></devsite-code>
+        <p>Returns list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instances of the available concurrent cameras.</p>
+        <p>The available concurrent cameras include all combinations of cameras which could operate concurrently on the device. Each list maps to one combination of these camera's <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>.</p>
+        <p>For example, to select a front camera and a back camera and bind to <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code> with preview <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code>, this function could be used with <code translate="no" dir="ltr">bindToLifecycle</code>.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.CameraSelector</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.ConcurrentCamera.SingleCameraConfig</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.Preview</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.UseCaseGroup</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.view.PreviewView</span>
+
+<span class="devsite-syntax-kd">var</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">cameraSelectorPrimary</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraSelector? </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span>
+<span class="devsite-syntax-kd">var</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">cameraSelectorSecondary</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraSelector? </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span>
+<span class="devsite-syntax-k">for</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraInfoList</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">in</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">availableConcurrentCameraInfos</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">for</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">in</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraInfoList</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lensFacing</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraSelector</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LENS_FACING_FRONT</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">cameraSelectorPrimary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getCameraSelector</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lensFacing</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraSelector</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LENS_FACING_BACK</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">cameraSelectorSecondary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getCameraSelector</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraSelectorPrimary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">||</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cameraSelectorSecondary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">return</span>
+<span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">previewFront</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Preview</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-n">previewFront</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">surfaceProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">frontPreviewView</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getSurfaceProvider</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">primary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">SingleCameraConfig</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">cameraSelectorPrimary</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">UseCaseGroup</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">addUseCase</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">previewFront</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">lifecycleOwner</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">previewBack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Preview</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-n">previewBack</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">surfaceProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">backPreviewView</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getSurfaceProvider</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">secondary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">SingleCameraConfig</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">cameraSelectorSecondary</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">UseCaseGroup</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">addUseCase</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">previewBack</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">(),</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">lifecycleOwner</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-n">cameraProvider</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">bindToLifecycle</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">listOf</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">primary</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">secondary</span><span class="devsite-syntax-p">))</span></pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&gt;&gt;</code></td>
+                <td>
+                  <p>List of combinations of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCameraInfo-androidx.camera.core.CameraSelector-"></a><a name="getcamerainfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCameraInfo(androidx.camera.core.CameraSelector)" data-text="getCameraInfo" tabindex="-1">getCameraInfo</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a>&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getCameraInfo(androidx.camera.core.CameraSelector)">getCameraInfo</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector)</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> instance of the camera resulted from the specified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+        <p>The returned <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code> corresponds to the camera that will be bound when calling <code translate="no" dir="ltr">bindToLifecycle</code> with the specified <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> to use for selecting the camera to receive information about.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code></td>
+                <td>
+                  <p>the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">kotlin.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> can't result in a valid camera to provide the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfo">CameraInfo</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getInstance-android.content.Context-"></a><a name="getinstance"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInstance(android.content.Context)" data-text="getInstance" tabindex="-1">getInstance</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider">ProcessCameraProvider</a>&gt;&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</pre></devsite-code>
+        <p>Retrieves the ProcessCameraProvider associated with the current process.</p>
+        <p>The instance returned here can be used to bind use cases to any <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#bindToLifecycle(androidx.lifecycle.LifecycleOwner,androidx.camera.core.CameraSelector,kotlin.Array)">bindToLifecycle</a></code>.</p>
+        <p>The instance's configuration may be customized by subclassing the application's <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html">Application</a></code> class and implementing <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider">CameraXConfig.Provider</a></code>. For example, the sample implements <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider#getCameraXConfig()">CameraXConfig.Provider.getCameraXConfig</a></code> and initializes this process camera provider with a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/camera2/Camera2Config">Camera2 implementation</a></code> from <code translate="no" dir="ltr"><a href="/reference/androidx/camera/camera2/package-summary">androidx.camera.camera2</a></code>, and with a custom executor.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.camera2.Camera2Config</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.CameraXConfig</span>
+
+<span class="devsite-syntax-nd">@Override</span>
+<span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">getCameraXConfig</span><span class="devsite-syntax-p">():</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraXConfig</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">CameraXConfig</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">fromConfig</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">Camera2Config</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">defaultConfig</span><span class="devsite-syntax-p">())</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setCameraExecutor</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">executor</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setSchedulerHandler</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">handler</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <p>If it isn't possible to subclass the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html">Application</a></code> class, such as in library code, then the singleton can be configured via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a></code> before the first invocation of <code translate="no" dir="ltr">getInstance(context)</code>, the sample implements a customized camera provider that configures the instance before getting it.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.camera2.Camera2Config</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.CameraProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.core.CameraXConfig</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.lifecycle.ExperimentalCameraProviderConfiguration</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.lifecycle.ProcessCameraProvider</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.lifecycle.ProcessCameraProvider.Companion.configureInstance</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.concurrent.futures.await</span>
+
+<span class="devsite-syntax-kd">var</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">configured</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">false</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-c1">// Whether the camera provider has been configured or not.</span>
+
+<span class="devsite-syntax-nd">@androidx.annotation.OptIn</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">ExperimentalCameraProviderConfiguration</span><span class="devsite-syntax-o">::</span><span class="devsite-syntax-n">class</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-kd">suspend</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Context</span><span class="devsite-syntax-p">):</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ProcessCameraProvider</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">synchronized</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">CameraProvider</span><span class="devsite-syntax-o">::</span><span class="devsite-syntax-n">class</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">java</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-o">!</span><span class="devsite-syntax-n">configured</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">configured</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">configureInstance</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">CameraXConfig</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">fromConfig</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">Camera2Config</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">defaultConfig</span><span class="devsite-syntax-p">())</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setCameraExecutor</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">executor</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setSchedulerHandler</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">scheduleHandler</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ProcessCameraProvider</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">await</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <p>If no <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider">CameraXConfig.Provider</a></code> is implemented by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html">Application</a></code>, or if the singleton has not been configured via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a></code> a default configuration will be used.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>The application context.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider">ProcessCameraProvider</a>&gt;</code></td>
+                <td>
+                  <p>A future which will contain the ProcessCameraProvider. Cancellation of this future is a no-op. This future may fail with an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/InitializationException">InitializationException</a></code> and associated cause that can be retrieved by <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-throwable/cause.html">Throwable.cause</a></code>. The cause will be a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraUnavailableException">androidx.camera.core.CameraUnavailableException</a></code> if it fails to access any camera during initialization.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>if CameraX fails to initialize via a default provider or a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraXConfig.Provider">CameraXConfig.Provider</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="hasCamera-androidx.camera.core.CameraSelector-"></a><a name="hascamera"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasCamera(androidx.camera.core.CameraSelector)" data-text="hasCamera" tabindex="-1">hasCamera</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#hasCamera(androidx.camera.core.CameraSelector)">hasCamera</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector)</pre></devsite-code>
+        <p>Checks whether this provider supports at least one camera that meets the requirements from a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code>.</p>
+        <p>If this method returns <code translate="no" dir="ltr">true</code>, then the camera selector can be used to bind use cases and retrieve a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Camera">Camera</a></code> instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a>&nbsp;cameraSelector</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraSelector">CameraSelector</a></code> that filters available cameras.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the device has at least one available camera, otherwise <code translate="no" dir="ltr">false</code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CameraInfoUnavailableException">androidx.camera.core.CameraInfoUnavailableException</a></code></td>
+                <td>
+                  <p>if unable to access cameras, perhaps due to insufficient permissions.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isBound-androidx.camera.core.UseCase-"></a><a name="isbound"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isBound(androidx.camera.core.UseCase)" data-text="isBound" tabindex="-1">isBound</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#isBound(androidx.camera.core.UseCase)">isBound</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCase)</pre></devsite-code>
+        <p>Returns <code translate="no" dir="ltr">true</code> if this <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> is bound to a lifecycle or included in a bound <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SessionConfig">SessionConfig</a></code>. Otherwise returns <code translate="no" dir="ltr">false</code>.</p>
+        <p>After binding a use case, use cases remain bound until the lifecycle reaches a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#DESTROYED">Lifecycle.State.DESTROYED</a></code> state or if is unbound by calls to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbind(kotlin.Array)">unbind</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbindAll()">unbindAll</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getIsConcurrentCameraModeOn--"></a><a name="getisconcurrentcameramodeon"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getIsConcurrentCameraModeOn()" data-text="isConcurrentCameraModeOn" tabindex="-1">isConcurrentCameraModeOn</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getIsConcurrentCameraModeOn()">isConcurrentCameraModeOn</a>()</pre></devsite-code>
+        <p>Returns whether there is a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code> bound.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if there is a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera">ConcurrentCamera</a></code> bound, otherwise <code translate="no" dir="ltr">false</code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="shutdownAsync--"></a><a name="shutdownasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="shutdownAsync()" data-text="shutdownAsync" tabindex="-1">shutdownAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/VisibleForTesting">VisibleForTesting</a><br>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#shutdownAsync()">shutdownAsync</a>()</pre></devsite-code>
+        <p>Allows shutting down this ProcessCameraProvider instance so a new instance can be retrieved by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+        <p>Once shutdownAsync is invoked, a new instance can be retrieved with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#getInstance(android.content.Context)">getInstance</a></code>.</p>
+        <p>This method should be used for testing purposes only. Along with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#configureInstance(androidx.camera.core.CameraXConfig)">configureInstance</a></code>, this allows the process camera provider to be used in test suites which may need to initialize CameraX in different ways in between tests.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> representing the shutdown status. Cancellation of this future is a no-op.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="unbind-kotlin.Array-"></a><a name="unbind"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="unbind(kotlin.Array)" data-text="unbind" tabindex="-1">unbind</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbind(kotlin.Array)">unbind</a>(<a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases)</pre></devsite-code>
+        <p>Unbinds all specified use cases from the lifecycle provider.</p>
+        <p>This will initiate a close of every open camera which has zero <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> associated with it at the end of this call.</p>
+        <p>If a use case in the argument list is not bound, then it is simply ignored.</p>
+        <p>After unbinding a UseCase, the UseCase can be bound to another <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> however listeners and settings should be reset by the application.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a>&nbsp;useCases</code></td>
+                <td>
+                  <p>The collection of use cases to remove.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If not called on main thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If called in concurrent mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="unbindAll--"></a><a name="unbindall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="unbindAll()" data-text="unbindAll" tabindex="-1">unbindAll</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/camera/lifecycle/ProcessCameraProvider#unbindAll()">unbindAll</a>()</pre></devsite-code>
+        <p>Unbinds all use cases from the lifecycle provider and removes them from CameraX.</p>
+        <p>This will initiate a close of every currently open camera.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If not called on main thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

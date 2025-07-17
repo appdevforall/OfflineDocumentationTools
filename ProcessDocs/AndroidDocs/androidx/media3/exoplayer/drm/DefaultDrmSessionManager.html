@@ -1,1 +1,1162 @@
-<html><head><title>Class Documentation</title></head><body>DefaultDrmSessionManager Artifact: androidx.media3:media3-exoplayer View Source Kotlin | Java @ UnstableApi public class DefaultDrmSessionManager implements DrmSessionManager A DrmSessionManager that supports playbacks using ExoMediaDrm . This implementation supports pre-acquisition of sessions using preacquireSession . Summary Nested types public final class DefaultDrmSessionManager.Builder Builder for DefaultDrmSessionManager instances. public final class DefaultDrmSessionManager.MissingSchemeDataException extends Exception Signals that the drmInitData passed to acquireSession does not contain scheme data for the required UUID. @ Documented @ Retention (value&nbsp;=&nbsp;RetentionPolicy.SOURCE) @ Target (value&nbsp;=&nbsp;TYPE_USE) @ IntDef (value&nbsp;=&nbsp;) public annotation DefaultDrmSessionManager.Mode Determines the action to be done after a session acquired. Constants static&nbsp;final long DEFAULT_SESSION_KEEPALIVE_MS = 300000 Default value for setSessionKeepaliveMs . static&nbsp;final int INITIAL_DRM_REQUEST_RETRY_COUNT = 3 Number of times to retry for initial provisioning and key request for reporting error. static&nbsp;final int MODE_DOWNLOAD = 2 Downloads an offline license or renews an existing one. static&nbsp;final int MODE_PLAYBACK = 0 Loads and refreshes (if necessary) a license for playback. static&nbsp;final int MODE_QUERY = 1 Restores an offline license to allow its status to be queried. static&nbsp;final int MODE_RELEASE = 3 Releases an existing offline license. static&nbsp;final String PLAYREADY_CUSTOM_DATA_KEY = &quot;PRCustomData&quot; A key for specifying PlayReady custom data in the key request parameters passed to setKeyRequestParameters . Public methods @ Nullable DrmSession acquireSession ( &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format ) Returns a DrmSession for the specified Format , with an incremented reference count. int @ C.CryptoType getCryptoType ( Format &nbsp;format) Returns the C.CryptoType that the DRM session manager will use for a given . DrmSessionManager.DrmSessionReference preacquireSession ( &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format ) Pre-acquires a DRM session for the specified Format . final void prepare () Acquires any required resources. final void release () Releases any acquired resources. void setMode ( &nbsp;&nbsp;&nbsp;&nbsp;@ DefaultDrmSessionManager.Mode int&nbsp;mode, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable byte[]&nbsp;offlineLicenseKeySetId ) Sets the mode, which determines the role of sessions acquired from the instance. void setPlayer ( Looper &nbsp;playbackLooper,&nbsp; PlayerId &nbsp;playerId) Sets information about the player using this DRM session manager. Inherited Constants From androidx.media3.exoplayer.drm.DrmSessionManager static&nbsp;final DrmSessionManager DRM_UNSUPPORTED An instance that supports no DRM schemes. Constants DEFAULT_SESSION_KEEPALIVE_MS public&nbsp;static&nbsp;final&nbsp;long&nbsp; DEFAULT_SESSION_KEEPALIVE_MS = 300000 Default value for setSessionKeepaliveMs . INITIAL_DRM_REQUEST_RETRY_COUNT public&nbsp;static&nbsp;final&nbsp;int&nbsp; INITIAL_DRM_REQUEST_RETRY_COUNT = 3 Number of times to retry for initial provisioning and key request for reporting error. MODE_DOWNLOAD public&nbsp;static&nbsp;final&nbsp;int&nbsp; MODE_DOWNLOAD = 2 Downloads an offline license or renews an existing one. MODE_PLAYBACK public&nbsp;static&nbsp;final&nbsp;int&nbsp; MODE_PLAYBACK = 0 Loads and refreshes (if necessary) a license for playback. Supports streaming and offline licenses. MODE_QUERY public&nbsp;static&nbsp;final&nbsp;int&nbsp; MODE_QUERY = 1 Restores an offline license to allow its status to be queried. MODE_RELEASE public&nbsp;static&nbsp;final&nbsp;int&nbsp; MODE_RELEASE = 3 Releases an existing offline license. PLAYREADY_CUSTOM_DATA_KEY public&nbsp;static&nbsp;final&nbsp; String &nbsp; PLAYREADY_CUSTOM_DATA_KEY = &quot;PRCustomData&quot; A key for specifying PlayReady custom data in the key request parameters passed to setKeyRequestParameters . Public methods acquireSession public&nbsp;@ Nullable DrmSession &nbsp; acquireSession ( &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format ) Returns a DrmSession for the specified Format , with an incremented reference count. May return null if the drmInitData is null and the DRM session manager is not configured to attach a DrmSession to clear content. When the caller no longer needs to use a returned DrmSession , it must call release to decrement the reference count. If the provided Format contains a null drmInitData , the returned DrmSession (if not null) will be a placeholder session which does not execute key requests, and cannot be used to handle encrypted content. However, a placeholder session may be used to configure secure decoders for playback of clear content periods, which can reduce the cost of transitioning between clear and encrypted content. Parameters @ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher The DrmSessionEventListener.EventDispatcher used to distribute events, and passed on to acquire . Format &nbsp;format The Format for which to acquire a DrmSession . Returns @ Nullable DrmSession The DRM session. May be null if the given drmInitData is null. getCryptoType @ C.CryptoType public&nbsp;int&nbsp; getCryptoType ( Format &nbsp;format) Returns the C.CryptoType that the DRM session manager will use for a given . Returns CRYPTO_TYPE_UNSUPPORTED if the manager does not support any of the DRM schemes defined in the Format . Returns CRYPTO_TYPE_NONE if drmInitData is null and acquireSession will return null for the given Format . Parameters Format &nbsp;format The Format . Returns int The C.CryptoType that the manager will use, or @link C#CRYPTO_TYPE_UNSUPPORTED} if the manager does not support any of the DRM schemes defined in the Format . Will be CRYPTO_TYPE_NONE if drmInitData is null and acquireSession will return null for the given Format . preacquireSession public&nbsp; DrmSessionManager.DrmSessionReference &nbsp; preacquireSession ( &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format ) Pre-acquires a DRM session for the specified Format . This notifies the manager that a subsequent call to acquireSession with the same Format is likely, allowing a manager that supports pre-acquisition to get the required DrmSession ready in the background. The caller must call release on the returned instance when they no longer require the pre-acquisition (i.e. they know they won't be making a matching call to acquireSession in the near future). This manager may silently release the underlying session in order to allow another operation to complete. This will result in a subsequent call to acquireSession re-initializing a new session, including repeating key loads and other async initialization steps. The caller must separately call acquireSession in order to obtain a session suitable for playback. The pre-acquired DrmSessionReference and full DrmSession instances are distinct. The caller must release both, and can release the DrmSessionReference before the DrmSession without affecting playback. This can be called from any thread. Implementations that do not support pre-acquisition always return an empty instance. Parameters @ Nullable DrmSessionEventListener.EventDispatcher &nbsp;eventDispatcher The DrmSessionEventListener.EventDispatcher used to distribute events, and passed on to acquire . Format &nbsp;format The Format for which to pre-acquire a DrmSession . Returns DrmSessionManager.DrmSessionReference A releaser for the pre-acquired session. Guaranteed to be non-null even if the matching acquireSession would return null. prepare public&nbsp;final&nbsp;void&nbsp; prepare () Acquires any required resources. release must be called to ensure the acquired resources are released. After releasing, an instance may be re-prepared. release public&nbsp;final&nbsp;void&nbsp; release () Releases any acquired resources. setMode public&nbsp;void&nbsp; setMode ( &nbsp;&nbsp;&nbsp;&nbsp;@ DefaultDrmSessionManager.Mode int&nbsp;mode, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable byte[]&nbsp;offlineLicenseKeySetId ) Sets the mode, which determines the role of sessions acquired from the instance. This must be called before acquireSession is called. By default, the mode is MODE_PLAYBACK and a streaming license is requested when required. mode must be one of these: MODE_PLAYBACK : If offlineLicenseKeySetId is null then a streaming license is requested. Otherwise, the offline license is restored. MODE_QUERY : offlineLicenseKeySetId cannot be null. The offline license is restored to allow its status to be queried. MODE_DOWNLOAD : If offlineLicenseKeySetId is null then an offline license is requested. Otherwise, the offline license is renewed. MODE_RELEASE : offlineLicenseKeySetId cannot be null. The offline license is released. Parameters @ DefaultDrmSessionManager.Mode int&nbsp;mode The mode to be set. @ Nullable byte[]&nbsp;offlineLicenseKeySetId The key set id of the license to be used with the given mode. setPlayer public&nbsp;void&nbsp; setPlayer ( Looper &nbsp;playbackLooper,&nbsp; PlayerId &nbsp;playerId) Sets information about the player using this DRM session manager. Parameters Looper &nbsp;playbackLooper The Looper associated with the player's playback thread. PlayerId &nbsp;playerId The PlayerId of the player.</body></html>
+<html><head><title>DefaultDrmSessionManager</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="DefaultDrmSessionManager">
+      <meta itemprop="path" content="androidx.media3.exoplayer.drm">
+      <meta itemprop="property" content="acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">
+      <meta itemprop="property" content="getCryptoType(androidx.media3.common.Format)">
+      <meta itemprop="property" content="preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">
+      <meta itemprop="property" content="prepare()">
+      <meta itemprop="property" content="release()">
+      <meta itemprop="property" content="setMode(int,byte[])">
+      <meta itemprop="property" content="setPlayer(android.os.Looper,androidx.media3.exoplayer.analytics.PlayerId)">
+      <meta itemprop="property" content="DEFAULT_SESSION_KEEPALIVE_MS()">
+      <meta itemprop="property" content="INITIAL_DRM_REQUEST_RETRY_COUNT()">
+      <meta itemprop="property" content="MODE_DOWNLOAD()">
+      <meta itemprop="property" content="MODE_PLAYBACK()">
+      <meta itemprop="property" content="MODE_QUERY()">
+      <meta itemprop="property" content="MODE_RELEASE()">
+      <meta itemprop="property" content="PLAYREADY_CUSTOM_DATA_KEY()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="defaultdrmsessionmanager" data-text="DefaultDrmSessionManager" tabindex="-1">DefaultDrmSessionManager</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-exoplayer</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/exoplayer/drm/DefaultDrmSessionManager.java+class:androidx.media3.exoplayer.drm.DefaultDrmSessionManager" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/exoplayer/drm/DefaultDrmSessionManager" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public class <a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager">DefaultDrmSessionManager</a> implements <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager">DrmSessionManager</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager">DrmSessionManager</a></code> that supports playbacks using <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/ExoMediaDrm">ExoMediaDrm</a></code>. </p>
+    <p>This implementation supports pre-acquisition of sessions using <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">preacquireSession</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Builder">DefaultDrmSessionManager.Builder</a></code></div>
+              <p>Builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager">DefaultDrmSessionManager</a></code> instances.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.MissingSchemeDataException">DefaultDrmSessionManager.MissingSchemeDataException</a> extends <a href="https://developer.android.com/reference/java/lang/Exception.html">Exception</a></code></div>
+              <p>Signals that the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code> passed to acquireSession does not contain scheme data for the required UUID.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="https://developer.android.com/reference/java/lang/annotation/Documented.html">Documented</a><br>@<a href="https://developer.android.com/reference/java/lang/annotation/Retention.html">Retention</a>(value&nbsp;=&nbsp;RetentionPolicy.SOURCE)<br>@<a href="https://developer.android.com/reference/java/lang/annotation/Target.html">Target</a>(value&nbsp;=&nbsp;TYPE_USE)<br>@<a href="/reference/androidx/annotation/IntDef">IntDef</a>(value&nbsp;=&nbsp;)<br>public annotation <a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Mode">DefaultDrmSessionManager.Mode</a></code></div>
+              <p>Determines the action to be done after a session acquired.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#DEFAULT_SESSION_KEEPALIVE_MS()">DEFAULT_SESSION_KEEPALIVE_MS</a> = 300000</code></div>
+              <p>Default value for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Builder#setSessionKeepaliveMs(long)">setSessionKeepaliveMs</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#INITIAL_DRM_REQUEST_RETRY_COUNT()">INITIAL_DRM_REQUEST_RETRY_COUNT</a> = 3</code></div>
+              <p>Number of times to retry for initial provisioning and key request for reporting error.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_DOWNLOAD()">MODE_DOWNLOAD</a> = 2</code></div>
+              <p>Downloads an offline license or renews an existing one.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_PLAYBACK()">MODE_PLAYBACK</a> = 0</code></div>
+              <p>Loads and refreshes (if necessary) a license for playback.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_QUERY()">MODE_QUERY</a> = 1</code></div>
+              <p>Restores an offline license to allow its status to be queried.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_RELEASE()">MODE_RELEASE</a> = 3</code></div>
+              <p>Releases an existing offline license.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#PLAYREADY_CUSTOM_DATA_KEY()">PLAYREADY_CUSTOM_DATA_KEY</a> = &quot;PRCustomData&quot;</code></div>
+              <p>A key for specifying PlayReady custom data in the key request parameters passed to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Builder#setKeyRequestParameters(java.util.Map&lt;java.lang.String,java.lang.String&gt;)">setKeyRequestParameters</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format<br>)</code></div>
+              <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>, with an incremented reference count.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/C.CryptoType">C.CryptoType</a><br><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#getCryptoType(androidx.media3.common.Format)">getCryptoType</a>(<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format)</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C.CryptoType">C.CryptoType</a></code> that the DRM session manager will use for a given .</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference">DrmSessionManager.DrmSessionReference</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">preacquireSession</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format<br>)</code></div>
+              <p>Pre-acquires a DRM session for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#prepare()">prepare</a>()</code></div>
+              <p>Acquires any required resources.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#release()">release</a>()</code></div>
+              <p>Releases any acquired resources.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#setMode(int,byte[])">setMode</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Mode">DefaultDrmSessionManager.Mode</a> int&nbsp;mode,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> byte[]&nbsp;offlineLicenseKeySetId<br>)</code></div>
+              <p>Sets the mode, which determines the role of sessions acquired from the instance.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#setPlayer(android.os.Looper,androidx.media3.exoplayer.analytics.PlayerId)">setPlayer</a>(<a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a>&nbsp;playbackLooper,&nbsp;<a href="/reference/androidx/media3/exoplayer/analytics/PlayerId">PlayerId</a>&nbsp;playerId)</code></div>
+              <p>Sets information about the player using this DRM session manager.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-constants" data-text="Inherited Constants" tabindex="-1">Inherited Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager">androidx.media3.exoplayer.drm.DrmSessionManager</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager">DrmSessionManager</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#DRM_UNSUPPORTED()">DRM_UNSUPPORTED</a></code></div>
+                        <p>An instance that supports no DRM schemes.</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDEFAULT_SESSION_KEEPALIVE_MS()"></a><a name="setDEFAULT_SESSION_KEEPALIVE_MS()"></a><a name="getDEFAULT_SESSION_KEEPALIVE_MS--"></a><a name="setDEFAULT_SESSION_KEEPALIVE_MS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT_SESSION_KEEPALIVE_MS()" data-text="DEFAULT_SESSION_KEEPALIVE_MS" tabindex="-1">DEFAULT_SESSION_KEEPALIVE_MS</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#DEFAULT_SESSION_KEEPALIVE_MS()">DEFAULT_SESSION_KEEPALIVE_MS</a> = 300000</pre></devsite-code>
+        <p>Default value for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Builder#setSessionKeepaliveMs(long)">setSessionKeepaliveMs</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getINITIAL_DRM_REQUEST_RETRY_COUNT()"></a><a name="setINITIAL_DRM_REQUEST_RETRY_COUNT()"></a><a name="getINITIAL_DRM_REQUEST_RETRY_COUNT--"></a><a name="setINITIAL_DRM_REQUEST_RETRY_COUNT--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INITIAL_DRM_REQUEST_RETRY_COUNT()" data-text="INITIAL_DRM_REQUEST_RETRY_COUNT" tabindex="-1">INITIAL_DRM_REQUEST_RETRY_COUNT</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#INITIAL_DRM_REQUEST_RETRY_COUNT()">INITIAL_DRM_REQUEST_RETRY_COUNT</a> = 3</pre></devsite-code>
+        <p>Number of times to retry for initial provisioning and key request for reporting error.</p>
+      </div>
+      <div class="api-item"><a name="getMODE_DOWNLOAD()"></a><a name="setMODE_DOWNLOAD()"></a><a name="getMODE_DOWNLOAD--"></a><a name="setMODE_DOWNLOAD--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_DOWNLOAD()" data-text="MODE_DOWNLOAD" tabindex="-1">MODE_DOWNLOAD</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_DOWNLOAD()">MODE_DOWNLOAD</a> = 2</pre></devsite-code>
+        <p>Downloads an offline license or renews an existing one.</p>
+      </div>
+      <div class="api-item"><a name="getMODE_PLAYBACK()"></a><a name="setMODE_PLAYBACK()"></a><a name="getMODE_PLAYBACK--"></a><a name="setMODE_PLAYBACK--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_PLAYBACK()" data-text="MODE_PLAYBACK" tabindex="-1">MODE_PLAYBACK</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_PLAYBACK()">MODE_PLAYBACK</a> = 0</pre></devsite-code>
+        <p>Loads and refreshes (if necessary) a license for playback. Supports streaming and offline licenses.</p>
+      </div>
+      <div class="api-item"><a name="getMODE_QUERY()"></a><a name="setMODE_QUERY()"></a><a name="getMODE_QUERY--"></a><a name="setMODE_QUERY--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_QUERY()" data-text="MODE_QUERY" tabindex="-1">MODE_QUERY</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_QUERY()">MODE_QUERY</a> = 1</pre></devsite-code>
+        <p>Restores an offline license to allow its status to be queried.</p>
+      </div>
+      <div class="api-item"><a name="getMODE_RELEASE()"></a><a name="setMODE_RELEASE()"></a><a name="getMODE_RELEASE--"></a><a name="setMODE_RELEASE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_RELEASE()" data-text="MODE_RELEASE" tabindex="-1">MODE_RELEASE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_RELEASE()">MODE_RELEASE</a> = 3</pre></devsite-code>
+        <p>Releases an existing offline license.</p>
+      </div>
+      <div class="api-item"><a name="getPLAYREADY_CUSTOM_DATA_KEY()"></a><a name="setPLAYREADY_CUSTOM_DATA_KEY()"></a><a name="getPLAYREADY_CUSTOM_DATA_KEY--"></a><a name="setPLAYREADY_CUSTOM_DATA_KEY--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PLAYREADY_CUSTOM_DATA_KEY()" data-text="PLAYREADY_CUSTOM_DATA_KEY" tabindex="-1">PLAYREADY_CUSTOM_DATA_KEY</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#PLAYREADY_CUSTOM_DATA_KEY()">PLAYREADY_CUSTOM_DATA_KEY</a> = &quot;PRCustomData&quot;</pre></devsite-code>
+        <p>A key for specifying PlayReady custom data in the key request parameters passed to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Builder#setKeyRequestParameters(java.util.Map&lt;java.lang.String,java.lang.String&gt;)">setKeyRequestParameters</a></code>.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher, androidx.media3.common.Format)"></a><a name="acquireSession-androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher-androidx.media3.common.Format-"></a><a name="acquiresession"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)" data-text="acquireSession" tabindex="-1">acquireSession</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a>&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format<br>)</pre></devsite-code>
+        <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>, with an incremented reference count. May return null if the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code> is null and the DRM session manager is not configured to attach a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> to clear content. When the caller no longer needs to use a returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code>, it must call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession#release(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher)">release</a></code> to decrement the reference count. </p>
+        <p>If the provided <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> contains a null <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code>, the returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> (if not null) will be a placeholder session which does not execute key requests, and cannot be used to handle encrypted content. However, a placeholder session may be used to configure secure decoders for playback of clear content periods, which can reduce the cost of transitioning between clear and encrypted content.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a></code> used to distribute events, and passed on to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession#acquire(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher)">acquire</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> for which to acquire a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code></td>
+                <td>
+                  <p>The DRM session. May be null if the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code> is null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCryptoType-androidx.media3.common.Format-"></a><a name="getcryptotype"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCryptoType(androidx.media3.common.Format)" data-text="getCryptoType" tabindex="-1">getCryptoType</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/C.CryptoType">C.CryptoType</a><br>public&nbsp;int&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#getCryptoType(androidx.media3.common.Format)">getCryptoType</a>(<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format)</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C.CryptoType">C.CryptoType</a></code> that the DRM session manager will use for a given . Returns <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#CRYPTO_TYPE_UNSUPPORTED()">CRYPTO_TYPE_UNSUPPORTED</a></code> if the manager does not support any of the DRM schemes defined in the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>. Returns <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#CRYPTO_TYPE_NONE()">CRYPTO_TYPE_NONE</a></code> if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code> is null and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> will return <code translate="no" dir="ltr">null</code> for the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C.CryptoType">C.CryptoType</a></code> that the manager will use, or @link C#CRYPTO_TYPE_UNSUPPORTED} if the manager does not support any of the DRM schemes defined in the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>. Will be <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#CRYPTO_TYPE_NONE()">CRYPTO_TYPE_NONE</a></code> if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#drmInitData()">drmInitData</a></code> is null and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> will return null for the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher, androidx.media3.common.Format)"></a><a name="preacquireSession-androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher-androidx.media3.common.Format-"></a><a name="preacquiresession"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)" data-text="preacquireSession" tabindex="-1">preacquireSession</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference">DrmSessionManager.DrmSessionReference</a>&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#preacquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">preacquireSession</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format<br>)</pre></devsite-code>
+        <p>Pre-acquires a DRM session for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code>. </p>
+        <p>This notifies the manager that a subsequent call to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> with the same <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> is likely, allowing a manager that supports pre-acquisition to get the required <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> ready in the background. </p>
+        <p>The caller must call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference#release()">release</a></code> on the returned instance when they no longer require the pre-acquisition (i.e. they know they won't be making a matching call to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> in the near future). </p>
+        <p>This manager may silently release the underlying session in order to allow another operation to complete. This will result in a subsequent call to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> re-initializing a new session, including repeating key loads and other async initialization steps. </p>
+        <p>The caller must separately call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> in order to obtain a session suitable for playback. The pre-acquired <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference">DrmSessionReference</a></code> and full <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> instances are distinct. The caller must release both, and can release the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference">DrmSessionReference</a></code> before the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code> without affecting playback. </p>
+        <p>This can be called from any thread. </p>
+        <p>Implementations that do not support pre-acquisition always return an empty  instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a>&nbsp;eventDispatcher</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionEventListener.EventDispatcher">DrmSessionEventListener.EventDispatcher</a></code> used to distribute events, and passed on to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession#acquire(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher)">acquire</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> for which to pre-acquire a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSession">DrmSession</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager.DrmSessionReference">DrmSessionManager.DrmSessionReference</a></code></td>
+                <td>
+                  <p>A releaser for the pre-acquired session. Guaranteed to be non-null even if the matching <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> would return null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="prepare--"></a><a name="prepare"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="prepare()" data-text="prepare" tabindex="-1">prepare</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#prepare()">prepare</a>()</pre></devsite-code>
+        <p>Acquires any required resources. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DrmSessionManager#release()">release</a></code> must be called to ensure the acquired resources are released. After releasing, an instance may be re-prepared.</p>
+      </div>
+      <div class="api-item"><a name="release--"></a><a name="release"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="release()" data-text="release" tabindex="-1">release</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#release()">release</a>()</pre></devsite-code>
+        <p>Releases any acquired resources.</p>
+      </div>
+      <div class="api-item"><a name="setMode(int, byte[])"></a><a name="setMode-int-byte[]-"></a><a name="setmode"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setMode(int,byte[])" data-text="setMode" tabindex="-1">setMode</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#setMode(int,byte[])">setMode</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Mode">DefaultDrmSessionManager.Mode</a> int&nbsp;mode,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> byte[]&nbsp;offlineLicenseKeySetId<br>)</pre></devsite-code>
+        <p>Sets the mode, which determines the role of sessions acquired from the instance. This must be called before <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#acquireSession(androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher,androidx.media3.common.Format)">acquireSession</a></code> is called. </p>
+        <p>By default, the mode is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_PLAYBACK()">MODE_PLAYBACK</a></code> and a streaming license is requested when required. </p>
+        <p><code translate="no" dir="ltr">mode</code> must be one of these: </p>
+        <ul>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_PLAYBACK()">MODE_PLAYBACK</a></code>: If <code translate="no" dir="ltr">offlineLicenseKeySetId</code> is null then a streaming license is requested. Otherwise, the offline license is restored. </li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_QUERY()">MODE_QUERY</a></code>: <code translate="no" dir="ltr">offlineLicenseKeySetId</code> cannot be null. The offline license is restored to allow its status to be queried. </li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_DOWNLOAD()">MODE_DOWNLOAD</a></code>: If <code translate="no" dir="ltr">offlineLicenseKeySetId</code> is null then an offline license is requested. Otherwise, the offline license is renewed. </li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#MODE_RELEASE()">MODE_RELEASE</a></code>: <code translate="no" dir="ltr">offlineLicenseKeySetId</code> cannot be null. The offline license is released. </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager.Mode">DefaultDrmSessionManager.Mode</a> int&nbsp;mode</code></td>
+                <td>
+                  <p>The mode to be set.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> byte[]&nbsp;offlineLicenseKeySetId</code></td>
+                <td>
+                  <p>The key set id of the license to be used with the given mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPlayer(android.os.Looper, androidx.media3.exoplayer.analytics.PlayerId)"></a><a name="setPlayer-android.os.Looper-androidx.media3.exoplayer.analytics.PlayerId-"></a><a name="setplayer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPlayer(android.os.Looper,androidx.media3.exoplayer.analytics.PlayerId)" data-text="setPlayer" tabindex="-1">setPlayer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/exoplayer/drm/DefaultDrmSessionManager#setPlayer(android.os.Looper,androidx.media3.exoplayer.analytics.PlayerId)">setPlayer</a>(<a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a>&nbsp;playbackLooper,&nbsp;<a href="/reference/androidx/media3/exoplayer/analytics/PlayerId">PlayerId</a>&nbsp;playerId)</pre></devsite-code>
+        <p>Sets information about the player using this DRM session manager.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a>&nbsp;playbackLooper</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a></code> associated with the player's playback thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/analytics/PlayerId">PlayerId</a>&nbsp;playerId</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/exoplayer/analytics/PlayerId">PlayerId</a></code> of the player.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

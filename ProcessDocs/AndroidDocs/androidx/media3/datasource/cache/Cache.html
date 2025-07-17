@@ -1,1 +1,1769 @@
-<html><head><title>Class Documentation</title></head><body>Cache Artifact: androidx.media3:media3-datasource View Source Kotlin | Java @ UnstableApi public interface Cache Known direct subclasses SimpleCache SimpleCache A Cache implementation that maintains an in-memory representation. A cache that supports partial caching of resources. Terminology A resource is a complete piece of logical data, for example a complete media file. A cache key uniquely identifies a resource. URIs are often suitable for use as cache keys, however this is not always the case. URIs are not suitable when caching resources obtained from a service that generates multiple URIs for the same underlying resource, for example because the service uses expiring URIs as a form of access control. A cache span is a byte range within a resource, which may or may not be cached. A cache span that's not cached is called a hole span . A cache span that is cached corresponds to a single underlying file in the cache. Summary Nested types public class Cache.CacheException extends IOException Thrown when an error is encountered when writing data. public interface Cache.Listener Listener of Cache events. Constants default&nbsp;static&nbsp;final long UID_UNSET = -1 Returned by getUid if initialization failed before the unique identifier was read or generated. Public methods abstract NavigableSet &lt; CacheSpan &gt; addListener ( String &nbsp;key,&nbsp; Cache.Listener &nbsp;listener) Registers a listener to listen for changes to a given resource. abstract void @ WorkerThread applyContentMetadataMutations ( &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;key, &nbsp;&nbsp;&nbsp;&nbsp; ContentMetadataMutations &nbsp;mutations ) Applies mutations to the ContentMetadata for the given resource. abstract void @ WorkerThread commitFile ( File &nbsp;file,&nbsp;long&nbsp;length) Commits a file into the cache. abstract long getCacheSpace () Returns the total disk space in bytes used by the cache. abstract long getCachedBytes ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns the total number of cached bytes between position (inclusive) and (position + length) (exclusive) of a resource. abstract long getCachedLength ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns the length of continuously cached data starting from position , up to a maximum of maxLength , of a resource. abstract NavigableSet &lt; CacheSpan &gt; getCachedSpans ( String &nbsp;key) Returns the cached spans for a given resource. abstract ContentMetadata getContentMetadata ( String &nbsp;key) Returns a ContentMetadata for the given resource. abstract Set &lt; String &gt; getKeys () Returns the cache keys of all of the resources that are at least partially cached. abstract long getUid () Returns a non-negative unique identifier for the cache, or UID_UNSET if initialization failed before the unique identifier was determined. abstract boolean isCached ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns whether the specified range of data in a resource is fully cached. abstract void @ WorkerThread release () Releases the cache. abstract void releaseHoleSpan ( CacheSpan &nbsp;holeSpan) Releases a CacheSpan obtained from startReadWrite which corresponded to a hole in the cache. abstract void removeListener ( String &nbsp;key,&nbsp; Cache.Listener &nbsp;listener) Unregisters a listener. abstract void @ WorkerThread removeResource ( String &nbsp;key) Removes all CacheSpans for a resource, deleting the underlying files. abstract void @ WorkerThread removeSpan ( CacheSpan &nbsp;span) Removes a cached CacheSpan from the cache, deleting the underlying file. abstract File @ WorkerThread startFile ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Obtains a cache file into which data can be written. abstract CacheSpan @ WorkerThread startReadWrite ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) A caller should invoke this method when they require data starting from a given position in a given resource. abstract @ Nullable CacheSpan @ WorkerThread startReadWriteNonBlocking ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Same as startReadWrite . Constants UID_UNSET default&nbsp;static&nbsp;final&nbsp;long&nbsp; UID_UNSET = -1 Returned by getUid if initialization failed before the unique identifier was read or generated. Public methods addListener abstract&nbsp; NavigableSet &lt; CacheSpan &gt;&nbsp; addListener ( String &nbsp;key,&nbsp; Cache.Listener &nbsp;listener) Registers a listener to listen for changes to a given resource. No guarantees are made about the thread or threads on which the listener is called, but it is guaranteed that listener methods will be called in a serial fashion (i.e. one at a time) and in the same order as events occurred. Parameters String &nbsp;key The cache key of the resource. Cache.Listener &nbsp;listener The listener to add. Returns NavigableSet &lt; CacheSpan &gt; The current spans for the resource. applyContentMetadataMutations @ WorkerThread abstract&nbsp;void&nbsp; applyContentMetadataMutations ( &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;key, &nbsp;&nbsp;&nbsp;&nbsp; ContentMetadataMutations &nbsp;mutations ) Applies mutations to the ContentMetadata for the given resource. A new is added if there isn't one already for the resource. This method may be slow and shouldn't normally be called on the main thread. Parameters String &nbsp;key The cache key of the resource. ContentMetadataMutations &nbsp;mutations Contains mutations to be applied to the metadata. Throws androidx.media3.datasource.cache.Cache.CacheException If an error is encountered. commitFile @ WorkerThread abstract&nbsp;void&nbsp; commitFile ( File &nbsp;file,&nbsp;long&nbsp;length) Commits a file into the cache. Must only be called when holding a corresponding hole obtained from startReadWrite . This method may be slow and shouldn't normally be called on the main thread. Parameters File &nbsp;file A newly written cache file. long&nbsp;length The length of the newly written cache file in bytes. Throws androidx.media3.datasource.cache.Cache.CacheException If an error is encountered. getCacheSpace abstract&nbsp;long&nbsp; getCacheSpace () Returns the total disk space in bytes used by the cache. getCachedBytes abstract&nbsp;long&nbsp; getCachedBytes ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns the total number of cached bytes between position (inclusive) and (position + length) (exclusive) of a resource. Parameters String &nbsp;key The cache key of the resource. long&nbsp;position The starting position of the data in the resource. long&nbsp;length The length of the data to check. LENGTH_UNSET is permitted, and is equivalent to passing MAX_VALUE . Returns long The total number of cached bytes. getCachedLength abstract&nbsp;long&nbsp; getCachedLength ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns the length of continuously cached data starting from position , up to a maximum of maxLength , of a resource. If position isn't cached then -holeLength is returned, where holeLength is the length of continuously uncached data starting from position , up to a maximum of maxLength . Parameters String &nbsp;key The cache key of the resource. long&nbsp;position The starting position of the data in the resource. long&nbsp;length The maximum length of the data or hole to be returned. LENGTH_UNSET is permitted, and is equivalent to passing MAX_VALUE . Returns long The length of the continuously cached data, or -holeLength if position isn't cached. getCachedSpans abstract&nbsp; NavigableSet &lt; CacheSpan &gt;&nbsp; getCachedSpans ( String &nbsp;key) Returns the cached spans for a given resource. Parameters String &nbsp;key The cache key of the resource. Returns NavigableSet &lt; CacheSpan &gt; The spans for the key. getContentMetadata abstract&nbsp; ContentMetadata &nbsp; getContentMetadata ( String &nbsp;key) Returns a ContentMetadata for the given resource. Parameters String &nbsp;key The cache key of the resource. Returns ContentMetadata The ContentMetadata for the resource. getKeys abstract&nbsp; Set &lt; String &gt;&nbsp; getKeys () Returns the cache keys of all of the resources that are at least partially cached. getUid abstract&nbsp;long&nbsp; getUid () Returns a non-negative unique identifier for the cache, or UID_UNSET if initialization failed before the unique identifier was determined. Implementations are expected to generate and store the unique identifier alongside the cached content. If the location of the cache is deleted or swapped, it is expected that a new unique identifier will be generated when the cache is recreated. isCached abstract&nbsp;boolean&nbsp; isCached ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Returns whether the specified range of data in a resource is fully cached. Parameters String &nbsp;key The cache key of the resource. long&nbsp;position The starting position of the data in the resource. long&nbsp;length The length of the data. Returns boolean true if the data is available in the Cache otherwise false; release @ WorkerThread abstract&nbsp;void&nbsp; release () Releases the cache. This method must be called when the cache is no longer required. The cache must not be used after calling this method. This method may be slow and shouldn't normally be called on the main thread. releaseHoleSpan abstract&nbsp;void&nbsp; releaseHoleSpan ( CacheSpan &nbsp;holeSpan) Releases a CacheSpan obtained from startReadWrite which corresponded to a hole in the cache. Parameters CacheSpan &nbsp;holeSpan The CacheSpan being released. removeListener abstract&nbsp;void&nbsp; removeListener ( String &nbsp;key,&nbsp; Cache.Listener &nbsp;listener) Unregisters a listener. Parameters String &nbsp;key The cache key of the resource. Cache.Listener &nbsp;listener The listener to remove. removeResource @ WorkerThread abstract&nbsp;void&nbsp; removeResource ( String &nbsp;key) Removes all CacheSpans for a resource, deleting the underlying files. Parameters String &nbsp;key The cache key of the resource being removed. removeSpan @ WorkerThread abstract&nbsp;void&nbsp; removeSpan ( CacheSpan &nbsp;span) Removes a cached CacheSpan from the cache, deleting the underlying file. This method may be slow and shouldn't normally be called on the main thread. Parameters CacheSpan &nbsp;span The CacheSpan to remove. startFile @ WorkerThread abstract&nbsp; File &nbsp; startFile ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Obtains a cache file into which data can be written. Must only be called when holding a corresponding hole CacheSpan obtained from startReadWrite . This method may be slow and shouldn't normally be called on the main thread. Parameters String &nbsp;key The cache key of the resource being written. long&nbsp;position The starting position in the resource from which data will be written. long&nbsp;length The length of the data being written, or LENGTH_UNSET if unknown. Used only to ensure that there is enough space in the cache. Returns File The file into which data should be written. Throws androidx.media3.datasource.cache.Cache.CacheException If an error is encountered. startReadWrite @ WorkerThread abstract&nbsp; CacheSpan &nbsp; startReadWrite ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) A caller should invoke this method when they require data starting from a given position in a given resource. If there is a cache entry that overlaps the position, then the returned CacheSpan defines the file in which the data is stored. isCached is true. The caller may read from the cache file, but does not acquire any locks. If there is no cache entry overlapping position , then the returned CacheSpan defines a hole in the cache starting at position into which the caller may write as it obtains the data from some other source. The returned CacheSpan serves as a lock. Whilst the caller holds the lock it may write data into the hole. It may split data into multiple files. When the caller has finished writing a file it should commit it to the cache by calling commitFile . When the caller has finished writing, it must release the lock by calling releaseHoleSpan . This method may be slow and shouldn't normally be called on the main thread. Parameters String &nbsp;key The cache key of the resource. long&nbsp;position The starting position in the resource from which data is required. long&nbsp;length The length of the data being requested, or LENGTH_UNSET if unbounded. The length is ignored if there is a cache entry that overlaps the position. Else, it defines the maximum length of the hole CacheSpan that's returned. Cache implementations may support parallel writes into non-overlapping holes, and so passing the actual required length should be preferred to passing LENGTH_UNSET when possible. Returns CacheSpan The CacheSpan . Throws java.lang.InterruptedException If the thread was interrupted. androidx.media3.datasource.cache.Cache.CacheException If an error is encountered. startReadWriteNonBlocking @ WorkerThread abstract&nbsp;@ Nullable CacheSpan &nbsp; startReadWriteNonBlocking ( String &nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length) Same as startReadWrite . However, if the cache entry is locked, then instead of blocking, this method will return null as the CacheSpan . This method may be slow and shouldn't normally be called on the main thread. Parameters String &nbsp;key The cache key of the resource. long&nbsp;position The starting position in the resource from which data is required. long&nbsp;length The length of the data being requested, or LENGTH_UNSET if unbounded. The length is ignored if there is a cache entry that overlaps the position. Else, it defines the range of data locked by the returned CacheSpan . Returns @ Nullable CacheSpan The CacheSpan . Or null if the cache entry is locked. Throws androidx.media3.datasource.cache.Cache.CacheException If an error is encountered.</body></html>
+<html><head><title>Cache</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="Cache">
+      <meta itemprop="path" content="androidx.media3.datasource.cache">
+      <meta itemprop="property" content="addListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">
+      <meta itemprop="property" content="applyContentMetadataMutations(java.lang.String,androidx.media3.datasource.cache.ContentMetadataMutations)">
+      <meta itemprop="property" content="commitFile(java.io.File,long)">
+      <meta itemprop="property" content="getCacheSpace()">
+      <meta itemprop="property" content="getCachedBytes(java.lang.String,long,long)">
+      <meta itemprop="property" content="getCachedLength(java.lang.String,long,long)">
+      <meta itemprop="property" content="getCachedSpans(java.lang.String)">
+      <meta itemprop="property" content="getContentMetadata(java.lang.String)">
+      <meta itemprop="property" content="getKeys()">
+      <meta itemprop="property" content="getUid()">
+      <meta itemprop="property" content="isCached(java.lang.String,long,long)">
+      <meta itemprop="property" content="release()">
+      <meta itemprop="property" content="releaseHoleSpan(androidx.media3.datasource.cache.CacheSpan)">
+      <meta itemprop="property" content="removeListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">
+      <meta itemprop="property" content="removeResource(java.lang.String)">
+      <meta itemprop="property" content="removeSpan(androidx.media3.datasource.cache.CacheSpan)">
+      <meta itemprop="property" content="startFile(java.lang.String,long,long)">
+      <meta itemprop="property" content="startReadWrite(java.lang.String,long,long)">
+      <meta itemprop="property" content="startReadWriteNonBlocking(java.lang.String,long,long)">
+      <meta itemprop="property" content="UID_UNSET()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="cache" data-text="Cache" tabindex="-1">Cache</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-datasource</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/datasource/cache/Cache.java+class:androidx.media3.datasource.cache.Cache" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/datasource/cache/Cache" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public interface <a href="/reference/androidx/media3/datasource/cache/Cache">Cache</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/media3/datasource/cache/SimpleCache">SimpleCache</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/SimpleCache">SimpleCache</a></code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache">Cache</a></code> implementation that maintains an in-memory representation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>A cache that supports partial caching of resources. </p>
+    <h2 id="terminology" data-text="Terminology" tabindex="-1">Terminology</h2>
+    <ul>
+      <li>A <em>resource</em> is a complete piece of logical data, for example a complete media file. </li>
+      <li>A <em>cache key</em> uniquely identifies a resource. URIs are often suitable for use as cache keys, however this is not always the case. URIs are not suitable when caching resources obtained from a service that generates multiple URIs for the same underlying resource, for example because the service uses expiring URIs as a form of access control. </li>
+      <li>A <em>cache span</em> is a byte range within a resource, which may or may not be cached. A cache span that's not cached is called a <em>hole span</em>. A cache span that is cached corresponds to a single underlying file in the cache. </li>
+    </ul>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public class <a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">Cache.CacheException</a> extends <a href="https://developer.android.com/reference/java/io/IOException.html">IOException</a></code></div>
+              <p>Thrown when an error is encountered when writing data.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a></code></div>
+              <p>Listener of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache">Cache</a></code> events.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#UID_UNSET()">UID_UNSET</a> = -1</code></div>
+              <p>Returned by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getUid()">getUid</a></code> if initialization failed before the unique identifier was read or generated.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#addListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">addListener</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener)</code></div>
+              <p>Registers a listener to listen for changes to a given resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#applyContentMetadataMutations(java.lang.String,androidx.media3.datasource.cache.ContentMetadataMutations)">applyContentMetadataMutations</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/datasource/cache/ContentMetadataMutations">ContentMetadataMutations</a>&nbsp;mutations<br>)</code></div>
+              <p>Applies <code translate="no" dir="ltr">mutations</code> to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code> for the given resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#commitFile(java.io.File,long)">commitFile</a>(<a href="https://developer.android.com/reference/java/io/File.html">File</a>&nbsp;file,&nbsp;long&nbsp;length)</code></div>
+              <p>Commits a file into the cache.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getCacheSpace()">getCacheSpace</a>()</code></div>
+              <p>Returns the total disk space in bytes used by the cache.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getCachedBytes(java.lang.String,long,long)">getCachedBytes</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>Returns the total number of cached bytes between <code translate="no" dir="ltr">position</code> (inclusive) and <code translate="no" dir="ltr">
+(position + length)</code> (exclusive) of a resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getCachedLength(java.lang.String,long,long)">getCachedLength</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>Returns the length of continuously cached data starting from <code translate="no" dir="ltr">position</code>, up to a maximum of <code translate="no" dir="ltr">maxLength</code>, of a resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getCachedSpans(java.lang.String)">getCachedSpans</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</code></div>
+              <p>Returns the cached spans for a given resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getContentMetadata(java.lang.String)">getContentMetadata</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</code></div>
+              <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code> for the given resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getKeys()">getKeys</a>()</code></div>
+              <p>Returns the cache keys of all of the resources that are at least partially cached.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getUid()">getUid</a>()</code></div>
+              <p>Returns a non-negative unique identifier for the cache, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#UID_UNSET()">UID_UNSET</a></code> if initialization failed before the unique identifier was determined.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#isCached(java.lang.String,long,long)">isCached</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>Returns whether the specified range of data in a resource is fully cached.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#release()">release</a>()</code></div>
+              <p>Releases the cache.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#releaseHoleSpan(androidx.media3.datasource.cache.CacheSpan)">releaseHoleSpan</a>(<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;holeSpan)</code></div>
+              <p>Releases a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code> which corresponded to a hole in the cache.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#removeListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">removeListener</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener)</code></div>
+              <p>Unregisters a listener.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#removeResource(java.lang.String)">removeResource</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</code></div>
+              <p>Removes all <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpans</a></code> for a resource, deleting the underlying files.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#removeSpan(androidx.media3.datasource.cache.CacheSpan)">removeSpan</a>(<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;span)</code></div>
+              <p>Removes a cached <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> from the cache, deleting the underlying file.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/io/File.html">File</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#startFile(java.lang.String,long,long)">startFile</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>Obtains a cache file into which data can be written.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>A caller should invoke this method when they require data starting from a given position in a given resource.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWriteNonBlocking(java.lang.String,long,long)">startReadWriteNonBlocking</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</code></div>
+              <p>Same as <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getUID_UNSET()"></a><a name="setUID_UNSET()"></a><a name="getUID_UNSET--"></a><a name="setUID_UNSET--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="UID_UNSET()" data-text="UID_UNSET" tabindex="-1">UID_UNSET</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#UID_UNSET()">UID_UNSET</a> = -1</pre></devsite-code>
+        <p>Returned by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#getUid()">getUid</a></code> if initialization failed before the unique identifier was read or generated.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addListener(java.lang.String, androidx.media3.datasource.cache.Cache.Listener)"></a><a name="addListener-java.lang.String-androidx.media3.datasource.cache.Cache.Listener-"></a><a name="addlistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)" data-text="addListener" tabindex="-1">addListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#addListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">addListener</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener)</pre></devsite-code>
+        <p>Registers a listener to listen for changes to a given resource. </p>
+        <p>No guarantees are made about the thread or threads on which the listener is called, but it is guaranteed that listener methods will be called in a serial fashion (i.e. one at a time) and in the same order as events occurred.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>The listener to add.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;</code></td>
+                <td>
+                  <p>The current spans for the resource.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="applyContentMetadataMutations(java.lang.String, androidx.media3.datasource.cache.ContentMetadataMutations)"></a><a name="applyContentMetadataMutations-java.lang.String-androidx.media3.datasource.cache.ContentMetadataMutations-"></a><a name="applycontentmetadatamutations"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="applyContentMetadataMutations(java.lang.String,androidx.media3.datasource.cache.ContentMetadataMutations)" data-text="applyContentMetadataMutations" tabindex="-1">applyContentMetadataMutations</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#applyContentMetadataMutations(java.lang.String,androidx.media3.datasource.cache.ContentMetadataMutations)">applyContentMetadataMutations</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/datasource/cache/ContentMetadataMutations">ContentMetadataMutations</a>&nbsp;mutations<br>)</pre></devsite-code>
+        <p>Applies <code translate="no" dir="ltr">mutations</code> to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code> for the given resource. A new  is added if there isn't one already for the resource. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadataMutations">ContentMetadataMutations</a>&nbsp;mutations</code></td>
+                <td>
+                  <p>Contains mutations to be applied to the metadata.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">androidx.media3.datasource.cache.Cache.CacheException</a></code></td>
+                <td>
+                  <p>If an error is encountered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="commitFile(java.io.File, long)"></a><a name="commitFile-java.io.File-long-"></a><a name="commitfile"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="commitFile(java.io.File,long)" data-text="commitFile" tabindex="-1">commitFile</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#commitFile(java.io.File,long)">commitFile</a>(<a href="https://developer.android.com/reference/java/io/File.html">File</a>&nbsp;file,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Commits a file into the cache. Must only be called when holding a corresponding hole  obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code>. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/File.html">File</a>&nbsp;file</code></td>
+                <td>
+                  <p>A newly written cache file.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the newly written cache file in bytes.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">androidx.media3.datasource.cache.Cache.CacheException</a></code></td>
+                <td>
+                  <p>If an error is encountered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCacheSpace--"></a><a name="getcachespace"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCacheSpace()" data-text="getCacheSpace" tabindex="-1">getCacheSpace</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getCacheSpace()">getCacheSpace</a>()</pre></devsite-code>
+        <p>Returns the total disk space in bytes used by the cache.</p>
+      </div>
+      <div class="api-item"><a name="getCachedBytes(java.lang.String, long, long)"></a><a name="getCachedBytes-java.lang.String-long-long-"></a><a name="getcachedbytes"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCachedBytes(java.lang.String,long,long)" data-text="getCachedBytes" tabindex="-1">getCachedBytes</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getCachedBytes(java.lang.String,long,long)">getCachedBytes</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Returns the total number of cached bytes between <code translate="no" dir="ltr">position</code> (inclusive) and <code translate="no" dir="ltr">
+(position + length)</code> (exclusive) of a resource.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position of the data in the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the data to check. <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> is permitted, and is equivalent to passing <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Long.html#MAX_VALUE()">MAX_VALUE</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The total number of cached bytes.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCachedLength(java.lang.String, long, long)"></a><a name="getCachedLength-java.lang.String-long-long-"></a><a name="getcachedlength"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCachedLength(java.lang.String,long,long)" data-text="getCachedLength" tabindex="-1">getCachedLength</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getCachedLength(java.lang.String,long,long)">getCachedLength</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Returns the length of continuously cached data starting from <code translate="no" dir="ltr">position</code>, up to a maximum of <code translate="no" dir="ltr">maxLength</code>, of a resource. If <code translate="no" dir="ltr">position</code> isn't cached then <code translate="no" dir="ltr">-holeLength</code> is returned, where <code translate="no" dir="ltr">holeLength</code> is the length of continuously uncached data starting from <code translate="no" dir="ltr">position</code>, up to a maximum of <code translate="no" dir="ltr">maxLength</code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position of the data in the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The maximum length of the data or hole to be returned. <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> is permitted, and is equivalent to passing <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Long.html#MAX_VALUE()">MAX_VALUE</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The length of the continuously cached data, or <code translate="no" dir="ltr">-holeLength</code> if <code translate="no" dir="ltr">position</code> isn't cached.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCachedSpans-java.lang.String-"></a><a name="getcachedspans"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCachedSpans(java.lang.String)" data-text="getCachedSpans" tabindex="-1">getCachedSpans</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getCachedSpans(java.lang.String)">getCachedSpans</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</pre></devsite-code>
+        <p>Returns the cached spans for a given resource.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/NavigableSet.html">NavigableSet</a>&lt;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&gt;</code></td>
+                <td>
+                  <p>The spans for the key.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getContentMetadata-java.lang.String-"></a><a name="getcontentmetadata"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getContentMetadata(java.lang.String)" data-text="getContentMetadata" tabindex="-1">getContentMetadata</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a>&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getContentMetadata(java.lang.String)">getContentMetadata</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</pre></devsite-code>
+        <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code> for the given resource.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/ContentMetadata">ContentMetadata</a></code> for the resource.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getKeys--"></a><a name="getkeys"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getKeys()" data-text="getKeys" tabindex="-1">getKeys</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getKeys()">getKeys</a>()</pre></devsite-code>
+        <p>Returns the cache keys of all of the resources that are at least partially cached.</p>
+      </div>
+      <div class="api-item"><a name="getUid--"></a><a name="getuid"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getUid()" data-text="getUid" tabindex="-1">getUid</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#getUid()">getUid</a>()</pre></devsite-code>
+        <p>Returns a non-negative unique identifier for the cache, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#UID_UNSET()">UID_UNSET</a></code> if initialization failed before the unique identifier was determined. </p>
+        <p>Implementations are expected to generate and store the unique identifier alongside the cached content. If the location of the cache is deleted or swapped, it is expected that a new unique identifier will be generated when the cache is recreated.</p>
+      </div>
+      <div class="api-item"><a name="isCached(java.lang.String, long, long)"></a><a name="isCached-java.lang.String-long-long-"></a><a name="iscached"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isCached(java.lang.String,long,long)" data-text="isCached" tabindex="-1">isCached</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#isCached(java.lang.String,long,long)">isCached</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Returns whether the specified range of data in a resource is fully cached.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position of the data in the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the data.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the data is available in the Cache otherwise false;</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="release--"></a><a name="release"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="release()" data-text="release" tabindex="-1">release</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#release()">release</a>()</pre></devsite-code>
+        <p>Releases the cache. This method must be called when the cache is no longer required. The cache must not be used after calling this method. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+      </div>
+      <div class="api-item"><a name="releaseHoleSpan-androidx.media3.datasource.cache.CacheSpan-"></a><a name="releaseholespan"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="releaseHoleSpan(androidx.media3.datasource.cache.CacheSpan)" data-text="releaseHoleSpan" tabindex="-1">releaseHoleSpan</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#releaseHoleSpan(androidx.media3.datasource.cache.CacheSpan)">releaseHoleSpan</a>(<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;holeSpan)</pre></devsite-code>
+        <p>Releases a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code> which corresponded to a hole in the cache.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;holeSpan</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> being released.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeListener(java.lang.String, androidx.media3.datasource.cache.Cache.Listener)"></a><a name="removeListener-java.lang.String-androidx.media3.datasource.cache.Cache.Listener-"></a><a name="removelistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)" data-text="removeListener" tabindex="-1">removeListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#removeListener(java.lang.String,androidx.media3.datasource.cache.Cache.Listener)">removeListener</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener)</pre></devsite-code>
+        <p>Unregisters a listener.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.Listener">Cache.Listener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>The listener to remove.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeResource-java.lang.String-"></a><a name="removeresource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeResource(java.lang.String)" data-text="removeResource" tabindex="-1">removeResource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#removeResource(java.lang.String)">removeResource</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key)</pre></devsite-code>
+        <p>Removes all <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpans</a></code> for a resource, deleting the underlying files.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource being removed.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeSpan-androidx.media3.datasource.cache.CacheSpan-"></a><a name="removespan"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeSpan(androidx.media3.datasource.cache.CacheSpan)" data-text="removeSpan" tabindex="-1">removeSpan</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#removeSpan(androidx.media3.datasource.cache.CacheSpan)">removeSpan</a>(<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;span)</pre></devsite-code>
+        <p>Removes a cached <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> from the cache, deleting the underlying file. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;span</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> to remove.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="startFile(java.lang.String, long, long)"></a><a name="startFile-java.lang.String-long-long-"></a><a name="startfile"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="startFile(java.lang.String,long,long)" data-text="startFile" tabindex="-1">startFile</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;<a href="https://developer.android.com/reference/java/io/File.html">File</a>&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#startFile(java.lang.String,long,long)">startFile</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Obtains a cache file into which data can be written. Must only be called when holding a corresponding hole <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code>. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource being written.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position in the resource from which data will be written.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the data being written, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> if unknown. Used only to ensure that there is enough space in the cache.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/File.html">File</a></code></td>
+                <td>
+                  <p>The file into which data should be written.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">androidx.media3.datasource.cache.Cache.CacheException</a></code></td>
+                <td>
+                  <p>If an error is encountered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="startReadWrite(java.lang.String, long, long)"></a><a name="startReadWrite-java.lang.String-long-long-"></a><a name="startreadwrite"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="startReadWrite(java.lang.String,long,long)" data-text="startReadWrite" tabindex="-1">startReadWrite</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;<a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>A caller should invoke this method when they require data starting from a given position in a given resource. </p>
+        <p>If there is a cache entry that overlaps the position, then the returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> defines the file in which the data is stored. <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan#isCached()">isCached</a></code> is true. The caller may read from the cache file, but does not acquire any locks. </p>
+        <p>If there is no cache entry overlapping <code translate="no" dir="ltr">position</code>, then the returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> defines a hole in the cache starting at <code translate="no" dir="ltr">position</code> into which the caller may write as it obtains the data from some other source. The returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> serves as a lock. Whilst the caller holds the lock it may write data into the hole. It may split data into multiple files. When the caller has finished writing a file it should commit it to the cache by calling <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#commitFile(java.io.File,long)">commitFile</a></code>. When the caller has finished writing, it must release the lock by calling <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#releaseHoleSpan(androidx.media3.datasource.cache.CacheSpan)">releaseHoleSpan</a></code>. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position in the resource from which data is required.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the data being requested, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> if unbounded. The length is ignored if there is a cache entry that overlaps the position. Else, it defines the maximum length of the hole <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code> that's returned. Cache implementations may support parallel writes into non-overlapping holes, and so passing the actual required length should be preferred to passing <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> when possible.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/InterruptedException.html">java.lang.InterruptedException</a></code></td>
+                <td>
+                  <p>If the thread was interrupted.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">androidx.media3.datasource.cache.Cache.CacheException</a></code></td>
+                <td>
+                  <p>If an error is encountered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="startReadWriteNonBlocking(java.lang.String, long, long)"></a><a name="startReadWriteNonBlocking-java.lang.String-long-long-"></a><a name="startreadwritenonblocking"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="startReadWriteNonBlocking(java.lang.String,long,long)" data-text="startReadWriteNonBlocking" tabindex="-1">startReadWriteNonBlocking</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a><br>abstract&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a>&nbsp;<a href="/reference/androidx/media3/datasource/cache/Cache#startReadWriteNonBlocking(java.lang.String,long,long)">startReadWriteNonBlocking</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key,&nbsp;long&nbsp;position,&nbsp;long&nbsp;length)</pre></devsite-code>
+        <p>Same as <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache#startReadWrite(java.lang.String,long,long)">startReadWrite</a></code>. However, if the cache entry is locked, then instead of blocking, this method will return null as the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code>. </p>
+        <p>This method may be slow and shouldn't normally be called on the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;key</code></td>
+                <td>
+                  <p>The cache key of the resource.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;position</code></td>
+                <td>
+                  <p>The starting position in the resource from which data is required.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;length</code></td>
+                <td>
+                  <p>The length of the data being requested, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> if unbounded. The length is ignored if there is a cache entry that overlaps the position. Else, it defines the range of data locked by the returned <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/CacheSpan">CacheSpan</a></code>. Or null if the cache entry is locked.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/cache/Cache.CacheException">androidx.media3.datasource.cache.Cache.CacheException</a></code></td>
+                <td>
+                  <p>If an error is encountered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

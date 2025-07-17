@@ -1,1 +1,709 @@
-<html><head><title>Class Documentation</title></head><body>FlowExtKt Added in 2.4.0 Kotlin | Java public final class FlowExtKt Summary Public methods static&nbsp;final @ NonNull Flow &lt;@ NonNull T&gt; &lt;T&nbsp;extends&nbsp; Object &gt; flowWithLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Flow &lt;@ NonNull T&gt;&nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Lifecycle &nbsp;lifecycle, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Lifecycle.State &nbsp;minActiveState ) Flow operator that emits values from this upstream Flow when the lifecycle is at least at minActiveState state. Public methods flowWithLifecycle Artifact: androidx.lifecycle:lifecycle-runtime View Source public&nbsp;static&nbsp;final&nbsp;@ NonNull Flow &lt;@ NonNull T&gt;&nbsp;&lt;T&nbsp;extends&nbsp; Object &gt; flowWithLifecycle ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Flow &lt;@ NonNull T&gt;&nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Lifecycle &nbsp;lifecycle, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Lifecycle.State &nbsp;minActiveState ) Flow operator that emits values from this upstream Flow when the lifecycle is at least at minActiveState state. The emissions will be stopped when the lifecycle state falls below minActiveState state. The flow will automatically start and cancel collecting from this upstream flow as the lifecycle moves in and out of the target state. If this upstream Flow completes emitting items, flowWithLifecycle will trigger the flow collection again when the minActiveState state is reached. This is NOT a terminal operator. This operator is usually followed by collect , or onEach and launchIn to process the emitted values. Note: this operator creates a hot flow that only closes when the lifecycle is destroyed or the coroutine that collects from the flow is cancelled. class MyActivity : AppCompatActivity () { override fun onCreate ( savedInstanceState: Bundle ?) { /* ... */ // Launches a coroutine that collects items from a flow when the Activity // is at least started . It will automatically cancel when the activity is stopped and // start collecting again whenever it's started again . lifecycleScope . launch { flow . flowWithLifecycle ( lifecycle , Lifecycle . State . STARTED ) . collect { // Consume flow emissions } } } } flowWithLifecycle cancels the upstream Flow when lifecycle falls below minActiveState state. However, the downstream Flow will be active without receiving any emissions as long as the scope used to collect the Flow is active. As such, please take care when using this function in an operator chain, as the order of the operators matters. For example, flow1.flowWithLifecycle(lifecycle).combine(flow2) behaves differently than flow1.combine(flow2).flowWithLifecycle(lifecycle) . The former continues to combine both flows even when lifecycle falls below minActiveState state whereas the combination is cancelled in the latter case. Warning: Lifecycle.State.INITIALIZED is not allowed in this API. Passing it as a parameter will throw an IllegalArgumentException . Tip: If multiple flows need to be collected using flowWithLifecycle , consider using the Lifecycle.repeatOnLifecycle API to collect from all of them using a different launch per flow instead. That's more efficient and consumes less resources as no hot flows are created. Parameters @ NonNull Lifecycle &nbsp;lifecycle The Lifecycle where the restarting collecting from this flow work will be kept alive. @ NonNull Lifecycle.State &nbsp;minActiveState Lifecycle.State in which the upstream flow gets collected. The collection will stop if the lifecycle falls below that state, and will restart if it's in that state again. Returns @ NonNull Flow &lt;@ NonNull T&gt; Flow that only emits items from this upstream flow when the lifecycle is at least in the minActiveState .</body></html>
+<html><head><title>FlowExtKt</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="FlowExtKt">
+      <meta itemprop="path" content="androidx.lifecycle">
+      <meta itemprop="property" content="(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="flowextkt" data-text="FlowExtKt" tabindex="-1">FlowExtKt</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="version-metadata">
+          <div id="added-in">Added in 2.4.0</div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/lifecycle/package-summary" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/lifecycle/FlowExtKt">FlowExtKt</a></pre></devsite-code>
+    </p>
+    <hr>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/lifecycle/FlowExtKt#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">flowWithLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a>&nbsp;lifecycle,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle.State">Lifecycle.State</a>&nbsp;minActiveState<br>)</code></div>
+              <p>Flow operator that emits values from <code translate="no" dir="ltr">this</code> upstream Flow when the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> is at least at <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle, androidx.lifecycle.Lifecycle.State)"></a><a name="-kotlinx.coroutines.flow.Flow-.flowWithLifecycle-androidx.lifecycle.Lifecycle-androidx.lifecycle.Lifecycle.State-"></a><a name="flowwithlifecycle"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)" data-text="flowWithLifecycle" tabindex="-1">flowWithLifecycle</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/lifecycle">androidx.lifecycle:lifecycle-runtime</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/lifecycle/FlowExt.kt+function:flowWithLifecycle" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/lifecycle/FlowExtKt#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">flowWithLifecycle</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a>&nbsp;lifecycle,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle.State">Lifecycle.State</a>&nbsp;minActiveState<br>)</pre></devsite-code>
+        <p>Flow operator that emits values from <code translate="no" dir="ltr">this</code> upstream Flow when the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> is at least at <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state. The emissions will be stopped when the lifecycle state falls below <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state.</p>
+        <p>The flow will automatically start and cancel collecting from <code translate="no" dir="ltr">this</code> upstream flow as the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> moves in and out of the target state.</p>
+        <p>If <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#&lt;this&gt;()">this</a></code> upstream Flow completes emitting items, <code translate="no" dir="ltr">flowWithLifecycle</code> will trigger the flow collection again when the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state is reached.</p>
+        <p>This is NOT a terminal operator. This operator is usually followed by <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/index.html">collect</a></code>, or <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/index.html">onEach</a></code> and <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/index.html">launchIn</a></code> to process the emitted values.</p>
+        <p>Note: this operator creates a hot flow that only closes when the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> is destroyed or the coroutine that collects from the flow is cancelled.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Perl6"><span class="devsite-syntax-k">class</span> <span class="devsite-syntax-n">MyActivity</span> : <span class="devsite-syntax-n">AppCompatActivity</span>() {<br>    <span class="devsite-syntax-n">override</span> <span class="devsite-syntax-n">fun</span> <span class="devsite-syntax-n">onCreate</span>(<span class="devsite-syntax-n">savedInstanceState:</span> <span class="devsite-syntax-n">Bundle</span>?) {<br>        /* ... */<br>            // <span class="devsite-syntax-n">Launches</span> <span class="devsite-syntax-n">a</span> <span class="devsite-syntax-n">coroutine</span> <span class="devsite-syntax-n">that</span> <span class="devsite-syntax-n">collects</span> <span class="devsite-syntax-n">items</span> <span class="devsite-syntax-nb">from</span> <span class="devsite-syntax-n">a</span> <span class="devsite-syntax-n">flow</span> <span class="devsite-syntax-k">when</span> <span class="devsite-syntax-n">the</span> <span class="devsite-syntax-n">Activity</span><br>            // <span class="devsite-syntax-k">is</span> <span class="devsite-syntax-nb">at</span> <span class="devsite-syntax-n">least</span> <span class="devsite-syntax-nb">started</span>. <span class="devsite-syntax-n">It</span> <span class="devsite-syntax-n">will</span> <span class="devsite-syntax-n">automatically</span> <span class="devsite-syntax-nb">cancel</span> <span class="devsite-syntax-k">when</span> <span class="devsite-syntax-n">the</span> <span class="devsite-syntax-n">activity</span> <span class="devsite-syntax-k">is</span> <span class="devsite-syntax-n">stopped</span> <span class="devsite-syntax-o">and</span><br>            // <span class="devsite-syntax-nb">start</span> <span class="devsite-syntax-n">collecting</span> <span class="devsite-syntax-n">again</span> <span class="devsite-syntax-n">whenever</span> <span class="devsite-syntax-n">it's</span> <span class="devsite-syntax-nb">started</span> <span class="devsite-syntax-n">again</span>.<br>            <span class="devsite-syntax-n">lifecycleScope</span>.<span class="devsite-syntax-n">launch</span> {<br>                <span class="devsite-syntax-n">flow</span><br>                    .<span class="devsite-syntax-n">flowWithLifecycle</span>(<span class="devsite-syntax-n">lifecycle</span>, <span class="devsite-syntax-n">Lifecycle</span>.<span class="devsite-syntax-n">State</span>.<span class="devsite-syntax-n">STARTED</span>)<br>                    .<span class="devsite-syntax-n">collect</span> {<br>                        // <span class="devsite-syntax-n">Consume</span> <span class="devsite-syntax-n">flow</span> <span class="devsite-syntax-n">emissions</span><br>                     }<br>            }<br>        }<br>    }</pre></devsite-code>
+        <p><code translate="no" dir="ltr">flowWithLifecycle</code> cancels the upstream Flow when <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> falls below <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state. However, the downstream Flow will be active without receiving any emissions as long as the scope used to collect the Flow is active. As such, please take care when using this function in an operator chain, as the order of the operators matters. For example, <code translate="no" dir="ltr">flow1.flowWithLifecycle(lifecycle).combine(flow2)</code> behaves differently than <code translate="no" dir="ltr">flow1.combine(flow2).flowWithLifecycle(lifecycle)</code>. The former continues to combine both flows even when <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> falls below <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code> state whereas the combination is cancelled in the latter case.</p>
+        <p>Warning: <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#INITIALIZED">Lifecycle.State.INITIALIZED</a></code> is not allowed in this API. Passing it as a parameter will throw an <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">IllegalArgumentException</a></code>.</p>
+        <p>Tip: If multiple flows need to be collected using <code translate="no" dir="ltr">flowWithLifecycle</code>, consider using the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(androidx.lifecycle.Lifecycle).repeatOnLifecycle(androidx.lifecycle.Lifecycle.State,kotlin.coroutines.SuspendFunction1)">Lifecycle.repeatOnLifecycle</a></code> API to collect from all of them using a different <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/index.html">launch</a></code> per flow instead. That's more efficient and consumes less resources as no hot flows are created.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a>&nbsp;lifecycle</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> where the restarting collecting from <code translate="no" dir="ltr">this</code> flow work will be kept alive.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle.State">Lifecycle.State</a>&nbsp;minActiveState</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State">Lifecycle.State</a></code> in which the upstream flow gets collected. The collection will stop if the lifecycle falls below that state, and will restart if it's in that state again.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> that only emits items from <code translate="no" dir="ltr">this</code> upstream flow when the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">lifecycle</a></code> is at least in the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/package-summary#(kotlinx.coroutines.flow.Flow).flowWithLifecycle(androidx.lifecycle.Lifecycle,androidx.lifecycle.Lifecycle.State)">minActiveState</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

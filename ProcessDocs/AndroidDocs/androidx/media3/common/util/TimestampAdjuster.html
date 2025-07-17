@@ -1,1 +1,1337 @@
-<html><head><title>Class Documentation</title></head><body>TimestampAdjuster Artifact: androidx.media3:media3-common View Source Kotlin | Java @ UnstableApi public final class TimestampAdjuster Adjusts and offsets sample timestamps. MPEG-2 TS timestamps scaling and adjustment is supported, taking into account timestamp rollover. Summary Constants static&nbsp;final long MODE_NO_OFFSET = 9223372036854775807 A special firstSampleTimestampUs value indicating that presentation timestamps should not be offset. static&nbsp;final long MODE_SHARED = 9223372036854775806 A special firstSampleTimestampUs value indicating that the adjuster will be shared by multiple threads. Public fields long @ GuardedBy (value&nbsp;=&nbsp;&quot;this&quot;) firstSampleTimestampUs long @ GuardedBy (value&nbsp;=&nbsp;&quot;this&quot;) timestampOffsetUs Public constructors TimestampAdjuster (long&nbsp;firstSampleTimestampUs) Public methods synchronized long adjustSampleTimestamp (long&nbsp;timeUs) Offsets a timestamp in microseconds. synchronized long adjustTsTimestamp (long&nbsp;pts90Khz) Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. synchronized long adjustTsTimestampGreaterThanPreviousTimestamp (long&nbsp;pts90Khz) Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. synchronized long getFirstSampleTimestampUs () Returns the value of the first adjusted sample timestamp in microseconds, or TIME_UNSET if timestamps will not be offset or if the adjuster is in shared mode. synchronized long getLastAdjustedTimestampUs () Returns the last adjusted timestamp, in microseconds. synchronized long getTimestampOffsetUs () Returns the offset between the input of adjustSampleTimestamp and its output, or TIME_UNSET if the offset has not yet been determined. synchronized boolean isInitialized () Returns whether the instance is initialized with a timestamp offset. static long ptsToUs (long&nbsp;pts) Converts a 90 kHz clock timestamp to a timestamp in microseconds. synchronized void reset (long&nbsp;firstSampleTimestampUs) Resets the instance. synchronized void sharedInitializeOrWait ( &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;canInitialize, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;nextSampleTimestampUs, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutMs ) For shared timestamp adjusters, performs necessary initialization actions for a caller. static long usToNonWrappedPts (long&nbsp;us) Converts a timestamp in microseconds to a 90 kHz clock timestamp. static long usToWrappedPts (long&nbsp;us) Converts a timestamp in microseconds to a 90 kHz clock timestamp, performing wraparound to keep the result within 33-bits. Constants MODE_NO_OFFSET public&nbsp;static&nbsp;final&nbsp;long&nbsp; MODE_NO_OFFSET = 9223372036854775807 A special firstSampleTimestampUs value indicating that presentation timestamps should not be offset. In this mode: getFirstSampleTimestampUs will always return TIME_UNSET . The only timestamp adjustment performed is to account for MPEG-2 TS timestamp rollover. MODE_SHARED public&nbsp;static&nbsp;final&nbsp;long&nbsp; MODE_SHARED = 9223372036854775806 A special firstSampleTimestampUs value indicating that the adjuster will be shared by multiple threads. In this mode: getFirstSampleTimestampUs will always return TIME_UNSET . Calling threads must call sharedInitializeOrWait prior to adjusting timestamps. Public fields firstSampleTimestampUs @ GuardedBy (value&nbsp;=&nbsp;&quot;this&quot;) public&nbsp;long&nbsp; firstSampleTimestampUs timestampOffsetUs @ GuardedBy (value&nbsp;=&nbsp;&quot;this&quot;) public&nbsp;long&nbsp; timestampOffsetUs Public constructors TimestampAdjuster public&nbsp; TimestampAdjuster (long&nbsp;firstSampleTimestampUs) Parameters long&nbsp;firstSampleTimestampUs The desired value of the first adjusted sample timestamp in microseconds, or MODE_NO_OFFSET if timestamps should not be offset, or MODE_SHARED if the adjuster will be used in shared mode. Public methods adjustSampleTimestamp synchronized&nbsp;public&nbsp;long&nbsp; adjustSampleTimestamp (long&nbsp;timeUs) Offsets a timestamp in microseconds. Parameters long&nbsp;timeUs The timestamp to adjust in microseconds. Returns long The adjusted timestamp in microseconds. adjustTsTimestamp synchronized&nbsp;public&nbsp;long&nbsp; adjustTsTimestamp (long&nbsp;pts90Khz) Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. When estimating the wraparound, the method assumes that this timestamp is close to the previous adjusted timestamp. Parameters long&nbsp;pts90Khz A 90 kHz clock MPEG-2 TS presentation timestamp. Returns long The adjusted timestamp in microseconds. adjustTsTimestampGreaterThanPreviousTimestamp synchronized&nbsp;public&nbsp;long&nbsp; adjustTsTimestampGreaterThanPreviousTimestamp (long&nbsp;pts90Khz) Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. When estimating the wraparound, the method assumes that the timestamp is strictly greater than the previous adjusted timestamp. Parameters long&nbsp;pts90Khz A 90 kHz clock MPEG-2 TS presentation timestamp. Returns long The adjusted timestamp in microseconds. getFirstSampleTimestampUs synchronized&nbsp;public&nbsp;long&nbsp; getFirstSampleTimestampUs () Returns the value of the first adjusted sample timestamp in microseconds, or TIME_UNSET if timestamps will not be offset or if the adjuster is in shared mode. getLastAdjustedTimestampUs synchronized&nbsp;public&nbsp;long&nbsp; getLastAdjustedTimestampUs () Returns the last adjusted timestamp, in microseconds. If no timestamps have been adjusted yet then the result of getFirstSampleTimestampUs is returned. getTimestampOffsetUs synchronized&nbsp;public&nbsp;long&nbsp; getTimestampOffsetUs () Returns the offset between the input of adjustSampleTimestamp and its output, or TIME_UNSET if the offset has not yet been determined. isInitialized synchronized&nbsp;public&nbsp;boolean&nbsp; isInitialized () Returns whether the instance is initialized with a timestamp offset. ptsToUs public&nbsp;static&nbsp;long&nbsp; ptsToUs (long&nbsp;pts) Converts a 90 kHz clock timestamp to a timestamp in microseconds. Parameters long&nbsp;pts A 90 kHz clock timestamp. Returns long The corresponding value in microseconds. reset synchronized&nbsp;public&nbsp;void&nbsp; reset (long&nbsp;firstSampleTimestampUs) Resets the instance. Parameters long&nbsp;firstSampleTimestampUs The desired value of the first adjusted sample timestamp after this reset in microseconds, or MODE_NO_OFFSET if timestamps should not be offset, or MODE_SHARED if the adjuster will be used in shared mode. sharedInitializeOrWait synchronized&nbsp;public&nbsp;void&nbsp; sharedInitializeOrWait ( &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;canInitialize, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;nextSampleTimestampUs, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutMs ) For shared timestamp adjusters, performs necessary initialization actions for a caller. If the adjuster has already established a timestamp offset then this method is a no-op. If canInitialize is true and the adjuster has not yet established a timestamp offset, then the adjuster records the desired first sample timestamp for the calling thread and returns to allow the caller to proceed. If the timestamp offset has still not been established when the caller attempts to adjust its first timestamp, then the recorded timestamp is used to set it. If canInitialize is false and the adjuster has not yet established a timestamp offset, then the call blocks until the timestamp offset is set. Parameters boolean&nbsp;canInitialize Whether the caller is able to initialize the adjuster, if needed. long&nbsp;nextSampleTimestampUs The desired timestamp for the next sample loaded by the calling thread, in microseconds. Only used if canInitialize is true . long&nbsp;timeoutMs The timeout for the thread to wait for the timestamp adjuster to initialize, in milliseconds. A timeout of zero is interpreted as an infinite timeout. Throws java.lang.InterruptedException If the thread is interrupted whilst blocked waiting for initialization to complete. java.util.concurrent.TimeoutException If the thread is timeout whilst blocked waiting for initialization to complete. usToNonWrappedPts public&nbsp;static&nbsp;long&nbsp; usToNonWrappedPts (long&nbsp;us) Converts a timestamp in microseconds to a 90 kHz clock timestamp. Does not perform any wraparound. To get a 90 kHz timestamp suitable for use with MPEG-TS, use usToWrappedPts . Parameters long&nbsp;us A value in microseconds. Returns long The corresponding value as a 90 kHz clock timestamp. usToWrappedPts public&nbsp;static&nbsp;long&nbsp; usToWrappedPts (long&nbsp;us) Converts a timestamp in microseconds to a 90 kHz clock timestamp, performing wraparound to keep the result within 33-bits. Parameters long&nbsp;us A value in microseconds. Returns long The corresponding value as a 90 kHz clock timestamp, wrapped to 33 bits.</body></html>
+<html><head><title>TimestampAdjuster</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="TimestampAdjuster">
+      <meta itemprop="path" content="androidx.media3.common.util">
+      <meta itemprop="property" content="adjustSampleTimestamp(long)">
+      <meta itemprop="property" content="adjustTsTimestamp(long)">
+      <meta itemprop="property" content="adjustTsTimestampGreaterThanPreviousTimestamp(long)">
+      <meta itemprop="property" content="getFirstSampleTimestampUs()">
+      <meta itemprop="property" content="getLastAdjustedTimestampUs()">
+      <meta itemprop="property" content="getTimestampOffsetUs()">
+      <meta itemprop="property" content="isInitialized()">
+      <meta itemprop="property" content="ptsToUs(long)">
+      <meta itemprop="property" content="reset(long)">
+      <meta itemprop="property" content="sharedInitializeOrWait(boolean,long,long)">
+      <meta itemprop="property" content="usToNonWrappedPts(long)">
+      <meta itemprop="property" content="usToWrappedPts(long)">
+      <meta itemprop="property" content="MODE_NO_OFFSET()">
+      <meta itemprop="property" content="MODE_SHARED()">
+      <meta itemprop="property" content="firstSampleTimestampUs()">
+      <meta itemprop="property" content="timestampOffsetUs()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="timestampadjuster" data-text="TimestampAdjuster" tabindex="-1">TimestampAdjuster</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/common/util/TimestampAdjuster.java+class:androidx.media3.common.util.TimestampAdjuster" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/common/util/TimestampAdjuster" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/common/util/TimestampAdjuster">TimestampAdjuster</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Adjusts and offsets sample timestamps. MPEG-2 TS timestamps scaling and adjustment is supported, taking into account timestamp rollover.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_NO_OFFSET()">MODE_NO_OFFSET</a> = 9223372036854775807</code></div>
+              <p>A special <code translate="no" dir="ltr">firstSampleTimestampUs</code> value indicating that presentation timestamps should not be offset.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_SHARED()">MODE_SHARED</a> = 9223372036854775806</code></div>
+              <p>A special <code translate="no" dir="ltr">firstSampleTimestampUs</code> value indicating that the adjuster will be shared by multiple threads.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-fields" data-text="Public fields" tabindex="-1">Public fields</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/GuardedBy">GuardedBy</a>(value&nbsp;=&nbsp;&quot;this&quot;)<br><a href="/reference/androidx/media3/common/util/TimestampAdjuster#firstSampleTimestampUs()">firstSampleTimestampUs</a></code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/GuardedBy">GuardedBy</a>(value&nbsp;=&nbsp;&quot;this&quot;)<br><a href="/reference/androidx/media3/common/util/TimestampAdjuster#timestampOffsetUs()">timestampOffsetUs</a></code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#TimestampAdjuster(long)">TimestampAdjuster</a>(long&nbsp;firstSampleTimestampUs)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustSampleTimestamp(long)">adjustSampleTimestamp</a>(long&nbsp;timeUs)</code></div>
+              <p>Offsets a timestamp in microseconds.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustTsTimestamp(long)">adjustTsTimestamp</a>(long&nbsp;pts90Khz)</code></div>
+              <p>Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustTsTimestampGreaterThanPreviousTimestamp(long)">adjustTsTimestampGreaterThanPreviousTimestamp</a>(long&nbsp;pts90Khz)</code></div>
+              <p>Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getFirstSampleTimestampUs()">getFirstSampleTimestampUs</a>()</code></div>
+              <p>Returns the value of the first adjusted sample timestamp in microseconds, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if timestamps will not be offset or if the adjuster is in shared mode.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getLastAdjustedTimestampUs()">getLastAdjustedTimestampUs</a>()</code></div>
+              <p>Returns the last adjusted timestamp, in microseconds.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getTimestampOffsetUs()">getTimestampOffsetUs</a>()</code></div>
+              <p>Returns the offset between the input of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustSampleTimestamp(long)">adjustSampleTimestamp</a></code> and its output, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if the offset has not yet been determined.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#isInitialized()">isInitialized</a>()</code></div>
+              <p>Returns whether the instance is initialized with a timestamp offset.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#ptsToUs(long)">ptsToUs</a>(long&nbsp;pts)</code></div>
+              <p>Converts a 90 kHz clock timestamp to a timestamp in microseconds.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#reset(long)">reset</a>(long&nbsp;firstSampleTimestampUs)</code></div>
+              <p>Resets the instance.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">synchronized void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#sharedInitializeOrWait(boolean,long,long)">sharedInitializeOrWait</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;canInitialize,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;nextSampleTimestampUs,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutMs<br>)</code></div>
+              <p>For shared timestamp adjusters, performs necessary initialization actions for a caller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#usToNonWrappedPts(long)">usToNonWrappedPts</a>(long&nbsp;us)</code></div>
+              <p>Converts a timestamp in microseconds to a 90 kHz clock timestamp.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#usToWrappedPts(long)">usToWrappedPts</a>(long&nbsp;us)</code></div>
+              <p>Converts a timestamp in microseconds to a 90 kHz clock timestamp, performing wraparound to keep the result within 33-bits.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getMODE_NO_OFFSET()"></a><a name="setMODE_NO_OFFSET()"></a><a name="getMODE_NO_OFFSET--"></a><a name="setMODE_NO_OFFSET--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_NO_OFFSET()" data-text="MODE_NO_OFFSET" tabindex="-1">MODE_NO_OFFSET</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_NO_OFFSET()">MODE_NO_OFFSET</a> = 9223372036854775807</pre></devsite-code>
+        <p>A special <code translate="no" dir="ltr">firstSampleTimestampUs</code> value indicating that presentation timestamps should not be offset. In this mode: </p>
+        <ul>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getFirstSampleTimestampUs()">getFirstSampleTimestampUs</a></code> will always return <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code>. </li>
+          <li>The only timestamp adjustment performed is to account for MPEG-2 TS timestamp rollover. </li>
+        </ul>
+      </div>
+      <div class="api-item"><a name="getMODE_SHARED()"></a><a name="setMODE_SHARED()"></a><a name="getMODE_SHARED--"></a><a name="setMODE_SHARED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MODE_SHARED()" data-text="MODE_SHARED" tabindex="-1">MODE_SHARED</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_SHARED()">MODE_SHARED</a> = 9223372036854775806</pre></devsite-code>
+        <p>A special <code translate="no" dir="ltr">firstSampleTimestampUs</code> value indicating that the adjuster will be shared by multiple threads. In this mode: </p>
+        <ul>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getFirstSampleTimestampUs()">getFirstSampleTimestampUs</a></code> will always return <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code>. </li>
+          <li>Calling threads must call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#sharedInitializeOrWait(boolean,long,long)">sharedInitializeOrWait</a></code> prior to adjusting timestamps. </li>
+        </ul>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-fields_1" data-text="Public fields" tabindex="-1">Public fields</h2>
+      <div class="api-item"><a name="getFirstSampleTimestampUs()"></a><a name="setFirstSampleTimestampUs()"></a><a name="getFirstSampleTimestampUs--"></a><a name="setFirstSampleTimestampUs--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="firstSampleTimestampUs()" data-text="firstSampleTimestampUs" tabindex="-1">firstSampleTimestampUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/GuardedBy">GuardedBy</a>(value&nbsp;=&nbsp;&quot;this&quot;)<br>public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#firstSampleTimestampUs()">firstSampleTimestampUs</a></pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="getTimestampOffsetUs()"></a><a name="setTimestampOffsetUs()"></a><a name="getTimestampOffsetUs--"></a><a name="setTimestampOffsetUs--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="timestampOffsetUs()" data-text="timestampOffsetUs" tabindex="-1">timestampOffsetUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/GuardedBy">GuardedBy</a>(value&nbsp;=&nbsp;&quot;this&quot;)<br>public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#timestampOffsetUs()">timestampOffsetUs</a></pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="TimestampAdjuster-long-"></a><a name="timestampadjuster"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="TimestampAdjuster(long)" data-text="TimestampAdjuster" tabindex="-1">TimestampAdjuster</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#TimestampAdjuster(long)">TimestampAdjuster</a>(long&nbsp;firstSampleTimestampUs)</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;firstSampleTimestampUs</code></td>
+                <td>
+                  <p>The desired value of the first adjusted sample timestamp in microseconds, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_NO_OFFSET()">MODE_NO_OFFSET</a></code> if timestamps should not be offset, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_SHARED()">MODE_SHARED</a></code> if the adjuster will be used in shared mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="adjustSampleTimestamp-long-"></a><a name="adjustsampletimestamp"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="adjustSampleTimestamp(long)" data-text="adjustSampleTimestamp" tabindex="-1">adjustSampleTimestamp</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustSampleTimestamp(long)">adjustSampleTimestamp</a>(long&nbsp;timeUs)</pre></devsite-code>
+        <p>Offsets a timestamp in microseconds.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;timeUs</code></td>
+                <td>
+                  <p>The timestamp to adjust in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The adjusted timestamp in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="adjustTsTimestamp-long-"></a><a name="adjusttstimestamp"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="adjustTsTimestamp(long)" data-text="adjustTsTimestamp" tabindex="-1">adjustTsTimestamp</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustTsTimestamp(long)">adjustTsTimestamp</a>(long&nbsp;pts90Khz)</pre></devsite-code>
+        <p>Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. </p>
+        <p>When estimating the wraparound, the method assumes that this timestamp is close to the previous adjusted timestamp.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;pts90Khz</code></td>
+                <td>
+                  <p>A 90 kHz clock MPEG-2 TS presentation timestamp.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The adjusted timestamp in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="adjustTsTimestampGreaterThanPreviousTimestamp-long-"></a><a name="adjusttstimestampgreaterthanprevioustimestamp"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="adjustTsTimestampGreaterThanPreviousTimestamp(long)" data-text="adjustTsTimestampGreaterThanPreviousTimestamp" tabindex="-1">adjustTsTimestampGreaterThanPreviousTimestamp</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustTsTimestampGreaterThanPreviousTimestamp(long)">adjustTsTimestampGreaterThanPreviousTimestamp</a>(long&nbsp;pts90Khz)</pre></devsite-code>
+        <p>Scales and offsets an MPEG-2 TS presentation timestamp considering wraparound. </p>
+        <p>When estimating the wraparound, the method assumes that the timestamp is strictly greater than the previous adjusted timestamp.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;pts90Khz</code></td>
+                <td>
+                  <p>A 90 kHz clock MPEG-2 TS presentation timestamp.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The adjusted timestamp in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getFirstSampleTimestampUs--"></a><a name="getfirstsampletimestampus"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getFirstSampleTimestampUs()" data-text="getFirstSampleTimestampUs" tabindex="-1">getFirstSampleTimestampUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#getFirstSampleTimestampUs()">getFirstSampleTimestampUs</a>()</pre></devsite-code>
+        <p>Returns the value of the first adjusted sample timestamp in microseconds, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if timestamps will not be offset or if the adjuster is in shared mode.</p>
+      </div>
+      <div class="api-item"><a name="getLastAdjustedTimestampUs--"></a><a name="getlastadjustedtimestampus"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getLastAdjustedTimestampUs()" data-text="getLastAdjustedTimestampUs" tabindex="-1">getLastAdjustedTimestampUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#getLastAdjustedTimestampUs()">getLastAdjustedTimestampUs</a>()</pre></devsite-code>
+        <p>Returns the last adjusted timestamp, in microseconds. If no timestamps have been adjusted yet then the result of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getFirstSampleTimestampUs()">getFirstSampleTimestampUs</a></code> is returned.</p>
+      </div>
+      <div class="api-item"><a name="getTimestampOffsetUs--"></a><a name="gettimestampoffsetus"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getTimestampOffsetUs()" data-text="getTimestampOffsetUs" tabindex="-1">getTimestampOffsetUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#getTimestampOffsetUs()">getTimestampOffsetUs</a>()</pre></devsite-code>
+        <p>Returns the offset between the input of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#adjustSampleTimestamp(long)">adjustSampleTimestamp</a></code> and its output, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#TIME_UNSET()">TIME_UNSET</a></code> if the offset has not yet been determined.</p>
+      </div>
+      <div class="api-item"><a name="isInitialized--"></a><a name="isinitialized"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isInitialized()" data-text="isInitialized" tabindex="-1">isInitialized</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#isInitialized()">isInitialized</a>()</pre></devsite-code>
+        <p>Returns whether the instance is initialized with a timestamp offset.</p>
+      </div>
+      <div class="api-item"><a name="ptsToUs-long-"></a><a name="ptstous"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ptsToUs(long)" data-text="ptsToUs" tabindex="-1">ptsToUs</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#ptsToUs(long)">ptsToUs</a>(long&nbsp;pts)</pre></devsite-code>
+        <p>Converts a 90 kHz clock timestamp to a timestamp in microseconds.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;pts</code></td>
+                <td>
+                  <p>A 90 kHz clock timestamp.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The corresponding value in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="reset-long-"></a><a name="reset"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="reset(long)" data-text="reset" tabindex="-1">reset</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#reset(long)">reset</a>(long&nbsp;firstSampleTimestampUs)</pre></devsite-code>
+        <p>Resets the instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;firstSampleTimestampUs</code></td>
+                <td>
+                  <p>The desired value of the first adjusted sample timestamp after this reset in microseconds, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_NO_OFFSET()">MODE_NO_OFFSET</a></code> if timestamps should not be offset, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#MODE_SHARED()">MODE_SHARED</a></code> if the adjuster will be used in shared mode.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="sharedInitializeOrWait(boolean, long, long)"></a><a name="sharedInitializeOrWait-boolean-long-long-"></a><a name="sharedinitializeorwait"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="sharedInitializeOrWait(boolean,long,long)" data-text="sharedInitializeOrWait" tabindex="-1">sharedInitializeOrWait</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>synchronized&nbsp;public&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#sharedInitializeOrWait(boolean,long,long)">sharedInitializeOrWait</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;canInitialize,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;nextSampleTimestampUs,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutMs<br>)</pre></devsite-code>
+        <p>For shared timestamp adjusters, performs necessary initialization actions for a caller. </p>
+        <ul>
+          <li>If the adjuster has already established a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#getTimestampOffsetUs()">timestamp offset</a></code> then this method is a no-op. </li>
+          <li>If <code translate="no" dir="ltr">canInitialize</code> is <code translate="no" dir="ltr">true</code> and the adjuster has not yet established a timestamp offset, then the adjuster records the desired first sample timestamp for the calling thread and returns to allow the caller to proceed. If the timestamp offset has still not been established when the caller attempts to adjust its first timestamp, then the recorded timestamp is used to set it. </li>
+          <li>If <code translate="no" dir="ltr">canInitialize</code> is <code translate="no" dir="ltr">false</code> and the adjuster has not yet established a timestamp offset, then the call blocks until the timestamp offset is set. </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean&nbsp;canInitialize</code></td>
+                <td>
+                  <p>Whether the caller is able to initialize the adjuster, if needed.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;nextSampleTimestampUs</code></td>
+                <td>
+                  <p>The desired timestamp for the next sample loaded by the calling thread, in microseconds. Only used if <code translate="no" dir="ltr">canInitialize</code> is <code translate="no" dir="ltr">true</code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;timeoutMs</code></td>
+                <td>
+                  <p>The timeout for the thread to wait for the timestamp adjuster to initialize, in milliseconds. A timeout of zero is interpreted as an infinite timeout.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/InterruptedException.html">java.lang.InterruptedException</a></code></td>
+                <td>
+                  <p>If the thread is interrupted whilst blocked waiting for initialization to complete.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/concurrent/TimeoutException.html">java.util.concurrent.TimeoutException</a></code></td>
+                <td>
+                  <p>If the thread is timeout whilst blocked waiting for initialization to complete.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="usToNonWrappedPts-long-"></a><a name="ustononwrappedpts"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="usToNonWrappedPts(long)" data-text="usToNonWrappedPts" tabindex="-1">usToNonWrappedPts</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#usToNonWrappedPts(long)">usToNonWrappedPts</a>(long&nbsp;us)</pre></devsite-code>
+        <p>Converts a timestamp in microseconds to a 90 kHz clock timestamp. </p>
+        <p>Does not perform any wraparound. To get a 90 kHz timestamp suitable for use with MPEG-TS, use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampAdjuster#usToWrappedPts(long)">usToWrappedPts</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;us</code></td>
+                <td>
+                  <p>A value in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The corresponding value as a 90 kHz clock timestamp.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="usToWrappedPts-long-"></a><a name="ustowrappedpts"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="usToWrappedPts(long)" data-text="usToWrappedPts" tabindex="-1">usToWrappedPts</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/util/TimestampAdjuster#usToWrappedPts(long)">usToWrappedPts</a>(long&nbsp;us)</pre></devsite-code>
+        <p>Converts a timestamp in microseconds to a 90 kHz clock timestamp, performing wraparound to keep the result within 33-bits.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;us</code></td>
+                <td>
+                  <p>A value in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The corresponding value as a 90 kHz clock timestamp, wrapped to 33 bits.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

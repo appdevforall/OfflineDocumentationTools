@@ -1,1 +1,1286 @@
-<html><head><title>Class Documentation</title></head><body>PassiveMonitoringClient Artifact: androidx.health:health-services-client View Source Added in 1.0.0 Kotlin | Java public interface PassiveMonitoringClient Client which provides a means to passively monitor data without requiring an ongoing workout. The lifetimes of registrations made through this client are independent of the lifetime of the subscribing app. These registrations are therefore suitable for notifying of ongoing measurements or triggered passive goals, regardless of whether or not the subscribing app is currently running, in the foreground or engaged in a workout. Summary Public methods abstract @ NonNull ListenableFuture &lt;@ NonNull Void &gt; clearPassiveListenerCallbackAsync () Unregisters the subscription made by setPassiveListenerCallback . abstract @ NonNull ListenableFuture &lt;@ NonNull Void &gt; clearPassiveListenerServiceAsync () Unregisters the subscription made by setPassiveListenerServiceAsync . abstract @ NonNull ListenableFuture &lt;@ NonNull Void &gt; flushAsync () Flushes the sensors for the registered DataType s. abstract @ NonNull ListenableFuture &lt;@ NonNull PassiveMonitoringCapabilities &gt; getCapabilitiesAsync () Returns the PassiveMonitoringCapabilities of this client for this device. abstract void setPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerCallback &nbsp;callback ) Subscribes for updates to be periodically delivered to the app via bound callback. abstract void setPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Executor &nbsp;executor, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerCallback &nbsp;callback ) Subscribes for updates to be periodically delivered to the app via bound callback. abstract @ NonNull ListenableFuture &lt;@ NonNull Void &gt; setPassiveListenerServiceAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config ) Subscribes for updates to be periodically delivered to the app. Extension functions default&nbsp;final @ NonNull Void PassiveMonitoringClientExtensionKt . clearPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Unregisters the subscription made by PassiveMonitoringClient.setPassiveListenerCallback . default&nbsp;final @ NonNull Void PassiveMonitoringClientExtensionKt . clearPassiveListenerService ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Unregisters the subscription made by setPassiveListenerService . default&nbsp;final @ NonNull Void PassiveMonitoringClientExtensionKt . flush ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Flushes the sensors for the registered DataType s. default&nbsp;final @ NonNull PassiveMonitoringCapabilities PassiveMonitoringClientExtensionKt . getCapabilities ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Returns the PassiveMonitoringCapabilities of this client for this device. default&nbsp;final @ NonNull Void PassiveMonitoringClientExtensionKt . setPassiveListenerService ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config ) Subscribes for updates to be periodically delivered to the app. Public methods clearPassiveListenerCallbackAsync Added in 1.0.0 abstract&nbsp;@ NonNull ListenableFuture &lt;@ NonNull Void &gt;&nbsp; clearPassiveListenerCallbackAsync () Unregisters the subscription made by setPassiveListenerCallback . Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering. Returns @ NonNull ListenableFuture &lt;@ NonNull Void &gt; a ListenableFuture that completes when the un-registration succeeds in Health Services. This is a no-op if the callback has already been unregistered clearPassiveListenerServiceAsync Added in 1.0.0 abstract&nbsp;@ NonNull ListenableFuture &lt;@ NonNull Void &gt;&nbsp; clearPassiveListenerServiceAsync () Unregisters the subscription made by setPassiveListenerServiceAsync . Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering. Returns @ NonNull ListenableFuture &lt;@ NonNull Void &gt; a ListenableFuture that completes when the un-registration succeeds in Health Services. This is a no-op if the callback has already been unregistered flushAsync Added in 1.0.0 abstract&nbsp;@ NonNull ListenableFuture &lt;@ NonNull Void &gt;&nbsp; flushAsync () Flushes the sensors for the registered DataType s. If no listener has been registered by this client, this will be a no-op. This call should be used sparingly and will be subject to throttling by Health Services. Returns @ NonNull ListenableFuture &lt;@ NonNull Void &gt; a ListenableFuture that will complete when the flush is finished getCapabilitiesAsync Added in 1.0.0 abstract&nbsp;@ NonNull ListenableFuture &lt;@ NonNull PassiveMonitoringCapabilities &gt;&nbsp; getCapabilitiesAsync () Returns the PassiveMonitoringCapabilities of this client for this device. This can be used to determine what DataType s this device supports for passive monitoring and goals. Clients should use the capabilities to inform their requests since Health Services will typically reject requests made for DataType s which are not supported. Returns @ NonNull ListenableFuture &lt;@ NonNull PassiveMonitoringCapabilities &gt; a ListenableFuture containing the PassiveMonitoringCapabilities for this device setPassiveListenerCallback Added in 1.0.0 abstract&nbsp;void&nbsp; setPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerCallback &nbsp;callback ) Subscribes for updates to be periodically delivered to the app via bound callback. Data updates are sent on generation (they will not be batched) and will be delivered until the DataType is unregistered, either by explicitly calling clearPassiveListenerCallbackAsync or by registering again without that DataType included in the request. Higher frequency updates are available through ExerciseClient or MeasureClient . The provided callback will take priority in receiving updates as long the app is alive and the callback can be successfully notified. Otherwise, the request will automatically be unregistered. This registration is unique per subscribing app and operates independently from setPassiveListenerServiceAsync (each channel will receive its own stream of data). Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested PassiveListenerConfig is supported on this device by checking the PassiveMonitoringCapabilities . The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request. This call completes when the registration succeeds in Health Services. If the request is not supported on this device or the calling app lacks permissions, then PassiveListenerCallback.onRegistrationFailed will be invoked on the provided callback . Parameters @ NonNull PassiveListenerConfig &nbsp;config the requested PassiveListenerConfig from the client @ NonNull PassiveListenerCallback &nbsp;callback the PassiveListenerCallback that will receive updates on the main thread setPassiveListenerCallback Added in 1.0.0 abstract&nbsp;void&nbsp; setPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Executor &nbsp;executor, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerCallback &nbsp;callback ) Subscribes for updates to be periodically delivered to the app via bound callback. Data updates are sent on generation (they will not be batched) and will be delivered until the DataType is unregistered, either by explicitly calling clearPassiveListenerCallbackAsync or by registering again without that DataType included in the request. Higher frequency updates are available through ExerciseClient or MeasureClient . The provided callback will take priority in receiving updates as long the app is alive and the callback can be successfully notified. Otherwise, the request will automatically be unregistered. This registration is unique per subscribing app and operates independently from setPassiveListenerServiceAsync (each channel will receive its own stream of data). Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested PassiveListenerConfig is supported on this device by checking the PassiveMonitoringCapabilities . The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request. This call completes when the registration succeeds in Health Services. If the request is not supported on this device or the calling app lacks permissions, then PassiveListenerCallback.onRegistrationFailed will be invoked on the provided callback . Parameters @ NonNull PassiveListenerConfig &nbsp;config the requested PassiveListenerConfig from the client @ NonNull Executor &nbsp;executor the Executor on which the callback will be invoked @ NonNull PassiveListenerCallback &nbsp;callback the PassiveListenerCallback that will receive updates setPassiveListenerServiceAsync Added in 1.0.0 abstract&nbsp;@ NonNull ListenableFuture &lt;@ NonNull Void &gt;&nbsp; setPassiveListenerServiceAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config ) Subscribes for updates to be periodically delivered to the app. Data updates will be batched and delivered from the point of initial registration and will continue to be delivered until the DataType is unregistered, either by explicitly calling clearPassiveListenerServiceAsync or by registering again without that DataType included in the request. Higher frequency updates are available through ExerciseClient or MeasureClient . Any requested goal, user activity, or health event updates will not be batched. Health Services will automatically bind to the provided PassiveListenerService to send the update. Clients are responsible for defining the service in their app manifest. They should also require the com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING permission in their app manifest service definition in order to ensure that Health Services is the source of the binding. This registration is unique per subscribing app. Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested PassiveListenerConfig is supported on this device by checking the PassiveMonitoringCapabilities . The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request. Parameters @ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service the PassiveListenerService to bind to @ NonNull PassiveListenerConfig &nbsp;config the PassiveListenerConfig from the client Returns @ NonNull ListenableFuture &lt;@ NonNull Void &gt; a ListenableFuture that completes when the registration succeeds in Health Services or fails when the request is not supported on the current device or the client does not have the required permissions for the request Extension functions PassiveMonitoringClientExtensionKt.clearPassiveListenerCallback Artifact: androidx.health:health-services-client View Source default&nbsp;final&nbsp;@ NonNull Void &nbsp; PassiveMonitoringClientExtensionKt . clearPassiveListenerCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Unregisters the subscription made by PassiveMonitoringClient.setPassiveListenerCallback . Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering. Throws androidx.health.services.client.HealthServicesException if Health Service fails to process the call PassiveMonitoringClientExtensionKt.clearPassiveListenerService Artifact: androidx.health:health-services-client View Source default&nbsp;final&nbsp;@ NonNull Void &nbsp; PassiveMonitoringClientExtensionKt . clearPassiveListenerService ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Unregisters the subscription made by setPassiveListenerService . Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering. Throws androidx.health.services.client.HealthServicesException if Health Service fails to process the call PassiveMonitoringClientExtensionKt.flush Artifact: androidx.health:health-services-client View Source default&nbsp;final&nbsp;@ NonNull Void &nbsp; PassiveMonitoringClientExtensionKt . flush ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Flushes the sensors for the registered DataType s. If no listener has been registered by this client, this will be a no-op. This call should be used sparingly and will be subject to throttling by Health Services. Throws androidx.health.services.client.HealthServicesException if Health Service fails to process the call PassiveMonitoringClientExtensionKt.getCapabilities Artifact: androidx.health:health-services-client View Source default&nbsp;final&nbsp;@ NonNull PassiveMonitoringCapabilities &nbsp; PassiveMonitoringClientExtensionKt . getCapabilities ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver ) Returns the PassiveMonitoringCapabilities of this client for this device. This can be used to determine what DataType s this device supports for passive monitoring and goals. Clients should use the capabilities to inform their requests since Health Services will typically reject requests made for DataType s which are not supported. Returns @ NonNull PassiveMonitoringCapabilities a PassiveMonitoringCapabilities for this device Throws androidx.health.services.client.HealthServicesException if Health Service fails to process the call PassiveMonitoringClientExtensionKt.setPassiveListenerService Artifact: androidx.health:health-services-client View Source default&nbsp;final&nbsp;@ NonNull Void &nbsp; PassiveMonitoringClientExtensionKt . setPassiveListenerService ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveMonitoringClient &nbsp;receiver, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PassiveListenerConfig &nbsp;config ) Subscribes for updates to be periodically delivered to the app. Data updates will be batched and delivered from the point of initial registration and will continue to be delivered until the DataType is unregistered, either by explicitly calling clearPassiveListenerService or by registering again without that DataType included in the request. Higher frequency updates are available through ExerciseClient or MeasureClient . Any requested goal, user activity, or health event updates will not be batched. Health Services will automatically bind to the provided PassiveListenerService to send the update. Clients are responsible for defining the service in their app manifest. They should also require the com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING permission in their app manifest service definition in order to ensure that Health Services is the source of the binding. This registration is unique per subscribing app. Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested PassiveListenerConfig is supported on this device by checking the PassiveMonitoringCapabilities . The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request. Parameters @ NonNull Class &lt;@ NonNull PassiveListenerService &gt;&nbsp;service the PassiveListenerService to bind to @ NonNull PassiveListenerConfig &nbsp;config the PassiveListenerConfig from the client Throws androidx.health.services.client.HealthServicesException if Health Service fails to process the call java.lang.SecurityException if calling app does not have the required permissions</body></html>
+<html><head><title>PassiveMonitoringClient</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="PassiveMonitoringClient">
+      <meta itemprop="path" content="androidx.health.services.client">
+      <meta itemprop="property" content="clearPassiveListenerCallbackAsync()">
+      <meta itemprop="property" content="clearPassiveListenerServiceAsync()">
+      <meta itemprop="property" content="flushAsync()">
+      <meta itemprop="property" content="getCapabilitiesAsync()">
+      <meta itemprop="property" content="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">
+      <meta itemprop="property" content="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">
+      <meta itemprop="property" content="setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">
+      <meta itemprop="property" content="(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerCallback()">
+      <meta itemprop="property" content="(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerService()">
+      <meta itemprop="property" content="(androidx.health.services.client.PassiveMonitoringClient).flush()">
+      <meta itemprop="property" content="(androidx.health.services.client.PassiveMonitoringClient).getCapabilities()">
+      <meta itemprop="property" content="(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="passivemonitoringclient" data-text="PassiveMonitoringClient" tabindex="-1">PassiveMonitoringClient</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClient.kt+class:androidx.health.services.client.PassiveMonitoringClient" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/health/services/client/PassiveMonitoringClient" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public interface <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Client which provides a means to passively monitor data without requiring an ongoing workout.</p>
+    <p>The lifetimes of registrations made through this client are independent of the lifetime of the subscribing app. These registrations are therefore suitable for notifying of ongoing measurements or triggered passive goals, regardless of whether or not the subscribing app is currently running, in the foreground or engaged in a workout.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerCallbackAsync()">clearPassiveListenerCallbackAsync</a>()</code></div>
+              <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerServiceAsync()">clearPassiveListenerServiceAsync</a>()</code></div>
+              <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#flushAsync()">flushAsync</a>()</code></div>
+              <p>Flushes the sensors for the registered <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#getCapabilitiesAsync()">getCapabilitiesAsync</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> of this client for this device.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback<br>)</code></div>
+              <p>Subscribes for updates to be periodically delivered to the app via bound callback.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback<br>)</code></div>
+              <p>Subscribes for updates to be periodically delivered to the app via bound callback.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config<br>)</code></div>
+              <p>Subscribes for updates to be periodically delivered to the app.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="extension-functions" data-text="Extension functions" tabindex="-1">Extension functions</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerCallback()">clearPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</code></div>
+              <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">PassiveMonitoringClient.setPassiveListenerCallback</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerService()">clearPassiveListenerService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</code></div>
+              <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/package-summary#(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerService</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).flush()">flush</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</code></div>
+              <p>Flushes the sensors for the registered <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).getCapabilities()">getCapabilities</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> of this client for this device.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config<br>)</code></div>
+              <p>Subscribes for updates to be periodically delivered to the app.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="clearPassiveListenerCallbackAsync--"></a><a name="clearpassivelistenercallbackasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clearPassiveListenerCallbackAsync()" data-text="clearPassiveListenerCallbackAsync" tabindex="-1">clearPassiveListenerCallbackAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerCallbackAsync()">clearPassiveListenerCallbackAsync</a>()</pre></devsite-code>
+        <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a></code>.</p>
+        <p>Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> that completes when the un-registration succeeds in Health Services. This is a no-op if the callback has already been unregistered</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="clearPassiveListenerServiceAsync--"></a><a name="clearpassivelistenerserviceasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clearPassiveListenerServiceAsync()" data-text="clearPassiveListenerServiceAsync" tabindex="-1">clearPassiveListenerServiceAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerServiceAsync()">clearPassiveListenerServiceAsync</a>()</pre></devsite-code>
+        <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a></code>.</p>
+        <p>Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> that completes when the un-registration succeeds in Health Services. This is a no-op if the callback has already been unregistered</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="flushAsync--"></a><a name="flushasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="flushAsync()" data-text="flushAsync" tabindex="-1">flushAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#flushAsync()">flushAsync</a>()</pre></devsite-code>
+        <p>Flushes the sensors for the registered <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s.</p>
+        <p>If no listener has been registered by this client, this will be a no-op. This call should be used sparingly and will be subject to throttling by Health Services.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> that will complete when the flush is finished</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCapabilitiesAsync--"></a><a name="getcapabilitiesasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCapabilitiesAsync()" data-text="getCapabilitiesAsync" tabindex="-1">getCapabilitiesAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a>&gt;&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#getCapabilitiesAsync()">getCapabilitiesAsync</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> of this client for this device.</p>
+        <p>This can be used to determine what <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s this device supports for passive monitoring and goals. Clients should use the capabilities to inform their requests since Health Services will typically reject requests made for <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s which are not supported.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> containing the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> for this device</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig, androidx.health.services.client.PassiveListenerCallback)"></a><a name="setPassiveListenerCallback-androidx.health.services.client.data.PassiveListenerConfig-androidx.health.services.client.PassiveListenerCallback-"></a><a name="setpassivelistenercallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)" data-text="setPassiveListenerCallback" tabindex="-1">setPassiveListenerCallback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback<br>)</pre></devsite-code>
+        <p>Subscribes for updates to be periodically delivered to the app via bound callback.</p>
+        <p>Data updates are sent on generation (they will not be batched) and will be delivered until the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> is unregistered, either by explicitly calling <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerCallbackAsync()">clearPassiveListenerCallbackAsync</a></code> or by registering again without that <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> included in the request. Higher frequency updates are available through <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/ExerciseClient">ExerciseClient</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/MeasureClient">MeasureClient</a></code>.</p>
+        <p>The provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">callback</a></code> will take priority in receiving updates as long the app is alive and the callback can be successfully notified. Otherwise, the request will automatically be unregistered.</p>
+        <p>This registration is unique per subscribing app and operates independently from <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a></code> (each channel will receive its own stream of data). Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> is supported on this device by checking the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code>. The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request.</p>
+        <p>This call completes when the registration succeeds in Health Services. If the request is not supported on this device or the calling app lacks permissions, then <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerCallback#onRegistrationFailed(kotlin.Throwable)">PassiveListenerCallback.onRegistrationFailed</a></code> will be invoked on the provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">callback</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>the requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> from the client</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a></code> that will receive updates on the main thread</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig, java.util.concurrent.Executor, androidx.health.services.client.PassiveListenerCallback)"></a><a name="setPassiveListenerCallback-androidx.health.services.client.data.PassiveListenerConfig-java.util.concurrent.Executor-androidx.health.services.client.PassiveListenerCallback-"></a><a name="setpassivelistenercallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)" data-text="setPassiveListenerCallback" tabindex="-1">setPassiveListenerCallback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">setPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback<br>)</pre></devsite-code>
+        <p>Subscribes for updates to be periodically delivered to the app via bound callback.</p>
+        <p>Data updates are sent on generation (they will not be batched) and will be delivered until the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> is unregistered, either by explicitly calling <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerCallbackAsync()">clearPassiveListenerCallbackAsync</a></code> or by registering again without that <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> included in the request. Higher frequency updates are available through <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/ExerciseClient">ExerciseClient</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/MeasureClient">MeasureClient</a></code>.</p>
+        <p>The provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">callback</a></code> will take priority in receiving updates as long the app is alive and the callback can be successfully notified. Otherwise, the request will automatically be unregistered.</p>
+        <p>This registration is unique per subscribing app and operates independently from <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a></code> (each channel will receive its own stream of data). Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> is supported on this device by checking the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code>. The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request.</p>
+        <p>This call completes when the registration succeeds in Health Services. If the request is not supported on this device or the calling app lacks permissions, then <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerCallback#onRegistrationFailed(kotlin.Throwable)">PassiveListenerCallback.onRegistrationFailed</a></code> will be invoked on the provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">callback</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>the requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> from the client</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a></code> on which the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,java.util.concurrent.Executor,androidx.health.services.client.PassiveListenerCallback)">callback</a></code> will be invoked</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a>&nbsp;callback</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerCallback">PassiveListenerCallback</a></code> that will receive updates</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPassiveListenerServiceAsync(java.lang.Class, androidx.health.services.client.data.PassiveListenerConfig)"></a><a name="setPassiveListenerServiceAsync-java.lang.Class-androidx.health.services.client.data.PassiveListenerConfig-"></a><a name="setpassivelistenerserviceasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)" data-text="setPassiveListenerServiceAsync" tabindex="-1">setPassiveListenerServiceAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/health#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerServiceAsync(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerServiceAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config<br>)</pre></devsite-code>
+        <p>Subscribes for updates to be periodically delivered to the app.</p>
+        <p>Data updates will be batched and delivered from the point of initial registration and will continue to be delivered until the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> is unregistered, either by explicitly calling <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#clearPassiveListenerServiceAsync()">clearPassiveListenerServiceAsync</a></code> or by registering again without that <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> included in the request. Higher frequency updates are available through <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/ExerciseClient">ExerciseClient</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/MeasureClient">MeasureClient</a></code>. Any requested goal, user activity, or health event updates will not be batched.</p>
+        <p>Health Services will automatically bind to the provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a></code> to send the update. Clients are responsible for defining the service in their app manifest. They should also require the <code translate="no" dir="ltr">com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING</code> permission in their app manifest service definition in order to ensure that Health Services is the source of the binding.</p>
+        <p>This registration is unique per subscribing app. Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> is supported on this device by checking the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code>. The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a></code> to bind to</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> from the client</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> that completes when the registration succeeds in Health Services or fails when the request is not supported on the current device or the client does not have the required permissions for the request</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="extension-functions_1" data-text="Extension functions" tabindex="-1">Extension functions</h2>
+      <div class="api-item"><a name="-androidx.health.services.client.PassiveMonitoringClient-.clearPassiveListenerCallback--"></a><a name="clearpassivelistenercallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerCallback()" data-text="PassiveMonitoringClientExtensionKt.clearPassiveListenerCallback" tabindex="-1">PassiveMonitoringClientExtensionKt.clearPassiveListenerCallback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClientExtension.kt+function:clearPassiveListenerCallback" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerCallback()">clearPassiveListenerCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</pre></devsite-code>
+        <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveMonitoringClient#setPassiveListenerCallback(androidx.health.services.client.data.PassiveListenerConfig,androidx.health.services.client.PassiveListenerCallback)">PassiveMonitoringClient.setPassiveListenerCallback</a></code>.</p>
+        <p>Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/HealthServicesException">androidx.health.services.client.HealthServicesException</a></code></td>
+                <td>
+                  <p>if Health Service fails to process the call</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="-androidx.health.services.client.PassiveMonitoringClient-.clearPassiveListenerService--"></a><a name="clearpassivelistenerservice"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerService()" data-text="PassiveMonitoringClientExtensionKt.clearPassiveListenerService" tabindex="-1">PassiveMonitoringClientExtensionKt.clearPassiveListenerService</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClientExtension.kt+function:clearPassiveListenerService" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerService()">clearPassiveListenerService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</pre></devsite-code>
+        <p>Unregisters the subscription made by <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/package-summary#(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerService</a></code>.</p>
+        <p>Data will not be delivered after this call so if clients care about any pending batched data they should call flush before unregistering.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/HealthServicesException">androidx.health.services.client.HealthServicesException</a></code></td>
+                <td>
+                  <p>if Health Service fails to process the call</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="-androidx.health.services.client.PassiveMonitoringClient-.flush--"></a><a name="flush"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.health.services.client.PassiveMonitoringClient).flush()" data-text="PassiveMonitoringClientExtensionKt.flush" tabindex="-1">PassiveMonitoringClientExtensionKt.flush</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClientExtension.kt+function:flush" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).flush()">flush</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</pre></devsite-code>
+        <p>Flushes the sensors for the registered <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s.</p>
+        <p>If no listener has been registered by this client, this will be a no-op. This call should be used sparingly and will be subject to throttling by Health Services.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/HealthServicesException">androidx.health.services.client.HealthServicesException</a></code></td>
+                <td>
+                  <p>if Health Service fails to process the call</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="-androidx.health.services.client.PassiveMonitoringClient-.getCapabilities--"></a><a name="getcapabilities"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.health.services.client.PassiveMonitoringClient).getCapabilities()" data-text="PassiveMonitoringClientExtensionKt.getCapabilities" tabindex="-1">PassiveMonitoringClientExtensionKt.getCapabilities</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClientExtension.kt+function:getCapabilities" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a>&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).getCapabilities()">getCapabilities</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver<br>)</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> of this client for this device.</p>
+        <p>This can be used to determine what <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s this device supports for passive monitoring and goals. Clients should use the capabilities to inform their requests since Health Services will typically reject requests made for <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code>s which are not supported.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code> for this device</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/HealthServicesException">androidx.health.services.client.HealthServicesException</a></code></td>
+                <td>
+                  <p>if Health Service fails to process the call</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class, androidx.health.services.client.data.PassiveListenerConfig)"></a><a name="-androidx.health.services.client.PassiveMonitoringClient-.setPassiveListenerService-java.lang.Class-androidx.health.services.client.data.PassiveListenerConfig-"></a><a name="setpassivelistenerservice"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)" data-text="PassiveMonitoringClientExtensionKt.setPassiveListenerService" tabindex="-1">PassiveMonitoringClientExtensionKt.setPassiveListenerService</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/health">androidx.health:health-services-client</a></div>
+            <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/health/services/client/PassiveMonitoringClientExtension.kt+function:setPassiveListenerService" class="external">View Source</a></div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&nbsp;<a href="/reference/androidx/health/services/client/PassiveMonitoringClientExtensionKt">PassiveMonitoringClientExtensionKt</a>.<a href="/reference/androidx/health/services/client/PassiveMonitoringClient#(androidx.health.services.client.PassiveMonitoringClient).setPassiveListenerService(java.lang.Class,androidx.health.services.client.data.PassiveListenerConfig)">setPassiveListenerService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveMonitoringClient">PassiveMonitoringClient</a>&nbsp;receiver,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config<br>)</pre></devsite-code>
+        <p>Subscribes for updates to be periodically delivered to the app.</p>
+        <p>Data updates will be batched and delivered from the point of initial registration and will continue to be delivered until the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> is unregistered, either by explicitly calling <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/package-summary#(androidx.health.services.client.PassiveMonitoringClient).clearPassiveListenerService()">clearPassiveListenerService</a></code> or by registering again without that <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/DataType">DataType</a></code> included in the request. Higher frequency updates are available through <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/ExerciseClient">ExerciseClient</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/MeasureClient">MeasureClient</a></code>. Any requested goal, user activity, or health event updates will not be batched.</p>
+        <p>Health Services will automatically bind to the provided <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a></code> to send the update. Clients are responsible for defining the service in their app manifest. They should also require the <code translate="no" dir="ltr">com.google.android.wearable.healthservices.permission.PASSIVE_DATA_BINDING</code> permission in their app manifest service definition in order to ensure that Health Services is the source of the binding.</p>
+        <p>This registration is unique per subscribing app. Subsequent registrations will replace the previous registration, if one had been made. The client is responsible for ensuring that their requested <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> is supported on this device by checking the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveMonitoringCapabilities">PassiveMonitoringCapabilities</a></code>. The returned future will fail if the request is not supported on the current device or the client does not have the required permissions for the request.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a>&gt;&nbsp;service</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/PassiveListenerService">PassiveListenerService</a></code> to bind to</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/data/PassiveListenerConfig">PassiveListenerConfig</a></code> from the client</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/health/services/client/HealthServicesException">androidx.health.services.client.HealthServicesException</a></code></td>
+                <td>
+                  <p>if Health Service fails to process the call</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/SecurityException.html">java.lang.SecurityException</a></code></td>
+                <td>
+                  <p>if calling app does not have the required permissions</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

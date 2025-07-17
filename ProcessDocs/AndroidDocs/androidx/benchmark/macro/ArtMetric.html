@@ -1,1 +1,700 @@
-<html><head><title>Class Documentation</title></head><body>ArtMetric Artifact: androidx.benchmark:benchmark-macro View Source Added in 1.4.0-rc01 Kotlin | Java @ RequiresApi (value&nbsp;=&nbsp;24) public final class ArtMetric extends Metric java.lang.Object &nbsp;&nbsp;&nbsp;↳ androidx.benchmark.macro.Metric &nbsp; &nbsp;&nbsp;&nbsp;↳ androidx.benchmark.macro.ArtMetric Captures metrics about ART method/class compilation and initialization. JIT Compilation, Class Verification, and (on supported devices) Class Loading. For more information on how ART compilation works, see ART Runtime docs . JIT Compilation As interpreted (uncompiled) dex code from the APK is run, some methods will be Just-In-Time (JIT) compiled, and this compilation is traced by ART. This does not apply to methods AOT compiled either from Baseline Profiles, Warmup Profiles, or Full AOT. The number of traces and total duration (reported as artJitCount and artJitSumMs ) indicate how many uncompiled methods were considered hot by the runtime, and were JITted during measurement. Note that framework code on the system image that is not AOT compiled on the system image may also be JITted, and will also show up in this metric. If you see this metric reporting non-zero values when compiled with CompilationMode.Full or CompilationMode.Partial , this may be the reason. Some methods can't be AOTed or JIT compiled. Generally these are either methods too large for the Android runtime compiler, or due to a malformed class definition. Class Loading Class Loading tracing requires either API 35, or API 31+ with ART mainline version >= 341511000 . If a device doesn't support these tracepoints, the measurements will not be reported in Studio UI or in JSON results. You can check your device's ART mainline version with: adb shell cmd package list packages -- show - versioncode -- apex - only art Classes must be loaded by ART in order to be used at runtime. In CompilationMode.None and CompilationMode.Full , this is deferred until runtime, and the cost of this can significantly slow down scenarios where code is run for the first time, such as startup. In CompilationMode.Partial(warmupIterations=...) classes captured in the warmup profile (used during the warmup iterations) are persisted into the .art file at compile time to allow them to be preloaded during app start, before app code begins to execute. If a class is preloaded by the runtime, it will not appear in traces. Even if a class is captured in the warmup profile, it will not be persisted at compile time if any of the superclasses are not in the app's profile (extremely unlikely) or the Boot Image profile (for Boot Image classes). The number of traces and total duration (reported as artClassLoadCount and artClassLoadSumMs ) indicate how many classes were loaded during measurement, at runtime, without preloading at compile time. These tracepoints are slices of the form Lcom/example/MyClassName; for a class named com.example.MyClassName . Class loading is not affected by class verification. Class Verification Most usages of a class require classes to be verified by the runtime (some usage only require loading). Typically all classes in a release APK are verified at install time, regardless of CompilationMode . The number of traces and total duration (reported as artVerifyClass and artVerifyClassSumMs ) indicate how many classes were verified during measurement, at runtime. There are two exceptions however: If install-time verification fails for a class, it will remain unverified, and be verified at runtime. Debuggable=true apps are not verified at install time, to save on iteration speed at the cost of runtime performance. This results in runtime verification of each class as it's loaded which is the source of much of the slowdown between a debug app and a release app. As Macrobenchmark treats debuggable=true as a measurement error, this won't be the case for ArtMetric measurements unless you suppress that error. Some classes will be verified at runtime rather than install time due to limitations in the compiler and runtime or due to being malformed. Summary Public constructors ArtMetric () Public constructors ArtMetric Added in 1.4.0-rc01 public&nbsp; ArtMetric ()</body></html>
+<html><head><title>ArtMetric</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ArtMetric">
+      <meta itemprop="path" content="androidx.benchmark.macro">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="artmetric" data-text="ArtMetric" tabindex="-1">ArtMetric</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/benchmark">androidx.benchmark:benchmark-macro</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/benchmark/macro/Metric.kt+class:androidx.benchmark.macro.ArtMetric" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/benchmark#1.4.0-rc01">1.4.0-rc01</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/benchmark/macro/ArtMetric" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;24)<br>public final class <a href="/reference/androidx/benchmark/macro/ArtMetric">ArtMetric</a> extends <a href="/reference/androidx/benchmark/macro/Metric">Metric</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper">
+      <table class="jd-inheritance-table">
+        <tbody>
+          <tr>
+            <td colspan="3"><a href="https://developer.android.com/reference/java/lang/Object.html">java.lang.Object</a></td>
+          </tr>
+          <tr>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="2"><a href="/reference/androidx/benchmark/macro/Metric">androidx.benchmark.macro.Metric</a></td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="1"><a href="/reference/androidx/benchmark/macro/ArtMetric">androidx.benchmark.macro.ArtMetric</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <hr>
+    <p>Captures metrics about ART method/class compilation and initialization.</p>
+    <p>JIT Compilation, Class Verification, and (on supported devices) Class Loading.</p>
+    <p>For more information on how ART compilation works, see <a href="https://source.android.com/docs/core/runtime/configure">ART Runtime docs</a>.</p>
+    <h2 id="jit-compilation" data-text="JIT Compilation" tabindex="-1">JIT Compilation</h2>
+    <p>As interpreted (uncompiled) dex code from the APK is run, some methods will be Just-In-Time (JIT) compiled, and this compilation is traced by ART. This does not apply to methods AOT compiled either from Baseline Profiles, Warmup Profiles, or Full AOT.</p>
+    <p>The number of traces and total duration (reported as <code translate="no" dir="ltr">artJitCount</code> and <code translate="no" dir="ltr">artJitSumMs</code>) indicate how many uncompiled methods were considered hot by the runtime, and were JITted during measurement.</p>
+    <p>Note that framework code on the system image that is not AOT compiled on the system image may also be JITted, and will also show up in this metric. If you see this metric reporting non-zero values when compiled with <code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/CompilationMode.Full">CompilationMode.Full</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/CompilationMode.Partial">CompilationMode.Partial</a></code>, this may be the reason.</p>
+    <p>Some methods can't be AOTed or JIT compiled. Generally these are either methods too large for the Android runtime compiler, or due to a malformed class definition.</p>
+    <h2 id="class-loading" data-text="Class Loading" tabindex="-1">Class Loading</h2>
+    <p>Class Loading tracing requires either API 35, or API 31+ with ART mainline version >= <code translate="no" dir="ltr">341511000</code>. If a device doesn't support these tracepoints, the measurements will not be reported in Studio UI or in JSON results. You can check your device's ART mainline version with:</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Carbon"><span class="devsite-syntax-nx">adb</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nx">shell</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nx">cmd</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kn">package</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nx">list</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nx">packages</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">--</span><span class="devsite-syntax-nx">show</span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-nx">versioncode</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">--</span><span class="devsite-syntax-nx">apex</span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-nx">only</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nx">art</span></pre></devsite-code>
+    <p>Classes must be loaded by ART in order to be used at runtime. In <code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/CompilationMode.None">CompilationMode.None</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/CompilationMode.Full">CompilationMode.Full</a></code>, this is deferred until runtime, and the cost of this can significantly slow down scenarios where code is run for the first time, such as startup.</p>
+    <p>In <code translate="no" dir="ltr">CompilationMode.Partial(warmupIterations=...)</code> classes captured in the warmup profile (used during the warmup iterations) are persisted into the <code translate="no" dir="ltr">.art</code> file at compile time to allow them to be preloaded during app start, before app code begins to execute. If a class is preloaded by the runtime, it will not appear in traces.</p>
+    <p>Even if a class is captured in the warmup profile, it will not be persisted at compile time if any of the superclasses are not in the app's profile (extremely unlikely) or the Boot Image profile (for Boot Image classes).</p>
+    <p>The number of traces and total duration (reported as <code translate="no" dir="ltr">artClassLoadCount</code> and <code translate="no" dir="ltr">artClassLoadSumMs</code>) indicate how many classes were loaded during measurement, at runtime, without preloading at compile time.</p>
+    <p>These tracepoints are slices of the form <code translate="no" dir="ltr">Lcom/example/MyClassName;</code> for a class named <code translate="no" dir="ltr">com.example.MyClassName</code>.</p>
+    <p>Class loading is not affected by class verification.</p>
+    <h2 id="class-verification" data-text="Class Verification" tabindex="-1">Class Verification</h2>
+    <p>Most usages of a class require classes to be verified by the runtime (some usage only require loading). Typically all classes in a release APK are verified at install time, regardless of <code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/CompilationMode">CompilationMode</a></code>.</p>
+    <p>The number of traces and total duration (reported as <code translate="no" dir="ltr">artVerifyClass</code> and <code translate="no" dir="ltr">artVerifyClassSumMs</code>) indicate how many classes were verified during measurement, at runtime.</p>
+    <p>There are two exceptions however:</p>
+    <ol>
+      <li>
+        <p>If install-time verification fails for a class, it will remain unverified, and be verified at     runtime.</p>
+      </li>
+      <li>
+        <p>Debuggable=true apps are not verified at install time, to save on iteration speed at the cost     of runtime performance. This results in runtime verification of each class as it's loaded     which is the source of much of the slowdown between a debug app and a release app. As     Macrobenchmark treats <code translate="no" dir="ltr">debuggable=true</code> as a measurement error, this won't be the case for     <code translate="no" dir="ltr">ArtMetric</code> measurements unless you suppress that error.</p>
+      </li>
+    </ol>
+    <p>Some classes will be verified at runtime rather than install time due to limitations in the compiler and runtime or due to being malformed.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/benchmark/macro/ArtMetric#ArtMetric()">ArtMetric</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="ArtMetric--"></a><a name="artmetric"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ArtMetric()" data-text="ArtMetric" tabindex="-1">ArtMetric</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/benchmark#1.4.0-rc01">1.4.0-rc01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/benchmark/macro/ArtMetric#ArtMetric()">ArtMetric</a>()</pre></devsite-code>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

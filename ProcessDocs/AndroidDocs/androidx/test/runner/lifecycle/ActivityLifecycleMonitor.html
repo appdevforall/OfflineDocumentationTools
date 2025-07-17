@@ -1,1 +1,869 @@
-<html><head><title>Class Documentation</title></head><body>ActivityLifecycleMonitor Artifact: androidx.test:monitor View Source Kotlin | Java public interface ActivityLifecycleMonitor Interface for tests to use when they need to query the activity lifecycle state. Activity lifecycle changes occur only on the UI thread - therefore listeners registered with an ActivityLifecycleMonitor should expect to be invoked on the UI thread. The direct query methods can only be called on the UI thread because otherwise they would not be able to return consistent responses. Retrieve instances of the monitor through ActivityLifecycleMonitorRegistry . Detecting these lifecycle states requires support from Instrumentation, therefore do not expect an instance to be present under any arbitrary instrumentation. Summary Public methods abstract void addLifecycleCallback ( ActivityLifecycleCallback &nbsp;callback) Adds a new callback that will be notified when lifecycle changes occur. abstract Collection &lt; Activity &gt; getActivitiesInStage ( Stage &nbsp;stage) Returns all activities in a given stage of their lifecycle. abstract Stage getLifecycleStageOf ( Activity &nbsp;activity) Returns the current lifecycle stage of a given activity. abstract void removeLifecycleCallback ( ActivityLifecycleCallback &nbsp;callback) Removes a previously registered lifecycle callback. Public methods addLifecycleCallback abstract&nbsp;void&nbsp; addLifecycleCallback ( ActivityLifecycleCallback &nbsp;callback) Adds a new callback that will be notified when lifecycle changes occur. Implementors will not hold a strong ref to the callback, the code which registers callbacks is responsible for this. Code which registers callbacks should responsibly remove their callback when it is no longer needed. Callbacks are executed on the main thread of the application, and should take care not to block or otherwise perform expensive operations as it will directly impact the application. Parameters ActivityLifecycleCallback &nbsp;callback an ActivityLifecycleCallback getActivitiesInStage abstract&nbsp; Collection &lt; Activity &gt;&nbsp; getActivitiesInStage ( Stage &nbsp;stage) Returns all activities in a given stage of their lifecycle. This method can only return a consistant and correct answer from the main thread, therefore callers should always invoke it from the main thread and implementors are free to throw an exception if the call is not made on the main thread. Implementors should ensure this method returns a consistant response if called from a lifecycle callback also registered with this monitor (eg: it would be horriblely wrong if a callback sees PAUSED and calls this method with the PAUSED and does not see its activity in the response. Callers should be aware that the monitor implementation may not hold strong references to the Activities in the application. Therefore stages which are considered end stages or eligible for garbage collection on low memory situations may not return an instance of a particular activity if it has been garbage collected. Parameters Stage &nbsp;stage the stage to query for. Returns Collection &lt; Activity &gt; a snapshot Collection of activities in the given stage. This collection may be empty. Throws java.lang.IllegalStateException if called from outside the main thread. getLifecycleStageOf abstract&nbsp; Stage &nbsp; getLifecycleStageOf ( Activity &nbsp;activity) Returns the current lifecycle stage of a given activity. This method can only return a consistent and correct answer from the main thread, therefore callers should always invoke it from the main thread and implementors are free to throw an exception if the call is not made on the main thread. Implementors should ensure this method returns a consistent response if called from a lifecycle callback also registered with this monitor (eg: it would be horriblely wrong if a callback sees PAUSED and calls this method with the same activity and gets RESUMED. Parameters Activity &nbsp;activity an activity in this application. Returns Stage the lifecycle stage this activity is in. Throws java.lang.IllegalArgumentException if activity is unknown to the monitor. java.lang.NullPointerException if activity is null. java.lang.IllegalStateException if called off the main thread. removeLifecycleCallback abstract&nbsp;void&nbsp; removeLifecycleCallback ( ActivityLifecycleCallback &nbsp;callback) Removes a previously registered lifecycle callback.</body></html>
+<html><head><title>ActivityLifecycleMonitor</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ActivityLifecycleMonitor">
+      <meta itemprop="path" content="androidx.test.runner.lifecycle">
+      <meta itemprop="property" content="addLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">
+      <meta itemprop="property" content="getActivitiesInStage(androidx.test.runner.lifecycle.Stage)">
+      <meta itemprop="property" content="getLifecycleStageOf(android.app.Activity)">
+      <meta itemprop="property" content="removeLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="activitylifecyclemonitor" data-text="ActivityLifecycleMonitor" tabindex="-1">ActivityLifecycleMonitor</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/test">androidx.test:monitor</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/test/runner/lifecycle/ActivityLifecycleMonitor.java+class:androidx.test.runner.lifecycle.ActivityLifecycleMonitor" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/test/runner/lifecycle/ActivityLifecycleMonitor" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public interface <a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor">ActivityLifecycleMonitor</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Interface for tests to use when they need to query the activity lifecycle state. </p>
+    <p>Activity lifecycle changes occur only on the UI thread - therefore listeners registered with an ActivityLifecycleMonitor should expect to be invoked on the UI thread. The direct query methods can only be called on the UI thread because otherwise they would not be able to return consistent responses. </p>
+    <p>Retrieve instances of the monitor through <code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitorRegistry">ActivityLifecycleMonitorRegistry</a></code>. </p>
+    <p>Detecting these lifecycle states requires support from Instrumentation, therefore do not expect an instance to be present under any arbitrary instrumentation.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#addLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">addLifecycleCallback</a>(<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleCallback">ActivityLifecycleCallback</a>&nbsp;callback)</code></div>
+              <p>Adds a new callback that will be notified when lifecycle changes occur.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;<a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#getActivitiesInStage(androidx.test.runner.lifecycle.Stage)">getActivitiesInStage</a>(<a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a>&nbsp;stage)</code></div>
+              <p>Returns all activities in a given stage of their lifecycle.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#getLifecycleStageOf(android.app.Activity)">getLifecycleStageOf</a>(<a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</code></div>
+              <p>Returns the current lifecycle stage of a given activity.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#removeLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">removeLifecycleCallback</a>(<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleCallback">ActivityLifecycleCallback</a>&nbsp;callback)</code></div>
+              <p>Removes a previously registered lifecycle callback.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addLifecycleCallback-androidx.test.runner.lifecycle.ActivityLifecycleCallback-"></a><a name="addlifecyclecallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)" data-text="addLifecycleCallback" tabindex="-1">addLifecycleCallback</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#addLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">addLifecycleCallback</a>(<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleCallback">ActivityLifecycleCallback</a>&nbsp;callback)</pre></devsite-code>
+        <p>Adds a new callback that will be notified when lifecycle changes occur. </p>
+        <p>Implementors will not hold a strong ref to the callback, the code which registers callbacks is responsible for this. Code which registers callbacks should responsibly remove their callback when it is no longer needed. </p>
+        <p>Callbacks are executed on the main thread of the application, and should take care not to block or otherwise perform expensive operations as it will directly impact the application.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleCallback">ActivityLifecycleCallback</a>&nbsp;callback</code></td>
+                <td>
+                  <p>an ActivityLifecycleCallback</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getActivitiesInStage-androidx.test.runner.lifecycle.Stage-"></a><a name="getactivitiesinstage"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getActivitiesInStage(androidx.test.runner.lifecycle.Stage)" data-text="getActivitiesInStage" tabindex="-1">getActivitiesInStage</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;<a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&gt;&nbsp;<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#getActivitiesInStage(androidx.test.runner.lifecycle.Stage)">getActivitiesInStage</a>(<a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a>&nbsp;stage)</pre></devsite-code>
+        <p>Returns all activities in a given stage of their lifecycle. </p>
+        <p>This method can only return a consistant and correct answer from the main thread, therefore callers should always invoke it from the main thread and implementors are free to throw an exception if the call is not made on the main thread. </p>
+        <p>Implementors should ensure this method returns a consistant response if called from a lifecycle callback also registered with this monitor (eg: it would be horriblely wrong if a callback sees PAUSED and calls this method with the PAUSED and does not see its activity in the response. </p>
+        <p>Callers should be aware that the monitor implementation may not hold strong references to the Activities in the application. Therefore stages which are considered end stages or eligible for garbage collection on low memory situations may not return an instance of a particular activity if it has been garbage collected.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a>&nbsp;stage</code></td>
+                <td>
+                  <p>the stage to query for.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;<a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&gt;</code></td>
+                <td>
+                  <p>a snapshot Collection of activities in the given stage. This collection may be empty.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>if called from outside the main thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getLifecycleStageOf-android.app.Activity-"></a><a name="getlifecyclestageof"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getLifecycleStageOf(android.app.Activity)" data-text="getLifecycleStageOf" tabindex="-1">getLifecycleStageOf</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a>&nbsp;<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#getLifecycleStageOf(android.app.Activity)">getLifecycleStageOf</a>(<a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</pre></devsite-code>
+        <p>Returns the current lifecycle stage of a given activity. </p>
+        <p>This method can only return a consistent and correct answer from the main thread, therefore callers should always invoke it from the main thread and implementors are free to throw an exception if the call is not made on the main thread. </p>
+        <p>Implementors should ensure this method returns a consistent response if called from a lifecycle callback also registered with this monitor (eg: it would be horriblely wrong if a callback sees PAUSED and calls this method with the same activity and gets RESUMED.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity</code></td>
+                <td>
+                  <p>an activity in this application.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/test/runner/lifecycle/Stage">Stage</a></code></td>
+                <td>
+                  <p>the lifecycle stage this activity is in.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if activity is unknown to the monitor.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/NullPointerException.html">java.lang.NullPointerException</a></code></td>
+                <td>
+                  <p>if activity is null.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>if called off the main thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeLifecycleCallback-androidx.test.runner.lifecycle.ActivityLifecycleCallback-"></a><a name="removelifecyclecallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)" data-text="removeLifecycleCallback" tabindex="-1">removeLifecycleCallback</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleMonitor#removeLifecycleCallback(androidx.test.runner.lifecycle.ActivityLifecycleCallback)">removeLifecycleCallback</a>(<a href="/reference/androidx/test/runner/lifecycle/ActivityLifecycleCallback">ActivityLifecycleCallback</a>&nbsp;callback)</pre></devsite-code>
+        <p>Removes a previously registered lifecycle callback.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

@@ -1,1 +1,1392 @@
-<html><head><title>Class Documentation</title></head><body>Transformer Artifact: androidx.media3:media3-transformer View Source Kotlin | Java @ UnstableApi public final class Transformer A transformer to export media inputs. The same Transformer instance can be used to export multiple inputs (sequentially, not concurrently). Transformer instances must be accessed from a single application thread. For the vast majority of cases this should be the application's main thread. The thread on which a Transformer instance must be accessed can be explicitly specified by passing a Looper when creating the transformer. If no Looper is specified, then the Looper of the thread that the is created on is used, or if that thread does not have a Looper, the Looper of the application's main thread is used. In all cases the Looper of the thread from which the transformer must be accessed can be queried using getApplicationLooper . Summary Nested types public final class Transformer.Builder A builder for Transformer instances. public interface Transformer.Listener A listener for the export events. @ Documented @ Retention (value&nbsp;=&nbsp;RetentionPolicy.SOURCE) @ Target (value&nbsp;=&nbsp;TYPE_USE) @ IntDef (value&nbsp;=&nbsp;) public annotation Transformer.ProgressState Progress state. Constants static&nbsp;final long DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS The default value for the maximum delay between output samples . static&nbsp;final int PROGRESS_STATE_AVAILABLE = 2 Indicates that the progress is available. static&nbsp;final int PROGRESS_STATE_NOT_STARTED = 0 Indicates that the corresponding operation hasn't been started. static&nbsp;final int PROGRESS_STATE_UNAVAILABLE = 3 Indicates that the progress is permanently unavailable. static&nbsp;final int PROGRESS_STATE_WAITING_FOR_AVAILABILITY = 1 Indicates that the progress is currently unavailable, but might become available. Public methods void addListener ( Transformer.Listener &nbsp;listener) Adds a Transformer.Listener to listen to the export events. Transformer.Builder buildUpon () Returns a Transformer.Builder initialized with the values of this instance. void cancel () Cancels the export that is currently in progress, if any. Looper getApplicationLooper () Returns the Looper associated with the application thread that's used to access the transformer and on which transformer events are received. int @ Transformer.ProgressState getProgress ( ProgressHolder &nbsp;progressHolder) Returns the current ProgressState and updates progressHolder with the current progress if it is available . void removeAllListeners () Removes all listeners . void removeListener ( Transformer.Listener &nbsp;listener) Removes a Transformer.Listener . void resume ( &nbsp;&nbsp;&nbsp;&nbsp; Composition &nbsp;composition, &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;outputFilePath, &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;oldFilePath ) Resumes a previously cancelled export. void start ( Composition &nbsp;composition,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given Composition . void start ( EditedMediaItem &nbsp;editedMediaItem,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given EditedMediaItem . void start ( MediaItem &nbsp;mediaItem,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given MediaItem . Constants DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS public&nbsp;static&nbsp;final&nbsp;long&nbsp; DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS The default value for the maximum delay between output samples . PROGRESS_STATE_AVAILABLE public&nbsp;static&nbsp;final&nbsp;int&nbsp; PROGRESS_STATE_AVAILABLE = 2 Indicates that the progress is available. PROGRESS_STATE_NOT_STARTED public&nbsp;static&nbsp;final&nbsp;int&nbsp; PROGRESS_STATE_NOT_STARTED = 0 Indicates that the corresponding operation hasn't been started. PROGRESS_STATE_UNAVAILABLE public&nbsp;static&nbsp;final&nbsp;int&nbsp; PROGRESS_STATE_UNAVAILABLE = 3 Indicates that the progress is permanently unavailable. PROGRESS_STATE_WAITING_FOR_AVAILABILITY public&nbsp;static&nbsp;final&nbsp;int&nbsp; PROGRESS_STATE_WAITING_FOR_AVAILABILITY = 1 Indicates that the progress is currently unavailable, but might become available. Public methods addListener public&nbsp;void&nbsp; addListener ( Transformer.Listener &nbsp;listener) Adds a Transformer.Listener to listen to the export events. Parameters Transformer.Listener &nbsp;listener A Transformer.Listener . Throws java.lang.IllegalStateException If this method is called from the wrong thread. buildUpon public&nbsp; Transformer.Builder &nbsp; buildUpon () Returns a Transformer.Builder initialized with the values of this instance. cancel public&nbsp;void&nbsp; cancel () Cancels the export that is currently in progress, if any. The export output file (if any) is not deleted. Throws java.lang.IllegalStateException If this method is called from the wrong thread. getApplicationLooper public&nbsp; Looper &nbsp; getApplicationLooper () Returns the Looper associated with the application thread that's used to access the transformer and on which transformer events are received. getProgress @ Transformer.ProgressState public&nbsp;int&nbsp; getProgress ( ProgressHolder &nbsp;progressHolder) Returns the current ProgressState and updates progressHolder with the current progress if it is available . If the export is resumed , this method returns PROGRESS_STATE_UNAVAILABLE . After an export completes , this method returns PROGRESS_STATE_NOT_STARTED . Parameters ProgressHolder &nbsp;progressHolder A ProgressHolder , updated to hold the percentage progress if available . Returns int The ProgressState . Throws java.lang.IllegalStateException If this method is called from the wrong thread. removeAllListeners public&nbsp;void&nbsp; removeAllListeners () Removes all listeners . Throws java.lang.IllegalStateException If this method is called from the wrong thread. removeListener public&nbsp;void&nbsp; removeListener ( Transformer.Listener &nbsp;listener) Removes a Transformer.Listener . Parameters Transformer.Listener &nbsp;listener A Transformer.Listener . Throws java.lang.IllegalStateException If this method is called from the wrong thread. resume public&nbsp;void&nbsp; resume ( &nbsp;&nbsp;&nbsp;&nbsp; Composition &nbsp;composition, &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;outputFilePath, &nbsp;&nbsp;&nbsp;&nbsp; String &nbsp;oldFilePath ) Resumes a previously cancelled export. An export can be resumed only when: The Composition contains a single EditedMediaItemSequence having continuous audio and video tracks. The output is an MP4 file. Note that export optimizations (such as trim optimization ) will not be applied upon resumption. Parameters Composition &nbsp;composition The Composition to resume export. String &nbsp;outputFilePath The path to the output file. This must be different from the output path of the cancelled export. String &nbsp;oldFilePath The output path of the the cancelled export. start public&nbsp;void&nbsp; start ( Composition &nbsp;composition,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given Composition . The first EditedMediaItem in the first EditedMediaItemSequence that has a given track will determine the output format for that track, unless the format is set when building the Transformer . For example, consider the following composition Composition { EditedMediaItemSequence { [ ImageMediaItem, VideoMediaItem ] } , EditedMediaItemSequence { [ AudioMediaItem ] } , } The video format will be determined by the ImageMediaItem in the first , while the audio format will be determined by the AudioMediaItem in the second EditedMediaItemSequence . Some compositions are not supported yet. More specifically, Sequences within the Composition must meet the following conditions: If an EditedMediaItem in a sequence contains data of a given track, so must all items in that sequence. For audio, this condition can be removed by setting experimentalSetForceAudioTrack flag. If a sequence starts with an HDR EditedMediaItem , all the following items in the sequence must be HDR. All items containing audio data must output 16 bit PCM audio with the same number of channels. This can be done by adding a and/or a ChannelMixingAudioProcessor to the item specific effects . The export state is notified through the listener . Concurrent exports on the same Transformer object are not allowed. If no custom Muxer.Factory is specified, the output is an MP4 file. The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom AssetLoader.Factory is specified, the highest bitrate video and audio streams are selected. If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders. Parameters Composition &nbsp;composition The Composition to export. String &nbsp;path The path to the output file. Throws java.lang.IllegalStateException If this method is called from the wrong thread. java.lang.IllegalStateException If an export is already in progress. start public&nbsp;void&nbsp; start ( EditedMediaItem &nbsp;editedMediaItem,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given EditedMediaItem . The export state is notified through the listener . Concurrent exports on the same Transformer object are not allowed. If no custom Muxer.Factory is specified, the output is an MP4 file. The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom AssetLoader.Factory is specified, the highest bitrate video and audio streams are selected. If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders. Parameters EditedMediaItem &nbsp;editedMediaItem The EditedMediaItem to export. String &nbsp;path The path to the output file. Throws java.lang.IllegalStateException If this method is called from the wrong thread. java.lang.IllegalStateException If an export is already in progress. start public&nbsp;void&nbsp; start ( MediaItem &nbsp;mediaItem,&nbsp; String &nbsp;path) Starts an asynchronous operation to export the given MediaItem . The export state is notified through the listener . Concurrent exports on the same Transformer object are not allowed. If no custom Muxer.Factory is specified, the output is an MP4 file. The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom AssetLoader.Factory is specified, the highest bitrate video and audio streams are selected. If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders. Parameters MediaItem &nbsp;mediaItem The MediaItem to export. String &nbsp;path The path to the output file. Throws java.lang.IllegalArgumentException If the MediaItem is not supported. java.lang.IllegalStateException If this method is called from the wrong thread. java.lang.IllegalStateException If an export is already in progress.</body></html>
+<html><head><title>Transformer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="Transformer">
+      <meta itemprop="path" content="androidx.media3.transformer">
+      <meta itemprop="property" content="addListener(androidx.media3.transformer.Transformer.Listener)">
+      <meta itemprop="property" content="buildUpon()">
+      <meta itemprop="property" content="cancel()">
+      <meta itemprop="property" content="getApplicationLooper()">
+      <meta itemprop="property" content="getProgress(androidx.media3.transformer.ProgressHolder)">
+      <meta itemprop="property" content="removeAllListeners()">
+      <meta itemprop="property" content="removeListener(androidx.media3.transformer.Transformer.Listener)">
+      <meta itemprop="property" content="resume(androidx.media3.transformer.Composition,java.lang.String,java.lang.String)">
+      <meta itemprop="property" content="start(androidx.media3.transformer.Composition,java.lang.String)">
+      <meta itemprop="property" content="start(androidx.media3.transformer.EditedMediaItem,java.lang.String)">
+      <meta itemprop="property" content="start(androidx.media3.common.MediaItem,java.lang.String)">
+      <meta itemprop="property" content="DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()">
+      <meta itemprop="property" content="PROGRESS_STATE_AVAILABLE()">
+      <meta itemprop="property" content="PROGRESS_STATE_NOT_STARTED()">
+      <meta itemprop="property" content="PROGRESS_STATE_UNAVAILABLE()">
+      <meta itemprop="property" content="PROGRESS_STATE_WAITING_FOR_AVAILABILITY()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="transformer" data-text="Transformer" tabindex="-1">Transformer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-transformer</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/transformer/Transformer.java+class:androidx.media3.transformer.Transformer" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/transformer/Transformer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/transformer/Transformer">Transformer</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>A transformer to export media inputs. </p>
+    <p>The same Transformer instance can be used to export multiple inputs (sequentially, not concurrently). </p>
+    <p>Transformer instances must be accessed from a single application thread. For the vast majority of cases this should be the application's main thread. The thread on which a Transformer instance must be accessed can be explicitly specified by passing a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a></code> when creating the transformer. If no Looper is specified, then the Looper of the thread that the  is created on is used, or if that thread does not have a Looper, the Looper of the application's main thread is used. In all cases the Looper of the thread from which the transformer must be accessed can be queried using <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#getApplicationLooper()">getApplicationLooper</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/transformer/Transformer.Builder">Transformer.Builder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer">Transformer</a></code> instances.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code></div>
+              <p>A listener for the export events.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="https://developer.android.com/reference/java/lang/annotation/Documented.html">Documented</a><br>@<a href="https://developer.android.com/reference/java/lang/annotation/Retention.html">Retention</a>(value&nbsp;=&nbsp;RetentionPolicy.SOURCE)<br>@<a href="https://developer.android.com/reference/java/lang/annotation/Target.html">Target</a>(value&nbsp;=&nbsp;TYPE_USE)<br>@<a href="/reference/androidx/annotation/IntDef">IntDef</a>(value&nbsp;=&nbsp;)<br>public annotation <a href="/reference/androidx/media3/transformer/Transformer.ProgressState">Transformer.ProgressState</a></code></div>
+              <p>Progress state.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()">DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS</a></code></div>
+              <p>The default value for the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setMaxDelayBetweenMuxerSamplesMs(long)">maximum delay between output samples</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_AVAILABLE()">PROGRESS_STATE_AVAILABLE</a> = 2</code></div>
+              <p>Indicates that the progress is available.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_NOT_STARTED()">PROGRESS_STATE_NOT_STARTED</a> = 0</code></div>
+              <p>Indicates that the corresponding operation hasn't been started.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_UNAVAILABLE()">PROGRESS_STATE_UNAVAILABLE</a> = 3</code></div>
+              <p>Indicates that the progress is permanently unavailable.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_WAITING_FOR_AVAILABILITY()">PROGRESS_STATE_WAITING_FOR_AVAILABILITY</a> = 1</code></div>
+              <p>Indicates that the progress is currently unavailable, but might become available.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#addListener(androidx.media3.transformer.Transformer.Listener)">addListener</a>(<a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener)</code></div>
+              <p>Adds a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code> to listen to the export events.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder">Transformer.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#buildUpon()">buildUpon</a>()</code></div>
+              <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder">Transformer.Builder</a></code> initialized with the values of this instance.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#cancel()">cancel</a>()</code></div>
+              <p>Cancels the export that is currently in progress, if any.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#getApplicationLooper()">getApplicationLooper</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a></code> associated with the application thread that's used to access the transformer and on which transformer events are received.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/transformer/Transformer.ProgressState">Transformer.ProgressState</a><br><a href="/reference/androidx/media3/transformer/Transformer#getProgress(androidx.media3.transformer.ProgressHolder)">getProgress</a>(<a href="/reference/androidx/media3/transformer/ProgressHolder">ProgressHolder</a>&nbsp;progressHolder)</code></div>
+              <p>Returns the current <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.ProgressState">ProgressState</a></code> and updates <code translate="no" dir="ltr">progressHolder</code> with the current progress if it is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_AVAILABLE()">available</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#removeAllListeners()">removeAllListeners</a>()</code></div>
+              <p>Removes all <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">listeners</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#removeListener(androidx.media3.transformer.Transformer.Listener)">removeListener</a>(<a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener)</code></div>
+              <p>Removes a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#resume(androidx.media3.transformer.Composition,java.lang.String,java.lang.String)">resume</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;outputFilePath,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;oldFilePath<br>)</code></div>
+              <p>Resumes a previously <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#cancel()">cancelled</a></code> export.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.transformer.Composition,java.lang.String)">start</a>(<a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</code></div>
+              <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.transformer.EditedMediaItem,java.lang.String)">start</a>(<a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a>&nbsp;editedMediaItem,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</code></div>
+              <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.common.MediaItem,java.lang.String)">start</a>(<a href="/reference/androidx/media3/common/MediaItem">MediaItem</a>&nbsp;mediaItem,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</code></div>
+              <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">MediaItem</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()"></a><a name="setDEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()"></a><a name="getDEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS--"></a><a name="setDEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()" data-text="DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS" tabindex="-1">DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS()">DEFAULT_MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS</a></pre></devsite-code>
+        <p>The default value for the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setMaxDelayBetweenMuxerSamplesMs(long)">maximum delay between output samples</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getPROGRESS_STATE_AVAILABLE()"></a><a name="setPROGRESS_STATE_AVAILABLE()"></a><a name="getPROGRESS_STATE_AVAILABLE--"></a><a name="setPROGRESS_STATE_AVAILABLE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PROGRESS_STATE_AVAILABLE()" data-text="PROGRESS_STATE_AVAILABLE" tabindex="-1">PROGRESS_STATE_AVAILABLE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_AVAILABLE()">PROGRESS_STATE_AVAILABLE</a> = 2</pre></devsite-code>
+        <p>Indicates that the progress is available.</p>
+      </div>
+      <div class="api-item"><a name="getPROGRESS_STATE_NOT_STARTED()"></a><a name="setPROGRESS_STATE_NOT_STARTED()"></a><a name="getPROGRESS_STATE_NOT_STARTED--"></a><a name="setPROGRESS_STATE_NOT_STARTED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PROGRESS_STATE_NOT_STARTED()" data-text="PROGRESS_STATE_NOT_STARTED" tabindex="-1">PROGRESS_STATE_NOT_STARTED</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_NOT_STARTED()">PROGRESS_STATE_NOT_STARTED</a> = 0</pre></devsite-code>
+        <p>Indicates that the corresponding operation hasn't been started.</p>
+      </div>
+      <div class="api-item"><a name="getPROGRESS_STATE_UNAVAILABLE()"></a><a name="setPROGRESS_STATE_UNAVAILABLE()"></a><a name="getPROGRESS_STATE_UNAVAILABLE--"></a><a name="setPROGRESS_STATE_UNAVAILABLE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PROGRESS_STATE_UNAVAILABLE()" data-text="PROGRESS_STATE_UNAVAILABLE" tabindex="-1">PROGRESS_STATE_UNAVAILABLE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_UNAVAILABLE()">PROGRESS_STATE_UNAVAILABLE</a> = 3</pre></devsite-code>
+        <p>Indicates that the progress is permanently unavailable.</p>
+      </div>
+      <div class="api-item"><a name="getPROGRESS_STATE_WAITING_FOR_AVAILABILITY()"></a><a name="setPROGRESS_STATE_WAITING_FOR_AVAILABILITY()"></a><a name="getPROGRESS_STATE_WAITING_FOR_AVAILABILITY--"></a><a name="setPROGRESS_STATE_WAITING_FOR_AVAILABILITY--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PROGRESS_STATE_WAITING_FOR_AVAILABILITY()" data-text="PROGRESS_STATE_WAITING_FOR_AVAILABILITY" tabindex="-1">PROGRESS_STATE_WAITING_FOR_AVAILABILITY</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_WAITING_FOR_AVAILABILITY()">PROGRESS_STATE_WAITING_FOR_AVAILABILITY</a> = 1</pre></devsite-code>
+        <p>Indicates that the progress is currently unavailable, but might become available.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addListener-androidx.media3.transformer.Transformer.Listener-"></a><a name="addlistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addListener(androidx.media3.transformer.Transformer.Listener)" data-text="addListener" tabindex="-1">addListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#addListener(androidx.media3.transformer.Transformer.Listener)">addListener</a>(<a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener)</pre></devsite-code>
+        <p>Adds a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code> to listen to the export events.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="buildUpon--"></a><a name="buildupon"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="buildUpon()" data-text="buildUpon" tabindex="-1">buildUpon</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/transformer/Transformer.Builder">Transformer.Builder</a>&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#buildUpon()">buildUpon</a>()</pre></devsite-code>
+        <p>Returns a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder">Transformer.Builder</a></code> initialized with the values of this instance.</p>
+      </div>
+      <div class="api-item"><a name="cancel--"></a><a name="cancel"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="cancel()" data-text="cancel" tabindex="-1">cancel</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#cancel()">cancel</a>()</pre></devsite-code>
+        <p>Cancels the export that is currently in progress, if any. </p>
+        <p>The export output file (if any) is not deleted.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getApplicationLooper--"></a><a name="getapplicationlooper"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getApplicationLooper()" data-text="getApplicationLooper" tabindex="-1">getApplicationLooper</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a>&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#getApplicationLooper()">getApplicationLooper</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Looper.html">Looper</a></code> associated with the application thread that's used to access the transformer and on which transformer events are received.</p>
+      </div>
+      <div class="api-item"><a name="getProgress-androidx.media3.transformer.ProgressHolder-"></a><a name="getprogress"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getProgress(androidx.media3.transformer.ProgressHolder)" data-text="getProgress" tabindex="-1">getProgress</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/transformer/Transformer.ProgressState">Transformer.ProgressState</a><br>public&nbsp;int&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#getProgress(androidx.media3.transformer.ProgressHolder)">getProgress</a>(<a href="/reference/androidx/media3/transformer/ProgressHolder">ProgressHolder</a>&nbsp;progressHolder)</pre></devsite-code>
+        <p>Returns the current <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.ProgressState">ProgressState</a></code> and updates <code translate="no" dir="ltr">progressHolder</code> with the current progress if it is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_AVAILABLE()">available</a></code>. </p>
+        <p>If the export is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#resume(androidx.media3.transformer.Composition,java.lang.String,java.lang.String)">resumed</a></code>, this method returns <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_UNAVAILABLE()">PROGRESS_STATE_UNAVAILABLE</a></code>. </p>
+        <p>After an export <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener#onCompleted(androidx.media3.transformer.Composition,androidx.media3.transformer.ExportResult)">completes</a></code>, this method returns <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_NOT_STARTED()">PROGRESS_STATE_NOT_STARTED</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/ProgressHolder">ProgressHolder</a>&nbsp;progressHolder</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/ProgressHolder">ProgressHolder</a></code>, updated to hold the percentage progress if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#PROGRESS_STATE_AVAILABLE()">available</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.ProgressState">ProgressState</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeAllListeners--"></a><a name="removealllisteners"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeAllListeners()" data-text="removeAllListeners" tabindex="-1">removeAllListeners</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#removeAllListeners()">removeAllListeners</a>()</pre></devsite-code>
+        <p>Removes all <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">listeners</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeListener-androidx.media3.transformer.Transformer.Listener-"></a><a name="removelistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeListener(androidx.media3.transformer.Transformer.Listener)" data-text="removeListener" tabindex="-1">removeListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#removeListener(androidx.media3.transformer.Transformer.Listener)">removeListener</a>(<a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener)</pre></devsite-code>
+        <p>Removes a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Listener">Transformer.Listener</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="resume(androidx.media3.transformer.Composition, java.lang.String, java.lang.String)"></a><a name="resume-androidx.media3.transformer.Composition-java.lang.String-java.lang.String-"></a><a name="resume"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="resume(androidx.media3.transformer.Composition,java.lang.String,java.lang.String)" data-text="resume" tabindex="-1">resume</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#resume(androidx.media3.transformer.Composition,java.lang.String,java.lang.String)">resume</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;outputFilePath,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;oldFilePath<br>)</pre></devsite-code>
+        <p>Resumes a previously <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer#cancel()">cancelled</a></code> export. </p>
+        <p>An export can be resumed only when: </p>
+        <ul>
+          <li>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code> contains a single <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItemSequence">EditedMediaItemSequence</a></code> having continuous audio and video tracks. </li>
+          <li>The output is an MP4 file. </li>
+        </ul>
+        <p>Note that export optimizations (such as <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#experimentalSetTrimOptimizationEnabled(boolean)"> trim optimization</a></code>) will not be applied upon resumption.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code> to resume export.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;outputFilePath</code></td>
+                <td>
+                  <p>The path to the output file. This must be different from the output path of the cancelled export.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;oldFilePath</code></td>
+                <td>
+                  <p>The output path of the the cancelled export.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="start(androidx.media3.transformer.Composition, java.lang.String)"></a><a name="start-androidx.media3.transformer.Composition-java.lang.String-"></a><a name="start"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="start(androidx.media3.transformer.Composition,java.lang.String)" data-text="start" tabindex="-1">start</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.transformer.Composition,java.lang.String)">start</a>(<a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</pre></devsite-code>
+        <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code>. </p>
+        <p>The first <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code> in the first <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItemSequence">EditedMediaItemSequence</a></code> that has a given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C.TrackType">track</a></code> will determine the output format for that track, unless the format is set when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#build()">building</a></code> the <code translate="no" dir="ltr">Transformer</code>. For example, consider the following composition </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Transact-SQL"><span class="devsite-syntax-w">  </span><span class="devsite-syntax-n">Composition</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">EditedMediaItemSequence</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-o">[</span><span class="devsite-syntax-n">ImageMediaItem, VideoMediaItem</span><span class="devsite-syntax-o">]</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">}</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">EditedMediaItemSequence</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-o">[</span><span class="devsite-syntax-n">AudioMediaItem</span><span class="devsite-syntax-o">]</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">}</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-err">}</span></pre></devsite-code>
+ The video format will be determined by the <code translate="no" dir="ltr">ImageMediaItem</code> in the first , while the audio format will be determined by the <code translate="no" dir="ltr">
+AudioMediaItem</code> in the second <code translate="no" dir="ltr">EditedMediaItemSequence</code>. 
+        <p>Some <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">compositions</a></code> are not supported yet. More specifically, <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItemSequence">Sequences</a></code> within the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code> must meet the following conditions: </p>
+        <ul>
+          <li>If an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code> in a sequence contains data of a given  track, so must all items in that sequence. 
+            <ul>
+              <li>For audio, this condition can be removed by setting <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItemSequence.Builder#experimentalSetForceAudioTrack(boolean)">experimentalSetForceAudioTrack</a></code> flag. </li>
+            </ul>
+          </li>
+          <li>If a sequence starts with an HDR <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code>, all the following items in the sequence must be HDR. </li>
+          <li>All <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">items</a></code> containing audio data must output 16 bit PCM audio with the same number of channels. This can be done by adding a  and/or a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/audio/ChannelMixingAudioProcessor">ChannelMixingAudioProcessor</a></code> to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem#effects()"> item specific effects</a></code>. </li>
+        </ul>
+        <p>The export state is notified through the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#addListener(androidx.media3.transformer.Transformer.Listener)">listener</a></code>. </p>
+        <p>Concurrent exports on the same Transformer object are not allowed. </p>
+        <p>If no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setMuxerFactory(androidx.media3.muxer.Muxer.Factory)">Muxer.Factory</a></code> is specified, the output is an MP4 file. </p>
+        <p>The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setAssetLoaderFactory(androidx.media3.transformer.AssetLoader.Factory)"> AssetLoader.Factory</a></code> is specified, the highest bitrate video and audio streams are selected. </p>
+        <p>If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a>&nbsp;composition</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Composition">Composition</a></code> to export.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path</code></td>
+                <td>
+                  <p>The path to the output file.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If an export is already in progress.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="start(androidx.media3.transformer.EditedMediaItem, java.lang.String)"></a><a name="start-androidx.media3.transformer.EditedMediaItem-java.lang.String-"></a><a name="start"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="start(androidx.media3.transformer.EditedMediaItem,java.lang.String)" data-text="start" tabindex="-1">start</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.transformer.EditedMediaItem,java.lang.String)">start</a>(<a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a>&nbsp;editedMediaItem,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</pre></devsite-code>
+        <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code>. </p>
+        <p>The export state is notified through the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#addListener(androidx.media3.transformer.Transformer.Listener)">listener</a></code>. </p>
+        <p>Concurrent exports on the same Transformer object are not allowed. </p>
+        <p>If no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setMuxerFactory(androidx.media3.muxer.Muxer.Factory)">Muxer.Factory</a></code> is specified, the output is an MP4 file. </p>
+        <p>The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setAssetLoaderFactory(androidx.media3.transformer.AssetLoader.Factory)"> AssetLoader.Factory</a></code> is specified, the highest bitrate video and audio streams are selected. </p>
+        <p>If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a>&nbsp;editedMediaItem</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/EditedMediaItem">EditedMediaItem</a></code> to export.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path</code></td>
+                <td>
+                  <p>The path to the output file.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If an export is already in progress.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="start(androidx.media3.common.MediaItem, java.lang.String)"></a><a name="start-androidx.media3.common.MediaItem-java.lang.String-"></a><a name="start"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="start(androidx.media3.common.MediaItem,java.lang.String)" data-text="start" tabindex="-1">start</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/transformer/Transformer#start(androidx.media3.common.MediaItem,java.lang.String)">start</a>(<a href="/reference/androidx/media3/common/MediaItem">MediaItem</a>&nbsp;mediaItem,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path)</pre></devsite-code>
+        <p>Starts an asynchronous operation to export the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">MediaItem</a></code>. </p>
+        <p>The export state is notified through the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#addListener(androidx.media3.transformer.Transformer.Listener)">listener</a></code>. </p>
+        <p>Concurrent exports on the same Transformer object are not allowed. </p>
+        <p>If no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setMuxerFactory(androidx.media3.muxer.Muxer.Factory)">Muxer.Factory</a></code> is specified, the output is an MP4 file. </p>
+        <p>The output can contain at most one video track and one audio track. Other track types are ignored. For adaptive bitrate inputs, if no custom <code translate="no" dir="ltr"><a href="/reference/androidx/media3/transformer/Transformer.Builder#setAssetLoaderFactory(androidx.media3.transformer.AssetLoader.Factory)"> AssetLoader.Factory</a></code> is specified, the highest bitrate video and audio streams are selected. </p>
+        <p>If exporting the video track entails transcoding, the output frames' dimensions will be swapped if the output video's height is larger than the width. This is to improve compatibility among different device encoders.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">MediaItem</a>&nbsp;mediaItem</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">MediaItem</a></code> to export.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;path</code></td>
+                <td>
+                  <p>The path to the output file.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">MediaItem</a></code> is not supported.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method is called from the wrong thread.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If an export is already in progress.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

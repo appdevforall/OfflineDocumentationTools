@@ -1,1 +1,1437 @@
-<html><head><title>Class Documentation</title></head><body>ImageAnalysis.Builder Artifact: androidx.camera:camera-core View Source Added in 1.0.0 Kotlin | Java public final class ImageAnalysis.Builder implements ExtendableBuilder Builder for a ImageAnalysis . Summary Public constructors Builder () Creates a new Builder object. Public methods @ NonNull ImageAnalysis build () Builds an ImageAnalysis from the current state. @ NonNull ImageAnalysis.Builder setBackgroundExecutor (@ NonNull Executor &nbsp;executor) Sets the default executor that will be used for background tasks. @ NonNull ImageAnalysis.Builder setBackpressureStrategy (int&nbsp;strategy) Sets the backpressure strategy to apply to the image producer to deal with scenarios where images may be produced faster than they can be analyzed. @ NonNull ImageAnalysis.Builder setImageQueueDepth (int&nbsp;depth) Sets the number of images available to the camera pipeline for STRATEGY_BLOCK_PRODUCER mode. @ NonNull ImageAnalysis.Builder setOutputImageFormat (int&nbsp;outputImageFormat) Sets output image format. @ NonNull ImageAnalysis.Builder @ RequiresApi (value&nbsp;=&nbsp;23) setOutputImageRotationEnabled (boolean&nbsp;outputImageRotationEnabled) Enable or disable output image rotation. @ NonNull ImageAnalysis.Builder setResolutionSelector (@ NonNull ResolutionSelector &nbsp;resolutionSelector) Sets the resolution selector to select the preferred supported resolution. @ NonNull ImageAnalysis.Builder setTargetAspectRatio (int&nbsp;aspectRatio) This method is deprecated. use ResolutionSelector with AspectRatioStrategy to specify the preferred aspect ratio settings instead. @ NonNull ImageAnalysis.Builder setTargetName (@ NonNull String &nbsp;targetName) Sets the name of the target object being configured, used only for debug logging. @ NonNull ImageAnalysis.Builder setTargetResolution (@ NonNull Size &nbsp;resolution) This method is deprecated. use ResolutionSelector with ResolutionStrategy to specify the preferred resolution settings instead. @ NonNull ImageAnalysis.Builder setTargetRotation (int&nbsp;rotation) Sets the rotation of the intended target for images from this configuration. Public constructors Builder Added in 1.0.0 public&nbsp; Builder () Creates a new Builder object. Public methods build public&nbsp;@ NonNull ImageAnalysis &nbsp; build () Builds an ImageAnalysis from the current state. Returns @ NonNull ImageAnalysis A ImageAnalysis populated with the current state. Throws java.lang.IllegalArgumentException if attempting to set both target aspect ratio and target resolution. setBackgroundExecutor Added in 1.0.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setBackgroundExecutor (@ NonNull Executor &nbsp;executor) Sets the default executor that will be used for background tasks. If not set, the background executor will default to an automatically generated Executor . Parameters @ NonNull Executor &nbsp;executor The executor which will be used for background tasks. Returns @ NonNull ImageAnalysis.Builder the current Builder. setBackpressureStrategy Added in 1.0.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setBackpressureStrategy (int&nbsp;strategy) Sets the backpressure strategy to apply to the image producer to deal with scenarios where images may be produced faster than they can be analyzed. The available values are STRATEGY_BLOCK_PRODUCER and STRATEGY_KEEP_ONLY_LATEST . If not set, the backpressure strategy will default to STRATEGY_KEEP_ONLY_LATEST . Parameters int&nbsp;strategy The strategy to use. Returns @ NonNull ImageAnalysis.Builder The current Builder. setImageQueueDepth Added in 1.0.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setImageQueueDepth (int&nbsp;depth) Sets the number of images available to the camera pipeline for STRATEGY_BLOCK_PRODUCER mode. The image queue depth is the number of images available to the camera to fill with data. This includes the image currently being analyzed by analyze . Increasing the image queue depth may make camera operation smoother, depending on the backpressure strategy, at the cost of increased memory usage. When the backpressure strategy is set to STRATEGY_BLOCK_PRODUCER , increasing the image queue depth may make the camera pipeline run smoother on systems under high load. However, the time spent analyzing an image should still be kept under a single frame period for the current frame rate, on average , to avoid stalling the camera pipeline. The value only applies to STRATEGY_BLOCK_PRODUCER mode. For STRATEGY_KEEP_ONLY_LATEST the value is ignored. If not set, and this option is used by the selected backpressure strategy, the default will be a queue depth of 6 images. Parameters int&nbsp;depth The total number of images available to the camera. Returns @ NonNull ImageAnalysis.Builder The current Builder. setOutputImageFormat Added in 1.1.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setOutputImageFormat (int&nbsp;outputImageFormat) Sets output image format. The supported output image format is OUTPUT_IMAGE_FORMAT_YUV_420_888 , OUTPUT_IMAGE_FORMAT_RGBA_8888 and OUTPUT_IMAGE_FORMAT_NV21 . If not set, OUTPUT_IMAGE_FORMAT_YUV_420_888 will be used. Requesting OUTPUT_IMAGE_FORMAT_RGBA_8888 or OUTPUT_IMAGE_FORMAT_NV21 will have extra overhead because format conversion takes time. Parameters int&nbsp;outputImageFormat The output image format. Returns @ NonNull ImageAnalysis.Builder The current Builder. setOutputImageRotationEnabled Added in 1.1.0 @ RequiresApi (value&nbsp;=&nbsp;23) public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setOutputImageRotationEnabled (boolean&nbsp;outputImageRotationEnabled) Enable or disable output image rotation. On API 22 and below, this API has no effect. User needs to handle the image rotation based on the getRotationDegrees . setTargetRotation is to adjust the rotation degree information returned by getRotationDegrees based on sensor rotation and user still needs to rotate the output image to achieve the target rotation. Once this is enabled, user doesn't need to handle the rotation, the output image will be a rotated ImageProxy and getRotationDegrees will return 0. Turning this on will add more processing overhead to every image analysis frame. The average processing time is about 10-15ms for 640x480 image on a mid-range device. By default, the rotation is disabled. Parameters boolean&nbsp;outputImageRotationEnabled flag to enable or disable. Returns @ NonNull ImageAnalysis.Builder The current Builder. See also setResolutionSelector Added in 1.3.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setResolutionSelector (@ NonNull ResolutionSelector &nbsp;resolutionSelector) Sets the resolution selector to select the preferred supported resolution. ImageAnalysis has a default ResolutionStrategy with bound size as 640x480 and fallback rule of FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER . Applications can override this default strategy with a different resolution strategy. When using the camera-camera2 CameraX implementation, which resolution is finally selected depends on the camera device's hardware level, capabilities and the bound use cases combination. The device hardware level and capabilities information can be retrieved via the interop class getCameraCharacteristic with INFO_SUPPORTED_HARDWARE_LEVEL and REQUEST_AVAILABLE_CAPABILITIES . A LIMITED-level above device can support a RECORD size resolution for ImageAnalysis when it is bound together with Preview and ImageCapture . The trade-off is the selected resolution for the ImageCapture is also restricted by the RECORD size. To successfully select a RECORD size resolution for ImageAnalysis , a ResolutionStrategy of selecting RECORD size resolution should be set on both ImageCapture and ImageAnalysis . This indicates that the application clearly understand the trade-off and prefer the ImageAnalysis to have a larger resolution rather than the ImageCapture to have a MAXIMUM size resolution. For the definitions of RECORD , MAXIMUM sizes and more details see the Regular capture section in android.hardware.camera2.CameraDevice 's. The RECORD size refers to the camera device's maximum supported recording resolution, as determined by CamcorderProfile . The MAXIMUM size refers to the camera device's maximum output resolution for that format or target from getOutputSizes. The existing setTargetResolution and setTargetAspectRatio APIs are deprecated and are not compatible with setResolutionSelector . Calling either of these APIs together with setResolutionSelector will result in an IllegalArgumentException being thrown when you attempt to build the ImageAnalysis instance. Returns @ NonNull ImageAnalysis.Builder The current Builder. setTargetAspectRatio Added in 1.0.0 Deprecated in 1.3.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setTargetAspectRatio (int&nbsp;aspectRatio) This method is deprecated. use ResolutionSelector with AspectRatioStrategy to specify the preferred aspect ratio settings instead. Sets the aspect ratio of the intended target for images from this configuration. The aspect ratio is the ratio of width to height in the sensor orientation. It is not allowed to set both target aspect ratio and target resolution on the same use case. Attempting so will throw an IllegalArgumentException when building the Config. The target aspect ratio is used as a hint when determining the resulting output aspect ratio which may differ from the request, possibly due to device constraints. Application code should check the resulting output's resolution and the resulting aspect ratio may not be exactly as requested. If not set, or RATIO_DEFAULT is supplied, resolutions with aspect ratio 4:3 will be considered in higher priority. Parameters int&nbsp;aspectRatio The desired ImageAnalysis AspectRatio Returns @ NonNull ImageAnalysis.Builder The current Builder. setTargetName Added in 1.0.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setTargetName (@ NonNull String &nbsp;targetName) Sets the name of the target object being configured, used only for debug logging. The name should be a value that can uniquely identify an instance of the object being configured. If not set, the target name will default to a unique name automatically generated with the class canonical name and random UUID. Parameters @ NonNull String &nbsp;targetName A unique string identifier for the instance of the class being configured. Returns @ NonNull ImageAnalysis.Builder the current Builder. setTargetResolution Added in 1.0.0 Deprecated in 1.3.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setTargetResolution (@ NonNull Size &nbsp;resolution) This method is deprecated. use ResolutionSelector with ResolutionStrategy to specify the preferred resolution settings instead. Sets the resolution of the intended target from this configuration. The target resolution attempts to establish a minimum bound for the image resolution. The actual image resolution will be the closest available resolution in size that is not smaller than the target resolution, as determined by the Camera implementation. However, if no resolution exists that is equal to or larger than the target resolution, the nearest available resolution smaller than the target resolution will be chosen. Resolutions with the same aspect ratio of the provided Size will be considered in higher priority before resolutions of different aspect ratios. It is not allowed to set both target aspect ratio and target resolution on the same use case. Attempting so will throw an IllegalArgumentException when building the Config. The resolution Size should be expressed in the coordinate frame after rotating the supported sizes by the target rotation. For example, a device with portrait natural orientation in natural target rotation requesting a portrait image may specify 480x640, and the same device, rotated 90 degrees and targeting landscape orientation may specify 640x480. If not set, resolution of 640x480 will be selected to use in priority. When using the camera-camera2 CameraX implementation, which resolution will be finally selected will depend on the camera device's hardware level and the bound use cases combination. The device hardware level information can be retrieved by INFO_SUPPORTED_HARDWARE_LEVEL from the interop class getCameraCharacteristic. A LIMITED-level above device can support a RECORD size resolution for ImageAnalysis when it is bound together with Preview and ImageCapture . The trade-off is the selected resolution for the ImageCapture will also be restricted by the RECORD size. To successfully select a RECORD size resolution for ImageAnalysis , a RECORD size target resolution should be set on both ImageCapture and ImageAnalysis . This indicates that the application clearly understand the trade-off and prefer the ImageAnalysis to have a larger resolution rather than the ImageCapture to have a MAXIMUM size resolution. For the definitions of RECORD , MAXIMUM sizes and more details see the Regular capture section in android.hardware.camera2.CameraDevice 's. The RECORD size refers to the camera device's maximum supported recording resolution, as determined by CamcorderProfile . The MAXIMUM size refers to the camera device's maximum output resolution for that format or target from getOutputSizes. Parameters @ NonNull Size &nbsp;resolution The target resolution to choose from supported output sizes list. Returns @ NonNull ImageAnalysis.Builder The current Builder. setTargetRotation Added in 1.0.0 public&nbsp;@ NonNull ImageAnalysis.Builder &nbsp; setTargetRotation (int&nbsp;rotation) Sets the rotation of the intended target for images from this configuration. This adjust the getRotationDegrees of the ImageProxy passed to analyze . The rotation value of ImageInfo will be the rotation, which if applied to the output image, will make the image match target rotation specified here. This is one of four valid values: ROTATION_0 , ROTATION_90 , ROTATION_180 , ROTATION_270 . Rotation values are relative to the &quot;natural&quot; rotation, ROTATION_0 . In general, it is best to additionally set the target rotation dynamically on the use case. See setTargetRotation for additional documentation. If not set, the target rotation will default to the value of getRotation of the default display at the time the use case is created. The use case is fully created once it has been attached to a camera. Parameters int&nbsp;rotation The rotation of the intended target. Returns @ NonNull ImageAnalysis.Builder The current Builder. See also setTargetRotation OrientationEventListener</body></html>
+<html><head><title>ImageAnalysis.Builder</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ImageAnalysis.Builder">
+      <meta itemprop="path" content="androidx.camera.core">
+      <meta itemprop="property" content="build()">
+      <meta itemprop="property" content="setBackgroundExecutor(java.util.concurrent.Executor)">
+      <meta itemprop="property" content="setBackpressureStrategy(int)">
+      <meta itemprop="property" content="setImageQueueDepth(int)">
+      <meta itemprop="property" content="setOutputImageFormat(int)">
+      <meta itemprop="property" content="setOutputImageRotationEnabled(boolean)">
+      <meta itemprop="property" content="setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)">
+      <meta itemprop="property" content="setTargetAspectRatio(int)">
+      <meta itemprop="property" content="setTargetName(java.lang.String)">
+      <meta itemprop="property" content="setTargetResolution(android.util.Size)">
+      <meta itemprop="property" content="setTargetRotation(int)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="imageanalysis.builder" data-text="ImageAnalysis.Builder" tabindex="-1">ImageAnalysis.Builder</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/core/ImageAnalysis.java+class:androidx.camera.core.ImageAnalysis.Builder" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/core/ImageAnalysis.Builder" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a> implements <a href="/reference/androidx/camera/core/ExtendableBuilder">ExtendableBuilder</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Builder for a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#Builder()">Builder</a>()</code></div>
+              <p>Creates a new Builder object.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#build()">build</a>()</code></div>
+              <p>Builds an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> from the current state.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setBackgroundExecutor(java.util.concurrent.Executor)">setBackgroundExecutor</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor)</code></div>
+              <p>Sets the default executor that will be used for background tasks.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setBackpressureStrategy(int)">setBackpressureStrategy</a>(int&nbsp;strategy)</code></div>
+              <p>Sets the backpressure strategy to apply to the image producer to deal with scenarios where images may be produced faster than they can be analyzed.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setImageQueueDepth(int)">setImageQueueDepth</a>(int&nbsp;depth)</code></div>
+              <p>Sets the number of images available to the camera pipeline for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_BLOCK_PRODUCER()">STRATEGY_BLOCK_PRODUCER</a></code> mode.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setOutputImageFormat(int)">setOutputImageFormat</a>(int&nbsp;outputImageFormat)</code></div>
+              <p>Sets output image format.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;23)<br><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setOutputImageRotationEnabled(boolean)">setOutputImageRotationEnabled</a>(boolean&nbsp;outputImageRotationEnabled)</code></div>
+              <p>Enable or disable output image rotation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)">setResolutionSelector</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a>&nbsp;resolutionSelector)</code></div>
+              <p>Sets the resolution selector to select the preferred supported resolution.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetAspectRatio(int)">setTargetAspectRatio</a></del></span>(int&nbsp;aspectRatio)</code></div>
+              <p><strong>This method is deprecated.</strong>
+                <p>use <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/AspectRatioStrategy">AspectRatioStrategy</a></code> to specify the preferred aspect ratio settings instead.</p>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetName(java.lang.String)">setTargetName</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;targetName)</code></div>
+              <p>Sets the name of the target object being configured, used only for debug logging.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetResolution(android.util.Size)">setTargetResolution</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Size.html">Size</a>&nbsp;resolution)</code></div>
+              <p><strong>This method is deprecated.</strong>
+                <p>use <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionStrategy">ResolutionStrategy</a></code> to specify the preferred resolution settings instead.</p>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetRotation(int)">setTargetRotation</a>(int&nbsp;rotation)</code></div>
+              <p>Sets the rotation of the intended target for images from this configuration.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="Builder--"></a><a name="builder"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="Builder()" data-text="Builder" tabindex="-1">Builder</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#Builder()">Builder</a>()</pre></devsite-code>
+        <p>Creates a new Builder object.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="build--"></a><a name="build"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="build()" data-text="build" tabindex="-1">build</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#build()">build</a>()</pre></devsite-code>
+        <p>Builds an <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> from the current state.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> populated with the current state.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if attempting to set both target aspect ratio and target resolution.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setBackgroundExecutor-java.util.concurrent.Executor-"></a><a name="setbackgroundexecutor"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setBackgroundExecutor(java.util.concurrent.Executor)" data-text="setBackgroundExecutor" tabindex="-1">setBackgroundExecutor</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setBackgroundExecutor(java.util.concurrent.Executor)">setBackgroundExecutor</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor)</pre></devsite-code>
+        <p>Sets the default executor that will be used for background tasks. </p>
+        <p>If not set, the background executor will default to an automatically generated <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/concurrent/Executor.html">Executor</a>&nbsp;executor</code></td>
+                <td>
+                  <p>The executor which will be used for background tasks.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>the current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setBackpressureStrategy-int-"></a><a name="setbackpressurestrategy"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setBackpressureStrategy(int)" data-text="setBackpressureStrategy" tabindex="-1">setBackpressureStrategy</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setBackpressureStrategy(int)">setBackpressureStrategy</a>(int&nbsp;strategy)</pre></devsite-code>
+        <p>Sets the backpressure strategy to apply to the image producer to deal with scenarios where images may be produced faster than they can be analyzed. </p>
+        <p>The available values are <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_BLOCK_PRODUCER()">STRATEGY_BLOCK_PRODUCER</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_KEEP_ONLY_LATEST()">STRATEGY_KEEP_ONLY_LATEST</a></code>. </p>
+        <p>If not set, the backpressure strategy will default to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_KEEP_ONLY_LATEST()">STRATEGY_KEEP_ONLY_LATEST</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;strategy</code></td>
+                <td>
+                  <p>The strategy to use.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setImageQueueDepth-int-"></a><a name="setimagequeuedepth"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setImageQueueDepth(int)" data-text="setImageQueueDepth" tabindex="-1">setImageQueueDepth</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setImageQueueDepth(int)">setImageQueueDepth</a>(int&nbsp;depth)</pre></devsite-code>
+        <p>Sets the number of images available to the camera pipeline for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_BLOCK_PRODUCER()">STRATEGY_BLOCK_PRODUCER</a></code> mode. </p>
+        <p>The image queue depth is the number of images available to the camera to fill with data. This includes the image currently being analyzed by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Analyzer#analyze(androidx.camera.core.ImageProxy)">analyze</a></code>. Increasing the image queue depth may make camera operation smoother, depending on the backpressure strategy, at the cost of increased memory usage. </p>
+        <p>When the backpressure strategy is set to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_BLOCK_PRODUCER()">STRATEGY_BLOCK_PRODUCER</a></code>, increasing the image queue depth may make the camera pipeline run smoother on systems under high load. However, the time spent analyzing an image should still be kept under a single frame period for the current frame rate, <em>on average</em>, to avoid stalling the camera pipeline. </p>
+        <p>The value only applies to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_BLOCK_PRODUCER()">STRATEGY_BLOCK_PRODUCER</a></code> mode. For <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#STRATEGY_KEEP_ONLY_LATEST()">STRATEGY_KEEP_ONLY_LATEST</a></code> the value is ignored. </p>
+        <p>If not set, and this option is used by the selected backpressure strategy, the default will be a queue depth of 6 images.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;depth</code></td>
+                <td>
+                  <p>The total number of images available to the camera.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOutputImageFormat-int-"></a><a name="setoutputimageformat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOutputImageFormat(int)" data-text="setOutputImageFormat" tabindex="-1">setOutputImageFormat</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setOutputImageFormat(int)">setOutputImageFormat</a>(int&nbsp;outputImageFormat)</pre></devsite-code>
+        <p>Sets output image format. </p>
+        <p>The supported output image format is <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_YUV_420_888()">OUTPUT_IMAGE_FORMAT_YUV_420_888</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_RGBA_8888()">OUTPUT_IMAGE_FORMAT_RGBA_8888</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_NV21()">OUTPUT_IMAGE_FORMAT_NV21</a></code>. </p>
+        <p>If not set, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_YUV_420_888()">OUTPUT_IMAGE_FORMAT_YUV_420_888</a></code> will be used. Requesting <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_RGBA_8888()">OUTPUT_IMAGE_FORMAT_RGBA_8888</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#OUTPUT_IMAGE_FORMAT_NV21()">OUTPUT_IMAGE_FORMAT_NV21</a></code> will have extra overhead because format conversion takes time.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;outputImageFormat</code></td>
+                <td>
+                  <p>The output image format.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOutputImageRotationEnabled-boolean-"></a><a name="setoutputimagerotationenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOutputImageRotationEnabled(boolean)" data-text="setOutputImageRotationEnabled" tabindex="-1">setOutputImageRotationEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;23)<br>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setOutputImageRotationEnabled(boolean)">setOutputImageRotationEnabled</a>(boolean&nbsp;outputImageRotationEnabled)</pre></devsite-code>
+        <p>Enable or disable output image rotation. </p>
+        <p>On API 22 and below, this API has no effect. User needs to handle the image rotation based on the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageInfo#getRotationDegrees()">getRotationDegrees</a></code>. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#setTargetRotation(int)">setTargetRotation</a></code> is to adjust the rotation degree information returned by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageInfo#getRotationDegrees()">getRotationDegrees</a></code> based on sensor rotation and user still needs to rotate the output image to achieve the target rotation. Once this is enabled, user doesn't need to handle the rotation, the output image will be a rotated <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageProxy">ImageProxy</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageInfo#getRotationDegrees()">getRotationDegrees</a></code> will return 0. </p>
+        <p>Turning this on will add more processing overhead to every image analysis frame. The average processing time is about 10-15ms for 640x480 image on a mid-range device. By default, the rotation is disabled.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean&nbsp;outputImageRotationEnabled</code></td>
+                <td>
+                  <p>flag to enable or disable.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/#imageanalysis&quot;&gt;ImageAnalysis&lt;/a&gt;"></a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setResolutionSelector-androidx.camera.core.resolutionselector.ResolutionSelector-"></a><a name="setresolutionselector"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)" data-text="setResolutionSelector" tabindex="-1">setResolutionSelector</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)">setResolutionSelector</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a>&nbsp;resolutionSelector)</pre></devsite-code>
+        <p>Sets the resolution selector to select the preferred supported resolution. </p>
+        <p>ImageAnalysis has a default <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionStrategy">ResolutionStrategy</a></code> with bound size as 640x480 and fallback rule of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionStrategy#FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER()">FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER</a></code>. Applications can override this default strategy with a different resolution strategy. </p>
+        <p>When using the <code translate="no" dir="ltr">camera-camera2</code> CameraX implementation, which resolution is finally selected depends on the camera device's hardware level, capabilities and the bound use cases combination. The device hardware level and capabilities information can be retrieved via the interop class <code translate="no" dir="ltr"><a href="/reference/androidx/camera/camera2/interop/Camera2CameraInfo#getCameraCharacteristic(android.hardware.camera2.CameraCharacteristics.Key&lt;T&gt;)">getCameraCharacteristic</a></code> with <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#INFO_SUPPORTED_HARDWARE_LEVEL()">INFO_SUPPORTED_HARDWARE_LEVEL</a></code> and <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#REQUEST_AVAILABLE_CAPABILITIES()">REQUEST_AVAILABLE_CAPABILITIES</a></code>. </p>
+        <p>A <code translate="no" dir="ltr">LIMITED-level</code> above device can support a <code translate="no" dir="ltr">RECORD</code> size resolution for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> when it is bound together with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>. The trade-off is the selected resolution for the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> is also restricted by the <code translate="no" dir="ltr">RECORD</code> size. To successfully select a <code translate="no" dir="ltr">RECORD</code> size resolution for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>, a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionStrategy">ResolutionStrategy</a></code> of selecting <code translate="no" dir="ltr">RECORD</code> size resolution should be set on both <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>. This indicates that the application clearly understand the trade-off and prefer the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> to have a larger resolution rather than the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> to have a <code translate="no" dir="ltr">MAXIMUM
+</code> size resolution. For the definitions of <code translate="no" dir="ltr">RECORD</code>, <code translate="no" dir="ltr">MAXIMUM</code> sizes and more details see the <a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice#regular-capture">Regular capture</a> section in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice.html">android.hardware.camera2.CameraDevice</a></code>'s. The <code translate="no" dir="ltr">RECORD</code> size refers to the camera device's maximum supported recording resolution, as determined by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/CamcorderProfile.html">CamcorderProfile</a></code>. The <code translate="no" dir="ltr">MAXIMUM</code> size refers to the camera device's maximum output resolution for that format or target from getOutputSizes. </p>
+        <p>The existing <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetResolution(android.util.Size)">setTargetResolution</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetAspectRatio(int)">setTargetAspectRatio</a></code> APIs are deprecated and are not compatible with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)">setResolutionSelector</a></code>. Calling either of these APIs together with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector)">setResolutionSelector</a></code> will result in an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">IllegalArgumentException</a></code> being thrown when you attempt to build the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setTargetAspectRatio-int-"></a><a name="settargetaspectratio"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setTargetAspectRatio(int)" data-text="setTargetAspectRatio" tabindex="-1">setTargetAspectRatio</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<span><del><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetAspectRatio(int)">setTargetAspectRatio</a></del></span>(int&nbsp;aspectRatio)</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>
+          <p>use <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/AspectRatioStrategy">AspectRatioStrategy</a></code> to specify the preferred aspect ratio settings instead.</p>
+        </aside>
+        <p>Sets the aspect ratio of the intended target for images from this configuration. </p>
+        <p>The aspect ratio is the ratio of width to height in the sensor orientation. </p>
+        <p>It is not allowed to set both target aspect ratio and target resolution on the same use case. Attempting so will throw an IllegalArgumentException when building the Config. </p>
+        <p>The target aspect ratio is used as a hint when determining the resulting output aspect ratio which may differ from the request, possibly due to device constraints. Application code should check the resulting output's resolution and the resulting aspect ratio may not be exactly as requested. </p>
+        <p>If not set, or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/AspectRatio#RATIO_DEFAULT()">RATIO_DEFAULT</a></code> is supplied, resolutions with aspect ratio 4:3 will be considered in higher priority.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;aspectRatio</code></td>
+                <td>
+                  <p>The desired ImageAnalysis <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/AspectRatio">AspectRatio</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setTargetName-java.lang.String-"></a><a name="settargetname"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setTargetName(java.lang.String)" data-text="setTargetName" tabindex="-1">setTargetName</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetName(java.lang.String)">setTargetName</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;targetName)</pre></devsite-code>
+        <p>Sets the name of the target object being configured, used only for debug logging. </p>
+        <p>The name should be a value that can uniquely identify an instance of the object being configured. </p>
+        <p>If not set, the target name will default to a unique name automatically generated with the class canonical name and random UUID.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;targetName</code></td>
+                <td>
+                  <p>A unique string identifier for the instance of the class being configured.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>the current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setTargetResolution-android.util.Size-"></a><a name="settargetresolution"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setTargetResolution(android.util.Size)" data-text="setTargetResolution" tabindex="-1">setTargetResolution</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<span><del><a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetResolution(android.util.Size)">setTargetResolution</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Size.html">Size</a>&nbsp;resolution)</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>
+          <p>use <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionSelector">ResolutionSelector</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/resolutionselector/ResolutionStrategy">ResolutionStrategy</a></code> to specify the preferred resolution settings instead.</p>
+        </aside>
+        <p>Sets the resolution of the intended target from this configuration. </p>
+        <p>The target resolution attempts to establish a minimum bound for the image resolution. The actual image resolution will be the closest available resolution in size that is not smaller than the target resolution, as determined by the Camera implementation. However, if no resolution exists that is equal to or larger than the target resolution, the nearest available resolution smaller than the target resolution will be chosen. Resolutions with the same aspect ratio of the provided <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/util/Size.html">Size</a></code> will be considered in higher priority before resolutions of different aspect ratios. </p>
+        <p>It is not allowed to set both target aspect ratio and target resolution on the same use case. Attempting so will throw an IllegalArgumentException when building the Config. </p>
+        <p>The resolution <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/util/Size.html">Size</a></code> should be expressed in the coordinate frame after rotating the supported sizes by the target rotation. For example, a device with portrait natural orientation in natural target rotation requesting a portrait image may specify 480x640, and the same device, rotated 90 degrees and targeting landscape orientation may specify 640x480. </p>
+        <p>If not set, resolution of 640x480 will be selected to use in priority. </p>
+        <p>When using the <code translate="no" dir="ltr">camera-camera2</code> CameraX implementation, which resolution will be finally selected will depend on the camera device's hardware level and the bound use cases combination. The device hardware level information can be retrieved by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#INFO_SUPPORTED_HARDWARE_LEVEL()">INFO_SUPPORTED_HARDWARE_LEVEL</a></code> from the interop class getCameraCharacteristic. A <code translate="no" dir="ltr">LIMITED-level</code> above device can support a <code translate="no" dir="ltr">RECORD</code> size resolution for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> when it is bound together with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code>. The trade-off is the selected resolution for the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> will also be restricted by the <code translate="no" dir="ltr">RECORD</code> size. To successfully select a <code translate="no" dir="ltr">RECORD</code> size resolution for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>, a <code translate="no" dir="ltr">RECORD</code> size target resolution should be set on both <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>. This indicates that the application clearly understand the trade-off and prefer the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> to have a larger resolution rather than the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageCapture">ImageCapture</a></code> to have a <code translate="no" dir="ltr">MAXIMUM</code> size resolution. For the definitions of <code translate="no" dir="ltr">RECORD</code>, <code translate="no" dir="ltr">MAXIMUM</code> sizes and more details see the <a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice#regular-capture">Regular capture</a> section in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraDevice.html">android.hardware.camera2.CameraDevice</a></code>'s. The <code translate="no" dir="ltr">RECORD</code> size refers to the camera device's maximum supported recording resolution, as determined by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/CamcorderProfile.html">CamcorderProfile</a></code>. The <code translate="no" dir="ltr">MAXIMUM</code> size refers to the camera device's maximum output resolution for that format or target from getOutputSizes.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Size.html">Size</a>&nbsp;resolution</code></td>
+                <td>
+                  <p>The target resolution to choose from supported output sizes list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setTargetRotation-int-"></a><a name="settargetrotation"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setTargetRotation(int)" data-text="setTargetRotation" tabindex="-1">setTargetRotation</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a>&nbsp;<a href="/reference/androidx/camera/core/ImageAnalysis.Builder#setTargetRotation(int)">setTargetRotation</a>(int&nbsp;rotation)</pre></devsite-code>
+        <p>Sets the rotation of the intended target for images from this configuration. </p>
+        <p>This adjust the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageInfo#getRotationDegrees()">getRotationDegrees</a></code> of the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageProxy">ImageProxy</a></code> passed to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis.Analyzer#analyze(androidx.camera.core.ImageProxy)">analyze</a></code>. The rotation value of ImageInfo will be the rotation, which if applied to the output image, will make the image match target rotation specified here. </p>
+        <p>This is one of four valid values: <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_0()">ROTATION_0</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_90()">ROTATION_90</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_180()">ROTATION_180</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_270()">ROTATION_270</a></code>. Rotation values are relative to the &quot;natural&quot; rotation, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_0()">ROTATION_0</a></code>. </p>
+        <p>In general, it is best to additionally set the target rotation dynamically on the use case. See <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#setTargetRotation(int)">setTargetRotation</a></code> for additional documentation. </p>
+        <p>If not set, the target rotation will default to the value of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Display.html#getRotation()">getRotation</a></code> of the default display at the time the use case is created. The use case is fully created once it has been attached to a camera.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;rotation</code></td>
+                <td>
+                  <p>The rotation of the intended target.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/ImageAnalysis.Builder">ImageAnalysis.Builder</a></code></td>
+                <td>
+                  <p>The current Builder.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis#setTargetRotation(int)">setTargetRotation</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/OrientationEventListener.html">OrientationEventListener</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

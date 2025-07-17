@@ -1,1 +1,982 @@
-<html><head><title>Class Documentation</title></head><body>SplitAttributes.SplitType Artifact: androidx.window:window View Source Added in 1.1.0 Kotlin | Java public final class SplitAttributes.SplitType The type of parent window split, which defines the proportion of the parent window occupied by the primary and secondary activity containers. Summary Public fields static&nbsp;final @ NonNull SplitAttributes.SplitType SPLIT_TYPE_EQUAL A split type in which the primary and secondary containers occupy equal portions of the parent window. static&nbsp;final @ NonNull SplitAttributes.SplitType SPLIT_TYPE_EXPAND A split type in which the primary and secondary activity containers each expand to fill the parent window; the secondary container overlays the primary container. static&nbsp;final @ NonNull SplitAttributes.SplitType SPLIT_TYPE_HINGE A split type in which the split ratio conforms to the position of a hinge or separating fold in the device display. Public methods boolean equals ( Object &nbsp;other) Determines whether this object is the same type of split as the compared object. int hashCode () Returns a hash code for this split type. static&nbsp;final @ NonNull SplitAttributes.SplitType ratio ( &nbsp;&nbsp;&nbsp;&nbsp;@ FloatRange (from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio ) Creates a split type based on the proportion of the parent window occupied by the primary container of the split. @ NonNull String toString () A string representation of this split type. Public fields SPLIT_TYPE_EQUAL public&nbsp;static&nbsp;final&nbsp;@ NonNull SplitAttributes.SplitType &nbsp; SPLIT_TYPE_EQUAL A split type in which the primary and secondary containers occupy equal portions of the parent window. Serves as the default SplitType . SPLIT_TYPE_EXPAND public&nbsp;static&nbsp;final&nbsp;@ NonNull SplitAttributes.SplitType &nbsp; SPLIT_TYPE_EXPAND A split type in which the primary and secondary activity containers each expand to fill the parent window; the secondary container overlays the primary container. It is useful to use this SplitType with the function set in SplitController.setSplitAttributesCalculator to expand the activity containers in some device or window states. The following sample shows how to always fill the parent bounds if the device is in portrait orientation: import androidx.window.embedding.SplitAttributes import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND import androidx.window.embedding.SplitController SplitController . getInstance ( context ). setSplitAttributesCalculator { params - &gt; // A sample to always fill task bounds when the device is in portrait. val tag = params . splitRuleTag val bounds = params . parentWindowMetrics . bounds val defaultSplitAttributes = params . defaultSplitAttributes val areDefaultConstraintsSatisfied = params . areDefaultConstraintsSatisfied val expandContainersAttrs = SplitAttributes . Builder (). setSplitType ( SPLIT_TYPE_EXPAND ). build () if ( ! areDefaultConstraintsSatisfied ) { return @setSplitAttributesCalculator expandContainersAttrs } // Always expand containers for the splitRule tagged as // TAG_SPLIT_RULE_EXPAND_IN_PORTRAIT if the device is in portrait // even if [areDefaultConstraintsSatisfied] reports true. if ( bounds . height () &gt; bounds . width () &amp;&amp; TAG_SPLIT_RULE_EXPAND_IN_PORTRAIT == tag ) { return @setSplitAttributesCalculator expandContainersAttrs } // Otherwise, use the default splitAttributes. return @setSplitAttributesCalculator defaultSplitAttributes } SPLIT_TYPE_HINGE public&nbsp;static&nbsp;final&nbsp;@ NonNull SplitAttributes.SplitType &nbsp; SPLIT_TYPE_HINGE A split type in which the split ratio conforms to the position of a hinge or separating fold in the device display. The split type works only if: The host task is not in multi-window mode (e.g., split-screen mode or picture-in-picture mode) The device has a hinge or separating fold reported by [androidx.window.layout.FoldingFeature.isSeparating] The hinge or separating fold orientation matches how the parent bounds are split: The hinge or fold orientation is vertical, and the parent bounds are also split vertically (containers are side by side) The hinge or fold orientation is horizontal, and the parent bounds are also split horizontally (containers are top and bottom) Otherwise, this SplitType fallback to show the split with SPLIT_TYPE_EQUAL . If the app wants to have another fallback SplitType if SPLIT_TYPE_HINGE cannot be applied. It is suggested to use SplitController.setSplitAttributesCalculator to customize the fallback SplitType . The following sample shows how to fallback to SPLIT_TYPE_EXPAND if there's no hinge area in the parent window container bounds. import androidx.window.embedding.SplitAttributes import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_HINGE import androidx.window.embedding.SplitController import androidx.window.layout.FoldingFeature SplitController . getInstance ( context ). setSplitAttributesCalculator { params - &gt; SplitAttributes . Builder () . setSplitType ( if ( params . parentWindowLayoutInfo . displayFeatures . filterIsInstance&lt;FoldingFeature&gt; () . isNotEmpty () ) { SPLIT_TYPE_HINGE } else { SPLIT_TYPE_EXPAND } ) . build () } Public methods equals public&nbsp;boolean&nbsp; equals ( Object &nbsp;other) Determines whether this object is the same type of split as the compared object. Parameters Object &nbsp;other The object to compare to this object. Returns boolean True if the objects are the same split type, false otherwise. hashCode public&nbsp;int&nbsp; hashCode () Returns a hash code for this split type. Returns int The hash code for this object. ratio Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;@ NonNull SplitAttributes.SplitType &nbsp; ratio ( &nbsp;&nbsp;&nbsp;&nbsp;@ FloatRange (from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio ) Creates a split type based on the proportion of the parent window occupied by the primary container of the split. Values in the non-inclusive range (0.0, 1.0) define the size of the primary container relative to the size of the parent window: 0.5 — Primary container occupies half of the parent window; secondary container, the other half > 0.5 — Primary container occupies a larger proportion of the parent window than the secondary container Parameters @ FloatRange (from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio The proportion of the parent window occupied by the primary container of the split. Returns @ NonNull SplitAttributes.SplitType An instance of SplitType with the specified ratio. toString public&nbsp;@ NonNull String &nbsp; toString () A string representation of this split type. Returns @ NonNull String The string representation of the object.</body></html>
+<html><head><title>SplitAttributes.SplitType</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SplitAttributes.SplitType">
+      <meta itemprop="path" content="androidx.window.embedding">
+      <meta itemprop="property" content="equals(kotlin.Any)">
+      <meta itemprop="property" content="hashCode()">
+      <meta itemprop="property" content="ratio(kotlin.Float)">
+      <meta itemprop="property" content="toString()">
+      <meta itemprop="property" content="SPLIT_TYPE_EQUAL()">
+      <meta itemprop="property" content="SPLIT_TYPE_EXPAND()">
+      <meta itemprop="property" content="SPLIT_TYPE_HINGE()">
+      <meta itemprop="property" content="ratio(kotlin.Float)">
+      <meta itemprop="property" content="SPLIT_TYPE_EQUAL()">
+      <meta itemprop="property" content="SPLIT_TYPE_EXPAND()">
+      <meta itemprop="property" content="SPLIT_TYPE_HINGE()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="splitattributes.splittype" data-text="SplitAttributes.SplitType" tabindex="-1">SplitAttributes.SplitType</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/window">androidx.window:window</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/window/embedding/SplitAttributes.kt+class:androidx.window.embedding.SplitAttributes.SplitType" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/window/embedding/SplitAttributes.SplitType" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>The type of parent window split, which defines the proportion of the parent window occupied by the primary and secondary activity containers.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-fields" data-text="Public fields" tabindex="-1">Public fields</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EQUAL()">SPLIT_TYPE_EQUAL</a></code></div>
+              <p>A split type in which the primary and secondary containers occupy equal portions of the parent window.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EXPAND()">SPLIT_TYPE_EXPAND</a></code></div>
+              <p>A split type in which the primary and secondary activity containers each expand to fill the parent window; the secondary container overlays the primary container.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_HINGE()">SPLIT_TYPE_HINGE</a></code></div>
+              <p>A split type in which the split ratio conforms to the position of a hinge or separating fold in the device display.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#equals(kotlin.Any)">equals</a>(<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;other)</code></div>
+              <p>Determines whether this object is the same type of split as the compared object.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#hashCode()">hashCode</a>()</code></div>
+              <p>Returns a hash code for this split type.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#ratio(kotlin.Float)">ratio</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/FloatRange">FloatRange</a>(from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio<br>)</code></div>
+              <p>Creates a split type based on the proportion of the parent window occupied by the primary container of the split.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#toString()">toString</a>()</code></div>
+              <p>A string representation of this split type.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-fields_1" data-text="Public fields" tabindex="-1">Public fields</h2>
+      <div class="api-item"><a name="getSPLIT_TYPE_EQUAL()"></a><a name="setSPLIT_TYPE_EQUAL()"></a><a name="getSPLIT_TYPE_EQUAL--"></a><a name="setSPLIT_TYPE_EQUAL--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SPLIT_TYPE_EQUAL()" data-text="SPLIT_TYPE_EQUAL" tabindex="-1">SPLIT_TYPE_EQUAL</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EQUAL()">SPLIT_TYPE_EQUAL</a></pre></devsite-code>
+        <p>A split type in which the primary and secondary containers occupy equal portions of the parent window.</p>
+        <p>Serves as the default <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitType</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getSPLIT_TYPE_EXPAND()"></a><a name="setSPLIT_TYPE_EXPAND()"></a><a name="getSPLIT_TYPE_EXPAND--"></a><a name="setSPLIT_TYPE_EXPAND--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SPLIT_TYPE_EXPAND()" data-text="SPLIT_TYPE_EXPAND" tabindex="-1">SPLIT_TYPE_EXPAND</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EXPAND()">SPLIT_TYPE_EXPAND</a></pre></devsite-code>
+        <p>A split type in which the primary and secondary activity containers each expand to fill the parent window; the secondary container overlays the primary container.</p>
+        <p>It is useful to use this <code translate="no" dir="ltr">SplitType</code> with the function set in <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">SplitController.setSplitAttributesCalculator</a></code> to expand the activity containers in some device or window states. The following sample shows how to always fill the parent bounds if the device is in portrait orientation:</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitController</span>
+
+<span class="devsite-syntax-n">SplitController</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// A sample to always fill task bounds when the device is in portrait.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">tag</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">splitRuleTag</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">bounds</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">parentWindowMetrics</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">bounds</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">defaultSplitAttributes</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">defaultSplitAttributes</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">areDefaultConstraintsSatisfied</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">areDefaultConstraintsSatisfied</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">expandContainersAttrs</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">setSplitType</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">SPLIT_TYPE_EXPAND</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-o">!</span><span class="devsite-syntax-n">areDefaultConstraintsSatisfied</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">expandContainersAttrs</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Always expand containers for the splitRule tagged as</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// TAG_SPLIT_RULE_EXPAND_IN_PORTRAIT if the device is in portrait</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// even if [areDefaultConstraintsSatisfied] reports true.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">bounds</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">height</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> &gt; </span><span class="devsite-syntax-n">bounds</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">width</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> &amp;&amp; </span><span class="devsite-syntax-n">TAG_SPLIT_RULE_EXPAND_IN_PORTRAIT</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">tag</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">expandContainersAttrs</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Otherwise, use the default splitAttributes.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">defaultSplitAttributes</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="getSPLIT_TYPE_HINGE()"></a><a name="setSPLIT_TYPE_HINGE()"></a><a name="getSPLIT_TYPE_HINGE--"></a><a name="setSPLIT_TYPE_HINGE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SPLIT_TYPE_HINGE()" data-text="SPLIT_TYPE_HINGE" tabindex="-1">SPLIT_TYPE_HINGE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_HINGE()">SPLIT_TYPE_HINGE</a></pre></devsite-code>
+        <p>A split type in which the split ratio conforms to the position of a hinge or separating fold in the device display.</p>
+        <p>The split type works only if:</p>
+<ul>
+<li>The host task is not in multi-window mode (e.g., split-screen mode or
+picture-in-picture mode)</li>
+<li>The device has a hinge or separating fold reported by
+[androidx.window.layout.FoldingFeature.isSeparating]</li>
+<li>The hinge or separating fold orientation matches how the parent bounds are split:
+<ul style="list-style-type: circle;">
+<li>The hinge or fold orientation is vertical, and the parent bounds are also split
+vertically (containers are side by side)</li>
+<li>The hinge or fold orientation is horizontal, and the parent bounds are also split
+horizontally (containers are top and bottom)</li>
+</ul></li> </ul>        <p>Otherwise, this <code translate="no" dir="ltr">SplitType</code> fallback to show the split with <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EQUAL()">SPLIT_TYPE_EQUAL</a></code>.</p>
+        <p>If the app wants to have another fallback <code translate="no" dir="ltr">SplitType</code> if <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_HINGE()">SPLIT_TYPE_HINGE</a></code> cannot be applied. It is suggested to use <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">SplitController.setSplitAttributesCalculator</a></code> to customize the fallback <code translate="no" dir="ltr">SplitType</code>.</p>
+        <p>The following sample shows how to fallback to <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#SPLIT_TYPE_EXPAND()">SPLIT_TYPE_EXPAND</a></code> if there's no hinge area in the parent window container bounds.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_HINGE</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitController</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.layout.FoldingFeature</span>
+
+<span class="devsite-syntax-n">SplitController</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setSplitType</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">parentWindowLayoutInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">displayFeatures</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">filterIsInstance&lt;FoldingFeature&gt;</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">isNotEmpty</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">SPLIT_TYPE_HINGE</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">SPLIT_TYPE_EXPAND</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="equals-kotlin.Any-"></a><a name="equals"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="equals(kotlin.Any)" data-text="equals" tabindex="-1">equals</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#equals(kotlin.Any)">equals</a>(<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;other)</pre></devsite-code>
+        <p>Determines whether this object is the same type of split as the compared object.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;other</code></td>
+                <td>
+                  <p>The object to compare to this object.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>True if the objects are the same split type, false otherwise.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="hashCode--"></a><a name="hashcode"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hashCode()" data-text="hashCode" tabindex="-1">hashCode</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#hashCode()">hashCode</a>()</pre></devsite-code>
+        <p>Returns a hash code for this split type.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The hash code for this object.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="ratio-kotlin.Float-"></a><a name="ratio"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ratio(kotlin.Float)" data-text="ratio" tabindex="-1">ratio</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#ratio(kotlin.Float)">ratio</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/FloatRange">FloatRange</a>(from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio<br>)</pre></devsite-code>
+        <p>Creates a split type based on the proportion of the parent window occupied by the primary container of the split.</p>
+        <p>Values in the non-inclusive range (0.0, 1.0) define the size of the primary container relative to the size of the parent window:</p>
+        <ul>
+          <li>
+            <p>0.5 — Primary container occupies half of the parent window; secondary container, the other half</p>
+          </li>
+          <li>
+            <p>> 0.5 — Primary container occupies a larger proportion of the parent window than the secondary container</p>
+          </li>
+          <li>
+            <p>< 0.5 — Primary container occupies a smaller proportion of the parent window than the secondary container</p>
+          </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/FloatRange">FloatRange</a>(from&nbsp;=&nbsp;0.0,&nbsp;to&nbsp;=&nbsp;1.0,&nbsp;fromInclusive&nbsp;=&nbsp;false,&nbsp;toInclusive&nbsp;=&nbsp;false) float&nbsp;ratio</code></td>
+                <td>
+                  <p>The proportion of the parent window occupied by the primary container of the split.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes.SplitType">SplitAttributes.SplitType</a></code></td>
+                <td>
+                  <p>An instance of <code translate="no" dir="ltr">SplitType</code> with the specified ratio.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="toString--"></a><a name="tostring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="toString()" data-text="toString" tabindex="-1">toString</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitAttributes.SplitType#toString()">toString</a>()</pre></devsite-code>
+        <p>A string representation of this split type.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+                <td>
+                  <p>The string representation of the object.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

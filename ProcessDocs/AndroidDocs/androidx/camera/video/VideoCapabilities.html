@@ -1,1 +1,912 @@
-<html><head><title>Class Documentation</title></head><body>VideoCapabilities Artifact: androidx.camera:camera-video View Source Added in 1.3.0 Kotlin | Java public interface VideoCapabilities VideoCapabilities is used to query video recording capabilities on the device. Take Recorder as an example, the supported DynamicRange s can be queried with the following code: VideoCapabilities videoCapabilities = Recorder . getVideoCapabilities ( cameraInfo ); Set&lt;DynamicRange&gt; supportedDynamicRanges = videoCapabilities . getSupportedDynamicRanges (); The query result can be used to check if high dynamic range (HDR) recording is supported, and to get the supported qualities of the target DynamicRange : List&lt;Quality&gt; supportedQualities = videoCapabilities.getSupportedQualities(dynamicRange); Summary Public methods abstract @ NonNull Set &lt; DynamicRange &gt; getSupportedDynamicRanges () Gets all dynamic ranges supported by both the camera and video output. abstract @ NonNull List &lt; Quality &gt; getSupportedQualities (@ NonNull DynamicRange &nbsp;dynamicRange) Gets all supported qualities for the input dynamic range. abstract boolean isQualitySupported ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Quality &nbsp;quality, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull DynamicRange &nbsp;dynamicRange ) Checks if the quality is supported for the input dynamic range. default boolean isStabilizationSupported () Returns if video stabilization is supported on the device. Public methods getSupportedDynamicRanges Added in 1.3.0 abstract&nbsp;@ NonNull Set &lt; DynamicRange &gt;&nbsp; getSupportedDynamicRanges () Gets all dynamic ranges supported by both the camera and video output. Only DynamicRange s with specified values both in DynamicRange.BitDepth and DynamicRange.DynamicRangeEncoding will be present in the returned set. DynamicRange s such as HDR_UNSPECIFIED_10_BIT will not be included, but they can be used in other methods, such as checking for quality support with isQualitySupported . Returns @ NonNull Set &lt; DynamicRange &gt; a set of supported dynamic ranges. getSupportedQualities Added in 1.3.0 abstract&nbsp;@ NonNull List &lt; Quality &gt;&nbsp; getSupportedQualities (@ NonNull DynamicRange &nbsp;dynamicRange) Gets all supported qualities for the input dynamic range. The returned list is sorted by quality size from largest to smallest. For the qualities in the returned list, with the same input dynamicRange, isQualitySupported will return true . When the dynamicRange is not fully specified, e.g. HDR_UNSPECIFIED_10_BIT , the returned list is the union of the qualities supported by the matching fully specified dynamic ranges. This does not mean that all returned qualities are available for every matching dynamic range. Therefore, it is not recommended to rely on any one particular quality to work if mixing use cases with other dynamic ranges. Note: Constants HIGHEST and LOWEST are not included in the returned list, but their corresponding qualities are included. For example: when the returned list consists of UHD , FHD and HD , HIGHEST corresponds to UHD , which is the highest quality, and LOWEST corresponds to HD . Parameters @ NonNull DynamicRange &nbsp;dynamicRange the dynamicRange. Returns @ NonNull List &lt; Quality &gt; a list of supported qualities sorted by size from large to small. isQualitySupported Added in 1.3.0 abstract&nbsp;boolean&nbsp; isQualitySupported ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Quality &nbsp;quality, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull DynamicRange &nbsp;dynamicRange ) Checks if the quality is supported for the input dynamic range. Calling this method with one of the qualities contained in the returned list of getSupportedQualities will return true . Possible values for quality include LOWEST , HIGHEST , SD , HD , FHD and UHD . If this method is called with LOWEST or HIGHEST , it will return true except the case that none of the qualities can be supported. When the dynamicRange is not fully specified, e.g. HDR_UNSPECIFIED_10_BIT , true will be returned if there is any matching fully specified dynamic range supporting the quality , otherwise false will be returned. Parameters @ NonNull Quality &nbsp;quality one of the quality constants. @ NonNull DynamicRange &nbsp;dynamicRange the dynamicRange. Returns boolean true if the quality is supported; false otherwise. See also getSupportedQualities isStabilizationSupported Added in 1.4.0 default&nbsp;boolean&nbsp; isStabilizationSupported () Returns if video stabilization is supported on the device. Video stabilization can be turned on via setVideoStabilizationEnabled . Not all recording sizes or frame rates may be supported for stabilization by a device that reports stabilization support. It is guaranteed that an output targeting a MediaRecorder or MediaCodec will be stabilized if the recording resolution is less than or equal to 1920 x 1080 (width less than or equal to 1920, height less than or equal to 1080), and the recording frame rate is less than or equal to 30fps. At other sizes, the video stabilization will not take effect. Returns boolean true if CONTROL_VIDEO_STABILIZATION_MODE_ON is supported, otherwise false. See also setVideoStabilizationEnabled CONTROL_VIDEO_STABILIZATION_MODE</body></html>
+<html><head><title>VideoCapabilities</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="VideoCapabilities">
+      <meta itemprop="path" content="androidx.camera.video">
+      <meta itemprop="property" content="getSupportedDynamicRanges()">
+      <meta itemprop="property" content="getSupportedQualities(androidx.camera.core.DynamicRange)">
+      <meta itemprop="property" content="isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)">
+      <meta itemprop="property" content="isStabilizationSupported()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="videocapabilities" data-text="VideoCapabilities" tabindex="-1">VideoCapabilities</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-video</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/video/VideoCapabilities.java+class:androidx.camera.video.VideoCapabilities" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/video/VideoCapabilities" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public interface <a href="/reference/androidx/camera/video/VideoCapabilities">VideoCapabilities</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>VideoCapabilities is used to query video recording capabilities on the device. </p>
+    <p>Take <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> as an example, the supported <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code>s can be queried with the following code: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="POVRay"><span class="devsite-syntax-w">  </span><span class="devsite-syntax-n">VideoCapabilities</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">videoCapabilities</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Recorder</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">getVideoCapabilities</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cameraInfo</span><span class="devsite-syntax-p">);</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-n">Set&lt;DynamicRange&gt;</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">supportedDynamicRanges</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">videoCapabilities</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-n">getSupportedDynamicRanges</span><span class="devsite-syntax-p">();</span></pre></devsite-code>
+    <p>The query result can be used to check if high dynamic range (HDR) recording is supported, and to get the supported qualities of the target <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code>: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">  List&lt;Quality&gt; supportedQualities = videoCapabilities.getSupportedQualities(dynamicRange);</pre></devsite-code>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedDynamicRanges()">getSupportedDynamicRanges</a>()</code></div>
+              <p>Gets all dynamic ranges supported by both the camera and video output.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/video/Quality">Quality</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedQualities(androidx.camera.core.DynamicRange)">getSupportedQualities</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange)</code></div>
+              <p>Gets all supported qualities for the input dynamic range.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)">isQualitySupported</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/Quality">Quality</a>&nbsp;quality,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange<br>)</code></div>
+              <p>Checks if the quality is supported for the input dynamic range.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#isStabilizationSupported()">isStabilizationSupported</a>()</code></div>
+              <p>Returns if video stabilization is supported on the device.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getSupportedDynamicRanges--"></a><a name="getsupporteddynamicranges"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSupportedDynamicRanges()" data-text="getSupportedDynamicRanges" tabindex="-1">getSupportedDynamicRanges</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&gt;&nbsp;<a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedDynamicRanges()">getSupportedDynamicRanges</a>()</pre></devsite-code>
+        <p>Gets all dynamic ranges supported by both the camera and video output. </p>
+        <p>Only <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code>s with specified values both in <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange.BitDepth">DynamicRange.BitDepth</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange.DynamicRangeEncoding">DynamicRange.DynamicRangeEncoding</a></code> will be present in the returned set. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code>s such as <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#HDR_UNSPECIFIED_10_BIT()">HDR_UNSPECIFIED_10_BIT</a></code> will not be included, but they can be used in other methods, such as checking for quality support with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)">isQualitySupported</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&gt;</code></td>
+                <td>
+                  <p>a set of supported dynamic ranges.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSupportedQualities-androidx.camera.core.DynamicRange-"></a><a name="getsupportedqualities"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSupportedQualities(androidx.camera.core.DynamicRange)" data-text="getSupportedQualities" tabindex="-1">getSupportedQualities</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/video/Quality">Quality</a>&gt;&nbsp;<a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedQualities(androidx.camera.core.DynamicRange)">getSupportedQualities</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange)</pre></devsite-code>
+        <p>Gets all supported qualities for the input dynamic range. </p>
+        <p>The returned list is sorted by quality size from largest to smallest. For the qualities in the returned list, with the same input dynamicRange, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)">isQualitySupported</a></code> will return <code translate="no" dir="ltr">true</code>. </p>
+        <p>When the <code translate="no" dir="ltr">dynamicRange</code> is not fully specified, e.g. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#HDR_UNSPECIFIED_10_BIT()">HDR_UNSPECIFIED_10_BIT</a></code>, the returned list is the union of the qualities supported by the matching fully specified dynamic ranges. This does not mean that all returned qualities are available for every matching dynamic range. Therefore, it is not recommended to rely on any one particular quality to work if mixing use cases with other dynamic ranges. </p>
+        <p>Note: Constants <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HIGHEST()">HIGHEST</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#LOWEST()">LOWEST</a></code> are not included in the returned list, but their corresponding qualities are included. For example: when the returned list consists of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#UHD()">UHD</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#FHD()">FHD</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HD()">HD</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HIGHEST()">HIGHEST</a></code> corresponds to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#UHD()">UHD</a></code>, which is the highest quality, and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#LOWEST()">LOWEST</a></code> corresponds to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HD()">HD</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange</code></td>
+                <td>
+                  <p>the dynamicRange.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/camera/video/Quality">Quality</a>&gt;</code></td>
+                <td>
+                  <p>a list of supported qualities sorted by size from large to small.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isQualitySupported(androidx.camera.video.Quality, androidx.camera.core.DynamicRange)"></a><a name="isQualitySupported-androidx.camera.video.Quality-androidx.camera.core.DynamicRange-"></a><a name="isqualitysupported"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)" data-text="isQualitySupported" tabindex="-1">isQualitySupported</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/video/VideoCapabilities#isQualitySupported(androidx.camera.video.Quality,androidx.camera.core.DynamicRange)">isQualitySupported</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/Quality">Quality</a>&nbsp;quality,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange<br>)</pre></devsite-code>
+        <p>Checks if the quality is supported for the input dynamic range. </p>
+        <p>Calling this method with one of the qualities contained in the returned list of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedQualities(androidx.camera.core.DynamicRange)">getSupportedQualities</a></code> will return <code translate="no" dir="ltr">true</code>. </p>
+        <p>Possible values for <code translate="no" dir="ltr">quality</code> include <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#LOWEST()">LOWEST</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HIGHEST()">HIGHEST</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#SD()">SD</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HD()">HD</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#FHD()">FHD</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#UHD()">UHD</a></code>. </p>
+        <p>If this method is called with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#LOWEST()">LOWEST</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HIGHEST()">HIGHEST</a></code>, it will return <code translate="no" dir="ltr">true</code> except the case that none of the qualities can be supported. </p>
+        <p>When the <code translate="no" dir="ltr">dynamicRange</code> is not fully specified, e.g. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#HDR_UNSPECIFIED_10_BIT()">HDR_UNSPECIFIED_10_BIT</a></code>, <code translate="no" dir="ltr">true</code> will be returned if there is any matching fully specified dynamic range supporting the <code translate="no" dir="ltr">quality</code>, otherwise <code translate="no" dir="ltr">
+false</code> will be returned.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/Quality">Quality</a>&nbsp;quality</code></td>
+                <td>
+                  <p>one of the quality constants.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;dynamicRange</code></td>
+                <td>
+                  <p>the dynamicRange.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the quality is supported; <code translate="no" dir="ltr">false</code> otherwise.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapabilities#getSupportedQualities(androidx.camera.core.DynamicRange)">getSupportedQualities</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isStabilizationSupported--"></a><a name="isstabilizationsupported"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isStabilizationSupported()" data-text="isStabilizationSupported" tabindex="-1">isStabilizationSupported</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/video/VideoCapabilities#isStabilizationSupported()">isStabilizationSupported</a>()</pre></devsite-code>
+        <p>Returns if video stabilization is supported on the device. Video stabilization can be turned on via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setVideoStabilizationEnabled(boolean)">setVideoStabilizationEnabled</a></code>. </p>
+        <p>Not all recording sizes or frame rates may be supported for stabilization by a device that reports stabilization support. It is guaranteed that an output targeting a MediaRecorder or MediaCodec will be stabilized if the recording resolution is less than or equal to 1920 x 1080 (width less than or equal to 1920, height less than or equal to 1080), and the recording frame rate is less than or equal to 30fps. At other sizes, the video stabilization will not take effect.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraMetadata.html#CONTROL_VIDEO_STABILIZATION_MODE_ON()">CONTROL_VIDEO_STABILIZATION_MODE_ON</a></code> is supported, otherwise false.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setVideoStabilizationEnabled(boolean)">setVideoStabilizationEnabled</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CaptureRequest.html#CONTROL_VIDEO_STABILIZATION_MODE()">CONTROL_VIDEO_STABILIZATION_MODE</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

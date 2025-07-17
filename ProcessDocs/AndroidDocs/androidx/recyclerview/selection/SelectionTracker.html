@@ -1,1 +1,1288 @@
-<html><head><title>Class Documentation</title></head><body>SelectionTracker Artifact: androidx.recyclerview:recyclerview-selection View Source Added in 1.0.0 Kotlin | Java public abstract class SelectionTracker &lt;K&gt; SelectionTracker provides support for managing a selection of items in a RecyclerView instance. This class provides support for managing a &quot;primary&quot; set of selected items, in addition to a &quot;provisional&quot; set of selected items using conventional java.util.Collections -like methods. Create an instance of SelectionTracker using SelectionTracker.Builder . Inspecting the current selection The underlying selection is described by the Selection class. A live view of the current selection can be obtained using getSelection . Changes made to the selection using SelectionTracker will be immediately reflected in this instance. To obtain a stable snapshot of the selection use copySelection . Selection state for an individual item can be obtained using isSelected . Provisional Selection Provisional selection exists to address issues where a transitory selection might momentarily intersect with a previously established selection resulting in a some or all of the established selection being erased. Such situations may arise when band selection is being performed in &quot;additive&quot; mode (e.g. SHIFT or CTRL is pressed on the keyboard prior to mouse down), or when there's an active gesture selection (which can be initiated by long pressing an unselected item while there is an existing selection). A provisional selection can be abandoned, or merged into the primary selection. Enforcing selection policies Which items can be selected by the user is a matter of policy in an Application. Developers supply these policies by way of SelectionPredicate . Parameters &lt;K&gt; Selection key type. @see StorageStrategy for supported types. Summary Nested types public final class SelectionTracker.Builder &lt;K&gt; Builder is the primary mechanism for create a SelectionTracker that can be used with your RecyclerView. public abstract class SelectionTracker.SelectionObserver &lt;K&gt; Observer class providing access to information about Selection state changes. public abstract class SelectionTracker.SelectionPredicate &lt;K&gt; Implement SelectionPredicate to control when items can be selected or unselected. Constants static&nbsp;final String SELECTION_CHANGED_MARKER = &quot;Selection-Changed&quot; This value is included in the payload when SelectionTracker notifies RecyclerView of changes to selection. Public constructors SelectionTracker () Public methods abstract void addObserver (@ NonNull SelectionTracker.SelectionObserver &lt;K&gt;&nbsp;observer) Adds observer to be notified when changes to selection occur. abstract boolean clearSelection () Clears both primary and provisional selections. abstract void copySelection (@ NonNull MutableSelection &lt;K&gt;&nbsp;dest) Updates dest to reflect the current selection. abstract boolean deselect (@ NonNull K&nbsp;key) Attempts to deselect an item. abstract @ NonNull Selection &lt;K&gt; getSelection () Returns a Selection object that provides a live view on the current selection. abstract boolean hasSelection () abstract boolean isSelected (@ Nullable K&nbsp;key) abstract void onRestoreInstanceState (@ Nullable Bundle &nbsp;state) Restores selection from previously saved state. abstract void onSaveInstanceState (@ NonNull Bundle &nbsp;state) Preserves selection, if any. abstract boolean select (@ NonNull K&nbsp;key) Attempts to select an item. abstract boolean setItemsSelected (@ NonNull Iterable &lt;K&gt;&nbsp;keys,&nbsp;boolean&nbsp;selected) Sets the selected state of the specified items if permitted after consulting SelectionPredicate. Protected methods abstract void restoreSelection (@ NonNull Selection &lt;K&gt;&nbsp;selection) Restores the selected state of specified items. Constants SELECTION_CHANGED_MARKER Added in 1.0.0 public&nbsp;static&nbsp;final&nbsp; String &nbsp; SELECTION_CHANGED_MARKER = &quot;Selection-Changed&quot; This value is included in the payload when SelectionTracker notifies RecyclerView of changes to selection. Look for this value in the payload Object argument supplied to Adapter#onBindViewHolder. If present the call is occurring in response to a selection state change. This would be a good opportunity to animate changes between unselected and selected state. When state is being restored, this argument will not be present. Public constructors SelectionTracker Added in 1.0.0 public&nbsp; SelectionTracker () Public methods addObserver Added in 1.1.0 public&nbsp;abstract&nbsp;void&nbsp; addObserver (@ NonNull SelectionTracker.SelectionObserver &lt;K&gt;&nbsp;observer) Adds observer to be notified when changes to selection occur. Use an observer to track attributes about the selection and update the UI to reflect the state of the selection. For example, an author may use an observer to control the enabled status of menu items, or to initiate android.view.ActionMode . clearSelection Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; clearSelection () Clears both primary and provisional selections. Returns boolean true if primary selection changed. copySelection Added in 1.0.0 public&nbsp;abstract&nbsp;void&nbsp; copySelection (@ NonNull MutableSelection &lt;K&gt;&nbsp;dest) Updates dest to reflect the current selection. deselect Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; deselect (@ NonNull K&nbsp;key) Attempts to deselect an item. Returns boolean true if the item was deselected. False if the item could not be deselected, or was was already un-selected. getSelection Added in 1.0.0 public&nbsp;abstract&nbsp;@ NonNull Selection &lt;K&gt;&nbsp; getSelection () Returns a Selection object that provides a live view on the current selection. Returns @ NonNull Selection &lt;K&gt; The current selection. See also copySelection on how to get a snapshot of the selection that will not reflect future changes to selection. hasSelection Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; hasSelection () Returns boolean true if has a selection isSelected Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; isSelected (@ Nullable K&nbsp;key) Returns boolean true if the item specified by its id is selected. Shorthand for getSelection().contains(K) . onRestoreInstanceState Added in 1.0.0 public&nbsp;abstract&nbsp;void&nbsp; onRestoreInstanceState (@ Nullable Bundle &nbsp;state) Restores selection from previously saved state. Call this method from Activity#onCreate. Parameters @ Nullable Bundle &nbsp;state Bundle instance supplied to onCreate. onSaveInstanceState Added in 1.0.0 public&nbsp;abstract&nbsp;void&nbsp; onSaveInstanceState (@ NonNull Bundle &nbsp;state) Preserves selection, if any. Call this method from Activity#onSaveInstanceState Parameters @ NonNull Bundle &nbsp;state Bundle instance supplied to onSaveInstanceState. select Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; select (@ NonNull K&nbsp;key) Attempts to select an item. Returns boolean true if the item was selected. False if the item could not be selected, or was was already selected. setItemsSelected Added in 1.0.0 public&nbsp;abstract&nbsp;boolean&nbsp; setItemsSelected (@ NonNull Iterable &lt;K&gt;&nbsp;keys,&nbsp;boolean&nbsp;selected) Sets the selected state of the specified items if permitted after consulting SelectionPredicate. Protected methods restoreSelection Added in 1.0.0 protected&nbsp;abstract&nbsp;void&nbsp; restoreSelection (@ NonNull Selection &lt;K&gt;&nbsp;selection) Restores the selected state of specified items. Used in cases such as restore the selection after rotation etc. Provisional selection is not restored. This affords clients the ability to restore selection from selection saved in Activity state. Parameters @ NonNull Selection &lt;K&gt;&nbsp;selection selection being restored. See also StorageStrategy details on selection state support.</body></html>
+<html><head><title>SelectionTracker</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SelectionTracker">
+      <meta itemprop="path" content="androidx.recyclerview.selection">
+      <meta itemprop="property" content="addObserver(androidx.recyclerview.selection.SelectionTracker.SelectionObserver&lt;K&gt;)">
+      <meta itemprop="property" content="clearSelection()">
+      <meta itemprop="property" content="copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)">
+      <meta itemprop="property" content="deselect(K)">
+      <meta itemprop="property" content="getSelection()">
+      <meta itemprop="property" content="hasSelection()">
+      <meta itemprop="property" content="isSelected(K)">
+      <meta itemprop="property" content="onRestoreInstanceState(android.os.Bundle)">
+      <meta itemprop="property" content="onSaveInstanceState(android.os.Bundle)">
+      <meta itemprop="property" content="restoreSelection(androidx.recyclerview.selection.Selection&lt;K&gt;)">
+      <meta itemprop="property" content="select(K)">
+      <meta itemprop="property" content="setItemsSelected(java.lang.Iterable&lt;K&gt;,boolean)">
+      <meta itemprop="property" content="SELECTION_CHANGED_MARKER()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="selectiontracker" data-text="SelectionTracker" tabindex="-1">SelectionTracker</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/recyclerview">androidx.recyclerview:recyclerview-selection</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/recyclerview/selection/SelectionTracker.java+class:androidx.recyclerview.selection.SelectionTracker" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/recyclerview/selection/SelectionTracker" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public abstract class <a href="/reference/androidx/recyclerview/selection/SelectionTracker">SelectionTracker</a>&lt;K&gt;</pre></devsite-code>
+    </p>
+    <hr>
+    <p>SelectionTracker provides support for managing a selection of items in a RecyclerView instance. </p>
+    <p> This class provides support for managing a &quot;primary&quot; set of selected items, in addition to a &quot;provisional&quot; set of selected items using conventional <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/Collections.html">java.util.Collections</a></code>-like methods. </p>
+    <p> Create an instance of SelectionTracker using <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker.Builder">SelectionTracker.Builder</a></code>. </p>
+    <p><b>Inspecting the current selection</b></p>
+    <p> The underlying selection is described by the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/Selection">Selection</a></code> class. </p>
+    <p> A live view of the current selection can be obtained using <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#getSelection()">getSelection</a></code>. Changes made to the selection using SelectionTracker will be immediately reflected in this instance. </p>
+    <p> To obtain a stable snapshot of the selection use <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)">copySelection</a></code>. </p>
+    <p> Selection state for an individual item can be obtained using <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#isSelected(K)">isSelected</a></code>. </p>
+    <p><b>Provisional Selection</b></p>
+    <p> Provisional selection exists to address issues where a transitory selection might momentarily intersect with a previously established selection resulting in a some or all of the established selection being erased. Such situations may arise when band selection is being performed in &quot;additive&quot; mode (e.g. SHIFT or CTRL is pressed on the keyboard prior to mouse down), or when there's an active gesture selection (which can be initiated by long pressing an unselected item while there is an existing selection). </p>
+    <p> A provisional selection can be abandoned, or merged into the primary selection. </p>
+    <p><b>Enforcing selection policies</b></p>
+    <p> Which items can be selected by the user is a matter of policy in an Application. Developers supply these policies by way of <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker.SelectionPredicate">SelectionPredicate</a></code>.</p>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">Parameters</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">&lt;K&gt;</code></td>
+            <td>
+              <p>Selection key type. @see <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/StorageStrategy">StorageStrategy</a></code> for supported types.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/recyclerview/selection/SelectionTracker.Builder">SelectionTracker.Builder</a>&lt;K&gt;</code></div>
+              <p>Builder is the primary mechanism for create a <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker">SelectionTracker</a></code> that can be used with your RecyclerView.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public abstract class <a href="/reference/androidx/recyclerview/selection/SelectionTracker.SelectionObserver">SelectionTracker.SelectionObserver</a>&lt;K&gt;</code></div>
+              <p>Observer class providing access to information about Selection state changes.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public abstract class <a href="/reference/androidx/recyclerview/selection/SelectionTracker.SelectionPredicate">SelectionTracker.SelectionPredicate</a>&lt;K&gt;</code></div>
+              <p>Implement SelectionPredicate to control when items can be selected or unselected.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#SELECTION_CHANGED_MARKER()">SELECTION_CHANGED_MARKER</a> = &quot;Selection-Changed&quot;</code></div>
+              <p>This value is included in the payload when SelectionTracker notifies RecyclerView of changes to selection.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#SelectionTracker()">SelectionTracker</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#addObserver(androidx.recyclerview.selection.SelectionTracker.SelectionObserver&lt;K&gt;)">addObserver</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/SelectionTracker.SelectionObserver">SelectionTracker.SelectionObserver</a>&lt;K&gt;&nbsp;observer)</code></div>
+              <p>Adds <code translate="no" dir="ltr">observer</code> to be notified when changes to selection occur.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#clearSelection()">clearSelection</a>()</code></div>
+              <p>Clears both primary and provisional selections.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)">copySelection</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/MutableSelection">MutableSelection</a>&lt;K&gt;&nbsp;dest)</code></div>
+              <p>Updates <code translate="no" dir="ltr">dest</code> to reflect the current selection.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#deselect(K)">deselect</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> K&nbsp;key)</code></div>
+              <p>Attempts to deselect an item.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#getSelection()">getSelection</a>()</code></div>
+              <p>Returns a Selection object that provides a live view on the current selection.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#hasSelection()">hasSelection</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#isSelected(K)">isSelected</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> K&nbsp;key)</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#onRestoreInstanceState(android.os.Bundle)">onRestoreInstanceState</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state)</code></div>
+              <p>Restores selection from previously saved state.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#onSaveInstanceState(android.os.Bundle)">onSaveInstanceState</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state)</code></div>
+              <p>Preserves selection, if any.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#select(K)">select</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> K&nbsp;key)</code></div>
+              <p>Attempts to select an item.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#setItemsSelected(java.lang.Iterable&lt;K&gt;,boolean)">setItemsSelected</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Iterable.html">Iterable</a>&lt;K&gt;&nbsp;keys,&nbsp;boolean&nbsp;selected)</code></div>
+              <p>Sets the selected state of the specified items if permitted after consulting SelectionPredicate.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="protected-methods" data-text="Protected methods" tabindex="-1">Protected methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#restoreSelection(androidx.recyclerview.selection.Selection&lt;K&gt;)">restoreSelection</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;&nbsp;selection)</code></div>
+              <p>Restores the selected state of specified items.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getSELECTION_CHANGED_MARKER()"></a><a name="setSELECTION_CHANGED_MARKER()"></a><a name="getSELECTION_CHANGED_MARKER--"></a><a name="setSELECTION_CHANGED_MARKER--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SELECTION_CHANGED_MARKER()" data-text="SELECTION_CHANGED_MARKER" tabindex="-1">SELECTION_CHANGED_MARKER</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#SELECTION_CHANGED_MARKER()">SELECTION_CHANGED_MARKER</a> = &quot;Selection-Changed&quot;</pre></devsite-code>
+        <p>This value is included in the payload when SelectionTracker notifies RecyclerView of changes to selection. Look for this value in the <code translate="no" dir="ltr">payload</code> Object argument supplied to Adapter#onBindViewHolder. If present the call is occurring in response to a selection state change. This would be a good opportunity to animate changes between unselected and selected state. When state is being restored, this argument will not be present.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="SelectionTracker--"></a><a name="selectiontracker"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SelectionTracker()" data-text="SelectionTracker" tabindex="-1">SelectionTracker</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in 1.0.0</div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#SelectionTracker()">SelectionTracker</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addObserver-androidx.recyclerview.selection.SelectionTracker.SelectionObserver&lt;K&gt;-"></a><a name="addobserver"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addObserver(androidx.recyclerview.selection.SelectionTracker.SelectionObserver&lt;K&gt;)" data-text="addObserver" tabindex="-1">addObserver</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#addObserver(androidx.recyclerview.selection.SelectionTracker.SelectionObserver&lt;K&gt;)">addObserver</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/SelectionTracker.SelectionObserver">SelectionTracker.SelectionObserver</a>&lt;K&gt;&nbsp;observer)</pre></devsite-code>
+        <p>Adds <code translate="no" dir="ltr">observer</code> to be notified when changes to selection occur. </p>
+        <p> Use an observer to track attributes about the selection and update the UI to reflect the state of the selection. For example, an author may use an observer to control the enabled status of menu items, or to initiate <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/ActionMode.html">android.view.ActionMode</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="clearSelection--"></a><a name="clearselection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clearSelection()" data-text="clearSelection" tabindex="-1">clearSelection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#clearSelection()">clearSelection</a>()</pre></devsite-code>
+        <p>Clears both primary and provisional selections.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if primary selection changed.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="copySelection-androidx.recyclerview.selection.MutableSelection&lt;K&gt;-"></a><a name="copyselection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)" data-text="copySelection" tabindex="-1">copySelection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)">copySelection</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/MutableSelection">MutableSelection</a>&lt;K&gt;&nbsp;dest)</pre></devsite-code>
+        <p>Updates <code translate="no" dir="ltr">dest</code> to reflect the current selection.</p>
+      </div>
+      <div class="api-item"><a name="deselect-K-"></a><a name="deselect"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="deselect(K)" data-text="deselect" tabindex="-1">deselect</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#deselect(K)">deselect</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> K&nbsp;key)</pre></devsite-code>
+        <p>Attempts to deselect an item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the item was deselected. False if the item could not be deselected, or was was already un-selected.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSelection--"></a><a name="getselection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSelection()" data-text="getSelection" tabindex="-1">getSelection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#getSelection()">getSelection</a>()</pre></devsite-code>
+        <p>Returns a Selection object that provides a live view on the current selection.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;</code></td>
+                <td>
+                  <p>The current selection.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/SelectionTracker#copySelection(androidx.recyclerview.selection.MutableSelection&lt;K&gt;)">copySelection</a></code></td>
+                <td>
+                  <p>on how to get a snapshot of the selection that will not reflect future changes to selection.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="hasSelection--"></a><a name="hasselection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasSelection()" data-text="hasSelection" tabindex="-1">hasSelection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#hasSelection()">hasSelection</a>()</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if has a selection</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isSelected-K-"></a><a name="isselected"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isSelected(K)" data-text="isSelected" tabindex="-1">isSelected</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#isSelected(K)">isSelected</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> K&nbsp;key)</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the item specified by its id is selected. Shorthand for <code translate="no" dir="ltr">getSelection().contains(K)</code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onRestoreInstanceState-android.os.Bundle-"></a><a name="onrestoreinstancestate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onRestoreInstanceState(android.os.Bundle)" data-text="onRestoreInstanceState" tabindex="-1">onRestoreInstanceState</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#onRestoreInstanceState(android.os.Bundle)">onRestoreInstanceState</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state)</pre></devsite-code>
+        <p>Restores selection from previously saved state. Call this method from Activity#onCreate.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state</code></td>
+                <td>
+                  <p>Bundle instance supplied to onCreate.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onSaveInstanceState-android.os.Bundle-"></a><a name="onsaveinstancestate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onSaveInstanceState(android.os.Bundle)" data-text="onSaveInstanceState" tabindex="-1">onSaveInstanceState</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#onSaveInstanceState(android.os.Bundle)">onSaveInstanceState</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state)</pre></devsite-code>
+        <p>Preserves selection, if any. Call this method from Activity#onSaveInstanceState</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;state</code></td>
+                <td>
+                  <p>Bundle instance supplied to onSaveInstanceState.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="select-K-"></a><a name="select"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="select(K)" data-text="select" tabindex="-1">select</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#select(K)">select</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> K&nbsp;key)</pre></devsite-code>
+        <p>Attempts to select an item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the item was selected. False if the item could not be selected, or was was already selected.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setItemsSelected(java.lang.Iterable&lt;K&gt;, boolean)"></a><a name="setItemsSelected-java.lang.Iterable&lt;K&gt;-boolean-"></a><a name="setitemsselected"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setItemsSelected(java.lang.Iterable&lt;K&gt;,boolean)" data-text="setItemsSelected" tabindex="-1">setItemsSelected</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#setItemsSelected(java.lang.Iterable&lt;K&gt;,boolean)">setItemsSelected</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Iterable.html">Iterable</a>&lt;K&gt;&nbsp;keys,&nbsp;boolean&nbsp;selected)</pre></devsite-code>
+        <p>Sets the selected state of the specified items if permitted after consulting SelectionPredicate.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="protected-methods_1" data-text="Protected methods" tabindex="-1">Protected methods</h2>
+      <div class="api-item"><a name="restoreSelection-androidx.recyclerview.selection.Selection&lt;K&gt;-"></a><a name="restoreselection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="restoreSelection(androidx.recyclerview.selection.Selection&lt;K&gt;)" data-text="restoreSelection" tabindex="-1">restoreSelection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>protected&nbsp;abstract&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/selection/SelectionTracker#restoreSelection(androidx.recyclerview.selection.Selection&lt;K&gt;)">restoreSelection</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;&nbsp;selection)</pre></devsite-code>
+        <p>Restores the selected state of specified items. Used in cases such as restore the selection after rotation etc. Provisional selection is not restored. </p>
+        <p> This affords clients the ability to restore selection from selection saved in Activity state.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/selection/Selection">Selection</a>&lt;K&gt;&nbsp;selection</code></td>
+                <td>
+                  <p>selection being restored.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/selection/StorageStrategy">StorageStrategy</a></code></td>
+                <td>
+                  <p>details on selection state support.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

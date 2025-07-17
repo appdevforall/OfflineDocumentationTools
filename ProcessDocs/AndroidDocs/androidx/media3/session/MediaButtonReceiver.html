@@ -1,1 +1,1042 @@
-<html><head><title>Class Documentation</title></head><body>MediaButtonReceiver Artifact: androidx.media3:media3-session View Source Kotlin | Java @ UnstableApi public class MediaButtonReceiver extends BroadcastReceiver java.lang.Object &nbsp;&nbsp;&nbsp;↳ android.content.BroadcastReceiver &nbsp; &nbsp;&nbsp;&nbsp;↳ androidx.media3.session.MediaButtonReceiver A media button receiver receives hardware media playback button intent, such as those sent by wired and wireless headsets. You can add this MediaButtonReceiver to your app by adding it directly to your AndroidManifest.xml: &lt; receiver android : name = "androidx.media3.session.MediaButtonReceiver" android : exported = "true" &gt; &lt; intent - filter &gt; &lt; action android : name = "android.intent.action.MEDIA_BUTTON" / &gt; &lt; / intent - filter &gt; &lt; / receiver &gt; Apps that add this receiver to the manifest, must implement onPlaybackResumption or active automatic playback resumption (Note: If you choose to make this receiver start your own service that is not a MediaSessionService or MediaLibraryService , then you need to fulfill all requirements around starting a service in the foreground on all API levels your app should properly work on). Service discovery This class assumes you have a Service in your app's manifest that controls media playback via a MediaSession . Once a key event is received by this receiver, it tries to find a Service that can handle the action ACTION_MEDIA_BUTTON , SERVICE_INTERFACE or SERVICE_INTERFACE . If an appropriate service is found, this class starts the service as a foreground service and sends the key event to the service by an Intent with action ACTION_MEDIA_BUTTON . If neither is available or more than one valid service is found for one of the actions, an is thrown. Service handling ACTION_MEDIA_BUTTON A service can receive a key event by including an intent filter that handles android.intent.action.MEDIA_BUTTON . &lt;service android:name="com.example.android.MediaPlaybackService" &gt; &lt;intent-filter&gt; &lt;action android:name="android.intent.action.MEDIA_BUTTON" /&gt; &lt;/intent-filter&gt; &lt;/service&gt; Service handling action MediaSessionService or MediaLibraryService If you are using a MediaSessionService or MediaLibraryService , the service interface name is already used as the intent action. In this case, no further configuration is required. &lt;service android:name="com.example.android.MediaPlaybackService" &gt; &lt;intent-filter&gt; &lt;action android:name="androidx.media3.session.MediaLibraryService" /&gt; &lt;/intent-filter&gt; &lt;/service&gt; Summary Public constructors MediaButtonReceiver () Public methods void onReceive ( Context &nbsp;context,&nbsp;@ Nullable Intent &nbsp;intent) Apps can override this method if the default behaviour doesn't match their needs. Protected methods final void @ UnstableApi handleIntentAndMaybeStartTheService ( &nbsp;&nbsp;&nbsp;&nbsp; Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable Intent &nbsp;intent ) Handles the intent and starts the service if shouldStartForegroundService indicates to do so. void @ RequiresApi (value&nbsp;=&nbsp;31) onForegroundServiceStartNotAllowedException ( &nbsp;&nbsp;&nbsp;&nbsp; Intent &nbsp;intent, &nbsp;&nbsp;&nbsp;&nbsp; ForegroundServiceStartNotAllowedException &nbsp;e ) This method is called when an exception is thrown when calling startForegroundService as a result of receiving a media button event. boolean shouldStartForegroundService ( Context &nbsp;context,&nbsp; Intent &nbsp;intent) Returns whether to start the media button event target service into the foreground. Inherited methods From android.content.BroadcastReceiver final void abortBroadcast () final void clearAbortBroadcast () final boolean getAbortBroadcast () final boolean getDebugUnregister () final int getResultCode () final String getResultData () final Bundle getResultExtras (boolean&nbsp;makeMap) String getSentFromPackage () int getSentFromUid () final BroadcastReceiver.PendingResult goAsync () final boolean isInitialStickyBroadcast () final boolean isOrderedBroadcast () IBinder peekService ( Context &nbsp;myContext,&nbsp; Intent &nbsp;service) final void setDebugUnregister (boolean&nbsp;debug) final void setOrderedHint (boolean&nbsp;isOrdered) final void setResult (int&nbsp;code,&nbsp; String &nbsp;data,&nbsp; Bundle &nbsp;extras) final void setResultCode (int&nbsp;code) final void setResultData ( String &nbsp;data) final void setResultExtras ( Bundle &nbsp;extras) Public constructors MediaButtonReceiver public&nbsp; MediaButtonReceiver () Public methods onReceive public&nbsp;void&nbsp; onReceive ( Context &nbsp;context,&nbsp;@ Nullable Intent &nbsp;intent) Apps can override this method if the default behaviour doesn't match their needs. When doing that, an app would eventually call handleIntentAndMaybeStartTheService to continue the process to start the service. If you are not calling this method, then using this class probably is not needed. Instead, a custom implementation of can be provided in the manifest for the action ACTION_MEDIA_BUTTON . The recommended approach is to use this receiver without overriding this method, but instead use shouldStartForegroundService to indicate whether to start the service or not. When overriding this method, we can't provide further support because the strongly recommended way to handle the intent is using the default implementation. Protected methods handleIntentAndMaybeStartTheService @ UnstableApi protected&nbsp;final&nbsp;void&nbsp; handleIntentAndMaybeStartTheService ( &nbsp;&nbsp;&nbsp;&nbsp; Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable Intent &nbsp;intent ) Handles the intent and starts the service if shouldStartForegroundService indicates to do so. Parameters Context &nbsp;context The context. @ Nullable Intent &nbsp;intent The intent. onForegroundServiceStartNotAllowedException @ RequiresApi (value&nbsp;=&nbsp;31) protected&nbsp;void&nbsp; onForegroundServiceStartNotAllowedException ( &nbsp;&nbsp;&nbsp;&nbsp; Intent &nbsp;intent, &nbsp;&nbsp;&nbsp;&nbsp; ForegroundServiceStartNotAllowedException &nbsp;e ) This method is called when an exception is thrown when calling startForegroundService as a result of receiving a media button event. By default, this method only logs the exception and it can be safely overridden. Apps that find that such a media button event has been legitimately sent, may choose to override this method and take the opportunity to post a notification from where the user journey can continue. This exception can be thrown if a broadcast media button event is received and a media service is found in the manifest that is registered to handle ACTION_MEDIA_BUTTON . If this happens on API 31+ and the app is in the background then an exception is thrown. With the exception of devices that are running API 20 and below, a media button intent is only required to be sent to this receiver for a Bluetooth media button event that wants to restart the service. In such a case the app gets an exemption and is allowed to start the foreground service. In this case this method will never be called. In all other cases of attempting to start a Media3 service or to send a media button event, apps must use a MediaBrowser or MediaController to bind to the service instead of broadcasting an intent. Parameters Intent &nbsp;intent The intent that was used for starting the foreground service . ForegroundServiceStartNotAllowedException &nbsp;e The exception thrown by the system and caught by this broadcast receiver. shouldStartForegroundService protected&nbsp;boolean&nbsp; shouldStartForegroundService ( Context &nbsp;context,&nbsp; Intent &nbsp;intent) Returns whether to start the media button event target service into the foreground. Returns true by default. Apps can override this method to decide to not start a service when receiving an event with KEYCODE_MEDIA_PLAY or KEYCODE_MEDIA_PLAY_PAUSE that should be suppressed. Note: Once the service is started into the foreground by the receiver, the app must start playback to get into the foreground or the system will crash the service with a ForegroundServiceDidNotStartInTimeException or an IllegalStateException . Parameters Context &nbsp;context The Context that was received by the media button event receiver . Intent &nbsp;intent The intent that was received by the media button event receiver . Returns boolean true if the service should be started as a foreground service . If false is returned the service is not started and the receiver call is a no-op.</body></html>
+<html><head><title>MediaButtonReceiver</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="MediaButtonReceiver">
+      <meta itemprop="path" content="androidx.media3.session">
+      <meta itemprop="property" content="handleIntentAndMaybeStartTheService(android.content.Context,android.content.Intent)">
+      <meta itemprop="property" content="onForegroundServiceStartNotAllowedException(android.content.Intent,android.app.ForegroundServiceStartNotAllowedException)">
+      <meta itemprop="property" content="onReceive(android.content.Context,android.content.Intent)">
+      <meta itemprop="property" content="shouldStartForegroundService(android.content.Context,android.content.Intent)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="mediabuttonreceiver" data-text="MediaButtonReceiver" tabindex="-1">MediaButtonReceiver</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-session</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/session/MediaButtonReceiver.java+class:androidx.media3.session.MediaButtonReceiver" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/session/MediaButtonReceiver" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public class <a href="/reference/androidx/media3/session/MediaButtonReceiver">MediaButtonReceiver</a> extends <a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html">BroadcastReceiver</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper">
+      <table class="jd-inheritance-table">
+        <tbody>
+          <tr>
+            <td colspan="3"><a href="https://developer.android.com/reference/java/lang/Object.html">java.lang.Object</a></td>
+          </tr>
+          <tr>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="2"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html">android.content.BroadcastReceiver</a></td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="1"><a href="/reference/androidx/media3/session/MediaButtonReceiver">androidx.media3.session.MediaButtonReceiver</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <hr>
+    <p>A media button receiver receives hardware media playback button intent, such as those sent by wired and wireless headsets. </p>
+    <p>You can add this MediaButtonReceiver to your app by adding it directly to your AndroidManifest.xml: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="GDScript">&lt;<span class="devsite-syntax-n">receiver</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">android</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-n">name</span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-s2">"androidx.media3.session.MediaButtonReceiver"</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">android</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-n">exported</span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-s2">"true"</span>&gt;
+<span class="devsite-syntax-w">  </span>&lt;<span class="devsite-syntax-n">intent</span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-n">filter</span>&gt;
+<span class="devsite-syntax-w">    </span>&lt;<span class="devsite-syntax-n">action</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">android</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-n">name</span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-s2">"android.intent.action.MEDIA_BUTTON"</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">/</span>&gt;
+<span class="devsite-syntax-w">  </span>&lt;<span class="devsite-syntax-o">/</span><span class="devsite-syntax-n">intent</span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-n">filter</span>&gt;
+&lt;<span class="devsite-syntax-o">/</span><span class="devsite-syntax-n">receiver</span>&gt;</pre></devsite-code>
+    <p>Apps that add this receiver to the manifest, must implement <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onPlaybackResumption(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">onPlaybackResumption</a></code> or active automatic playback resumption (Note: If you choose to make this receiver start your own service that is not a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService">MediaSessionService</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaLibraryService">MediaLibraryService</a></code>, then you need to fulfill all requirements around starting a service in the foreground on all API levels your app should properly work on). </p>
+    <h2 id="service-discovery" data-text="Service discovery" tabindex="-1">Service discovery</h2>
+    <p>This class assumes you have a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Service.html">Service</a></code> in your app's manifest that controls media playback via a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession">MediaSession</a></code>. Once a key event is received by this receiver, it tries to find a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Service.html">Service</a></code> that can handle the action <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON()">ACTION_MEDIA_BUTTON</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService#SERVICE_INTERFACE()">SERVICE_INTERFACE</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService#SERVICE_INTERFACE()">SERVICE_INTERFACE</a></code>. If an appropriate service is found, this class starts the service as a foreground service and sends the key event to the service by an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a></code> with action <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON()">ACTION_MEDIA_BUTTON</a></code>. If neither is available or more than one valid service is found for one of the actions, an  is thrown. </p>
+    <h3 id="service-handling-action_media_button" data-text="Service handling ACTION_MEDIA_BUTTON" tabindex="-1">Service handling ACTION_MEDIA_BUTTON</h3>
+    <p>A service can receive a key event by including an intent filter that handles <code translate="no" dir="ltr">
+android.intent.action.MEDIA_BUTTON</code>. </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="scdoc">&lt;service android:name="com.example.android.MediaPlaybackService" &gt;
+  &lt;intent-filter&gt;
+    &lt;action android:name="android.intent.action.MEDIA_BUTTON" /&gt;
+  &lt;/intent-filter&gt;
+&lt;/service&gt;</pre></devsite-code>
+    <h3 id="service-handling-action-mediasessionservice-or-medialibraryservice" data-text="Service handling action MediaSessionService or MediaLibraryService" tabindex="-1">Service handling action <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService">MediaSessionService</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaLibraryService">MediaLibraryService</a></code></h3>
+    <p>If you are using a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService">MediaSessionService</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaLibraryService">MediaLibraryService</a></code>, the service interface name is already used as the intent action. In this case, no further configuration is required. </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">&lt;service android:name="com.example.android.MediaPlaybackService" &gt;
+  &lt;intent-filter&gt;
+    &lt;action android:name="androidx.media3.session.MediaLibraryService" /&gt;
+  &lt;/intent-filter&gt;
+&lt;/service&gt;</pre></devsite-code>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#MediaButtonReceiver()">MediaButtonReceiver</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#onReceive(android.content.Context,android.content.Intent)">onReceive</a>(<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent)</code></div>
+              <p>Apps can override this method if the default behaviour doesn't match their needs.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="protected-methods" data-text="Protected methods" tabindex="-1">Protected methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaButtonReceiver#handleIntentAndMaybeStartTheService(android.content.Context,android.content.Intent)">handleIntentAndMaybeStartTheService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent<br>)</code></div>
+              <p>Handles the intent and starts the service if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#shouldStartForegroundService(android.content.Context,android.content.Intent)">shouldStartForegroundService</a></code> indicates to do so.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;31)<br><a href="/reference/androidx/media3/session/MediaButtonReceiver#onForegroundServiceStartNotAllowedException(android.content.Intent,android.app.ForegroundServiceStartNotAllowedException)">onForegroundServiceStartNotAllowedException</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/app/ForegroundServiceStartNotAllowedException.html">ForegroundServiceStartNotAllowedException</a>&nbsp;e<br>)</code></div>
+              <p>This method is called when an exception is thrown when calling <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html#startForegroundService(android.content.Intent)">startForegroundService</a></code> as a result of receiving a media button event.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#shouldStartForegroundService(android.content.Context,android.content.Intent)">shouldStartForegroundService</a>(<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,&nbsp;<a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent)</code></div>
+              <p>Returns whether to start the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#getComponent()">media button event target service</a></code> into the foreground.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-methods" data-text="Inherited methods" tabindex="-1">Inherited methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html">android.content.BroadcastReceiver</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#abortBroadcast()">abortBroadcast</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#clearAbortBroadcast()">clearAbortBroadcast</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final boolean</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getAbortBroadcast()">getAbortBroadcast</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final boolean</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getDebugUnregister()">getDebugUnregister</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final int</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getResultCode()">getResultCode</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getResultData()">getResultData</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getResultExtras(boolean)">getResultExtras</a>(boolean&nbsp;makeMap)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getSentFromPackage()">getSentFromPackage</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">int</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#getSentFromUid()">getSentFromUid</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/android/content/BroadcastReceiver.PendingResult.html">BroadcastReceiver.PendingResult</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#goAsync()">goAsync</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final boolean</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#isInitialStickyBroadcast()">isInitialStickyBroadcast</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final boolean</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#isOrderedBroadcast()">isOrderedBroadcast</a>()</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/IBinder.html">IBinder</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#peekService(android.content.Context, android.content.Intent)">peekService</a>(<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;myContext,&nbsp;<a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;service)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setDebugUnregister(boolean)">setDebugUnregister</a>(boolean&nbsp;debug)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setOrderedHint(boolean)">setOrderedHint</a>(boolean&nbsp;isOrdered)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResult(int, java.lang.String, android.os.Bundle)">setResult</a>(int&nbsp;code,&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;data,&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;extras)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResultCode(int)">setResultCode</a>(int&nbsp;code)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResultData(java.lang.String)">setResultData</a>(<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;data)</code></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResultExtras(android.os.Bundle)">setResultExtras</a>(<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;extras)</code></div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="MediaButtonReceiver--"></a><a name="mediabuttonreceiver"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MediaButtonReceiver()" data-text="MediaButtonReceiver" tabindex="-1">MediaButtonReceiver</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/session/MediaButtonReceiver#MediaButtonReceiver()">MediaButtonReceiver</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="onReceive(android.content.Context, android.content.Intent)"></a><a name="onReceive-android.content.Context-android.content.Intent-"></a><a name="onreceive"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onReceive(android.content.Context,android.content.Intent)" data-text="onReceive" tabindex="-1">onReceive</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaButtonReceiver#onReceive(android.content.Context,android.content.Intent)">onReceive</a>(<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent)</pre></devsite-code>
+        <p>Apps can override this method if the default behaviour doesn't match their needs. When doing that, an app would eventually call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#handleIntentAndMaybeStartTheService(android.content.Context,android.content.Intent)">handleIntentAndMaybeStartTheService</a></code> to continue the process to start the service. If you are not calling this method, then using this class probably is not needed. Instead, a custom implementation of  can be provided in the manifest for the action <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON()">ACTION_MEDIA_BUTTON</a></code>. </p>
+        <p>The recommended approach is to use this receiver without overriding this method, but instead use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#shouldStartForegroundService(android.content.Context,android.content.Intent)">shouldStartForegroundService</a></code> to indicate whether to start the service or not. When overriding this method, we can't provide further support because the strongly recommended way to handle the intent is using the default implementation.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="protected-methods_1" data-text="Protected methods" tabindex="-1">Protected methods</h2>
+      <div class="api-item"><a name="handleIntentAndMaybeStartTheService(android.content.Context, android.content.Intent)"></a><a name="handleIntentAndMaybeStartTheService-android.content.Context-android.content.Intent-"></a><a name="handleintentandmaybestarttheservice"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="handleIntentAndMaybeStartTheService(android.content.Context,android.content.Intent)" data-text="handleIntentAndMaybeStartTheService" tabindex="-1">handleIntentAndMaybeStartTheService</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>protected&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaButtonReceiver#handleIntentAndMaybeStartTheService(android.content.Context,android.content.Intent)">handleIntentAndMaybeStartTheService</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent<br>)</pre></devsite-code>
+        <p>Handles the intent and starts the service if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#shouldStartForegroundService(android.content.Context,android.content.Intent)">shouldStartForegroundService</a></code> indicates to do so.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>The context.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent</code></td>
+                <td>
+                  <p>The intent.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onForegroundServiceStartNotAllowedException(android.content.Intent, android.app.ForegroundServiceStartNotAllowedException)"></a><a name="onForegroundServiceStartNotAllowedException-android.content.Intent-android.app.ForegroundServiceStartNotAllowedException-"></a><a name="onforegroundservicestartnotallowedexception"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onForegroundServiceStartNotAllowedException(android.content.Intent,android.app.ForegroundServiceStartNotAllowedException)" data-text="onForegroundServiceStartNotAllowedException" tabindex="-1">onForegroundServiceStartNotAllowedException</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;31)<br>protected&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaButtonReceiver#onForegroundServiceStartNotAllowedException(android.content.Intent,android.app.ForegroundServiceStartNotAllowedException)">onForegroundServiceStartNotAllowedException</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/app/ForegroundServiceStartNotAllowedException.html">ForegroundServiceStartNotAllowedException</a>&nbsp;e<br>)</pre></devsite-code>
+        <p>This method is called when an exception is thrown when calling <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html#startForegroundService(android.content.Intent)">startForegroundService</a></code> as a result of receiving a media button event. </p>
+        <p>By default, this method only logs the exception and it can be safely overridden. Apps that find that such a media button event has been legitimately sent, may choose to override this method and take the opportunity to post a notification from where the user journey can continue. </p>
+        <p>This exception can be thrown if a broadcast media button event is received and a media service is found in the manifest that is registered to handle <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON()">ACTION_MEDIA_BUTTON</a></code>. If this happens on API 31+ and the app is in the background then an exception is thrown. </p>
+        <p>With the exception of devices that are running API 20 and below, a media button intent is only required to be sent to this receiver for a Bluetooth media button event that wants to restart the service. In such a case the app gets an exemption and is allowed to start the foreground service. In this case this method will never be called. </p>
+        <p>In all other cases of attempting to start a Media3 service or to send a media button event, apps must use a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaBrowser">MediaBrowser</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code> to bind to the service instead of broadcasting an intent.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent</code></td>
+                <td>
+                  <p>The intent that was used <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html#startForegroundService(android.content.Intent)">for starting the foreground service</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/ForegroundServiceStartNotAllowedException.html">ForegroundServiceStartNotAllowedException</a>&nbsp;e</code></td>
+                <td>
+                  <p>The exception thrown by the system and caught by this broadcast receiver.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="shouldStartForegroundService(android.content.Context, android.content.Intent)"></a><a name="shouldStartForegroundService-android.content.Context-android.content.Intent-"></a><a name="shouldstartforegroundservice"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="shouldStartForegroundService(android.content.Context,android.content.Intent)" data-text="shouldStartForegroundService" tabindex="-1">shouldStartForegroundService</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>protected&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/session/MediaButtonReceiver#shouldStartForegroundService(android.content.Context,android.content.Intent)">shouldStartForegroundService</a>(<a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,&nbsp;<a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent)</pre></devsite-code>
+        <p>Returns whether to start the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#getComponent()">media button event target service</a></code> into the foreground. </p>
+        <p>Returns true by default. Apps can override this method to decide to not start a service when receiving an event with <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PLAY()">KEYCODE_MEDIA_PLAY</a></code> or <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PLAY_PAUSE()">KEYCODE_MEDIA_PLAY_PAUSE</a></code> that should be suppressed. </p>
+        <p>Note: Once the service is started into the foreground by the receiver, the app must start playback to get into the foreground or the system will crash the service with a <code translate="no" dir="ltr">
+ForegroundServiceDidNotStartInTimeException</code> or an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">IllegalStateException</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html">Context</a></code> that <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#onReceive(android.content.Context,android.content.Intent)">was received by the media button event receiver</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html">Intent</a>&nbsp;intent</code></td>
+                <td>
+                  <p>The intent that <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaButtonReceiver#onReceive(android.content.Context,android.content.Intent)">was received by the media button event receiver</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the service should be <code translate="no" dir="ltr"><a href="/reference/androidx/core/content/ContextCompat#startForegroundService(android.content.Context,android.content.Intent)">started as a foreground service</a></code>. If false is returned the service is not started and the receiver call is a no-op.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

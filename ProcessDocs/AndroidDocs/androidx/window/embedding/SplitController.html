@@ -1,1 +1,1250 @@
-<html><head><title>Class Documentation</title></head><body>SplitController Artifact: androidx.window:window View Source Added in 1.0.0 Kotlin | Java public final class SplitController The controller class that gets information about the currently active activity splits and provides interaction points to customize the splits and form new splits. A split is a pair of containers that host activities in the same or different processes, combined under the same parent window of the hosting task. A pair of activities can be put into a split by providing a static or runtime split rule and then launching the activities in the same task using Activity.startActivity() . Summary Nested types public final class SplitController.SplitSupportStatus A class to determine if activity splits with Activity Embedding are currently available. Public methods final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;2) clearSplitAttributesCalculator () Clears the callback previously set by setSplitAttributesCalculator . static&nbsp;final @ NonNull SplitController getInstance (@ NonNull Context &nbsp;context) Obtains an instance of SplitController . final @ NonNull SplitController.SplitSupportStatus getSplitSupportStatus () Indicates whether split functionality is supported on the device. final boolean @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) pinTopActivityStack (int&nbsp;taskId,&nbsp;@ NonNull SplitPinRule &nbsp;splitPinRule) Pins the top-most ActivityStack to keep the stack of the Activities to be always positioned on top. final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;2) setSplitAttributesCalculator ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull SplitAttributesCalculatorParams ,&nbsp;@ NonNull SplitAttributes &gt;&nbsp;calculator ) Sets or replaces the previously registered SplitAttributes calculator. final @ NonNull Flow &lt;@ NonNull List &lt;@ NonNull SplitInfo &gt;&gt; splitInfoList (@ NonNull Activity &nbsp;activity) A Flow of SplitInfo list that contains the current split states that this activity is part of. final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) unpinTopActivityStack (int&nbsp;taskId) Unpins the pinned ActivityStack . final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;3) updateSplitAttributes ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SplitInfo &nbsp;splitInfo, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SplitAttributes &nbsp;splitAttributes ) Updates the SplitAttributes of a split pair. Public methods clearSplitAttributesCalculator Added in 1.1.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;2) public&nbsp;final&nbsp;void&nbsp; clearSplitAttributesCalculator () Clears the callback previously set by setSplitAttributesCalculator . The caller must make sure if WindowSdkExtensions.extensionVersion is greater than or equal to 2. Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 2. getInstance Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;@ NonNull SplitController &nbsp; getInstance (@ NonNull Context &nbsp;context) Obtains an instance of SplitController . Parameters @ NonNull Context &nbsp;context the Context to initialize the controller with getSplitSupportStatus Added in 1.1.0 public&nbsp;final&nbsp;@ NonNull SplitController.SplitSupportStatus &nbsp; getSplitSupportStatus () Indicates whether split functionality is supported on the device. Note that devices might not enable splits in all states or conditions. For example, a foldable device with multiple screens can choose to collapse splits when apps run on the device's small display, but enable splits when apps run on the device's large display. In cases like this, splitSupportStatus always returns SplitSupportStatus.SPLIT_AVAILABLE , and if the split is collapsed, activities are launched on top, following the non-activity embedding model. Also the androidx.window.WindowProperties.PROPERTY_ACTIVITY_EMBEDDING_SPLITS_ENABLED must be enabled in AndroidManifest within in order to get the correct state or SplitSupportStatus.SPLIT_ERROR_PROPERTY_NOT_DECLARED will be returned in some cases. See also SplitController.SplitSupportStatus pinTopActivityStack Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) public&nbsp;final&nbsp;boolean&nbsp; pinTopActivityStack (int&nbsp;taskId,&nbsp;@ NonNull SplitPinRule &nbsp;splitPinRule) Pins the top-most ActivityStack to keep the stack of the Activities to be always positioned on top. The rest of the activities in the Task will be split with the pinned ActivityStack . The pinned ActivityStack would also have isolated activity navigation in which only the activities that are started from the pinned ActivityStack can be added on top of the ActivityStack . The pinned ActivityStack is unpinned whenever the pinned ActivityStack is expanded. Use SplitPinRule.Builder.setSticky if the same ActivityStack should be pinned again whenever the ActivityStack is on top and split with another ActivityStack again. The caller must make sure if WindowSdkExtensions.extensionVersion is greater than or equal to 5. Parameters int&nbsp;taskId The id of the Task that top ActivityStack should be pinned. @ NonNull SplitPinRule &nbsp;splitPinRule The SplitRule that specifies how the top ActivityStack should be split with others. Returns boolean Returns true if the top ActivityStack is successfully pinned. Otherwise, false . Few examples are: 1. There's no ActivityStack . 2. There is already an existing pinned ActivityStack . 3. There's no other ActivityStack to split with the top ActivityStack . Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 5. setSplitAttributesCalculator Added in 1.1.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;2) public&nbsp;final&nbsp;void&nbsp; setSplitAttributesCalculator ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull SplitAttributesCalculatorParams ,&nbsp;@ NonNull SplitAttributes &gt;&nbsp;calculator ) Sets or replaces the previously registered SplitAttributes calculator. Note that it's callers' responsibility to check if this API is supported by checking WindowSdkExtensions.extensionVersion before using the this API. It is suggested to always set meaningful SplitRule.defaultSplitAttributes in case this API is not supported on some devices. Also, replacing the calculator will only update existing split pairs after a change in the window or device state, such as orientation changes or folding state changes. The SplitAttributes calculator is a function to compute the current SplitAttributes for the given SplitRule with the current device and window state. Then The calculator will be invoked if either: An activity is started and matches a registered SplitRule . A parent configuration is updated and there's an existing split pair. By default, SplitRule.defaultSplitAttributes are applied if the parent container's WindowMetrics satisfies the SplitRule 's dimensions requirements, which are SplitRule.minWidthDp , SplitRule.minHeightDp and SplitRule.minSmallestWidthDp . The SplitRule.defaultSplitAttributes can be set by SplitRule Builder APIs, which are SplitPairRule.Builder.setDefaultSplitAttributes and SplitPlaceholderRule.Builder.setDefaultSplitAttributes . Specifying with splitRatio and splitLayoutDirection attributes in &lt;SplitPairRule&gt; or &lt;SplitPlaceHolderRule&gt; tags in XML files. Developers may want to apply different SplitAttributes for different device or window states. For example, on foldable devices, developers may want to split the screen vertically if the device is in landscape, fill the screen if the device is in portrait and split the screen horizontally if the device is in tabletop posture . In this case, the SplitAttributes can be customized by the SplitAttributes calculator, which takes effects after calling this API. Developers can also clear the calculator by clearSplitAttributesCalculator . Then, developers could implement the SplitAttributes calculator as the sample linked below shows. import androidx.window.embedding.EmbeddingAnimationBackground import androidx.window.embedding.EmbeddingAnimationParams import androidx.window.embedding.SplitAttributes import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EQUAL import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND import androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_HINGE import androidx.window.embedding.SplitController import androidx.window.layout.FoldingFeature SplitController . getInstance ( context ). setSplitAttributesCalculator { params - &gt; val tag = params . splitRuleTag val parentWindowMetrics = params . parentWindowMetrics val parentConfig = params . parentConfiguration val foldingFeatures = params . parentWindowLayoutInfo . displayFeatures . filterIsInstance&lt;FoldingFeature&gt; () val foldingState = if ( foldingFeatures . size == 1 ) foldingFeatures [ 0 ] else null // Tag can be used to filter the SplitRule to apply the SplitAttributes if ( TAG_SPLIT_RULE_MAIN != tag &amp;&amp; params . areDefaultConstraintsSatisfied ) { return @setSplitAttributesCalculator params . defaultSplitAttributes } // This sample will make the app show a layout to // - split the task bounds vertically if the device is in landscape // - fill the task bounds if the device is in portrait and its folding state does not // split the screen // - split the task bounds horizontally in tabletop mode val bounds = parentWindowMetrics . bounds if ( foldingState ?. isSeparating == true ) { // Split the parent container that followed by the hinge if the hinge separates the // parent window. return @setSplitAttributesCalculator SplitAttributes . Builder () . setSplitType ( SPLIT_TYPE_HINGE ) . setLayoutDirection ( if ( foldingState . orientation == FoldingFeature . Orientation . HORIZONTAL ) { SplitAttributes . LayoutDirection . TOP_TO_BOTTOM } else { SplitAttributes . LayoutDirection . LOCALE } ) // Optionally set the animation background and change transition animation to use // when switching between vertical and horizontal . setAnimationParams ( EmbeddingAnimationParams . Builder () . setAnimationBackground ( EmbeddingAnimationBackground . createColorBackground ( Color . GRAY ) ) . setChangeAnimation ( EmbeddingAnimationParams . AnimationSpec . JUMP_CUT ) . build () ) . build () } return @setSplitAttributesCalculator if ( parentConfig . screenWidthDp &gt; = 600 &amp;&amp; bounds . width () &gt; = bounds . height () ) { // Split the parent container equally and vertically if the device is in landscape. SplitAttributes . Builder () . setSplitType ( SPLIT_TYPE_EQUAL ) . setLayoutDirection ( SplitAttributes . LayoutDirection . LOCALE ) // Optionally set the animation background and change transition animation to use // when switching between vertical and horizontal . setAnimationParams ( EmbeddingAnimationParams . Builder () . setAnimationBackground ( EmbeddingAnimationBackground . createColorBackground ( Color . GRAY ) ) . setChangeAnimation ( EmbeddingAnimationParams . AnimationSpec . JUMP_CUT ) . build () ) . build () } else { // Expand containers if the device is in portrait or the width is less than 600 dp. SplitAttributes . Builder (). setSplitType ( SPLIT_TYPE_EXPAND ). build () } } Parameters @ NonNull Function1&lt;@ NonNull SplitAttributesCalculatorParams ,&nbsp;@ NonNull SplitAttributes &gt;&nbsp;calculator the function to calculate SplitAttributes based on the SplitAttributesCalculatorParams . It will replace the previously set if it exists. Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 2. splitInfoList Added in 1.1.0 public&nbsp;final&nbsp;@ NonNull Flow &lt;@ NonNull List &lt;@ NonNull SplitInfo &gt;&gt;&nbsp; splitInfoList (@ NonNull Activity &nbsp;activity) A Flow of SplitInfo list that contains the current split states that this activity is part of. An activity can be in zero, one or more active splits . More than one active split is possible if an activity created multiple containers to side, stacked on top of each other. Or it can be in two different splits at the same time - in a secondary container for one (it was launched to the side) and in the primary for another (it launched another activity to the side). The reported splits in the list are ordered from bottom to top by their z-order, more recent splits appearing later. Guaranteed to be called at least once to report the most recent state. Parameters @ NonNull Activity &nbsp;activity The Activity that is interested in getting the split states Returns @ NonNull Flow &lt;@ NonNull List &lt;@ NonNull SplitInfo &gt;&gt; a Flow of SplitInfo list that includes this activity unpinTopActivityStack Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) public&nbsp;final&nbsp;void&nbsp; unpinTopActivityStack (int&nbsp;taskId) Unpins the pinned ActivityStack . The ActivityStack will still be the top-most ActivityStack right after unpinned, and the ActivityStack could be expanded or continue to be split with the next top ActivityStack if the current state matches any of the existing SplitPairRule . It is a no-op call if the task does not have a pinned ActivityStack . The caller must make sure if WindowSdkExtensions.extensionVersion is greater than or equal to 5. Parameters int&nbsp;taskId The id of the Task that top ActivityStack should be unpinned. Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 5. updateSplitAttributes Added in 1.2.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;3) public&nbsp;final&nbsp;void&nbsp; updateSplitAttributes ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SplitInfo &nbsp;splitInfo, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SplitAttributes &nbsp;splitAttributes ) Updates the SplitAttributes of a split pair. This is an alternative to using a split attributes calculator callback set in setSplitAttributesCalculator , useful when apps only need to update the splits in a few cases proactively but rely on the default split attributes most of the time otherwise. The provided split attributes will be used instead of the associated SplitRule.defaultSplitAttributes . Note that the split attributes may be updated if split attributes calculator callback is registered and invoked. If setSplitAttributesCalculator is used, the callback will still be applied to each SplitInfo when there's either: A new Activity being launched. A window or device state updates (e,g. due to screen rotation or folding state update). In most cases it is suggested to use ActivityEmbeddingController.invalidateTopVisibleActivityStacks if a calculator has been set through setSplitAttributesCalculator . Parameters @ NonNull SplitInfo &nbsp;splitInfo the split pair to update @ NonNull SplitAttributes &nbsp;splitAttributes the SplitAttributes to be applied Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 3.</body></html>
+<html><head><title>SplitController</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SplitController">
+      <meta itemprop="path" content="androidx.window.embedding">
+      <meta itemprop="property" content="clearSplitAttributesCalculator()">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="property" content="getSplitSupportStatus()">
+      <meta itemprop="property" content="pinTopActivityStack(kotlin.Int,androidx.window.embedding.SplitPinRule)">
+      <meta itemprop="property" content="setSplitAttributesCalculator(kotlin.Function1)">
+      <meta itemprop="property" content="splitInfoList(android.app.Activity)">
+      <meta itemprop="property" content="unpinTopActivityStack(kotlin.Int)">
+      <meta itemprop="property" content="updateSplitAttributes(androidx.window.embedding.SplitInfo,androidx.window.embedding.SplitAttributes)">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="splitcontroller" data-text="SplitController" tabindex="-1">SplitController</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/window">androidx.window:window</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/window/embedding/SplitController.kt+class:androidx.window.embedding.SplitController" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/window/embedding/SplitController" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/window/embedding/SplitController">SplitController</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>The controller class that gets information about the currently active activity splits and provides interaction points to customize the splits and form new splits.</p>
+    <p>A split is a pair of containers that host activities in the same or different processes, combined under the same parent window of the hosting task.</p>
+    <p>A pair of activities can be put into a split by providing a static or runtime split rule and then launching the activities in the same task using <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html#startActivity(android.content.Intent)">Activity.startActivity()</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus">SplitController.SplitSupportStatus</a></code></div>
+              <p>A class to determine if activity splits with Activity Embedding are currently available.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;2)<br><a href="/reference/androidx/window/embedding/SplitController#clearSplitAttributesCalculator()">clearSplitAttributesCalculator</a>()</code></div>
+              <p>Clears the callback previously set by <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitController">SplitController</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</code></div>
+              <p>Obtains an instance of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController">SplitController</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus">SplitController.SplitSupportStatus</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#getSplitSupportStatus()">getSplitSupportStatus</a>()</code></div>
+              <p>Indicates whether split functionality is supported on the device.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br><a href="/reference/androidx/window/embedding/SplitController#pinTopActivityStack(kotlin.Int,androidx.window.embedding.SplitPinRule)">pinTopActivityStack</a>(int&nbsp;taskId,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitPinRule">SplitPinRule</a>&nbsp;splitPinRule)</code></div>
+              <p>Pins the top-most <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> to keep the stack of the Activities to be always positioned on top.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;2)<br><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributesCalculatorParams">SplitAttributesCalculatorParams</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&gt;&nbsp;calculator<br>)</code></div>
+              <p>Sets or replaces the previously registered <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> calculator.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">splitInfoList</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</code></div>
+              <p>A <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code> list that contains the current split states that this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">activity</a></code> is part of.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br><a href="/reference/androidx/window/embedding/SplitController#unpinTopActivityStack(kotlin.Int)">unpinTopActivityStack</a>(int&nbsp;taskId)</code></div>
+              <p>Unpins the pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;3)<br><a href="/reference/androidx/window/embedding/SplitController#updateSplitAttributes(androidx.window.embedding.SplitInfo,androidx.window.embedding.SplitAttributes)">updateSplitAttributes</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&nbsp;splitInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&nbsp;splitAttributes<br>)</code></div>
+              <p>Updates the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> of a split pair.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="clearSplitAttributesCalculator--"></a><a name="clearsplitattributescalculator"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clearSplitAttributesCalculator()" data-text="clearSplitAttributesCalculator" tabindex="-1">clearSplitAttributesCalculator</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;2)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/SplitController#clearSplitAttributesCalculator()">clearSplitAttributesCalculator</a>()</pre></devsite-code>
+        <p>Clears the callback previously set by <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code>. The caller <b>must</b> make sure if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is greater than or equal to 2.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 2.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getInstance-android.content.Context-"></a><a name="getinstance"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInstance(android.content.Context)" data-text="getInstance" tabindex="-1">getInstance</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitController">SplitController</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitController#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</pre></devsite-code>
+        <p>Obtains an instance of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController">SplitController</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html">Context</a></code> to initialize the controller with</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSplitSupportStatus--"></a><a name="getsplitsupportstatus"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSplitSupportStatus()" data-text="getSplitSupportStatus" tabindex="-1">getSplitSupportStatus</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus">SplitController.SplitSupportStatus</a>&nbsp;<a href="/reference/androidx/window/embedding/SplitController#getSplitSupportStatus()">getSplitSupportStatus</a>()</pre></devsite-code>
+        <p>Indicates whether split functionality is supported on the device. Note that devices might not enable splits in all states or conditions. For example, a foldable device with multiple screens can choose to collapse splits when apps run on the device's small display, but enable splits when apps run on the device's large display. In cases like this, <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitSupportStatus()">splitSupportStatus</a></code> always returns <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus#SPLIT_AVAILABLE()">SplitSupportStatus.SPLIT_AVAILABLE</a></code>, and if the split is collapsed, activities are launched on top, following the non-activity embedding model.</p>
+        <p>Also the <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowProperties#PROPERTY_ACTIVITY_EMBEDDING_SPLITS_ENABLED()">androidx.window.WindowProperties.PROPERTY_ACTIVITY_EMBEDDING_SPLITS_ENABLED</a></code> must be enabled in AndroidManifest within <application> in order to get the correct state or <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus#SPLIT_ERROR_PROPERTY_NOT_DECLARED()">SplitSupportStatus.SPLIT_ERROR_PROPERTY_NOT_DECLARED</a></code> will be returned in some cases.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController.SplitSupportStatus">SplitController.SplitSupportStatus</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="pinTopActivityStack(kotlin.Int, androidx.window.embedding.SplitPinRule)"></a><a name="pinTopActivityStack-kotlin.Int-androidx.window.embedding.SplitPinRule-"></a><a name="pintopactivitystack"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="pinTopActivityStack(kotlin.Int,androidx.window.embedding.SplitPinRule)" data-text="pinTopActivityStack" tabindex="-1">pinTopActivityStack</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/window/embedding/SplitController#pinTopActivityStack(kotlin.Int,androidx.window.embedding.SplitPinRule)">pinTopActivityStack</a>(int&nbsp;taskId,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitPinRule">SplitPinRule</a>&nbsp;splitPinRule)</pre></devsite-code>
+        <p>Pins the top-most <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> to keep the stack of the Activities to be always positioned on top. The rest of the activities in the Task will be split with the pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>. The pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> would also have isolated activity navigation in which only the activities that are started from the pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> can be added on top of the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+        <p>The pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> is unpinned whenever the pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> is expanded. Use <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitPinRule.Builder#setSticky(kotlin.Boolean)">SplitPinRule.Builder.setSticky</a></code> if the same <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> should be pinned again whenever the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> is on top and split with another <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> again.</p>
+        <p>The caller <b>must</b> make sure if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is greater than or equal to 5.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;taskId</code></td>
+                <td>
+                  <p>The id of the Task that top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> should be pinned.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitPinRule">SplitPinRule</a>&nbsp;splitPinRule</code></td>
+                <td>
+                  <p>The SplitRule that specifies how the top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> should be split with others.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Returns <code translate="no" dir="ltr">true</code> if the top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> is successfully pinned. Otherwise, <code translate="no" dir="ltr">false</code>. Few examples are:     1. There's no <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.     2. There is already an existing pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.     3. There's no other <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> to split with the top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 5.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSplitAttributesCalculator-kotlin.Function1-"></a><a name="setsplitattributescalculator"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSplitAttributesCalculator(kotlin.Function1)" data-text="setSplitAttributesCalculator" tabindex="-1">setSplitAttributesCalculator</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;2)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributesCalculatorParams">SplitAttributesCalculatorParams</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&gt;&nbsp;calculator<br>)</pre></devsite-code>
+        <p>Sets or replaces the previously registered <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> calculator.</p>
+        <p><b>Note</b> that it's callers' responsibility to check if this API is supported by checking <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> before using the this API. It is suggested to always set meaningful <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#defaultSplitAttributes()">SplitRule.defaultSplitAttributes</a></code> in case this API is not supported on some devices.</p>
+        <p>Also, replacing the calculator will only update existing split pairs after a change in the window or device state, such as orientation changes or folding state changes.</p>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> calculator is a function to compute the current <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> for the given <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule">SplitRule</a></code> with the current device and window state. Then The calculator will be invoked if either:</p>
+        <ul>
+          <li>
+            <p>An activity is started and matches a registered <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule">SplitRule</a></code>.</p>
+          </li>
+          <li>
+            <p>A parent configuration is updated and there's an existing split pair.</p>
+          </li>
+        </ul>
+        <p>By default, <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#defaultSplitAttributes()">SplitRule.defaultSplitAttributes</a></code> are applied if the parent container's <code translate="no" dir="ltr"><a href="/reference/androidx/window/layout/WindowMetrics">WindowMetrics</a></code> satisfies the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule">SplitRule</a></code>'s dimensions requirements, which are <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#minWidthDp()">SplitRule.minWidthDp</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#minHeightDp()">SplitRule.minHeightDp</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#minSmallestWidthDp()">SplitRule.minSmallestWidthDp</a></code>. The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#defaultSplitAttributes()">SplitRule.defaultSplitAttributes</a></code> can be set by</p>
+        <ul>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule">SplitRule</a></code> Builder APIs, which are <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitPairRule.Builder#setDefaultSplitAttributes(androidx.window.embedding.SplitAttributes)">SplitPairRule.Builder.setDefaultSplitAttributes</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitPlaceholderRule.Builder#setDefaultSplitAttributes(androidx.window.embedding.SplitAttributes)">SplitPlaceholderRule.Builder.setDefaultSplitAttributes</a></code>.</p>
+          </li>
+          <li>
+            <p>Specifying with <code translate="no" dir="ltr">splitRatio</code> and <code translate="no" dir="ltr">splitLayoutDirection</code> attributes in <code translate="no" dir="ltr">&lt;SplitPairRule&gt;</code> or <code translate="no" dir="ltr">&lt;SplitPlaceHolderRule&gt;</code> tags in XML files.</p>
+          </li>
+        </ul>
+        <p>Developers may want to apply different <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> for different device or window states. For example, on foldable devices, developers may want to split the screen vertically if the device is in landscape, fill the screen if the device is in portrait and split the screen horizontally if the device is in <a href="https://developer.android.com/guide/topics/ui/foldables#postures">tabletop posture</a>. In this case, the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> can be customized by the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> calculator, which takes effects after calling this API. Developers can also clear the calculator by <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#clearSplitAttributesCalculator()">clearSplitAttributesCalculator</a></code>. Then, developers could implement the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> calculator as the sample linked below shows.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.EmbeddingAnimationBackground</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.EmbeddingAnimationParams</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EQUAL</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_EXPAND</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitAttributes.SplitType.Companion.SPLIT_TYPE_HINGE</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitController</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.layout.FoldingFeature</span>
+
+<span class="devsite-syntax-n">SplitController</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">tag</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">splitRuleTag</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">parentWindowMetrics</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">parentWindowMetrics</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">parentConfig</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">parentConfiguration</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">foldingFeatures</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">parentWindowLayoutInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">displayFeatures</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">filterIsInstance&lt;FoldingFeature&gt;</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">foldingState</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">foldingFeatures</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">size</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-m">1</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">foldingFeatures</span><span class="devsite-syntax-o">[</span><span class="devsite-syntax-m">0</span><span class="devsite-syntax-o">]</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Tag can be used to filter the SplitRule to apply the SplitAttributes</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">TAG_SPLIT_RULE_MAIN</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">!=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">tag</span><span class="devsite-syntax-w"> &amp;&amp; </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">areDefaultConstraintsSatisfied</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">params</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">defaultSplitAttributes</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// This sample will make the app show a layout to</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// - split the task bounds vertically if the device is in landscape</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// - fill the task bounds if the device is in portrait and its folding state does not</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">//   split the screen</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// - split the task bounds horizontally in tabletop mode</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">bounds</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">parentWindowMetrics</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">bounds</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">foldingState</span><span class="devsite-syntax-o">?.</span><span class="devsite-syntax-na">isSeparating</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-c1">// Split the parent container that followed by the hinge if the hinge separates the</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-c1">// parent window.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setSplitType</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">SPLIT_TYPE_HINGE</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setLayoutDirection</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">foldingState</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">orientation</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">FoldingFeature</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Orientation</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">HORIZONTAL</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LayoutDirection</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">TOP_TO_BOTTOM</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LayoutDirection</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LOCALE</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Optionally set the animation background and change transition animation to use</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// when switching between vertical and horizontal</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setAnimationParams</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">EmbeddingAnimationParams</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setAnimationBackground</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">EmbeddingAnimationBackground</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">createColorBackground</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">Color</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">GRAY</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setChangeAnimation</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">EmbeddingAnimationParams</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">AnimationSpec</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">JUMP_CUT</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-nd">@setSplitAttributesCalculator</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">parentConfig</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">screenWidthDp</span><span class="devsite-syntax-w"> </span>&gt;<span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-m">600</span><span class="devsite-syntax-w"> &amp;&amp; </span><span class="devsite-syntax-n">bounds</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">width</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span>&gt;<span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">bounds</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">height</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-c1">// Split the parent container equally and vertically if the device is in landscape.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setSplitType</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">SPLIT_TYPE_EQUAL</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setLayoutDirection</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LayoutDirection</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LOCALE</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Optionally set the animation background and change transition animation to use</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// when switching between vertical and horizontal</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setAnimationParams</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">EmbeddingAnimationParams</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setAnimationBackground</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">EmbeddingAnimationBackground</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">createColorBackground</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">Color</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">GRAY</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setChangeAnimation</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">EmbeddingAnimationParams</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">AnimationSpec</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">JUMP_CUT</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-c1">// Expand containers if the device is in portrait or the width is less than 600 dp.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">SplitAttributes</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Builder</span><span class="devsite-syntax-p">().</span><span class="devsite-syntax-na">setSplitType</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">SPLIT_TYPE_EXPAND</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">build</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributesCalculatorParams">SplitAttributesCalculatorParams</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&gt;&nbsp;calculator</code></td>
+                <td>
+                  <p>the function to calculate <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> based on the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributesCalculatorParams">SplitAttributesCalculatorParams</a></code>. It will replace the previously set if it exists.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 2.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="splitInfoList-android.app.Activity-"></a><a name="splitinfolist"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="splitInfoList(android.app.Activity)" data-text="splitInfoList" tabindex="-1">splitInfoList</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&gt;&gt;&nbsp;<a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">splitInfoList</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</pre></devsite-code>
+        <p>A <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code> list that contains the current split states that this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">activity</a></code> is part of.</p>
+        <p>An activity can be in zero, one or more <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">active splits</a></code>. More than one active split is possible if an activity created multiple containers to side, stacked on top of each other. Or it can be in two different splits at the same time - in a secondary container for one (it was launched to the side) and in the primary for another (it launched another activity to the side). The reported splits in the list are ordered from bottom to top by their z-order, more recent splits appearing later. Guaranteed to be called at least once to report the most recent state.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a></code> that is interested in getting the split states</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&gt;&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code> list that includes this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">activity</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="unpinTopActivityStack-kotlin.Int-"></a><a name="unpintopactivitystack"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="unpinTopActivityStack(kotlin.Int)" data-text="unpinTopActivityStack" tabindex="-1">unpinTopActivityStack</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/SplitController#unpinTopActivityStack(kotlin.Int)">unpinTopActivityStack</a>(int&nbsp;taskId)</pre></devsite-code>
+        <p>Unpins the pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>. The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> will still be the top-most <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> right after unpinned, and the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> could be expanded or continue to be split with the next top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> if the current state matches any of the existing <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitPairRule">SplitPairRule</a></code>. It is a no-op call if the task does not have a pinned <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+        <p>The caller <b>must</b> make sure if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is greater than or equal to 5.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;taskId</code></td>
+                <td>
+                  <p>The id of the Task that top <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> should be unpinned.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 5.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="updateSplitAttributes(androidx.window.embedding.SplitInfo, androidx.window.embedding.SplitAttributes)"></a><a name="updateSplitAttributes-androidx.window.embedding.SplitInfo-androidx.window.embedding.SplitAttributes-"></a><a name="updatesplitattributes"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="updateSplitAttributes(androidx.window.embedding.SplitInfo,androidx.window.embedding.SplitAttributes)" data-text="updateSplitAttributes" tabindex="-1">updateSplitAttributes</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.2.0">1.2.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;3)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/SplitController#updateSplitAttributes(androidx.window.embedding.SplitInfo,androidx.window.embedding.SplitAttributes)">updateSplitAttributes</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&nbsp;splitInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&nbsp;splitAttributes<br>)</pre></devsite-code>
+        <p>Updates the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> of a split pair. This is an alternative to using a split attributes calculator callback set in <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code>, useful when apps only need to update the splits in a few cases proactively but rely on the default split attributes most of the time otherwise.</p>
+        <p>The provided split attributes will be used instead of the associated <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitRule#defaultSplitAttributes()">SplitRule.defaultSplitAttributes</a></code>.</p>
+        <p><b>Note</b> that the split attributes may be updated if split attributes calculator callback is registered and invoked. If <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code> is used, the callback will still be applied to each <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code> when there's either:</p>
+        <ul>
+          <li>
+            <p>A new Activity being launched.</p>
+          </li>
+          <li>
+            <p>A window or device state updates (e,g. due to screen rotation or folding state update).</p>
+          </li>
+        </ul>
+        <p>In most cases it is suggested to use ActivityEmbeddingController.invalidateTopVisibleActivityStacks if a calculator has been set through <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a>&nbsp;splitInfo</code></td>
+                <td>
+                  <p>the split pair to update</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a>&nbsp;splitAttributes</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitAttributes">SplitAttributes</a></code> to be applied</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 3.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

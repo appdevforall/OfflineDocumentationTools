@@ -1,1 +1,1051 @@
-<html><head><title>Class Documentation</title></head><body>WindowInsetsAnimationCompat.Callback Artifact: androidx.core:core View Source Added in 1.5.0 Kotlin | Java public abstract class WindowInsetsAnimationCompat.Callback Interface that allows the application to listen to animation events for windows that cause insets. Summary Constants static&nbsp;final int DISPATCH_MODE_CONTINUE_ON_SUBTREE = 1 Return value for getDispatchMode : Dispatching of animation events should continue in the view hierarchy. static&nbsp;final int DISPATCH_MODE_STOP = 0 Return value for getDispatchMode : Dispatching of animation events should stop at this level in the view hierarchy, and no animation events should be dispatch to the subtree of the view hierarchy. Public constructors Callback (int&nbsp;dispatchMode) Creates a new WindowInsetsAnimationCompat callback with the given dispatch mode . Public methods final int getDispatchMode () Retrieves the dispatch mode of this listener. void onEnd (@ NonNull WindowInsetsAnimationCompat &nbsp;animation) Called when an insets animation has ended. void onPrepare (@ NonNull WindowInsetsAnimationCompat &nbsp;animation) Called when an insets animation is about to start and before the views have been re-laid out due to an animation. abstract @ NonNull WindowInsetsCompat onProgress ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsCompat &nbsp;insets, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt; WindowInsetsAnimationCompat &gt;&nbsp;runningAnimations ) Called when the insets change as part of running an animation. @ NonNull WindowInsetsAnimationCompat.BoundsCompat onStart ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsAnimationCompat &nbsp;animation, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsAnimationCompat.BoundsCompat &nbsp;bounds ) Called when an insets animation gets started. Constants DISPATCH_MODE_CONTINUE_ON_SUBTREE Added in 1.5.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; DISPATCH_MODE_CONTINUE_ON_SUBTREE = 1 Return value for getDispatchMode : Dispatching of animation events should continue in the view hierarchy. DISPATCH_MODE_STOP Added in 1.5.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; DISPATCH_MODE_STOP = 0 Return value for getDispatchMode : Dispatching of animation events should stop at this level in the view hierarchy, and no animation events should be dispatch to the subtree of the view hierarchy. Public constructors Callback Added in 1.5.0 public&nbsp; Callback (int&nbsp;dispatchMode) Creates a new WindowInsetsAnimationCompat callback with the given dispatch mode . Parameters int&nbsp;dispatchMode The dispatch mode for this callback. See getDispatchMode . Public methods getDispatchMode Added in 1.5.0 public&nbsp;final&nbsp;int&nbsp; getDispatchMode () Retrieves the dispatch mode of this listener. Dispatch of the all animation events is hierarchical: It will starts at the root of the view hierarchy and then traverse it and invoke the callback of the specific View that is being traversed. The method may return either DISPATCH_MODE_CONTINUE_ON_SUBTREE to indicate that animation events should be propagated to the subtree of the view hierarchy, or DISPATCH_MODE_STOP to stop dispatching. In that case, all animation callbacks related to the animation passed in will be stopped from propagating to the subtree of the hierarchy. Also note that DISPATCH_MODE_STOP behaves the same way as returning CONSUMED during the regular insets dispatch in onApplyWindowInsets . Returns int Either DISPATCH_MODE_CONTINUE_ON_SUBTREE to indicate that dispatching of animation events will continue to the subtree of the view hierarchy, or DISPATCH_MODE_STOP to indicate that animation events will stop dispatching. onEnd Added in 1.5.0 public&nbsp;void&nbsp; onEnd (@ NonNull WindowInsetsAnimationCompat &nbsp;animation) Called when an insets animation has ended. Parameters @ NonNull WindowInsetsAnimationCompat &nbsp;animation The animation that has ended. This will be the same instance as passed into onStart onPrepare Added in 1.5.0 public&nbsp;void&nbsp; onPrepare (@ NonNull WindowInsetsAnimationCompat &nbsp;animation) Called when an insets animation is about to start and before the views have been re-laid out due to an animation. This ordering allows the application to inspect the end state after the animation has finished, and then revert to the starting state of the animation in the first onProgress callback by using post-layout view properties like setX and related methods. The ordering of events during an insets animation is the following: Application calls hide , show , controlWindowInsetsAnimation onPrepare is called on the view hierarchy listeners onApplyWindowInsets will be called with the end state of the animation View hierarchy gets laid out according to the changes the application has requested due to the new insets being dispatched onStart is called before the view hierarchy gets drawn in the new laid out state onProgress is called immediately after with the animation start state The frame gets drawn. Note: If the animation is application controlled by using controlWindowInsetsAnimation , the end state of the animation is undefined as the application may decide on the end state only by passing in shown parameter when calling finish . In this situation, the system will dispatch the insets in the opposite visibility state before the animation starts. Example: When controlling the input method with controlWindowInsetsAnimation and the input method is currently showing, onApplyWindowInsets will receive a WindowInsetsCompat instance for which isVisible will return false for ime . Parameters @ NonNull WindowInsetsAnimationCompat &nbsp;animation The animation that is about to start. onProgress Added in 1.5.0 public&nbsp;abstract&nbsp;@ NonNull WindowInsetsCompat &nbsp; onProgress ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsCompat &nbsp;insets, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull List &lt; WindowInsetsAnimationCompat &gt;&nbsp;runningAnimations ) Called when the insets change as part of running an animation. Note that even if multiple animations for different types are running, there will only be one progress callback per frame. The insets passed as an argument represents the overall state and will include all types, regardless of whether they are animating or not. Note that insets dispatch is hierarchical: It will start at the root of the view hierarchy, and then traverse it and invoke the callback of the specific View being traversed. The method may return a modified instance by calling inset to indicate that a part of the insets have been used to offset or clip its children, and the children shouldn't worry about that part anymore. Furthermore, if getDispatchMode returns DISPATCH_MODE_STOP , children of this view will not receive the callback anymore. Parameters @ NonNull WindowInsetsCompat &nbsp;insets The current insets. @ NonNull List &lt; WindowInsetsAnimationCompat &gt;&nbsp;runningAnimations The currently running animations. Returns @ NonNull WindowInsetsCompat The insets to dispatch to the subtree of the hierarchy. onStart Added in 1.5.0 public&nbsp;@ NonNull WindowInsetsAnimationCompat.BoundsCompat &nbsp; onStart ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsAnimationCompat &nbsp;animation, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull WindowInsetsAnimationCompat.BoundsCompat &nbsp;bounds ) Called when an insets animation gets started. This ordering allows the application to inspect the end state after the animation has finished, and then revert to the starting state of the animation in the first onProgress callback by using post-layout view properties like setX and related methods. The ordering of events during an insets animation is the following: Application calls hide , show , controlWindowInsetsAnimation onPrepare is called on the view hierarchy listeners onApplyWindowInsets will be called with the end state of the animation View hierarchy gets laid out according to the changes the application has requested due to the new insets being dispatched onStart is called before the view hierarchy gets drawn in the new laid out state onProgress is called immediately after with the animation start state The frame gets drawn. Note that, like onProgress , dispatch of the animation start event is hierarchical: It will starts at the root of the view hierarchy and then traverse it and invoke the callback of the specific View that is being traversed. The method may return a modified instance of the bounds by calling inset to indicate that a part of the insets have been used to offset or clip its children, and the children shouldn't worry about that part anymore. Furthermore, if getDispatchMode returns DISPATCH_MODE_STOP , children of this view will not receive the callback anymore. Parameters @ NonNull WindowInsetsAnimationCompat &nbsp;animation The animation that is about to start. @ NonNull WindowInsetsAnimationCompat.BoundsCompat &nbsp;bounds The bounds in which animation happens. Returns @ NonNull WindowInsetsAnimationCompat.BoundsCompat The animation bounds representing the part of the insets that should be dispatched to the subtree of the hierarchy.</body></html>
+<html><head><title>WindowInsetsAnimationCompat.Callback</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="WindowInsetsAnimationCompat.Callback">
+      <meta itemprop="path" content="androidx.core.view">
+      <meta itemprop="property" content="getDispatchMode()">
+      <meta itemprop="property" content="onEnd(androidx.core.view.WindowInsetsAnimationCompat)">
+      <meta itemprop="property" content="onPrepare(androidx.core.view.WindowInsetsAnimationCompat)">
+      <meta itemprop="property" content="onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">
+      <meta itemprop="property" content="onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">
+      <meta itemprop="property" content="DISPATCH_MODE_CONTINUE_ON_SUBTREE()">
+      <meta itemprop="property" content="DISPATCH_MODE_STOP()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="windowinsetsanimationcompat.callback" data-text="WindowInsetsAnimationCompat.Callback" tabindex="-1">WindowInsetsAnimationCompat.Callback</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/core">androidx.core:core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/core/view/WindowInsetsAnimationCompat.java+class:androidx.core.view.WindowInsetsAnimationCompat.Callback" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/core/view/WindowInsetsAnimationCompat.Callback" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public abstract class <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback">WindowInsetsAnimationCompat.Callback</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Interface that allows the application to listen to animation events for windows that cause insets.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_CONTINUE_ON_SUBTREE()">DISPATCH_MODE_CONTINUE_ON_SUBTREE</a> = 1</code></div>
+              <p>Return value for <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code>: Dispatching of animation events should continue in the view hierarchy.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a> = 0</code></div>
+              <p>Return value for <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code>: Dispatching of animation events should stop at this level in the view hierarchy, and no animation events should be dispatch to the subtree of the view hierarchy.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#Callback(int)">Callback</a>(int&nbsp;dispatchMode)</code></div>
+              <p>Creates a new <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a></code> callback with the given <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">dispatch mode</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a>()</code></div>
+              <p>Retrieves the dispatch mode of this listener.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onEnd(androidx.core.view.WindowInsetsAnimationCompat)">onEnd</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation)</code></div>
+              <p>Called when an insets animation has ended.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onPrepare(androidx.core.view.WindowInsetsAnimationCompat)">onPrepare</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation)</code></div>
+              <p>Called when an insets animation is about to start and before the views have been re-laid out due to an animation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a>&nbsp;insets,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&gt;&nbsp;runningAnimations<br>)</code></div>
+              <p>Called when the insets change as part of running an animation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">onStart</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a>&nbsp;bounds<br>)</code></div>
+              <p>Called when an insets animation gets started.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDISPATCH_MODE_CONTINUE_ON_SUBTREE()"></a><a name="setDISPATCH_MODE_CONTINUE_ON_SUBTREE()"></a><a name="getDISPATCH_MODE_CONTINUE_ON_SUBTREE--"></a><a name="setDISPATCH_MODE_CONTINUE_ON_SUBTREE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DISPATCH_MODE_CONTINUE_ON_SUBTREE()" data-text="DISPATCH_MODE_CONTINUE_ON_SUBTREE" tabindex="-1">DISPATCH_MODE_CONTINUE_ON_SUBTREE</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_CONTINUE_ON_SUBTREE()">DISPATCH_MODE_CONTINUE_ON_SUBTREE</a> = 1</pre></devsite-code>
+        <p>Return value for <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code>: Dispatching of animation events should continue in the view hierarchy.</p>
+      </div>
+      <div class="api-item"><a name="getDISPATCH_MODE_STOP()"></a><a name="setDISPATCH_MODE_STOP()"></a><a name="getDISPATCH_MODE_STOP--"></a><a name="setDISPATCH_MODE_STOP--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DISPATCH_MODE_STOP()" data-text="DISPATCH_MODE_STOP" tabindex="-1">DISPATCH_MODE_STOP</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a> = 0</pre></devsite-code>
+        <p>Return value for <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code>: Dispatching of animation events should stop at this level in the view hierarchy, and no animation events should be dispatch to the subtree of the view hierarchy.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="Callback-int-"></a><a name="callback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="Callback(int)" data-text="Callback" tabindex="-1">Callback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#Callback(int)">Callback</a>(int&nbsp;dispatchMode)</pre></devsite-code>
+        <p>Creates a new <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a></code> callback with the given <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">dispatch mode</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;dispatchMode</code></td>
+                <td>
+                  <p>The dispatch mode for this callback. See <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getDispatchMode--"></a><a name="getdispatchmode"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getDispatchMode()" data-text="getDispatchMode" tabindex="-1">getDispatchMode</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a>()</pre></devsite-code>
+        <p>Retrieves the dispatch mode of this listener. Dispatch of the all animation events is hierarchical: It will starts at the root of the view hierarchy and then traverse it and invoke the callback of the specific <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html">View</a></code> that is being traversed. The method may return either <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_CONTINUE_ON_SUBTREE()">DISPATCH_MODE_CONTINUE_ON_SUBTREE</a></code> to indicate that animation events should be propagated to the subtree of the view hierarchy, or <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a></code> to stop dispatching. In that case, all animation callbacks related to the animation passed in will be stopped from propagating to the subtree of the hierarchy. </p>
+        <p> Also note that <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a></code> behaves the same way as returning <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsCompat#CONSUMED()">CONSUMED</a></code> during the regular insets dispatch in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onApplyWindowInsets(android.view.WindowInsets)">onApplyWindowInsets</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Either <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_CONTINUE_ON_SUBTREE()">DISPATCH_MODE_CONTINUE_ON_SUBTREE</a></code> to indicate that dispatching of animation events will continue to the subtree of the view hierarchy, or <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a></code> to indicate that animation events will stop dispatching.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onEnd-androidx.core.view.WindowInsetsAnimationCompat-"></a><a name="onend"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onEnd(androidx.core.view.WindowInsetsAnimationCompat)" data-text="onEnd" tabindex="-1">onEnd</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onEnd(androidx.core.view.WindowInsetsAnimationCompat)">onEnd</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation)</pre></devsite-code>
+        <p>Called when an insets animation has ended.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation</code></td>
+                <td>
+                  <p>The animation that has ended. This will be the same instance as passed into <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">onStart</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onPrepare-androidx.core.view.WindowInsetsAnimationCompat-"></a><a name="onprepare"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onPrepare(androidx.core.view.WindowInsetsAnimationCompat)" data-text="onPrepare" tabindex="-1">onPrepare</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onPrepare(androidx.core.view.WindowInsetsAnimationCompat)">onPrepare</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation)</pre></devsite-code>
+        <p>Called when an insets animation is about to start and before the views have been re-laid out due to an animation. </p>
+        <p> This ordering allows the application to inspect the end state after the animation has finished, and then revert to the starting state of the animation in the first <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a></code> callback by using post-layout view properties like <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#setX(float)">setX</a></code> and related methods. </p>
+        <p> The ordering of events during an insets animation is the following: </p>
+        <ul>
+          <li>Application calls <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#hide(int)">hide</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#show(int)">show</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#controlWindowInsetsAnimation(int,long,android.view.animation.Interpolator,android.os.CancellationSignal,androidx.core.view.WindowInsetsAnimationControlListenerCompat)">controlWindowInsetsAnimation</a></code></li>
+          <li>onPrepare is called on the view hierarchy listeners</li>
+          <li><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onApplyWindowInsets(android.view.WindowInsets)">onApplyWindowInsets</a></code> will be called with the end state of the animation</li>
+          <li>View hierarchy gets laid out according to the changes the application has requested due to the new insets being dispatched</li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">onStart</a></code> is called <em>before</em> the view hierarchy gets drawn in the new laid out state</li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a></code> is called immediately after with the animation start state</li>
+          <li>The frame gets drawn.</li>
+        </ul>
+        <p> Note: If the animation is application controlled by using <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#controlWindowInsetsAnimation(int,long,android.view.animation.Interpolator,android.os.CancellationSignal,androidx.core.view.WindowInsetsAnimationControlListenerCompat)">controlWindowInsetsAnimation</a></code>, the end state of the animation is undefined as the application may decide on the end state only by passing in <code translate="no" dir="ltr">shown</code> parameter when calling <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationControllerCompat#finish(boolean)">finish</a></code>. In this situation, the system will dispatch the insets in the opposite visibility state before the animation starts. Example: When controlling the input method with <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#controlWindowInsetsAnimation(int,long,android.view.animation.Interpolator,android.os.CancellationSignal,androidx.core.view.WindowInsetsAnimationControlListenerCompat)">controlWindowInsetsAnimation</a></code> and the input method is currently showing, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onApplyWindowInsets(android.view.WindowInsets)">onApplyWindowInsets</a></code> will receive a <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a></code> instance for which <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsCompat#isVisible(int)">isVisible</a></code> will return <code translate="no" dir="ltr">false</code> for <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsCompat.Type#ime()">ime</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation</code></td>
+                <td>
+                  <p>The animation that is about to start.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onProgress(androidx.core.view.WindowInsetsCompat, java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)"></a><a name="onProgress-androidx.core.view.WindowInsetsCompat-java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;-"></a><a name="onprogress"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)" data-text="onProgress" tabindex="-1">onProgress</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a>&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a>&nbsp;insets,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&gt;&nbsp;runningAnimations<br>)</pre></devsite-code>
+        <p>Called when the insets change as part of running an animation. Note that even if multiple animations for different types are running, there will only be one progress callback per frame. The <code translate="no" dir="ltr">insets</code> passed as an argument represents the overall state and will include all types, regardless of whether they are animating or not. </p>
+        <p> Note that insets dispatch is hierarchical: It will start at the root of the view hierarchy, and then traverse it and invoke the callback of the specific <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html">View</a></code> being traversed. The method may return a modified instance by calling <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsCompat#inset(int,int,int,int)">inset</a></code> to indicate that a part of the insets have been used to offset or clip its children, and the children shouldn't worry about that part anymore. Furthermore, if <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a></code>, children of this view will not receive the callback anymore.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a>&nbsp;insets</code></td>
+                <td>
+                  <p>The current insets.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&gt;&nbsp;runningAnimations</code></td>
+                <td>
+                  <p>The currently running animations.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsCompat">WindowInsetsCompat</a></code></td>
+                <td>
+                  <p>The insets to dispatch to the subtree of the hierarchy.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onStart(androidx.core.view.WindowInsetsAnimationCompat, androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)"></a><a name="onStart-androidx.core.view.WindowInsetsAnimationCompat-androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat-"></a><a name="onstart"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)" data-text="onStart" tabindex="-1">onStart</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a>&nbsp;<a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">onStart</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a>&nbsp;bounds<br>)</pre></devsite-code>
+        <p>Called when an insets animation gets started. </p>
+        <p> This ordering allows the application to inspect the end state after the animation has finished, and then revert to the starting state of the animation in the first <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a></code> callback by using post-layout view properties like <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#setX(float)">setX</a></code> and related methods. </p>
+        <p> The ordering of events during an insets animation is the following: </p>
+        <ul>
+          <li>Application calls <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#hide(int)">hide</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#show(int)">show</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsControllerCompat#controlWindowInsetsAnimation(int,long,android.view.animation.Interpolator,android.os.CancellationSignal,androidx.core.view.WindowInsetsAnimationControlListenerCompat)">controlWindowInsetsAnimation</a></code></li>
+          <li>onPrepare is called on the view hierarchy listeners</li>
+          <li><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onApplyWindowInsets(android.view.WindowInsets)">onApplyWindowInsets</a></code> will be called with the end state of the animation</li>
+          <li>View hierarchy gets laid out according to the changes the application has requested due to the new insets being dispatched</li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onStart(androidx.core.view.WindowInsetsAnimationCompat,androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat)">onStart</a></code> is called <em>before</em> the view hierarchy gets drawn in the new laid out state</li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a></code> is called immediately after with the animation start state</li>
+          <li>The frame gets drawn.</li>
+        </ul>
+        <p> Note that, like <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#onProgress(androidx.core.view.WindowInsetsCompat,java.util.List&lt;androidx.core.view.WindowInsetsAnimationCompat&gt;)">onProgress</a></code>, dispatch of the animation start event is hierarchical: It will starts at the root of the view hierarchy and then traverse it and invoke the callback of the specific <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html">View</a></code> that is being traversed. The method may return a modified instance of the bounds by calling <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat#inset(androidx.core.graphics.Insets)">inset</a></code> to indicate that a part of the insets have been used to offset or clip its children, and the children shouldn't worry about that part anymore. Furthermore, if <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#getDispatchMode()">getDispatchMode</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.Callback#DISPATCH_MODE_STOP()">DISPATCH_MODE_STOP</a></code>, children of this view will not receive the callback anymore.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat">WindowInsetsAnimationCompat</a>&nbsp;animation</code></td>
+                <td>
+                  <p>The animation that is about to start.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a>&nbsp;bounds</code></td>
+                <td>
+                  <p>The bounds in which animation happens.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/view/WindowInsetsAnimationCompat.BoundsCompat">WindowInsetsAnimationCompat.BoundsCompat</a></code></td>
+                <td>
+                  <p>The animation bounds representing the part of the insets that should be dispatched to the subtree of the hierarchy.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

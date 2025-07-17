@@ -1,1 +1,911 @@
-<html><head><title>Class Documentation</title></head><body>PagingConfig Artifact: androidx.paging:paging-common View Source Added in 3.0.0 Kotlin | Java public final class PagingConfig An object used to configure loading behavior within a Pager , as it loads content from a PagingSource . Summary Constants static&nbsp;final int MAX_SIZE_UNBOUNDED When maxSize is set to MAX_SIZE_UNBOUNDED , the maximum number of items loaded is unbounded, and pages will never be dropped. Public fields final boolean enablePlaceholders Defines whether PagingData may display null placeholders, if the PagingSource provides them. final int initialLoadSize Defines requested load size for initial load from PagingSource , typically larger than pageSize , so on first load data there's a large enough range of content loaded to cover small scrolls. final int jumpThreshold Defines a threshold for the number of items scrolled outside the bounds of loaded items before Paging should give up on loading pages incrementally, and instead jump to the user's position by triggering REFRESH via invalidate. final int maxSize Defines the maximum number of items that may be loaded into PagingData before pages should be dropped. final int pageSize Defines the number of items loaded at once from the PagingSource . final int prefetchDistance Prefetch distance which defines how far from the edge of loaded content an access must be to trigger further loading. Public constructors PagingConfig ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;pageSize, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;prefetchDistance, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;enablePlaceholders, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;initialLoadSize, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;2) int&nbsp;maxSize, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;jumpThreshold ) Constants MAX_SIZE_UNBOUNDED public&nbsp;static&nbsp;final&nbsp;int&nbsp; MAX_SIZE_UNBOUNDED When maxSize is set to MAX_SIZE_UNBOUNDED , the maximum number of items loaded is unbounded, and pages will never be dropped. Public fields enablePlaceholders Added in 3.0.0 public&nbsp;final&nbsp;boolean&nbsp; enablePlaceholders Defines whether PagingData may display null placeholders, if the PagingSource provides them. PagingData will present null placeholders for not-yet-loaded content if two conditions are met: Its PagingSource can count all unloaded items (so that the number of nulls to present is known). enablePlaceholders is set to true initialLoadSize Added in 3.0.0 public&nbsp;final&nbsp;int&nbsp; initialLoadSize Defines requested load size for initial load from PagingSource , typically larger than pageSize , so on first load data there's a large enough range of content loaded to cover small scrolls. Note: initialLoadSize is used to inform PagingSource.LoadParams.loadSize , but is not enforced. A PagingSource may completely ignore this value and still return a valid initial Page . jumpThreshold Added in 3.0.0 public&nbsp;final&nbsp;int&nbsp; jumpThreshold Defines a threshold for the number of items scrolled outside the bounds of loaded items before Paging should give up on loading pages incrementally, and instead jump to the user's position by triggering REFRESH via invalidate. Defaults to COUNT_UNDEFINED , which disables invalidation due to scrolling large distances. Note: In order to allow PagingSource to resume from the user's current scroll position after invalidation, PagingSource.getRefreshKey must be implemented. See also getRefreshKey jumpingSupported maxSize Added in 3.0.0 public&nbsp;final&nbsp;int&nbsp; maxSize Defines the maximum number of items that may be loaded into PagingData before pages should be dropped. If set to MAX_SIZE_UNBOUNDED , pages will never be dropped. This can be used to cap the number of items kept in memory by dropping pages. This value is typically many pages so old pages are cached in case the user scrolls back. This value must be at least two times the prefetchDistance plus the pageSize ). This constraint prevent loads from being continuously fetched and discarded due to prefetching. maxSize is best effort, not a guarantee. In practice, if maxSize is many times pageSize , the number of items held by PagingData will not grow above this number. Exceptions are made as necessary to guarantee: Pages are never dropped until there are more than two pages loaded. Note that a PagingSource may not be held strictly to requested pageSize , so two pages may be larger than expected. Pages are never dropped if they are within a prefetch window (defined to be pageSize + (2 * prefetchDistance) ) of the most recent load. See also MAX_SIZE_UNBOUNDED pageSize Added in 3.0.0 public&nbsp;final&nbsp;int&nbsp; pageSize Defines the number of items loaded at once from the PagingSource . Should be several times the number of visible items onscreen. Configuring your page size depends on how your data is being loaded and used. Smaller page sizes improve memory usage, latency, and avoid GC churn. Larger pages generally improve loading throughput, to a point (avoid loading more than 2MB from SQLite at once, since it incurs extra cost). If you're loading data for very large, social-media style cards that take up most of a screen, and your database isn't a bottleneck, 10-20 may make sense. If you're displaying dozens of items in a tiled grid, which can present items during a scroll much more quickly, consider closer to 100. Note: pageSize is used to inform PagingSource.LoadParams.loadSize , but is not enforced. A PagingSource may completely ignore this value and still return a valid Page . prefetchDistance Added in 3.0.0 public&nbsp;final&nbsp;int&nbsp; prefetchDistance Prefetch distance which defines how far from the edge of loaded content an access must be to trigger further loading. Typically should be set several times the number of visible items onscreen. E.g., If this value is set to 50, a PagingData will attempt to load 50 items in advance of data that's already been accessed. A value of 0 indicates that no list items will be loaded until they are specifically requested. This is generally not recommended, so that users don't observe a placeholder item (with placeholders) or end of list (without) while scrolling. Public constructors PagingConfig Added in 3.0.0 public&nbsp; PagingConfig ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;pageSize, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;prefetchDistance, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;enablePlaceholders, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;1) int&nbsp;initialLoadSize, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;2) int&nbsp;maxSize, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;jumpThreshold )</body></html>
+<html><head><title>PagingConfig</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="PagingConfig">
+      <meta itemprop="path" content="androidx.paging">
+      <meta itemprop="property" content="enablePlaceholders()">
+      <meta itemprop="property" content="initialLoadSize()">
+      <meta itemprop="property" content="jumpThreshold()">
+      <meta itemprop="property" content="maxSize()">
+      <meta itemprop="property" content="pageSize()">
+      <meta itemprop="property" content="prefetchDistance()">
+      <meta itemprop="property" content="MAX_SIZE_UNBOUNDED()">
+      <meta itemprop="property" content="MAX_SIZE_UNBOUNDED()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="pagingconfig" data-text="PagingConfig" tabindex="-1">PagingConfig</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/paging">androidx.paging:paging-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/paging/PagingConfig.kt+class:androidx.paging.PagingConfig" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/paging/PagingConfig" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/paging/PagingConfig">PagingConfig</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>An object used to configure loading behavior within a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/Pager">Pager</a></code>, as it loads content from a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></code></div>
+              <p>When <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></code> is set to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></code>, the maximum number of items loaded is unbounded, and pages will never be dropped.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-fields" data-text="Public fields" tabindex="-1">Public fields</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#enablePlaceholders()">enablePlaceholders</a></code></div>
+              <p>Defines whether <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> may display <code translate="no" dir="ltr">null</code> placeholders, if the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> provides them.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#initialLoadSize()">initialLoadSize</a></code></div>
+              <p>Defines requested load size for initial load from <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>, typically larger than <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code>, so on first load data there's a large enough range of content loaded to cover small scrolls.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#jumpThreshold()">jumpThreshold</a></code></div>
+              <p>Defines a threshold for the number of items scrolled outside the bounds of loaded items before Paging should give up on loading pages incrementally, and instead jump to the user's position by triggering REFRESH via invalidate.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></code></div>
+              <p>Defines the maximum number of items that may be loaded into <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> before pages should be dropped.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code></div>
+              <p>Defines the number of items loaded at once from the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#prefetchDistance()">prefetchDistance</a></code></div>
+              <p>Prefetch distance which defines how far from the edge of loaded content an access must be to trigger further loading.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#PagingConfig(kotlin.Int,kotlin.Int,kotlin.Boolean,kotlin.Int,kotlin.Int,kotlin.Int)">PagingConfig</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;pageSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;prefetchDistance,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;enablePlaceholders,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;initialLoadSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;2) int&nbsp;maxSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;jumpThreshold<br>)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getMAX_SIZE_UNBOUNDED()"></a><a name="setMAX_SIZE_UNBOUNDED()"></a><a name="getMAX_SIZE_UNBOUNDED--"></a><a name="setMAX_SIZE_UNBOUNDED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="MAX_SIZE_UNBOUNDED()" data-text="MAX_SIZE_UNBOUNDED" tabindex="-1">MAX_SIZE_UNBOUNDED</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></pre></devsite-code>
+        <p>When <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></code> is set to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></code>, the maximum number of items loaded is unbounded, and pages will never be dropped.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-fields_1" data-text="Public fields" tabindex="-1">Public fields</h2>
+      <div class="api-item"><a name="getEnablePlaceholders()"></a><a name="setEnablePlaceholders()"></a><a name="getEnablePlaceholders--"></a><a name="setEnablePlaceholders--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="enablePlaceholders()" data-text="enablePlaceholders" tabindex="-1">enablePlaceholders</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/paging/PagingConfig#enablePlaceholders()">enablePlaceholders</a></pre></devsite-code>
+        <p>Defines whether <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> may display <code translate="no" dir="ltr">null</code> placeholders, if the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> provides them.</p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> will present <code translate="no" dir="ltr">null</code> placeholders for not-yet-loaded content if two conditions are met:</p>
+        <ol>
+          <li>
+            <p>Its <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> can count all unloaded items (so that the number of nulls to present is     known).</p>
+          </li>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#enablePlaceholders()">enablePlaceholders</a></code> is set to <code translate="no" dir="ltr">true</code></p>
+          </li>
+        </ol>
+      </div>
+      <div class="api-item"><a name="getInitialLoadSize()"></a><a name="setInitialLoadSize()"></a><a name="getInitialLoadSize--"></a><a name="setInitialLoadSize--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="initialLoadSize()" data-text="initialLoadSize" tabindex="-1">initialLoadSize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#initialLoadSize()">initialLoadSize</a></pre></devsite-code>
+        <p>Defines requested load size for initial load from <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>, typically larger than <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code>, so on first load data there's a large enough range of content loaded to cover small scrolls.</p>
+        <p>Note: <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#initialLoadSize()">initialLoadSize</a></code> is used to inform <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadParams#loadSize()">PagingSource.LoadParams.loadSize</a></code>, but is not enforced. A <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> may completely ignore this value and still return a valid initial <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">Page</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getJumpThreshold()"></a><a name="setJumpThreshold()"></a><a name="getJumpThreshold--"></a><a name="setJumpThreshold--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="jumpThreshold()" data-text="jumpThreshold" tabindex="-1">jumpThreshold</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#jumpThreshold()">jumpThreshold</a></pre></devsite-code>
+        <p>Defines a threshold for the number of items scrolled outside the bounds of loaded items before Paging should give up on loading pages incrementally, and instead jump to the user's position by triggering REFRESH via invalidate.</p>
+        <p>Defaults to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#COUNT_UNDEFINED()">COUNT_UNDEFINED</a></code>, which disables invalidation due to scrolling large distances.</p>
+        <p>Note: In order to allow <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> to resume from the user's current scroll position after invalidation, <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#getRefreshKey(androidx.paging.PagingState)">PagingSource.getRefreshKey</a></code> must be implemented.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#getRefreshKey(androidx.paging.PagingState)">getRefreshKey</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#jumpingSupported()">jumpingSupported</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getMaxSize()"></a><a name="setMaxSize()"></a><a name="getMaxSize--"></a><a name="setMaxSize--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="maxSize()" data-text="maxSize" tabindex="-1">maxSize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></pre></devsite-code>
+        <p>Defines the maximum number of items that may be loaded into <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> before pages should be dropped.</p>
+        <p>If set to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></code>, pages will never be dropped.</p>
+        <p>This can be used to cap the number of items kept in memory by dropping pages. This value is typically many pages so old pages are cached in case the user scrolls back.</p>
+        <p>This value must be at least two times the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#prefetchDistance()">prefetchDistance</a></code> plus the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code>). This constraint prevent loads from being continuously fetched and discarded due to prefetching.</p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></code> is best effort, not a guarantee. In practice, if <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#maxSize()">maxSize</a></code> is many times <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code>, the number of items held by <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> will not grow above this number. Exceptions are made as necessary to guarantee:</p>
+        <ul>
+          <li>
+            <p>Pages are never dropped until there are more than two pages loaded. Note that a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> may not be held strictly to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">requested pageSize</a></code>, so two pages may be larger than expected.</p>
+          </li>
+          <li>
+            <p>Pages are never dropped if they are within a prefetch window (defined to be <code translate="no" dir="ltr">pageSize + (2 * prefetchDistance)</code>) of the most recent load.</p>
+          </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#MAX_SIZE_UNBOUNDED()">MAX_SIZE_UNBOUNDED</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getPageSize()"></a><a name="setPageSize()"></a><a name="getPageSize--"></a><a name="setPageSize--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="pageSize()" data-text="pageSize" tabindex="-1">pageSize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></pre></devsite-code>
+        <p>Defines the number of items loaded at once from the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>.</p>
+        <p>Should be several times the number of visible items onscreen.</p>
+        <p>Configuring your page size depends on how your data is being loaded and used. Smaller page sizes improve memory usage, latency, and avoid GC churn. Larger pages generally improve loading throughput, to a point (avoid loading more than 2MB from SQLite at once, since it incurs extra cost).</p>
+        <p>If you're loading data for very large, social-media style cards that take up most of a screen, and your database isn't a bottleneck, 10-20 may make sense. If you're displaying dozens of items in a tiled grid, which can present items during a scroll much more quickly, consider closer to 100.</p>
+        <p>Note: <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingConfig#pageSize()">pageSize</a></code> is used to inform <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadParams#loadSize()">PagingSource.LoadParams.loadSize</a></code>, but is not enforced. A <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> may completely ignore this value and still return a valid <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">Page</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getPrefetchDistance()"></a><a name="setPrefetchDistance()"></a><a name="getPrefetchDistance--"></a><a name="setPrefetchDistance--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="prefetchDistance()" data-text="prefetchDistance" tabindex="-1">prefetchDistance</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/paging/PagingConfig#prefetchDistance()">prefetchDistance</a></pre></devsite-code>
+        <p>Prefetch distance which defines how far from the edge of loaded content an access must be to trigger further loading. Typically should be set several times the number of visible items onscreen.</p>
+        <p>E.g., If this value is set to 50, a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> will attempt to load 50 items in advance of data that's already been accessed.</p>
+        <p>A value of 0 indicates that no list items will be loaded until they are specifically requested. This is generally not recommended, so that users don't observe a placeholder item (with placeholders) or end of list (without) while scrolling.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="PagingConfig(kotlin.Int, kotlin.Int, kotlin.Boolean, kotlin.Int, kotlin.Int, kotlin.Int)"></a><a name="PagingConfig-kotlin.Int-kotlin.Int-kotlin.Boolean-kotlin.Int-kotlin.Int-kotlin.Int-"></a><a name="pagingconfig"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="PagingConfig(kotlin.Int,kotlin.Int,kotlin.Boolean,kotlin.Int,kotlin.Int,kotlin.Int)" data-text="PagingConfig" tabindex="-1">PagingConfig</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/paging/PagingConfig#PagingConfig(kotlin.Int,kotlin.Int,kotlin.Boolean,kotlin.Int,kotlin.Int,kotlin.Int)">PagingConfig</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;pageSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;prefetchDistance,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;enablePlaceholders,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;1) int&nbsp;initialLoadSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;2) int&nbsp;maxSize,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;jumpThreshold<br>)</pre></devsite-code>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

@@ -1,1 +1,1195 @@
-<html><head><title>Class Documentation</title></head><body>VideoCapture Artifact: androidx.camera:camera-video View Source Added in 1.1.0 Kotlin | Java public final class VideoCapture &lt;T&nbsp;extends&nbsp; VideoOutput &gt; extends UseCase java.lang.Object &nbsp;&nbsp;&nbsp;↳ androidx.camera.core.UseCase &nbsp; &nbsp;&nbsp;&nbsp;↳ androidx.camera.video.VideoCapture A use case that provides camera stream suitable for video application. VideoCapture is used to create a camera stream suitable for a video application such as recording a high-quality video to a file. The camera stream is used by the extended classes of VideoOutput . withOutput can be used to create a VideoCapture instance associated with the given VideoOutput. Take Recorder as an example, VideoCapture&lt;Recorder&gt; videoCapture = VideoCapture.withOutput(new Recorder.Builder().build()); Then getOutput can retrieve the Recorder instance. Parameters &lt;T&nbsp;extends&nbsp; VideoOutput &gt; the type of VideoOutput Summary Nested types public final class VideoCapture.Builder &lt;T&nbsp;extends&nbsp; VideoOutput &gt; implements ExtendableBuilder Builder for a VideoCapture . Public methods @ NonNull DynamicRange getDynamicRange () Returns the dynamic range. int getMirrorMode () Returns the mirror mode. @ NonNull T getOutput () Gets the VideoOutput associated with this VideoCapture. @ Nullable ResolutionInfo getResolutionInfo () Returns information about the selected resolution. @ Nullable Quality getSelectedQuality () Returns the selected Quality. @ NonNull Range &lt; Integer &gt; getTargetFrameRate () Returns the target frame rate range, in frames per second, for the associated VideoCapture use case. int getTargetRotation () Returns the desired rotation of the output video. boolean isVideoStabilizationEnabled () Returns whether video stabilization is enabled. void setTargetRotation (int&nbsp;rotation) Sets the desired rotation of the output video. @ NonNull String toString () static @ NonNull VideoCapture &lt;T&gt; &lt;T&nbsp;extends&nbsp; VideoOutput &gt; withOutput (@ NonNull T&nbsp;videoOutput) Create a VideoCapture associated with the given VideoOutput . Inherited methods From androidx.camera.core.UseCase static int snapToSurfaceRotation (@ IntRange (from&nbsp;=&nbsp;0,&nbsp;to&nbsp;=&nbsp;359) int&nbsp;orientation) A utility function that can convert the orientation degrees of OrientationEventListener to the nearest Surface rotation. Public methods getDynamicRange Added in 1.3.0 public&nbsp;@ NonNull DynamicRange &nbsp; getDynamicRange () Returns the dynamic range. The dynamic range is set by setDynamicRange . If the dynamic range set is not a fully defined dynamic range, such as HDR_UNSPECIFIED_10_BIT , then it will be returned just as provided, and will not be returned as a fully defined dynamic range. If the dynamic range was not provided to setDynamicRange , this will return the default of SDR Returns @ NonNull DynamicRange the dynamic range set for this VideoCapture use case. getMirrorMode Added in 1.3.0 public&nbsp;int&nbsp; getMirrorMode () Returns the mirror mode. The mirror mode is set by setMirrorMode . If not set, it defaults to MIRROR_MODE_OFF . Returns int The mirror mode of the intended target. getOutput Added in 1.1.0 public&nbsp;@ NonNull T&nbsp; getOutput () Gets the VideoOutput associated with this VideoCapture. Returns @ NonNull T the value provided to withOutput used to create this VideoCapture. getResolutionInfo Added in 1.5.0-beta01 public&nbsp;@ Nullable ResolutionInfo &nbsp; getResolutionInfo () Returns information about the selected resolution. Note that the getResolution might not be the same as the resolution of the recorded video because the video might have been rotated according to the camera sensor orientation and the target rotation, and/or have been cropped according to the androidx.camera.core.ViewPort settings. The recorded video resolution can be determined by applying the getRotationDegrees to the size of getCropRect . The resolution information may change if: The use case is unbound and then rebound. setTargetRotation is called to change the target rotation. If changes occur, the application should call getResolutionInfo() again to get the latest ResolutionInfo . Returns @ Nullable ResolutionInfo the resolution information if the use case is bound by the bindToLifecycle API, or null if the use case is not yet bound. getSelectedQuality Added in 1.5.0-beta01 public&nbsp;@ Nullable Quality &nbsp; getSelectedQuality () Returns the selected Quality. The selected Quality represents the final quality level chosen for the stream. The selected Quality will be one of the specified qualities from the QualitySelector provided by the associated VideoOutput . If HIGHEST or LOWEST is specified in the selector, it will be resolved to an actual Quality value. Even if the stream is later cropped (e.g., by using a ViewPort ), this value represents the original quality level of the stream. This method will return the selected Quality only after the use case is bound using bindToLifecycle. Otherwise, it will return null. The selected Quality may change if the use case is unbound and then rebound. Returns @ Nullable Quality The selected Quality if the use case is bound, or null otherwise. getTargetFrameRate Added in 1.3.0 public&nbsp;@ NonNull Range &lt; Integer &gt;&nbsp; getTargetFrameRate () Returns the target frame rate range, in frames per second, for the associated VideoCapture use case. The target frame rate can be set prior to constructing a VideoCapture using setTargetFrameRate If not set, the target frame rate defaults to the value of FRAME_RATE_RANGE_UNSPECIFIED Returns @ NonNull Range &lt; Integer &gt; The target frame rate of the intended target. getTargetRotation Added in 1.3.0 public&nbsp;int&nbsp; getTargetRotation () Returns the desired rotation of the output video. The rotation can be set prior to constructing a VideoCapture using setTargetRotation or dynamically by calling setTargetRotation . If not set, the target rotation defaults to the value of getRotation of the default display at the time the use case is bound. Returns int The rotation of the intended target. See also setTargetRotation isVideoStabilizationEnabled Added in 1.4.0 public&nbsp;boolean&nbsp; isVideoStabilizationEnabled () Returns whether video stabilization is enabled. setTargetRotation Added in 1.3.0 public&nbsp;void&nbsp; setTargetRotation (int&nbsp;rotation) Sets the desired rotation of the output video. Valid values include: ROTATION_0 , ROTATION_90 , ROTATION_180 , ROTATION_270 . Rotation values are relative to the &quot;natural&quot; rotation, ROTATION_0 . While rotation can also be set via setTargetRotation , using setTargetRotation(int) allows the target rotation to be set dynamically. In general, it is best to use an android.view.OrientationEventListener to set the target rotation. This way, the rotation output will indicate which way is down for a given video. This is important since display orientation may be locked by device default, user setting, or app configuration, and some devices may not transition to a reverse-portrait display orientation. In these cases, set target rotation dynamically according to the android.view.OrientationEventListener , without re-creating the use case. snapToSurfaceRotation is a helper function to convert the orientation of the android.view.OrientationEventListener to a rotation value. See snapToSurfaceRotation for more information and sample code. If not set, the target rotation will default to the value of getRotation of the default display at the time the use case is bound. To return to the default value, set the value to context.getSystemService(WindowManager.class).getDefaultDisplay().getRotation(); For a Recorder output, calling this method has no effect on the ongoing recording, but will affect recordings started after calling this method. The final rotation degrees of the video, including the degrees set by this method and the orientation of the camera sensor, will be reflected by several possibilities, 1) the rotation degrees is written into the video metadata, 2) the video content is directly rotated, 3) both, i.e. rotation metadata and rotated video content which combines to the target rotation. CameraX will choose a strategy according to the use case. Parameters int&nbsp;rotation Desired rotation of the output video, expressed as one of ROTATION_0 , ROTATION_90 , ROTATION_180 , or ROTATION_270 . toString public&nbsp;@ NonNull String &nbsp; toString () withOutput Added in 1.1.0 public&nbsp;static&nbsp;@ NonNull VideoCapture &lt;T&gt;&nbsp;&lt;T&nbsp;extends&nbsp; VideoOutput &gt; withOutput (@ NonNull T&nbsp;videoOutput) Create a VideoCapture associated with the given VideoOutput . Throws java.lang.NullPointerException if videoOutput is null.</body></html>
+<html><head><title>VideoCapture</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="VideoCapture">
+      <meta itemprop="path" content="androidx.camera.video">
+      <meta itemprop="property" content="getDynamicRange()">
+      <meta itemprop="property" content="getMirrorMode()">
+      <meta itemprop="property" content="getOutput()">
+      <meta itemprop="property" content="getResolutionInfo()">
+      <meta itemprop="property" content="getSelectedQuality()">
+      <meta itemprop="property" content="getTargetFrameRate()">
+      <meta itemprop="property" content="getTargetRotation()">
+      <meta itemprop="property" content="isVideoStabilizationEnabled()">
+      <meta itemprop="property" content="setTargetRotation(int)">
+      <meta itemprop="property" content="toString()">
+      <meta itemprop="property" content="withOutput(T)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="videocapture" data-text="VideoCapture" tabindex="-1">VideoCapture</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-video</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/video/VideoCapture.java+class:androidx.camera.video.VideoCapture" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/video/VideoCapture" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/video/VideoCapture">VideoCapture</a>&lt;T&nbsp;extends&nbsp;<a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a>&gt; extends <a href="/reference/androidx/camera/core/UseCase">UseCase</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper">
+      <table class="jd-inheritance-table">
+        <tbody>
+          <tr>
+            <td colspan="3"><a href="https://developer.android.com/reference/java/lang/Object.html">java.lang.Object</a></td>
+          </tr>
+          <tr>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="2"><a href="/reference/androidx/camera/core/UseCase">androidx.camera.core.UseCase</a></td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="1"><a href="/reference/androidx/camera/video/VideoCapture">androidx.camera.video.VideoCapture</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <hr>
+    <p>A use case that provides camera stream suitable for video application. </p>
+    <p>VideoCapture is used to create a camera stream suitable for a video application such as recording a high-quality video to a file. The camera stream is used by the extended classes of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code>. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#withOutput(T)">withOutput</a></code> can be used to create a VideoCapture instance associated with the given VideoOutput. Take <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> as an example, </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">        VideoCapture&lt;Recorder&gt; videoCapture
+                = VideoCapture.withOutput(new Recorder.Builder().build());</pre></devsite-code>
+ Then <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getOutput()">getOutput</a></code> can retrieve the Recorder instance.
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">Parameters</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a>&gt;</code></td>
+            <td>
+              <p>the type of VideoOutput</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/camera/video/VideoCapture.Builder">VideoCapture.Builder</a>&lt;T&nbsp;extends&nbsp;<a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a>&gt; implements <a href="/reference/androidx/camera/core/ExtendableBuilder">ExtendableBuilder</a></code></div>
+              <p>Builder for a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture">VideoCapture</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getDynamicRange()">getDynamicRange</a>()</code></div>
+              <p>Returns the dynamic range.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getMirrorMode()">getMirrorMode</a>()</code></div>
+              <p>Returns the mirror mode.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> T</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getOutput()">getOutput</a>()</code></div>
+              <p>Gets the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code> associated with this VideoCapture.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/core/ResolutionInfo">ResolutionInfo</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getResolutionInfo()">getResolutionInfo</a>()</code></div>
+              <p>Returns information about the selected resolution.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/video/Quality">Quality</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getSelectedQuality()">getSelectedQuality</a>()</code></div>
+              <p>Returns the selected Quality.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getTargetFrameRate()">getTargetFrameRate</a>()</code></div>
+              <p>Returns the target frame rate range, in frames per second, for the associated VideoCapture use case.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#getTargetRotation()">getTargetRotation</a>()</code></div>
+              <p>Returns the desired rotation of the output video.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#isVideoStabilizationEnabled()">isVideoStabilizationEnabled</a>()</code></div>
+              <p>Returns whether video stabilization is enabled.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#setTargetRotation(int)">setTargetRotation</a>(int&nbsp;rotation)</code></div>
+              <p>Sets the desired rotation of the output video.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#toString()">toString</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/VideoCapture">VideoCapture</a>&lt;T&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a>&gt; <a href="/reference/androidx/camera/video/VideoCapture#withOutput(T)">withOutput</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> T&nbsp;videoOutput)</code></div>
+              <p>Create a VideoCapture associated with the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-methods" data-text="Inherited methods" tabindex="-1">Inherited methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="/reference/androidx/camera/core/UseCase">androidx.camera.core.UseCase</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">static int</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase#snapToSurfaceRotation(int)">snapToSurfaceRotation</a>(@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0,&nbsp;to&nbsp;=&nbsp;359) int&nbsp;orientation)</code></div>
+                        <p>A utility function that can convert the orientation degrees of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/OrientationEventListener.html">OrientationEventListener</a></code> to the nearest <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> rotation.</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getDynamicRange--"></a><a name="getdynamicrange"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getDynamicRange()" data-text="getDynamicRange" tabindex="-1">getDynamicRange</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a>&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getDynamicRange()">getDynamicRange</a>()</pre></devsite-code>
+        <p>Returns the dynamic range. </p>
+        <p>The dynamic range is set by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setDynamicRange(androidx.camera.core.DynamicRange)">setDynamicRange</a></code>. If the dynamic range set is not a fully defined dynamic range, such as <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#HDR_UNSPECIFIED_10_BIT()">HDR_UNSPECIFIED_10_BIT</a></code>, then it will be returned just as provided, and will not be returned as a fully defined dynamic range. </p>
+        <p>If the dynamic range was not provided to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setDynamicRange(androidx.camera.core.DynamicRange)">setDynamicRange</a></code>, this will return the default of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/DynamicRange#SDR()">SDR</a></code></p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/core/DynamicRange">DynamicRange</a></code></td>
+                <td>
+                  <p>the dynamic range set for this <code translate="no" dir="ltr">VideoCapture</code> use case.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getMirrorMode--"></a><a name="getmirrormode"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getMirrorMode()" data-text="getMirrorMode" tabindex="-1">getMirrorMode</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getMirrorMode()">getMirrorMode</a>()</pre></devsite-code>
+        <p>Returns the mirror mode. </p>
+        <p>The mirror mode is set by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setMirrorMode(int)">setMirrorMode</a></code>. If not set, it defaults to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/MirrorMode#MIRROR_MODE_OFF()">MIRROR_MODE_OFF</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The mirror mode of the intended target.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getOutput--"></a><a name="getoutput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOutput()" data-text="getOutput" tabindex="-1">getOutput</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> T&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getOutput()">getOutput</a>()</pre></devsite-code>
+        <p>Gets the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code> associated with this VideoCapture.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> T</code></td>
+                <td>
+                  <p>the value provided to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#withOutput(T)">withOutput</a></code> used to create this VideoCapture.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getResolutionInfo--"></a><a name="getresolutioninfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getResolutionInfo()" data-text="getResolutionInfo" tabindex="-1">getResolutionInfo</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/core/ResolutionInfo">ResolutionInfo</a>&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getResolutionInfo()">getResolutionInfo</a>()</pre></devsite-code>
+        <p>Returns information about the selected resolution. </p>
+        <p>Note that the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ResolutionInfo#getResolution()">getResolution</a></code> might not be the same as the resolution of the recorded video because the video might have been rotated according to the camera sensor orientation and the target rotation, and/or have been cropped according to the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">androidx.camera.core.ViewPort</a></code> settings. The recorded video resolution can be determined by applying the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ResolutionInfo#getRotationDegrees()">getRotationDegrees</a></code> to the size of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ResolutionInfo#getCropRect()">getCropRect</a></code>. </p>
+        <p>The resolution information may change if: </p>
+        <ul>
+          <li>The use case is unbound and then rebound. </li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#setTargetRotation(int)">setTargetRotation</a></code> is called to change the target rotation. </li>
+        </ul>
+        <p>If changes occur, the application should call <code translate="no" dir="ltr">getResolutionInfo()</code> again to get the latest <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ResolutionInfo">ResolutionInfo</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/core/ResolutionInfo">ResolutionInfo</a></code></td>
+                <td>
+                  <p>the resolution information if the use case is bound by the bindToLifecycle API, or <code translate="no" dir="ltr">
+null</code> if the use case is not yet bound.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSelectedQuality--"></a><a name="getselectedquality"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSelectedQuality()" data-text="getSelectedQuality" tabindex="-1">getSelectedQuality</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/video/Quality">Quality</a>&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getSelectedQuality()">getSelectedQuality</a>()</pre></devsite-code>
+        <p>Returns the selected Quality. </p>
+        <p>The selected Quality represents the final quality level chosen for the stream. The selected Quality will be one of the specified qualities from the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/QualitySelector">QualitySelector</a></code> provided by the associated <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code>. If <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#HIGHEST()">HIGHEST</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Quality#LOWEST()">LOWEST</a></code> is specified in the selector, it will be resolved to an actual Quality value. Even if the stream is later cropped (e.g., by using a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code>), this value represents the original quality level of the stream. </p>
+        <p>This method will return the selected Quality only after the use case is bound using bindToLifecycle. Otherwise, it will return null. The selected Quality may change if the use case is unbound and then rebound.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="/reference/androidx/camera/video/Quality">Quality</a></code></td>
+                <td>
+                  <p>The selected Quality if the use case is bound, or null otherwise.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getTargetFrameRate--"></a><a name="gettargetframerate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getTargetFrameRate()" data-text="getTargetFrameRate" tabindex="-1">getTargetFrameRate</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>&gt;&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getTargetFrameRate()">getTargetFrameRate</a>()</pre></devsite-code>
+        <p>Returns the target frame rate range, in frames per second, for the associated VideoCapture use case. </p>
+        <p>The target frame rate can be set prior to constructing a VideoCapture using <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setTargetFrameRate(android.util.Range&lt;java.lang.Integer&gt;)">setTargetFrameRate</a></code> If not set, the target frame rate defaults to the value of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/impl/StreamSpec#FRAME_RATE_RANGE_UNSPECIFIED()">FRAME_RATE_RANGE_UNSPECIFIED</a></code></p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/util/Range.html">Range</a>&lt;<a href="https://developer.android.com/reference/java/lang/Integer.html">Integer</a>&gt;</code></td>
+                <td>
+                  <p>The target frame rate of the intended target.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getTargetRotation--"></a><a name="gettargetrotation"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getTargetRotation()" data-text="getTargetRotation" tabindex="-1">getTargetRotation</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#getTargetRotation()">getTargetRotation</a>()</pre></devsite-code>
+        <p>Returns the desired rotation of the output video. </p>
+        <p>The rotation can be set prior to constructing a VideoCapture using <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setTargetRotation(int)">setTargetRotation</a></code> or dynamically by calling <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#setTargetRotation(int)">setTargetRotation</a></code>. If not set, the target rotation defaults to the value of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Display.html#getRotation()">getRotation</a></code> of the default display at the time the use case is bound.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The rotation of the intended target.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture#setTargetRotation(int)">setTargetRotation</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isVideoStabilizationEnabled--"></a><a name="isvideostabilizationenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isVideoStabilizationEnabled()" data-text="isVideoStabilizationEnabled" tabindex="-1">isVideoStabilizationEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#isVideoStabilizationEnabled()">isVideoStabilizationEnabled</a>()</pre></devsite-code>
+        <p>Returns whether video stabilization is enabled.</p>
+      </div>
+      <div class="api-item"><a name="setTargetRotation-int-"></a><a name="settargetrotation"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setTargetRotation(int)" data-text="setTargetRotation" tabindex="-1">setTargetRotation</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#setTargetRotation(int)">setTargetRotation</a>(int&nbsp;rotation)</pre></devsite-code>
+        <p>Sets the desired rotation of the output video. </p>
+        <p>Valid values include: <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_0()">ROTATION_0</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_90()">ROTATION_90</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_180()">ROTATION_180</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_270()">ROTATION_270</a></code>. Rotation values are relative to the &quot;natural&quot; rotation, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_0()">ROTATION_0</a></code>. </p>
+        <p>While rotation can also be set via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoCapture.Builder#setTargetRotation(int)">setTargetRotation</a></code>, using <code translate="no" dir="ltr">setTargetRotation(int)</code> allows the target rotation to be set dynamically. </p>
+        <p>In general, it is best to use an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/OrientationEventListener.html">android.view.OrientationEventListener</a></code> to set the target rotation. This way, the rotation output will indicate which way is down for a given video. This is important since display orientation may be locked by device default, user setting, or app configuration, and some devices may not transition to a reverse-portrait display orientation. In these cases, set target rotation dynamically according to the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/OrientationEventListener.html">android.view.OrientationEventListener</a></code>, without re-creating the use case. <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase#snapToSurfaceRotation(int)">snapToSurfaceRotation</a></code> is a helper function to convert the orientation of the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/OrientationEventListener.html">android.view.OrientationEventListener</a></code> to a rotation value. See <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase#snapToSurfaceRotation(int)">snapToSurfaceRotation</a></code> for more information and sample code. </p>
+        <p>If not set, the target rotation will default to the value of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Display.html#getRotation()">getRotation</a></code> of the default display at the time the use case is bound. To return to the default value, set the value to </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">context.getSystemService(WindowManager.class).getDefaultDisplay().getRotation();</pre></devsite-code>
+        <p>For a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> output, calling this method has no effect on the ongoing recording, but will affect recordings started after calling this method. The final rotation degrees of the video, including the degrees set by this method and the orientation of the camera sensor, will be reflected by several possibilities, 1) the rotation degrees is written into the video metadata, 2) the video content is directly rotated, 3) both, i.e. rotation metadata and rotated video content which combines to the target rotation. CameraX will choose a strategy according to the use case.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;rotation</code></td>
+                <td>
+                  <p>Desired rotation of the output video, expressed as one of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_0()">ROTATION_0</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_90()">ROTATION_90</a></code>, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_180()">ROTATION_180</a></code>, or <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html#ROTATION_270()">ROTATION_270</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="toString--"></a><a name="tostring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="toString()" data-text="toString" tabindex="-1">toString</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/camera/video/VideoCapture#toString()">toString</a>()</pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="withOutput-T-"></a><a name="withoutput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="withOutput(T)" data-text="withOutput" tabindex="-1">withOutput</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/VideoCapture">VideoCapture</a>&lt;T&gt;&nbsp;&lt;T&nbsp;extends&nbsp;<a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a>&gt; <a href="/reference/androidx/camera/video/VideoCapture#withOutput(T)">withOutput</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> T&nbsp;videoOutput)</pre></devsite-code>
+        <p>Create a VideoCapture associated with the given <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoOutput">VideoOutput</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/NullPointerException.html">java.lang.NullPointerException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr">videoOutput</code> is null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

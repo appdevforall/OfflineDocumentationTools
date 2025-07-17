@@ -1,1 +1,919 @@
-<html><head><title>Class Documentation</title></head><body>SurfaceRequest.TransformationInfo Artifact: androidx.camera:camera-core View Source Added in 1.0.0 Kotlin | Java @ AutoValue public abstract class SurfaceRequest.TransformationInfo Transformation associated the preview output. The TransformationInfo can be used transform the Surface provided via provideSurface . The info is based on the camera sensor rotation, preview target rotation and the ViewPort associated with the Preview . The application of the info depends on the source of the Surface . For detailed example, please check out the source code of PreviewView in androidx.camera.view artifact. The info is also needed to transform coordinates across use cases. In a face detection example, one common scenario is running a face detection algorithm against a ImageAnalysis use case, and highlight the detected face in the preview. Below is a code sample to get the transformation Matrix based on the ImageProxy from ImageAnalysis and the TransformationInfo from Preview : // Get rotation transformation. val transformation = Matrix () transformation . setRotate ( info . getRotationDegrees ()) // Get rotated crop rect and cropping transformation. val rotatedRect = new RectF () rotation . mapRect ( rotatedRect , RectF ( imageProxy . getCropRect ())) rotatedRect . sort () val cropTransformation = Matrix () cropTransformation . setRectToRect ( RectF ( imageProxy . getCropRect ()), rotatedRect , ScaleToFit . FILL ) // Concatenate the rotation and cropping transformations. transformation . postConcat ( cropTransformation ) See also setTargetRotation setTargetRotation SENSOR_ORIENTATION ViewPort Summary Public methods abstract @ NonNull Rect getCropRect () Returns the crop rect rectangle. abstract int getRotationDegrees () Returns the rotation needed to transform the output from sensor to the target rotation. abstract @ NonNull Matrix getSensorToBufferTransform () Returns the sensor to image buffer transform matrix. abstract boolean hasCameraTransform () Whether the Surface contains the camera transform. abstract boolean isMirroring () Returns whether the buffer should be mirrored. Public methods getCropRect Added in 1.0.0 public&nbsp;abstract&nbsp;@ NonNull Rect &nbsp; getCropRect () Returns the crop rect rectangle. The returned value dictates how the Surface provided in provideSurface should be displayed. The crop rectangle specifies the region of valid pixels in the buffer, using coordinates from (0, 0) to the (width, height) of getResolution . The caller should arrange the UI so that only the valid region is visible to app users. If Preview is configured with a ViewPort , this value is calculated based on the configuration of ViewPort ; if not, it returns the full rect of the buffer. For code sample on how to apply the crop rect, please see FIT . See also ViewPort getRotationDegrees Added in 1.0.0 public&nbsp;abstract&nbsp;int&nbsp; getRotationDegrees () Returns the rotation needed to transform the output from sensor to the target rotation. This is a clockwise rotation in degrees that needs to be applied to the sensor buffer. The rotation will be determined by CameraCharacteristics , setTargetRotation and setTargetRotation . This value is useful for transforming coordinates across use cases. This value is most useful for transforming coordinates across use cases, e.g. in preview, highlighting a pattern detected in image analysis. For correcting the preview itself, usually the source of the Surface handles the rotation without needing this value. For SurfaceView , it automatically corrects the preview to match the display rotation. For TextureView , the only additional rotation needed is the display rotation. For detailed example, please check out the source code of PreviewView in androidx.camera .view artifact. Returns int The rotation in degrees which will be a value in {0, 90, 180, 270}. See also setTargetRotation getTargetRotation ViewPort getSensorToBufferTransform Added in 1.4.0 public&nbsp;abstract&nbsp;@ NonNull Matrix &nbsp; getSensorToBufferTransform () Returns the sensor to image buffer transform matrix. The value is a mapping from sensor coordinates to buffer coordinates, which is, from the rect of SENSOR_INFO_ACTIVE_ARRAY_SIZE to the rect defined by (0, 0, #getResolution#getWidth(), #getResolution#getHeight()) . The matrix can be used to map the coordinates from one UseCase to another. For example, detecting face with ImageAnalysis , and then highlighting the face in Preview . Code sample // Get the transformation from sensor to effect input. Matrix sensorToEffect = surfaceRequest . getSensorToBufferTransform (); // Get the transformation from sensor to ImageAnalysis. Matrix sensorToAnalysis = imageProxy . getSensorToBufferTransform (); // Concatenate the two matrices to get the transformation from ImageAnalysis to effect. Matrix analysisToEffect = Matrix () sensorToAnalysis . invert ( analysisToEffect ); analysisToEffect . postConcat ( sensorToEffect ); hasCameraTransform Added in 1.4.0 public&nbsp;abstract&nbsp;boolean&nbsp; hasCameraTransform () Whether the Surface contains the camera transform. When the Surface is connected to the camera directly, camera writes the camera orientation value to the Surface. For example, the value can be retrieved via getTransformMatrix . Android components such as TextureView and SurfaceView use the value to transform the output. When the Surface is not connect to the camera directly, for example, when it was copied with OpenGL, the Surface will not contain the camera orientation value. The app may need to transform the UI differently based on this flag. If this value is true, the app only needs to apply the Surface transformation; otherwise, the app needs to apply the value of getRotationDegrees . For example, if the preview is displayed in a TextureView : int rotationDegrees ; if ( surfaceRequest . hasCameraTransform ()) { switch (textureView.getDisplay().getRotation()) { case Surface. ROTATION_0 : rotationDegrees = 0 ; break ; case Surface. ROTATION_90 : rotationDegrees = 90 ; break ; case Surface. ROTATION_180 : rotationDegrees = 180 ; break ; case Surface. ROTATION_270 : rotationDegrees = 270 ; break ; } } else { rotationDegrees = transformationInfo.getRotationDegrees() ; } Matrix textureViewTransform = new Matrix (); textureViewTransform . postRotate ( rotationDegrees ); textureView . setTransform ( textureViewTransform ); Returns boolean true if the Surface contains the camera transformation. isMirroring Added in 1.4.0 public&nbsp;abstract&nbsp;boolean&nbsp; isMirroring () Returns whether the buffer should be mirrored. This flag indicates whether the buffer needs to be mirrored across the vertical axis. For example, for front camera preview, the buffer should usually be mirrored. The mirroring should be applied after the getRotationDegrees is applied.</body></html>
+<html><head><title>SurfaceRequest.TransformationInfo</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SurfaceRequest.TransformationInfo">
+      <meta itemprop="path" content="androidx.camera.core">
+      <meta itemprop="property" content="getCropRect()">
+      <meta itemprop="property" content="getRotationDegrees()">
+      <meta itemprop="property" content="getSensorToBufferTransform()">
+      <meta itemprop="property" content="hasCameraTransform()">
+      <meta itemprop="property" content="isMirroring()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="surfacerequest.transformationinfo" data-text="SurfaceRequest.TransformationInfo" tabindex="-1">SurfaceRequest.TransformationInfo</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/core/SurfaceRequest.java+class:androidx.camera.core.SurfaceRequest.TransformationInfo" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/core/SurfaceRequest.TransformationInfo" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="https://www.javadoc.io/doc/com.google.auto.value/auto-value/latest/com/google/auto/value/AutoValue.html">AutoValue</a><br>public abstract class <a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo">SurfaceRequest.TransformationInfo</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Transformation associated the preview output. </p>
+    <p> The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo">TransformationInfo</a></code> can be used transform the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> provided via <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest#provideSurface(android.view.Surface,java.util.concurrent.Executor,androidx.core.util.Consumer&lt;androidx.camera.core.SurfaceRequest.Result&gt;)">provideSurface</a></code>. The info is based on the camera sensor rotation, preview target rotation and the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code> associated with the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code>. The application of the info depends on the source of the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>. For detailed example, please check out the source code of PreviewView in androidx.camera.view artifact. </p>
+    <p> The info is also needed to transform coordinates across use cases. In a face detection example, one common scenario is running a face detection algorithm against a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> use case, and highlight the detected face in the preview. Below is a code sample to get the transformation <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Matrix.html">Matrix</a></code> based on the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageProxy">ImageProxy</a></code> from <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code> and the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo">TransformationInfo</a></code> from <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code>: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Scilab"><span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Get rotation transformation.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">transformation</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">transformation</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">setRotate</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">info</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">getRotationDegrees</span><span class="devsite-syntax-p">())</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Get rotated crop rect and cropping transformation.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">rotatedRect</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RectF</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">rotation</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">mapRect</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">rotatedRect</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RectF</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">imageProxy</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">getCropRect</span><span class="devsite-syntax-p">()))</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">rotatedRect</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">sort</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cropTransformation</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">cropTransformation</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">setRectToRect</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">         </span><span class="devsite-syntax-n">RectF</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">imageProxy</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">getCropRect</span><span class="devsite-syntax-p">()),</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">rotatedRect</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ScaleToFit</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">FILL</span><span class="devsite-syntax-p">)</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Concatenate the rotation and cropping transformations.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">transformation</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">postConcat</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">cropTransformation</span><span class="devsite-syntax-p">)</span></pre></devsite-code>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">See also</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview#setTargetRotation(int)">setTargetRotation</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview.Builder#setTargetRotation(int)">setTargetRotation</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#SENSOR_ORIENTATION()">SENSOR_ORIENTATION</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/Rect.html">Rect</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getCropRect()">getCropRect</a>()</code></div>
+              <p>Returns the crop rect rectangle.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getRotationDegrees()">getRotationDegrees</a>()</code></div>
+              <p>Returns the rotation needed to transform the output from sensor to the target rotation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/Matrix.html">Matrix</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getSensorToBufferTransform()">getSensorToBufferTransform</a>()</code></div>
+              <p>Returns the sensor to image buffer transform matrix.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#hasCameraTransform()">hasCameraTransform</a>()</code></div>
+              <p>Whether the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> contains the camera transform.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#isMirroring()">isMirroring</a>()</code></div>
+              <p>Returns whether the buffer should be mirrored.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getCropRect--"></a><a name="getcroprect"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCropRect()" data-text="getCropRect" tabindex="-1">getCropRect</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/Rect.html">Rect</a>&nbsp;<a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getCropRect()">getCropRect</a>()</pre></devsite-code>
+        <p>Returns the crop rect rectangle. </p>
+        <p> The returned value dictates how the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> provided in <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest#provideSurface(android.view.Surface,java.util.concurrent.Executor,androidx.core.util.Consumer&lt;androidx.camera.core.SurfaceRequest.Result&gt;)">provideSurface</a></code> should be displayed. The crop rectangle specifies the region of valid pixels in the buffer, using coordinates from (0, 0) to the (width, height) of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest#getResolution()">getResolution</a></code>. The caller should arrange the UI so that only the valid region is visible to app users. </p>
+        <p> If <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code> is configured with a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code>, this value is calculated based on the configuration of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code>; if not, it returns the full rect of the buffer. For code sample on how to apply the crop rect, please see <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort#FIT()">FIT</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getRotationDegrees--"></a><a name="getrotationdegrees"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getRotationDegrees()" data-text="getRotationDegrees" tabindex="-1">getRotationDegrees</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;int&nbsp;<a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getRotationDegrees()">getRotationDegrees</a>()</pre></devsite-code>
+        <p>Returns the rotation needed to transform the output from sensor to the target rotation. </p>
+        <p> This is a clockwise rotation in degrees that needs to be applied to the sensor buffer. The rotation will be determined by <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html">CameraCharacteristics</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview#setTargetRotation(int)">setTargetRotation</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview.Builder#setTargetRotation(int)">setTargetRotation</a></code>. This value is useful for transforming coordinates across use cases. </p>
+        <p> This value is most useful for transforming coordinates across use cases, e.g. in preview, highlighting a pattern detected in image analysis. For correcting the preview itself, usually the source of the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> handles the rotation without needing this value. For <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code>, it automatically corrects the preview to match the display rotation. For <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code>, the only additional rotation needed is the display rotation. For detailed example, please check out the source code of PreviewView in androidx.camera .view artifact.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The rotation in degrees which will be a value in {0, 90, 180, 270}.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview#setTargetRotation(int)">setTargetRotation</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview#getTargetRotation()">getTargetRotation</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ViewPort">ViewPort</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSensorToBufferTransform--"></a><a name="getsensortobuffertransform"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSensorToBufferTransform()" data-text="getSensorToBufferTransform" tabindex="-1">getSensorToBufferTransform</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/Matrix.html">Matrix</a>&nbsp;<a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getSensorToBufferTransform()">getSensorToBufferTransform</a>()</pre></devsite-code>
+        <p>Returns the sensor to image buffer transform matrix. </p>
+        <p>The value is a mapping from sensor coordinates to buffer coordinates, which is, from the rect of <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#SENSOR_INFO_ACTIVE_ARRAY_SIZE()">SENSOR_INFO_ACTIVE_ARRAY_SIZE</a></code> to the rect defined by <code translate="no" dir="ltr">(0, 0, #getResolution#getWidth(), #getResolution#getHeight())</code>. The matrix can be used to map the coordinates from one <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/UseCase">UseCase</a></code> to another. For example, detecting face with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ImageAnalysis">ImageAnalysis</a></code>, and then highlighting the face in <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/Preview">Preview</a></code>. </p>
+        <p>Code sample </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Scilab"><span class="devsite-syntax-w"> </span><span class="devsite-syntax-c1">// Get the transformation from sensor to effect input.</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">sensorToEffect</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">surfaceRequest</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">getSensorToBufferTransform</span><span class="devsite-syntax-p">();</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-c1">// Get the transformation from sensor to ImageAnalysis.</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">sensorToAnalysis</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">imageProxy</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">getSensorToBufferTransform</span><span class="devsite-syntax-p">();</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-c1">// Concatenate the two matrices to get the transformation from ImageAnalysis to effect.</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">analysisToEffect</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Matrix</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">sensorToAnalysis</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">invert</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">analysisToEffect</span><span class="devsite-syntax-p">);</span>
+<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">analysisToEffect</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-n">postConcat</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">sensorToEffect</span><span class="devsite-syntax-p">);</span></pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="hasCameraTransform--"></a><a name="hascameratransform"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasCameraTransform()" data-text="hasCameraTransform" tabindex="-1">hasCameraTransform</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#hasCameraTransform()">hasCameraTransform</a>()</pre></devsite-code>
+        <p>Whether the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> contains the camera transform. </p>
+        <p>When the Surface is connected to the camera directly, camera writes the camera orientation value to the Surface. For example, the value can be retrieved via <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html#getTransformMatrix(float[])">getTransformMatrix</a></code>. Android components such as <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code> and <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code> use the value to transform the output. When the Surface is not connect to the camera directly, for example, when it was copied with OpenGL, the Surface will not contain the camera orientation value. </p>
+        <p>The app may need to transform the UI differently based on this flag. If this value is true, the app only needs to apply the Surface transformation; otherwise, the app needs to apply the value of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getRotationDegrees()">getRotationDegrees</a></code>. For example, if the preview is displayed in a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code>: </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="CSS+Lasso"><span class="devsite-syntax-nt">int</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">rotationDegrees</span><span class="devsite-syntax-o">;</span>
+<span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">surfaceRequest</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">hasCameraTransform</span><span class="devsite-syntax-o">())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-err">switch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">(textureView.getDisplay().getRotation())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Surface.</span><span class="devsite-syntax-n">ROTATION_0</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-n">rotationDegrees</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-mi">0</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-err">break</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Surface.</span><span class="devsite-syntax-n">ROTATION_90</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-n">rotationDegrees</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-mi">90</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-err">break</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Surface.</span><span class="devsite-syntax-n">ROTATION_180</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-n">rotationDegrees</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-mi">180</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-err">break</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Surface.</span><span class="devsite-syntax-n">ROTATION_270</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-n">rotationDegrees</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-mi">270</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">      </span><span class="devsite-syntax-err">break</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-err">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-err">rotationDegrees</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">transformationInfo.getRotationDegrees()</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-nt">Matrix</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">textureViewTransform</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">Matrix</span><span class="devsite-syntax-o">();</span>
+<span class="devsite-syntax-nt">textureViewTransform</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">postRotate</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">rotationDegrees</span><span class="devsite-syntax-o">);</span>
+<span class="devsite-syntax-nt">textureView</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setTransform</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">textureViewTransform</span><span class="devsite-syntax-o">);</span></pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> contains the camera transformation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isMirroring--"></a><a name="ismirroring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isMirroring()" data-text="isMirroring" tabindex="-1">isMirroring</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#isMirroring()">isMirroring</a>()</pre></devsite-code>
+        <p>Returns whether the buffer should be mirrored. </p>
+        <p>This flag indicates whether the buffer needs to be mirrored across the vertical axis. For example, for front camera preview, the buffer should usually be mirrored. The mirroring should be applied after the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/SurfaceRequest.TransformationInfo#getRotationDegrees()">getRotationDegrees</a></code> is applied.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

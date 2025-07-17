@@ -1,1 +1,1273 @@
-<html><head><title>Class Documentation</title></head><body>RecyclerView.State Artifact: androidx.recyclerview:recyclerview View Source Added in 1.0.0 Kotlin | Java public class RecyclerView.State Contains useful information about the current RecyclerView state like target scroll position or view focus. State object can also keep arbitrary data, identified by resource ids. Often times, RecyclerView components will need to pass information between each other. To provide a well defined data bus between components, RecyclerView passes the same State object to component callbacks and these components can use it to exchange data. If you implement custom components, you can use State's put/get/remove methods to pass data between your components without needing to manage their lifecycles. Summary Public constructors State () Public methods boolean didStructureChange () T &lt;T&gt; get (int&nbsp;resourceId) Gets the Object mapped from the specified id, or null if no such data exists. int getItemCount () Returns the total number of items that can be laid out. int getRemainingScrollHorizontal () Returns remaining horizontal scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. int getRemainingScrollVertical () Returns remaining vertical scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. int getTargetScrollPosition () If scroll is triggered to make a certain item visible, this value will return the adapter index of that item. boolean hasTargetScrollPosition () Returns if current scroll has a target position. boolean isMeasuring () Returns true if the RecyclerView is currently measuring the layout. boolean isPreLayout () Returns true if the RecyclerView is in the pre-layout step where it is having its LayoutManager layout items where they will be at the beginning of a set of predictive item animations. void put (int&nbsp;resourceId,&nbsp; Object &nbsp;data) Adds a mapping from the specified id to the specified value, replacing the previous mapping from the specified key if there was one. void remove (int&nbsp;resourceId) Removes the mapping from the specified id, if there was any. String toString () boolean willRunPredictiveAnimations () Returns whether RecyclerView will run predictive animations in this layout pass or not. boolean willRunSimpleAnimations () Returns whether RecyclerView will run simple animations in this layout pass or not. Public constructors State Added in 1.0.0 public&nbsp; State () Public methods didStructureChange Added in 1.0.0 public&nbsp;boolean&nbsp; didStructureChange () Returns boolean true if the structure of the data set has changed since the last call to onLayoutChildren, false otherwise get Added in 1.0.0 public&nbsp;T&nbsp;&lt;T&gt; get (int&nbsp;resourceId) Gets the Object mapped from the specified id, or null if no such data exists. Parameters int&nbsp;resourceId Id of the resource you want to remove. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts. getItemCount Added in 1.0.0 public&nbsp;int&nbsp; getItemCount () Returns the total number of items that can be laid out. Note that this number is not necessarily equal to the number of items in the adapter, so you should always use this number for your position calculations and never access the adapter directly. RecyclerView listens for Adapter's notify events and calculates the effects of adapter data changes on existing Views. These calculations are used to decide which animations should be run. To support predictive animations, RecyclerView may rewrite or reorder Adapter changes to present the correct state to LayoutManager in pre-layout pass. For example, a newly added item is not included in pre-layout item count because pre-layout reflects the contents of the adapter before the item is added. Behind the scenes, RecyclerView offsets getViewForPosition calls such that LayoutManager does not know about the new item's existence in pre-layout. The item will be available in second layout pass and will be included in the item count. Similar adjustments are made for moved and removed items as well. You can get the adapter's item count via getItemCount method. Returns int The number of items currently available See also getItemCount getRemainingScrollHorizontal Added in 1.0.0 public&nbsp;int&nbsp; getRemainingScrollHorizontal () Returns remaining horizontal scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. Returns zero if getScrollState is other than SCROLL_STATE_SETTLING . Returns int Remaining horizontal scroll distance getRemainingScrollVertical Added in 1.0.0 public&nbsp;int&nbsp; getRemainingScrollVertical () Returns remaining vertical scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. Returns zero if getScrollState is other than SCROLL_STATE_SETTLING . Returns int Remaining vertical scroll distance getTargetScrollPosition Added in 1.0.0 public&nbsp;int&nbsp; getTargetScrollPosition () If scroll is triggered to make a certain item visible, this value will return the adapter index of that item. Returns int Adapter index of the target item or NO_POSITION if there is no target position. hasTargetScrollPosition Added in 1.0.0 public&nbsp;boolean&nbsp; hasTargetScrollPosition () Returns if current scroll has a target position. Returns boolean true if scroll is being triggered to make a certain position visible See also getTargetScrollPosition isMeasuring Added in 1.0.0 public&nbsp;boolean&nbsp; isMeasuring () Returns true if the RecyclerView is currently measuring the layout. This value is true only if the LayoutManager opted into the auto measure API and RecyclerView has non-exact measurement specs. Note that if the LayoutManager supports predictive animations and it is calculating the pre-layout step, this value will be false even if the RecyclerView is in onMeasure call. This is because pre-layout means the previous state of the RecyclerView and measurements made for that state cannot change the RecyclerView's size. LayoutManager is always guaranteed to receive another call to onLayoutChildren when this happens. Returns boolean True if the RecyclerView is currently calculating its bounds, false otherwise. isPreLayout Added in 1.0.0 public&nbsp;boolean&nbsp; isPreLayout () Returns true if the RecyclerView is in the pre-layout step where it is having its LayoutManager layout items where they will be at the beginning of a set of predictive item animations. put Added in 1.0.0 public&nbsp;void&nbsp; put (int&nbsp;resourceId,&nbsp; Object &nbsp;data) Adds a mapping from the specified id to the specified value, replacing the previous mapping from the specified key if there was one. Parameters int&nbsp;resourceId Id of the resource you want to add. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts. Object &nbsp;data The data you want to associate with the resourceId. remove Added in 1.0.0 public&nbsp;void&nbsp; remove (int&nbsp;resourceId) Removes the mapping from the specified id, if there was any. Parameters int&nbsp;resourceId Id of the resource you want to remove. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts. toString public&nbsp; String &nbsp; toString () willRunPredictiveAnimations Added in 1.0.0 public&nbsp;boolean&nbsp; willRunPredictiveAnimations () Returns whether RecyclerView will run predictive animations in this layout pass or not. Returns boolean true if RecyclerView is calculating predictive animations to be run at the end of the layout pass. willRunSimpleAnimations Added in 1.0.0 public&nbsp;boolean&nbsp; willRunSimpleAnimations () Returns whether RecyclerView will run simple animations in this layout pass or not. Returns boolean true if RecyclerView is calculating simple animations to be run at the end of the layout pass.</body></html>
+<html><head><title>RecyclerView.State</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="RecyclerView.State">
+      <meta itemprop="path" content="androidx.recyclerview.widget">
+      <meta itemprop="property" content="didStructureChange()">
+      <meta itemprop="property" content="get(int)">
+      <meta itemprop="property" content="getItemCount()">
+      <meta itemprop="property" content="getRemainingScrollHorizontal()">
+      <meta itemprop="property" content="getRemainingScrollVertical()">
+      <meta itemprop="property" content="getTargetScrollPosition()">
+      <meta itemprop="property" content="hasTargetScrollPosition()">
+      <meta itemprop="property" content="isMeasuring()">
+      <meta itemprop="property" content="isPreLayout()">
+      <meta itemprop="property" content="put(int,java.lang.Object)">
+      <meta itemprop="property" content="remove(int)">
+      <meta itemprop="property" content="toString()">
+      <meta itemprop="property" content="willRunPredictiveAnimations()">
+      <meta itemprop="property" content="willRunSimpleAnimations()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="recyclerview.state" data-text="RecyclerView.State" tabindex="-1">RecyclerView.State</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/recyclerview">androidx.recyclerview:recyclerview</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/recyclerview/widget/RecyclerView.java+class:androidx.recyclerview.widget.RecyclerView.State" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/recyclerview/widget/RecyclerView.State" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public class <a href="/reference/androidx/recyclerview/widget/RecyclerView.State">RecyclerView.State</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Contains useful information about the current RecyclerView state like target scroll position or view focus. State object can also keep arbitrary data, identified by resource ids.</p>
+    <p>Often times, RecyclerView components will need to pass information between each other. To provide a well defined data bus between components, RecyclerView passes the same State object to component callbacks and these components can use it to exchange data.</p>
+    <p>If you implement custom components, you can use State's put/get/remove methods to pass data between your components without needing to manage their lifecycles.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#State()">State</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#didStructureChange()">didStructureChange</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">T</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;T&gt; <a href="/reference/androidx/recyclerview/widget/RecyclerView.State#get(int)">get</a>(int&nbsp;resourceId)</code></div>
+              <p>Gets the Object mapped from the specified id, or <code translate="no" dir="ltr">null</code> if no such data exists.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getItemCount()">getItemCount</a>()</code></div>
+              <p>Returns the total number of items that can be laid out.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getRemainingScrollHorizontal()">getRemainingScrollHorizontal</a>()</code></div>
+              <p>Returns remaining horizontal scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getRemainingScrollVertical()">getRemainingScrollVertical</a>()</code></div>
+              <p>Returns remaining vertical scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getTargetScrollPosition()">getTargetScrollPosition</a>()</code></div>
+              <p>If scroll is triggered to make a certain item visible, this value will return the adapter index of that item.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#hasTargetScrollPosition()">hasTargetScrollPosition</a>()</code></div>
+              <p>Returns if current scroll has a target position.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#isMeasuring()">isMeasuring</a>()</code></div>
+              <p>Returns true if the RecyclerView is currently measuring the layout.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#isPreLayout()">isPreLayout</a>()</code></div>
+              <p>Returns true if the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView">RecyclerView</a></code> is in the pre-layout step where it is having its <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.LayoutManager">LayoutManager</a></code> layout items where they will be at the beginning of a set of predictive item animations.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#put(int,java.lang.Object)">put</a>(int&nbsp;resourceId,&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;data)</code></div>
+              <p>Adds a mapping from the specified id to the specified value, replacing the previous mapping from the specified key if there was one.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#remove(int)">remove</a>(int&nbsp;resourceId)</code></div>
+              <p>Removes the mapping from the specified id, if there was any.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#toString()">toString</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#willRunPredictiveAnimations()">willRunPredictiveAnimations</a>()</code></div>
+              <p>Returns whether RecyclerView will run predictive animations in this layout pass or not.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#willRunSimpleAnimations()">willRunSimpleAnimations</a>()</code></div>
+              <p>Returns whether RecyclerView will run simple animations in this layout pass or not.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="State--"></a><a name="state"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="State()" data-text="State" tabindex="-1">State</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in 1.0.0</div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#State()">State</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="didStructureChange--"></a><a name="didstructurechange"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="didStructureChange()" data-text="didStructureChange" tabindex="-1">didStructureChange</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#didStructureChange()">didStructureChange</a>()</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if the structure of the data set has changed since the last call to onLayoutChildren, false otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="get-int-"></a><a name="get"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="get(int)" data-text="get" tabindex="-1">get</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;T&nbsp;&lt;T&gt; <a href="/reference/androidx/recyclerview/widget/RecyclerView.State#get(int)">get</a>(int&nbsp;resourceId)</pre></devsite-code>
+        <p>Gets the Object mapped from the specified id, or <code translate="no" dir="ltr">null</code> if no such data exists.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;resourceId</code></td>
+                <td>
+                  <p>Id of the resource you want to remove. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getItemCount--"></a><a name="getitemcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getItemCount()" data-text="getItemCount" tabindex="-1">getItemCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getItemCount()">getItemCount</a>()</pre></devsite-code>
+        <p>Returns the total number of items that can be laid out. Note that this number is not necessarily equal to the number of items in the adapter, so you should always use this number for your position calculations and never access the adapter directly. </p>
+        <p> RecyclerView listens for Adapter's notify events and calculates the effects of adapter data changes on existing Views. These calculations are used to decide which animations should be run. </p>
+        <p> To support predictive animations, RecyclerView may rewrite or reorder Adapter changes to present the correct state to LayoutManager in pre-layout pass. </p>
+        <p> For example, a newly added item is not included in pre-layout item count because pre-layout reflects the contents of the adapter before the item is added. Behind the scenes, RecyclerView offsets <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.Recycler#getViewForPosition(int)">getViewForPosition</a></code> calls such that LayoutManager does not know about the new item's existence in pre-layout. The item will be available in second layout pass and will be included in the item count. Similar adjustments are made for moved and removed items as well. </p>
+        <p> You can get the adapter's item count via <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.LayoutManager#getItemCount()">getItemCount</a></code> method.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The number of items currently available</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.LayoutManager#getItemCount()">getItemCount</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getRemainingScrollHorizontal--"></a><a name="getremainingscrollhorizontal"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getRemainingScrollHorizontal()" data-text="getRemainingScrollHorizontal" tabindex="-1">getRemainingScrollHorizontal</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getRemainingScrollHorizontal()">getRemainingScrollHorizontal</a>()</pre></devsite-code>
+        <p>Returns remaining horizontal scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. Returns zero if <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView#getScrollState()">getScrollState</a></code> is other than <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView#SCROLL_STATE_SETTLING()">SCROLL_STATE_SETTLING</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Remaining horizontal scroll distance</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getRemainingScrollVertical--"></a><a name="getremainingscrollvertical"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getRemainingScrollVertical()" data-text="getRemainingScrollVertical" tabindex="-1">getRemainingScrollVertical</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getRemainingScrollVertical()">getRemainingScrollVertical</a>()</pre></devsite-code>
+        <p>Returns remaining vertical scroll distance of an ongoing scroll animation(fling/ smoothScrollTo/SmoothScroller) in pixels. Returns zero if <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView#getScrollState()">getScrollState</a></code> is other than <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView#SCROLL_STATE_SETTLING()">SCROLL_STATE_SETTLING</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Remaining vertical scroll distance</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getTargetScrollPosition--"></a><a name="gettargetscrollposition"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getTargetScrollPosition()" data-text="getTargetScrollPosition" tabindex="-1">getTargetScrollPosition</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getTargetScrollPosition()">getTargetScrollPosition</a>()</pre></devsite-code>
+        <p>If scroll is triggered to make a certain item visible, this value will return the adapter index of that item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Adapter index of the target item or <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView#NO_POSITION()">NO_POSITION</a></code> if there is no target position.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="hasTargetScrollPosition--"></a><a name="hastargetscrollposition"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasTargetScrollPosition()" data-text="hasTargetScrollPosition" tabindex="-1">hasTargetScrollPosition</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#hasTargetScrollPosition()">hasTargetScrollPosition</a>()</pre></devsite-code>
+        <p>Returns if current scroll has a target position.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if scroll is being triggered to make a certain position visible</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.State#getTargetScrollPosition()">getTargetScrollPosition</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isMeasuring--"></a><a name="ismeasuring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isMeasuring()" data-text="isMeasuring" tabindex="-1">isMeasuring</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#isMeasuring()">isMeasuring</a>()</pre></devsite-code>
+        <p>Returns true if the RecyclerView is currently measuring the layout. This value is <code translate="no" dir="ltr">true</code> only if the LayoutManager opted into the auto measure API and RecyclerView has non-exact measurement specs. </p>
+        <p> Note that if the LayoutManager supports predictive animations and it is calculating the pre-layout step, this value will be <code translate="no" dir="ltr">false</code> even if the RecyclerView is in <code translate="no" dir="ltr">onMeasure</code> call. This is because pre-layout means the previous state of the RecyclerView and measurements made for that state cannot change the RecyclerView's size. LayoutManager is always guaranteed to receive another call to <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.LayoutManager#onLayoutChildren(androidx.recyclerview.widget.RecyclerView.Recycler,androidx.recyclerview.widget.RecyclerView.State)">onLayoutChildren</a></code> when this happens.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>True if the RecyclerView is currently calculating its bounds, false otherwise.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isPreLayout--"></a><a name="isprelayout"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isPreLayout()" data-text="isPreLayout" tabindex="-1">isPreLayout</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#isPreLayout()">isPreLayout</a>()</pre></devsite-code>
+        <p>Returns true if the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView">RecyclerView</a></code> is in the pre-layout step where it is having its <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.LayoutManager">LayoutManager</a></code> layout items where they will be at the beginning of a set of predictive item animations.</p>
+      </div>
+      <div class="api-item"><a name="put(int, java.lang.Object)"></a><a name="put-int-java.lang.Object-"></a><a name="put"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="put(int,java.lang.Object)" data-text="put" tabindex="-1">put</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#put(int,java.lang.Object)">put</a>(int&nbsp;resourceId,&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;data)</pre></devsite-code>
+        <p>Adds a mapping from the specified id to the specified value, replacing the previous mapping from the specified key if there was one.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;resourceId</code></td>
+                <td>
+                  <p>Id of the resource you want to add. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;data</code></td>
+                <td>
+                  <p>The data you want to associate with the resourceId.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="remove-int-"></a><a name="remove"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="remove(int)" data-text="remove" tabindex="-1">remove</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#remove(int)">remove</a>(int&nbsp;resourceId)</pre></devsite-code>
+        <p>Removes the mapping from the specified id, if there was any.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;resourceId</code></td>
+                <td>
+                  <p>Id of the resource you want to remove. It is suggested to use R.id.* to preserve cross functionality and avoid conflicts.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="toString--"></a><a name="tostring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="toString()" data-text="toString" tabindex="-1">toString</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#toString()">toString</a>()</pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="willRunPredictiveAnimations--"></a><a name="willrunpredictiveanimations"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="willRunPredictiveAnimations()" data-text="willRunPredictiveAnimations" tabindex="-1">willRunPredictiveAnimations</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#willRunPredictiveAnimations()">willRunPredictiveAnimations</a>()</pre></devsite-code>
+        <p>Returns whether RecyclerView will run predictive animations in this layout pass or not.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if RecyclerView is calculating predictive animations to be run at the end of the layout pass.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="willRunSimpleAnimations--"></a><a name="willrunsimpleanimations"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="willRunSimpleAnimations()" data-text="willRunSimpleAnimations" tabindex="-1">willRunSimpleAnimations</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/RecyclerView.State#willRunSimpleAnimations()">willRunSimpleAnimations</a>()</pre></devsite-code>
+        <p>Returns whether RecyclerView will run simple animations in this layout pass or not.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if RecyclerView is calculating simple animations to be run at the end of the layout pass.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

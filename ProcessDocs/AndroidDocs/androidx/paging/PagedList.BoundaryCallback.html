@@ -1,1 +1,839 @@
-<html><head><title>Class Documentation</title></head><body>PagedList.BoundaryCallback Artifact: androidx.paging:paging-common View Source Added in 2.0.0 Deprecated in 3.0.0 Kotlin | Java @ MainThread public abstract class PagedList.BoundaryCallback &lt;T&nbsp;extends&nbsp; Object &gt; This class is deprecated. PagedList is deprecated and has been replaced by PagingData Signals when a PagedList has reached the end of available data. When local storage is a cache of network data, it's common to set up a streaming pipeline: Network data is paged into the database, database is paged into UI. Paging from the database to UI can be done with a LiveData&lt;PagedList&gt; , but it's still necessary to know when to trigger network loads. BoundaryCallback does this signaling - when a PagingSource runs out of data at the end of the list, onItemAtEndLoaded is called, and you can start an async network load that will write the result directly to the database. Because the database is being observed, the UI bound to the LiveData&lt;PagedList&gt; will update automatically to account for the new items. Note that a BoundaryCallback instance shared across multiple PagedLists (e.g. when passed to androidx.paging.LivePagedListBuilder.setBoundaryCallback , the callbacks may be issued multiple times. If for example onItemAtEndLoaded triggers a network load, it should avoid triggering it again while the load is ongoing. The database + network Repository in the PagingWithNetworkSample shows how to implement a network BoundaryCallback using Retrofit , while handling swipe-to-refresh, network errors, and retry. Requesting Network Data BoundaryCallback only passes the item at front or end of the list when out of data. This makes it an easy fit for item-keyed network requests, where you can use the item passed to the BoundaryCallback to request more data from the network. In these cases, the source of truth for next page to load is coming from local storage, based on what's already loaded. If you aren't using an item-keyed network API, you may be using page-keyed, or page-indexed. If this is the case, the paging library doesn't know about the page key or index used in the BoundaryCallback , so you need to track it yourself. You can do this in one of two ways: Local storage Page key If you want to perfectly resume your query, even if the app is killed and resumed, you can store the key on disk. Note that with a positional/page index network API, there's a simple way to do this, by using the listSize as an input to the next load (or listSize / NETWORK_PAGE_SIZE , for page indexing). The current list size isn't passed to the BoundaryCallback though. This is because the PagedList doesn't necessarily know the number of items in local storage. Placeholders may be disabled, or the PagingSource may not count total number of items. Instead, for these positional cases, you can query the database for the number of items, and pass that to the network. In-Memory Page key Often it doesn't make sense to query the next page from network if the last page you fetched was loaded many hours or days before. If you keep the key in memory, you can refresh any time you start paging from a network source. Store the next key in memory, inside your BoundaryCallback. When you create a new BoundaryCallback when creating a new LiveData / Observable of PagedList , refresh data. For example, in the Paging Codelab , the GitHub network page index is stored in memory. Parameters &lt;T&nbsp;extends&nbsp; Object &gt; Type loaded by the PagedList . Summary Public constructors &lt;T&nbsp;extends&nbsp; Object &gt; BoundaryCallback () This method is deprecated. PagedList is deprecated and has been replaced by PagingData Public methods void onItemAtEndLoaded (@ NonNull T&nbsp;itemAtEnd) This method is deprecated. PagedList is deprecated and has been replaced by PagingData void onItemAtFrontLoaded (@ NonNull T&nbsp;itemAtFront) This method is deprecated. PagedList is deprecated and has been replaced by PagingData void onZeroItemsLoaded () This method is deprecated. PagedList is deprecated and has been replaced by PagingData Public constructors BoundaryCallback public&nbsp;&lt;T&nbsp;extends&nbsp; Object &gt; BoundaryCallback () This method is deprecated. PagedList is deprecated and has been replaced by PagingData Parameters &lt;T&nbsp;extends&nbsp; Object &gt; Type loaded by the PagedList . Public methods onItemAtEndLoaded Added in 2.0.0 Deprecated in 3.0.0 public&nbsp;void&nbsp; onItemAtEndLoaded (@ NonNull T&nbsp;itemAtEnd) This method is deprecated. PagedList is deprecated and has been replaced by PagingData Called when the item at the end of the PagedList has been loaded, and access has occurred within PagedList.Config.prefetchDistance of it. No more data will be appended to the PagedList after this item. Parameters @ NonNull T&nbsp;itemAtEnd The first item of PagedList onItemAtFrontLoaded Added in 2.0.0 Deprecated in 3.0.0 public&nbsp;void&nbsp; onItemAtFrontLoaded (@ NonNull T&nbsp;itemAtFront) This method is deprecated. PagedList is deprecated and has been replaced by PagingData Called when the item at the front of the PagedList has been loaded, and access has occurred within PagedList.Config.prefetchDistance of it. No more data will be prepended to the PagedList before this item. Parameters @ NonNull T&nbsp;itemAtFront The first item of PagedList onZeroItemsLoaded Added in 2.0.0 Deprecated in 3.0.0 public&nbsp;void&nbsp; onZeroItemsLoaded () This method is deprecated. PagedList is deprecated and has been replaced by PagingData Called when zero items are returned from an initial load of the PagedList's data source.</body></html>
+<html><head><title>PagedList.BoundaryCallback</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="PagedList.BoundaryCallback">
+      <meta itemprop="path" content="androidx.paging">
+      <meta itemprop="property" content="onItemAtEndLoaded(kotlin.Any)">
+      <meta itemprop="property" content="onItemAtFrontLoaded(kotlin.Any)">
+      <meta itemprop="property" content="onZeroItemsLoaded()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="pagedlist.boundarycallback" data-text="PagedList.BoundaryCallback" tabindex="-1">PagedList.BoundaryCallback</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/paging">androidx.paging:paging-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/paging/PagedList.kt+class:androidx.paging.PagedList.BoundaryCallback" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#2.0.0">2.0.0</a></div>
+          <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/paging/PagedList.BoundaryCallback" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/MainThread">MainThread</a><br>public abstract class <a href="/reference/androidx/paging/PagedList.BoundaryCallback">PagedList.BoundaryCallback</a>&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</pre></devsite-code>
+    </p>
+    <hr>
+    <aside class="caution"><strong>This class is deprecated.</strong><br>PagedList is deprecated and has been replaced by PagingData</aside>
+    <p>Signals when a PagedList has reached the end of available data.</p>
+    <p>When local storage is a cache of network data, it's common to set up a streaming pipeline: Network data is paged into the database, database is paged into UI. Paging from the database to UI can be done with a <code translate="no" dir="ltr">LiveData&lt;PagedList&gt;</code>, but it's still necessary to know when to trigger network loads.</p>
+    <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback">BoundaryCallback</a></code> does this signaling - when a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> runs out of data at the end of the list, <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtEndLoaded(kotlin.Any)">onItemAtEndLoaded</a></code> is called, and you can start an async network load that will write the result directly to the database. Because the database is being observed, the UI bound to the <code translate="no" dir="ltr">LiveData&lt;PagedList&gt;</code> will update automatically to account for the new items.</p>
+    <p>Note that a BoundaryCallback instance shared across multiple PagedLists (e.g. when passed to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LivePagedListBuilder#setBoundaryCallback(androidx.paging.PagedList.BoundaryCallback)">androidx.paging.LivePagedListBuilder.setBoundaryCallback</a></code>, the callbacks may be issued multiple times. If for example <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtEndLoaded(kotlin.Any)">onItemAtEndLoaded</a></code> triggers a network load, it should avoid triggering it again while the load is ongoing.</p>
+    <p>The database + network Repository in the <a href="https://github.com/googlesamples/android-architecture-components/blob/master/PagingWithNetworkSample/README.md">PagingWithNetworkSample</a> shows how to implement a network BoundaryCallback using <a href="https://square.github.io/retrofit/">Retrofit</a>, while handling swipe-to-refresh, network errors, and retry.</p>
+    <h3 id="requesting-network-data" data-text="Requesting Network Data" tabindex="-1">Requesting Network Data</h3>
+    <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback">BoundaryCallback</a></code> only passes the item at front or end of the list when out of data. This makes it an easy fit for item-keyed network requests, where you can use the item passed to the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback">BoundaryCallback</a></code> to request more data from the network. In these cases, the source of truth for next page to load is coming from local storage, based on what's already loaded.</p>
+    <p>If you aren't using an item-keyed network API, you may be using page-keyed, or page-indexed. If this is the case, the paging library doesn't know about the page key or index used in the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.BoundaryCallback">BoundaryCallback</a></code>, so you need to track it yourself. You can do this in one of two ways:</p>
+    <p><h5 id="local-storage-page-key" data-text="Local storage Page key" tabindex="-1">Local storage Page key</h5> If you want to perfectly resume your query, even if the app is killed and resumed, you can store the key on disk. Note that with a positional/page index network API, there's a simple way to do this, by using the <code translate="no" dir="ltr">listSize</code> as an input to the next load (or <code translate="no" dir="ltr">listSize / NETWORK_PAGE_SIZE</code>, for page indexing).</p>
+    <p>The current list size isn't passed to the BoundaryCallback though. This is because the PagedList doesn't necessarily know the number of items in local storage. Placeholders may be disabled, or the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> may not count total number of items.</p>
+    <p>Instead, for these positional cases, you can query the database for the number of items, and pass that to the network. <h5 id="in-memory-page-key" data-text="In-Memory Page key" tabindex="-1">In-Memory Page key</h5> Often it doesn't make sense to query the next page from network if the last page you fetched was loaded many hours or days before. If you keep the key in memory, you can refresh any time you start paging from a network source.</p>
+    <p>Store the next key in memory, inside your BoundaryCallback. When you create a new BoundaryCallback when creating a new <code translate="no" dir="ltr">LiveData</code>/<code translate="no" dir="ltr">Observable</code> of <code translate="no" dir="ltr">PagedList</code>, refresh data. For example, <a href="https://codelabs.developers.google.com/codelabs/android-paging/index.html#8">in the Paging Codelab</a>, the GitHub network page index is stored in memory.</p>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">Parameters</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</code></td>
+            <td>
+              <p>Type loaded by the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList">PagedList</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#BoundaryCallback()">BoundaryCallback</a></del></span>()</code></div>
+              <p><strong>This method is deprecated.</strong> PagedList is deprecated and has been replaced by PagingData</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtEndLoaded(kotlin.Any)">onItemAtEndLoaded</a></del></span>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtEnd)</code></div>
+              <p><strong>This method is deprecated.</strong> PagedList is deprecated and has been replaced by PagingData</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtFrontLoaded(kotlin.Any)">onItemAtFrontLoaded</a></del></span>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtFront)</code></div>
+              <p><strong>This method is deprecated.</strong> PagedList is deprecated and has been replaced by PagingData</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onZeroItemsLoaded()">onZeroItemsLoaded</a></del></span>()</code></div>
+              <p><strong>This method is deprecated.</strong> PagedList is deprecated and has been replaced by PagingData</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="BoundaryCallback--"></a><a name="boundarycallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="BoundaryCallback()" data-text="BoundaryCallback" tabindex="-1">BoundaryCallback</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#BoundaryCallback()">BoundaryCallback</a></del></span>()</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>PagedList is deprecated and has been replaced by PagingData</aside>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</code></td>
+                <td>
+                  <p>Type loaded by the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList">PagedList</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="onItemAtEndLoaded-kotlin.Any-"></a><a name="onitematendloaded"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onItemAtEndLoaded(kotlin.Any)" data-text="onItemAtEndLoaded" tabindex="-1">onItemAtEndLoaded</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#2.0.0">2.0.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtEndLoaded(kotlin.Any)">onItemAtEndLoaded</a></del></span>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtEnd)</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>PagedList is deprecated and has been replaced by PagingData</aside>
+        <p>Called when the item at the end of the PagedList has been loaded, and access has occurred within <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.Config#prefetchDistance()">PagedList.Config.prefetchDistance</a></code> of it.</p>
+        <p>No more data will be appended to the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList">PagedList</a></code> after this item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtEnd</code></td>
+                <td>
+                  <p>The first item of <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList">PagedList</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onItemAtFrontLoaded-kotlin.Any-"></a><a name="onitematfrontloaded"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onItemAtFrontLoaded(kotlin.Any)" data-text="onItemAtFrontLoaded" tabindex="-1">onItemAtFrontLoaded</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#2.0.0">2.0.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onItemAtFrontLoaded(kotlin.Any)">onItemAtFrontLoaded</a></del></span>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtFront)</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>PagedList is deprecated and has been replaced by PagingData</aside>
+        <p>Called when the item at the front of the PagedList has been loaded, and access has occurred within <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagedList.Config#prefetchDistance()">PagedList.Config.prefetchDistance</a></code> of it.</p>
+        <p>No more data will be prepended to the PagedList before this item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;itemAtFront</code></td>
+                <td>
+                  <p>The first item of PagedList</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onZeroItemsLoaded--"></a><a name="onzeroitemsloaded"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onZeroItemsLoaded()" data-text="onZeroItemsLoaded" tabindex="-1">onZeroItemsLoaded</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#2.0.0">2.0.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<span><del><a href="/reference/androidx/paging/PagedList.BoundaryCallback#onZeroItemsLoaded()">onZeroItemsLoaded</a></del></span>()</pre></devsite-code>
+        <aside class="caution"><strong>This method is deprecated.</strong><br>PagedList is deprecated and has been replaced by PagingData</aside>
+        <p>Called when zero items are returned from an initial load of the PagedList's data source.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

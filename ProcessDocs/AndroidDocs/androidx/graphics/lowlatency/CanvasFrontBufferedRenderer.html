@@ -1,1 +1,1002 @@
-<html><head><title>Class Documentation</title></head><body>CanvasFrontBufferedRenderer Artifact: androidx.graphics:graphics-core View Source Added in 1.0.3 Kotlin | Java @ RequiresApi (value&nbsp;=&nbsp;29) public final class CanvasFrontBufferedRenderer &lt;T&nbsp;extends&nbsp; Object &gt; Class responsible for supporting a &quot;front buffered&quot; rendering system. This allows for lower latency graphics by leveraging a combination of front buffered and multi buffered content layers. Active content is rendered first into the front buffered layer which is simultaneously being presented to the display. Periodically content is rendered into the multi buffered layer which will have more traditional latency guarantees, however, minimizes the impact of visual artifacts due to graphical tearing. Summary Nested types public interface CanvasFrontBufferedRenderer.Callback &lt;T&nbsp;extends&nbsp; Object &gt; Provides callbacks for consumers to draw into the front and multi buffered layers as well as provide opportunities to synchronize SurfaceControlCompat.Transaction s to submit the layers to the hardware compositor. Public constructors &lt;T&nbsp;extends&nbsp; Object &gt; CanvasFrontBufferedRenderer ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SurfaceView &nbsp;surfaceView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CanvasFrontBufferedRenderer.Callback &lt;@ NonNull T&gt;&nbsp;callback, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferFormat ) Public methods final void cancel () Requests to cancel rendering and hides the front buffered layer. final void clear () Clears the contents of both the front and multi buffered layers. final void commit () Requests to render the entire scene to the multi buffered layer and schedules a call to Callback.onDrawMultiBufferedLayer . final int getBufferFormat () format of the underlying buffers being rendered into by CanvasFrontBufferedRenderer . final @ NonNull ColorSpace getColorSpace () Configures the ColorSpace that the content should be rendered with for the front and multi buffered layers. final boolean isValid () Determines whether or not the CanvasFrontBufferedRenderer is in a valid state. final void release (boolean&nbsp;cancelPending,&nbsp;Function0&lt; Unit &gt;&nbsp;onReleaseComplete) Releases the CanvasFrontBufferedRenderer . final void renderFrontBufferedLayer (@ NonNull T&nbsp;param) Render content to the front buffered layer providing optional parameters to be consumed in Callback.onDrawFrontBufferedLayer . final void renderMultiBufferedLayer (@ NonNull Collection &lt;@ NonNull T&gt;&nbsp;params) Requests to render to the multi buffered layer. final void setColorSpace (@ NonNull ColorSpace &nbsp;colorSpace) Configures the ColorSpace that the content should be rendered with for the front and multi buffered layers. Public constructors CanvasFrontBufferedRenderer public&nbsp;&lt;T&nbsp;extends&nbsp; Object &gt; CanvasFrontBufferedRenderer ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SurfaceView &nbsp;surfaceView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull CanvasFrontBufferedRenderer.Callback &lt;@ NonNull T&gt;&nbsp;callback, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferFormat ) Parameters @ NonNull SurfaceView &nbsp;surfaceView Target SurfaceView to act as the parent rendering layer for multi buffered content @ NonNull CanvasFrontBufferedRenderer.Callback &lt;@ NonNull T&gt;&nbsp;callback Callbacks used to render into front and multi buffered layers as well as configuring SurfaceControlCompat.Transaction s for controlling these layers in addition to other SurfaceControlCompat instances that must be updated atomically within the user interface. These callbacks are invoked on an internal rendering thread. The templated type here is consumer defined to represent the data structures to be consumed for rendering within Callback.onDrawFrontBufferedLayer and Callback.onDrawMultiBufferedLayer and are provided by the CanvasFrontBufferedRenderer.renderFrontBufferedLayer and CanvasFrontBufferedRenderer.renderMultiBufferedLayer methods. int&nbsp;bufferFormat format of the underlying buffers being rendered into by CanvasFrontBufferedRenderer . The particular valid combinations for a given Android version and implementation should be documented by that version. HardwareBuffer.RGBA_8888 and HardwareBuffer.RGBX_8888 are guaranteed to be supported. However, consumers are recommended to query the desired HardwareBuffer configuration using HardwareBuffer.isSupported . The default is HardwareBuffer.RGBA_8888 . Public methods cancel Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; cancel () Requests to cancel rendering and hides the front buffered layer. Unlike commit , this does not schedule a call to render into the multi buffered layer. This is useful in palm rejection use cases, where some initial touch events might be processed before a corresponding cancel event is received indicating the touch gesture is coming from a palm rather than intentional user input. In the case where MotionEvent#getAction returns ACTION_CANCEL, this is to be invoked. If this GLFrontBufferedRenderer has been released, that is isValid returns false , this call is ignored. clear Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; clear () Clears the contents of both the front and multi buffered layers. This triggers a call to Callback.onMultiBufferedLayerRenderComplete and hides the front buffered layer. commit Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; commit () Requests to render the entire scene to the multi buffered layer and schedules a call to Callback.onDrawMultiBufferedLayer . The parameters provided to Callback.onDrawMultiBufferedLayer will include each argument provided to every renderFrontBufferedLayer call since the last call to commit has been made. When rendering to the multi-buffered layer is complete, this synchronously hides the front buffer and updates the multi buffered layer. If this CanvasFrontBufferedRenderer has been released, that is isValid returns false , this call is ignored. getBufferFormat Added in 1.0.3 public&nbsp;final&nbsp;int&nbsp; getBufferFormat () format of the underlying buffers being rendered into by CanvasFrontBufferedRenderer . The particular valid combinations for a given Android version and implementation should be documented by that version. HardwareBuffer.RGBA_8888 and HardwareBuffer.RGBX_8888 are guaranteed to be supported. However, consumers are recommended to query the desired HardwareBuffer configuration using HardwareBuffer.isSupported . The default is HardwareBuffer.RGBA_8888 . getColorSpace Added in 1.0.3 public&nbsp;final&nbsp;@ NonNull ColorSpace &nbsp; getColorSpace () Configures the ColorSpace that the content should be rendered with for the front and multi buffered layers. This parameter is only consumed on Android U and above. For older API levels this is ignored. isValid Added in 1.0.3 public&nbsp;final&nbsp;boolean&nbsp; isValid () Determines whether or not the CanvasFrontBufferedRenderer is in a valid state. That is the release method has not been called. If this returns false, then subsequent calls to renderFrontBufferedLayer , renderMultiBufferedLayer , commit , and release are ignored Returns boolean true if this CanvasFrontBufferedRenderer has been released, false otherwise release Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; release (boolean&nbsp;cancelPending,&nbsp;Function0&lt; Unit &gt;&nbsp;onReleaseComplete) Releases the CanvasFrontBufferedRenderer . In process requests are ignored. If the CanvasFrontBufferedRenderer is already released, that is isValid returns false , this method does nothing. renderFrontBufferedLayer Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; renderFrontBufferedLayer (@ NonNull T&nbsp;param) Render content to the front buffered layer providing optional parameters to be consumed in Callback.onDrawFrontBufferedLayer . Additionally the parameter provided here will also be consumed in Callback.onDrawMultiBufferedLayer when the corresponding commit method is invoked, which will include all param s in each call made to this method up to the corresponding commit call. If this CanvasFrontBufferedRenderer has been released, that is isValid returns false , this call is ignored. Parameters @ NonNull T&nbsp;param Optional parameter to be consumed when rendering content into the commit layer renderMultiBufferedLayer public&nbsp;final&nbsp;void&nbsp; renderMultiBufferedLayer (@ NonNull Collection &lt;@ NonNull T&gt;&nbsp;params) Requests to render to the multi buffered layer. This schedules a call to Callback.onDrawMultiBufferedLayer with the parameters provided. If the front buffered layer is visible, this will hide this layer after rendering to the multi buffered layer is complete. This is equivalent to calling CanvasFrontBufferedRenderer.renderFrontBufferedLayer for each parameter provided in the collection followed by a single call to CanvasFrontBufferedRenderer.commit . This is useful for re-rendering the multi buffered scene when the corresponding Activity is being resumed from the background in which the contents should be re-drawn. Additionally this allows for applications to decide to dynamically render to either front or multi buffered layers. If this CanvasFrontBufferedRenderer has been released, that is isValid returns 'false', this call is ignored. Parameters @ NonNull Collection &lt;@ NonNull T&gt;&nbsp;params Parameters that to be consumed when rendering to the multi buffered layer. These parameters will be provided in the corresponding call to Callback.onDrawMultiBufferedLayer setColorSpace Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; setColorSpace (@ NonNull ColorSpace &nbsp;colorSpace) Configures the ColorSpace that the content should be rendered with for the front and multi buffered layers. This parameter is only consumed on Android U and above. For older API levels this is ignored.</body></html>
+<html><head><title>CanvasFrontBufferedRenderer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="CanvasFrontBufferedRenderer">
+      <meta itemprop="path" content="androidx.graphics.lowlatency">
+      <meta itemprop="property" content="cancel()">
+      <meta itemprop="property" content="clear()">
+      <meta itemprop="property" content="commit()">
+      <meta itemprop="property" content="getBufferFormat()">
+      <meta itemprop="property" content="getColorSpace()">
+      <meta itemprop="property" content="isValid()">
+      <meta itemprop="property" content="release(kotlin.Boolean,kotlin.Function0)">
+      <meta itemprop="property" content="renderFrontBufferedLayer(kotlin.Any)">
+      <meta itemprop="property" content="renderMultiBufferedLayer(kotlin.collections.Collection)">
+      <meta itemprop="property" content="setColorSpace(android.graphics.ColorSpace)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="canvasfrontbufferedrenderer" data-text="CanvasFrontBufferedRenderer" tabindex="-1">CanvasFrontBufferedRenderer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/graphics">androidx.graphics:graphics-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.kt+class:androidx.graphics.lowlatency.CanvasFrontBufferedRenderer" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;29)<br>public final class <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a>&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</pre></devsite-code>
+    </p>
+    <hr>
+    <p>Class responsible for supporting a &quot;front buffered&quot; rendering system. This allows for lower latency graphics by leveraging a combination of front buffered and multi buffered content layers. Active content is rendered first into the front buffered layer which is simultaneously being presented to the display. Periodically content is rendered into the multi buffered layer which will have more traditional latency guarantees, however, minimizes the impact of visual artifacts due to graphical tearing.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback">CanvasFrontBufferedRenderer.Callback</a>&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</code></div>
+              <p>Provides callbacks for consumers to draw into the front and multi buffered layers as well as provide opportunities to synchronize <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/surface/SurfaceControlCompat.Transaction">SurfaceControlCompat.Transaction</a></code>s to submit the layers to the hardware compositor.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#CanvasFrontBufferedRenderer(android.view.SurfaceView,androidx.graphics.lowlatency.CanvasFrontBufferedRenderer.Callback,kotlin.Int)">CanvasFrontBufferedRenderer</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback">CanvasFrontBufferedRenderer.Callback</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;callback,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferFormat<br>)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#cancel()">cancel</a>()</code></div>
+              <p>Requests to cancel rendering and hides the front buffered layer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#clear()">clear</a>()</code></div>
+              <p>Clears the contents of both the front and multi buffered layers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a>()</code></div>
+              <p>Requests to render the entire scene to the multi buffered layer and schedules a call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#getBufferFormat()">getBufferFormat</a>()</code></div>
+              <p>format of the underlying buffers being rendered into by <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#getColorSpace()">getColorSpace</a>()</code></div>
+              <p>Configures the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a></code> that the content should be rendered with for the front and multi buffered layers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a>()</code></div>
+              <p>Determines whether or not the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> is in a valid state.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#release(kotlin.Boolean,kotlin.Function0)">release</a>(boolean&nbsp;cancelPending,&nbsp;Function0&lt;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onReleaseComplete)</code></div>
+              <p>Releases the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">renderFrontBufferedLayer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;param)</code></div>
+              <p>Render content to the front buffered layer providing optional parameters to be consumed in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawFrontBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.Any)">Callback.onDrawFrontBufferedLayer</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderMultiBufferedLayer(kotlin.collections.Collection)">renderMultiBufferedLayer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;params)</code></div>
+              <p>Requests to render to the multi buffered layer.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#setColorSpace(android.graphics.ColorSpace)">setColorSpace</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a>&nbsp;colorSpace)</code></div>
+              <p>Configures the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a></code> that the content should be rendered with for the front and multi buffered layers.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="CanvasFrontBufferedRenderer(android.view.SurfaceView, androidx.graphics.lowlatency.CanvasFrontBufferedRenderer.Callback, kotlin.Int)"></a><a name="CanvasFrontBufferedRenderer-android.view.SurfaceView-androidx.graphics.lowlatency.CanvasFrontBufferedRenderer.Callback-kotlin.Int-"></a><a name="canvasfrontbufferedrenderer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="CanvasFrontBufferedRenderer(android.view.SurfaceView,androidx.graphics.lowlatency.CanvasFrontBufferedRenderer.Callback,kotlin.Int)" data-text="CanvasFrontBufferedRenderer" tabindex="-1">CanvasFrontBufferedRenderer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;&lt;T&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#CanvasFrontBufferedRenderer(android.view.SurfaceView,androidx.graphics.lowlatency.CanvasFrontBufferedRenderer.Callback,kotlin.Int)">CanvasFrontBufferedRenderer</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback">CanvasFrontBufferedRenderer.Callback</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;callback,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;bufferFormat<br>)</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView</code></td>
+                <td>
+                  <p>Target SurfaceView to act as the parent rendering layer for multi buffered content</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback">CanvasFrontBufferedRenderer.Callback</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;callback</code></td>
+                <td>
+                  <p>Callbacks used to render into front and multi buffered layers as well as configuring <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/surface/SurfaceControlCompat.Transaction">SurfaceControlCompat.Transaction</a></code>s for controlling these layers in addition to other <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/surface/SurfaceControlCompat">SurfaceControlCompat</a></code> instances that must be updated atomically within the user interface. These callbacks are invoked on an internal rendering thread. The templated type here is consumer defined to represent the data structures to be consumed for rendering within <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawFrontBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.Any)">Callback.onDrawFrontBufferedLayer</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code> and are provided by the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">CanvasFrontBufferedRenderer.renderFrontBufferedLayer</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderMultiBufferedLayer(kotlin.collections.Collection)">CanvasFrontBufferedRenderer.renderMultiBufferedLayer</a></code> methods.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;bufferFormat</code></td>
+                <td>
+                  <p>format of the underlying buffers being rendered into by <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code>. The particular valid combinations for a given Android version and implementation should be documented by that version. <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBA_8888()">HardwareBuffer.RGBA_8888</a></code> and <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBX_8888()">HardwareBuffer.RGBX_8888</a></code> are guaranteed to be supported. However, consumers are recommended to query the desired HardwareBuffer configuration using <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#isSupported(kotlin.Int, kotlin.Int, kotlin.Int, kotlin.Int, kotlin.Long)">HardwareBuffer.isSupported</a></code>. The default is <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBA_8888()">HardwareBuffer.RGBA_8888</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="cancel--"></a><a name="cancel"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="cancel()" data-text="cancel" tabindex="-1">cancel</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#cancel()">cancel</a>()</pre></devsite-code>
+        <p>Requests to cancel rendering and hides the front buffered layer. Unlike <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a></code>, this does not schedule a call to render into the multi buffered layer. This is useful in palm rejection use cases, where some initial touch events might be processed before a corresponding cancel event is received indicating the touch gesture is coming from a palm rather than intentional user input. In the case where MotionEvent#getAction returns ACTION_CANCEL, this is to be invoked.</p>
+        <p>If this <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/GLFrontBufferedRenderer">GLFrontBufferedRenderer</a></code> has been released, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a></code> returns <code translate="no" dir="ltr">false</code>, this call is ignored.</p>
+      </div>
+      <div class="api-item"><a name="clear--"></a><a name="clear"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clear()" data-text="clear" tabindex="-1">clear</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#clear()">clear</a>()</pre></devsite-code>
+        <p>Clears the contents of both the front and multi buffered layers. This triggers a call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onMultiBufferedLayerRenderComplete(androidx.graphics.surface.SurfaceControlCompat,androidx.graphics.surface.SurfaceControlCompat,androidx.graphics.surface.SurfaceControlCompat.Transaction)">Callback.onMultiBufferedLayerRenderComplete</a></code> and hides the front buffered layer.</p>
+      </div>
+      <div class="api-item"><a name="commit--"></a><a name="commit"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="commit()" data-text="commit" tabindex="-1">commit</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a>()</pre></devsite-code>
+        <p>Requests to render the entire scene to the multi buffered layer and schedules a call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code>. The parameters provided to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code> will include each argument provided to every <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">renderFrontBufferedLayer</a></code> call since the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a></code> has been made. When rendering to the multi-buffered layer is complete, this synchronously hides the front buffer and updates the multi buffered layer.</p>
+        <p>If this <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> has been released, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a></code> returns <code translate="no" dir="ltr">false</code>, this call is ignored.</p>
+      </div>
+      <div class="api-item"><a name="getBufferFormat--"></a><a name="getbufferformat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getBufferFormat()" data-text="getBufferFormat" tabindex="-1">getBufferFormat</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#getBufferFormat()">getBufferFormat</a>()</pre></devsite-code>
+        <p>format of the underlying buffers being rendered into by <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code>. The particular valid combinations for a given Android version and implementation should be documented by that version. <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBA_8888()">HardwareBuffer.RGBA_8888</a></code> and <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBX_8888()">HardwareBuffer.RGBX_8888</a></code> are guaranteed to be supported. However, consumers are recommended to query the desired HardwareBuffer configuration using <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#isSupported(kotlin.Int, kotlin.Int, kotlin.Int, kotlin.Int, kotlin.Long)">HardwareBuffer.isSupported</a></code>. The default is <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html#RGBA_8888()">HardwareBuffer.RGBA_8888</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getColorSpace--"></a><a name="getcolorspace"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getColorSpace()" data-text="getColorSpace" tabindex="-1">getColorSpace</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a>&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#getColorSpace()">getColorSpace</a>()</pre></devsite-code>
+        <p>Configures the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a></code> that the content should be rendered with for the front and multi buffered layers. This parameter is only consumed on Android U and above. For older API levels this is ignored.</p>
+      </div>
+      <div class="api-item"><a name="isValid--"></a><a name="isvalid"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isValid()" data-text="isValid" tabindex="-1">isValid</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a>()</pre></devsite-code>
+        <p>Determines whether or not the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> is in a valid state. That is the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#release(kotlin.Boolean,kotlin.Function0)">release</a></code> method has not been called. If this returns false, then subsequent calls to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">renderFrontBufferedLayer</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderMultiBufferedLayer(kotlin.collections.Collection)">renderMultiBufferedLayer</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a></code>, and <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#release(kotlin.Boolean,kotlin.Function0)">release</a></code> are ignored</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if this <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> has been released, <code translate="no" dir="ltr">false</code> otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="release(kotlin.Boolean, kotlin.Function0)"></a><a name="release-kotlin.Boolean-kotlin.Function0-"></a><a name="release"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="release(kotlin.Boolean,kotlin.Function0)" data-text="release" tabindex="-1">release</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#release(kotlin.Boolean,kotlin.Function0)">release</a>(boolean&nbsp;cancelPending,&nbsp;Function0&lt;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onReleaseComplete)</pre></devsite-code>
+        <p>Releases the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code>. In process requests are ignored. If the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> is already released, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a></code> returns <code translate="no" dir="ltr">false</code>, this method does nothing.</p>
+      </div>
+      <div class="api-item"><a name="renderFrontBufferedLayer-kotlin.Any-"></a><a name="renderfrontbufferedlayer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="renderFrontBufferedLayer(kotlin.Any)" data-text="renderFrontBufferedLayer" tabindex="-1">renderFrontBufferedLayer</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">renderFrontBufferedLayer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;param)</pre></devsite-code>
+        <p>Render content to the front buffered layer providing optional parameters to be consumed in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawFrontBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.Any)">Callback.onDrawFrontBufferedLayer</a></code>. Additionally the parameter provided here will also be consumed in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code> when the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a></code> method is invoked, which will include all <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">param</a></code>s in each call made to this method up to the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">commit</a></code> call.</p>
+        <p>If this <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> has been released, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a></code> returns <code translate="no" dir="ltr">false</code>, this call is ignored.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&nbsp;param</code></td>
+                <td>
+                  <p>Optional parameter to be consumed when rendering content into the commit layer</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="renderMultiBufferedLayer-kotlin.collections.Collection-"></a><a name="rendermultibufferedlayer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="renderMultiBufferedLayer(kotlin.collections.Collection)" data-text="renderMultiBufferedLayer" tabindex="-1">renderMultiBufferedLayer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderMultiBufferedLayer(kotlin.collections.Collection)">renderMultiBufferedLayer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;params)</pre></devsite-code>
+        <p>Requests to render to the multi buffered layer. This schedules a call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code> with the parameters provided. If the front buffered layer is visible, this will hide this layer after rendering to the multi buffered layer is complete. This is equivalent to calling <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#renderFrontBufferedLayer(kotlin.Any)">CanvasFrontBufferedRenderer.renderFrontBufferedLayer</a></code> for each parameter provided in the collection followed by a single call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#commit()">CanvasFrontBufferedRenderer.commit</a></code>. This is useful for re-rendering the multi buffered scene when the corresponding Activity is being resumed from the background in which the contents should be re-drawn. Additionally this allows for applications to decide to dynamically render to either front or multi buffered layers.</p>
+        <p>If this <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer">CanvasFrontBufferedRenderer</a></code> has been released, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#isValid()">isValid</a></code> returns 'false', this call is ignored.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T&gt;&nbsp;params</code></td>
+                <td>
+                  <p>Parameters that to be consumed when rendering to the multi buffered layer. These parameters will be provided in the corresponding call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer.Callback#onDrawMultiBufferedLayer(android.graphics.Canvas,kotlin.Int,kotlin.Int,kotlin.collections.Collection)">Callback.onDrawMultiBufferedLayer</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setColorSpace-android.graphics.ColorSpace-"></a><a name="setcolorspace"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setColorSpace(android.graphics.ColorSpace)" data-text="setColorSpace" tabindex="-1">setColorSpace</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/lowlatency/CanvasFrontBufferedRenderer#setColorSpace(android.graphics.ColorSpace)">setColorSpace</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a>&nbsp;colorSpace)</pre></devsite-code>
+        <p>Configures the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/ColorSpace.html">ColorSpace</a></code> that the content should be rendered with for the front and multi buffered layers. This parameter is only consumed on Android U and above. For older API levels this is ignored.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

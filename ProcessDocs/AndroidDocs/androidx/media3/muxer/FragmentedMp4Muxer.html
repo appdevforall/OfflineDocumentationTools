@@ -1,1 +1,1030 @@
-<html><head><title>Class Documentation</title></head><body>FragmentedMp4Muxer Artifact: androidx.media3:media3-muxer View Source Kotlin | Java @ UnstableApi public final class FragmentedMp4Muxer implements Muxer A muxer for creating a fragmented MP4 file. Muxer supports muxing of: Video Codecs: AV1 MPEG-4 H.263 H.264 (AVC) H.265 (HEVC) VP9 APV Dolby Vision Audio Codecs: AAC AMR-NB (Narrowband AMR) AMR-WB (Wideband AMR) Opus Vorbis Raw Audio Metadata All the operations are performed on the caller thread. To create a fragmented MP4 file, the caller must: Add tracks using addTrack which will return a track id. Use the associated track id when writing samples for that track. close the muxer when all data has been written. Some key points: All tracks must be added before writing any samples. The caller is responsible for ensuring that samples of different track types are well interleaved by calling writeSampleData in an order that interleaves samples from different tracks. Summary Nested types public final class FragmentedMp4Muxer.Builder A builder for FragmentedMp4Muxer instances. Constants static&nbsp;final long DEFAULT_FRAGMENT_DURATION_MS = 2000 The default fragment duration. static&nbsp;final ImmutableList &lt; String &gt; SUPPORTED_AUDIO_SAMPLE_MIME_TYPES A list of supported audio sample MIME types . static&nbsp;final ImmutableList &lt; String &gt; SUPPORTED_VIDEO_SAMPLE_MIME_TYPES A list of supported video sample MIME types . Public methods void addMetadataEntry ( Metadata.Entry &nbsp;metadataEntry) Adds metadata about the output file. int addTrack ( Format &nbsp;format) Adds a track of the given media format. void close () Closes the file. void writeSampleData ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;trackId, &nbsp;&nbsp;&nbsp;&nbsp; ByteBuffer &nbsp;byteBuffer, &nbsp;&nbsp;&nbsp;&nbsp; BufferInfo &nbsp;bufferInfo ) Writes encoded sample data. Inherited methods From java.lang.AutoCloseable abstract void close () Constants DEFAULT_FRAGMENT_DURATION_MS public&nbsp;static&nbsp;final&nbsp;long&nbsp; DEFAULT_FRAGMENT_DURATION_MS = 2000 The default fragment duration. SUPPORTED_AUDIO_SAMPLE_MIME_TYPES public&nbsp;static&nbsp;final&nbsp; ImmutableList &lt; String &gt;&nbsp; SUPPORTED_AUDIO_SAMPLE_MIME_TYPES A list of supported audio sample MIME types . SUPPORTED_VIDEO_SAMPLE_MIME_TYPES public&nbsp;static&nbsp;final&nbsp; ImmutableList &lt; String &gt;&nbsp; SUPPORTED_VIDEO_SAMPLE_MIME_TYPES A list of supported video sample MIME types . Public methods addMetadataEntry public&nbsp;void&nbsp; addMetadataEntry ( Metadata.Entry &nbsp;metadataEntry) Adds metadata about the output file. List of supported metadata entries : Mp4OrientationData Mp4LocationData Mp4TimestampData MdtaMetadataEntry : Only string type or float type value is supported. XmpData Parameters Metadata.Entry &nbsp;metadataEntry The metadata . An is thrown if the metadata is not supported. addTrack public&nbsp;int&nbsp; addTrack ( Format &nbsp;format) Adds a track of the given media format. All tracks must be added before any samples are written to any track. Parameters Format &nbsp;format The Format of the track. Returns int A track id for this track, which should be passed to writeSampleData . Throws androidx.media3.muxer.MuxerException If the muxer encounters a problem while adding the track. close public&nbsp;void&nbsp; close () Closes the file. The muxer cannot be used anymore once this method returns. Throws androidx.media3.muxer.MuxerException If the muxer fails to finish writing the output. writeSampleData public&nbsp;void&nbsp; writeSampleData ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;trackId, &nbsp;&nbsp;&nbsp;&nbsp; ByteBuffer &nbsp;byteBuffer, &nbsp;&nbsp;&nbsp;&nbsp; BufferInfo &nbsp;bufferInfo ) Writes encoded sample data. Samples are written to the disk in batches. If sample copying is disabled, the byteBuffer and the bufferInfo must not be modified after calling this method. Otherwise, they are copied and it is safe to modify them after this method returns. Note: Out of order B-frames are currently not supported. Parameters int&nbsp;trackId The track id for which this sample is being written. ByteBuffer &nbsp;byteBuffer The encoded sample. The muxer takes ownership of the buffer if sample copying is disabled. Otherwise, the position of the buffer is updated but the caller retains ownership. BufferInfo &nbsp;bufferInfo The BufferInfo related to this sample. Throws androidx.media3.muxer.MuxerException If there is any error while writing data to the disk.</body></html>
+<html><head><title>FragmentedMp4Muxer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="FragmentedMp4Muxer">
+      <meta itemprop="path" content="androidx.media3.muxer">
+      <meta itemprop="property" content="addMetadataEntry(androidx.media3.common.Metadata.Entry)">
+      <meta itemprop="property" content="addTrack(androidx.media3.common.Format)">
+      <meta itemprop="property" content="close()">
+      <meta itemprop="property" content="writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">
+      <meta itemprop="property" content="DEFAULT_FRAGMENT_DURATION_MS()">
+      <meta itemprop="property" content="SUPPORTED_AUDIO_SAMPLE_MIME_TYPES()">
+      <meta itemprop="property" content="SUPPORTED_VIDEO_SAMPLE_MIME_TYPES()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="fragmentedmp4muxer" data-text="FragmentedMp4Muxer" tabindex="-1">FragmentedMp4Muxer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-muxer</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/muxer/FragmentedMp4Muxer.java+class:androidx.media3.muxer.FragmentedMp4Muxer" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/muxer/FragmentedMp4Muxer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer">FragmentedMp4Muxer</a> implements <a href="/reference/androidx/media3/muxer/Muxer">Muxer</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>A muxer for creating a fragmented MP4 file. </p>
+    <p>Muxer supports muxing of: </p>
+    <ul>
+      <li>Video Codecs: 
+        <ul>
+          <li>AV1 </li>
+          <li>MPEG-4 </li>
+          <li>H.263 </li>
+          <li>H.264 (AVC) </li>
+          <li>H.265 (HEVC) </li>
+          <li>VP9 </li>
+          <li>APV </li>
+          <li>Dolby Vision </li>
+        </ul>
+      </li>
+      <li>Audio Codecs: 
+        <ul>
+          <li>AAC </li>
+          <li>AMR-NB (Narrowband AMR) </li>
+          <li>AMR-WB (Wideband AMR) </li>
+          <li>Opus </li>
+          <li>Vorbis </li>
+          <li>Raw Audio </li>
+        </ul>
+      </li>
+      <li>Metadata </li>
+    </ul>
+    <p>All the operations are performed on the caller thread. </p>
+    <p>To create a fragmented MP4 file, the caller must: </p>
+    <ul>
+      <li>Add tracks using <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#addTrack(androidx.media3.common.Format)">addTrack</a></code> which will return a track id. </li>
+      <li>Use the associated track id when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">writing samples</a></code> for that track. </li>
+      <li>close the muxer when all data has been written. </li>
+    </ul>
+    <p>Some key points: </p>
+    <ul>
+      <li>All tracks must be added before writing any samples. </li>
+      <li>The caller is responsible for ensuring that samples of different track types are well interleaved by calling <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">writeSampleData</a></code> in an order that interleaves samples from different tracks. </li>
+    </ul>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer.Builder">FragmentedMp4Muxer.Builder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer">FragmentedMp4Muxer</a></code> instances.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#DEFAULT_FRAGMENT_DURATION_MS()">DEFAULT_FRAGMENT_DURATION_MS</a> = 2000</code></div>
+              <p>The default fragment duration.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#SUPPORTED_AUDIO_SAMPLE_MIME_TYPES()">SUPPORTED_AUDIO_SAMPLE_MIME_TYPES</a></code></div>
+              <p>A list of supported audio <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MimeTypes">sample MIME types</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#SUPPORTED_VIDEO_SAMPLE_MIME_TYPES()">SUPPORTED_VIDEO_SAMPLE_MIME_TYPES</a></code></div>
+              <p>A list of supported video <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MimeTypes">sample MIME types</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#addMetadataEntry(androidx.media3.common.Metadata.Entry)">addMetadataEntry</a>(<a href="/reference/androidx/media3/common/Metadata.Entry">Metadata.Entry</a>&nbsp;metadataEntry)</code></div>
+              <p>Adds metadata about the output file.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#addTrack(androidx.media3.common.Format)">addTrack</a>(<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format)</code></div>
+              <p>Adds a track of the given media format.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#close()">close</a>()</code></div>
+              <p>Closes the file.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">writeSampleData</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;trackId,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;byteBuffer,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/muxer/BufferInfo">BufferInfo</a>&nbsp;bufferInfo<br>)</code></div>
+              <p>Writes encoded sample data.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-methods" data-text="Inherited methods" tabindex="-1">Inherited methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="https://developer.android.com/reference/java/lang/AutoCloseable.html">java.lang.AutoCloseable</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">abstract void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/AutoCloseable.html#close()">close</a>()</code></div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDEFAULT_FRAGMENT_DURATION_MS()"></a><a name="setDEFAULT_FRAGMENT_DURATION_MS()"></a><a name="getDEFAULT_FRAGMENT_DURATION_MS--"></a><a name="setDEFAULT_FRAGMENT_DURATION_MS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT_FRAGMENT_DURATION_MS()" data-text="DEFAULT_FRAGMENT_DURATION_MS" tabindex="-1">DEFAULT_FRAGMENT_DURATION_MS</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#DEFAULT_FRAGMENT_DURATION_MS()">DEFAULT_FRAGMENT_DURATION_MS</a> = 2000</pre></devsite-code>
+        <p>The default fragment duration.</p>
+      </div>
+      <div class="api-item"><a name="getSUPPORTED_AUDIO_SAMPLE_MIME_TYPES()"></a><a name="setSUPPORTED_AUDIO_SAMPLE_MIME_TYPES()"></a><a name="getSUPPORTED_AUDIO_SAMPLE_MIME_TYPES--"></a><a name="setSUPPORTED_AUDIO_SAMPLE_MIME_TYPES--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SUPPORTED_AUDIO_SAMPLE_MIME_TYPES()" data-text="SUPPORTED_AUDIO_SAMPLE_MIME_TYPES" tabindex="-1">SUPPORTED_AUDIO_SAMPLE_MIME_TYPES</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#SUPPORTED_AUDIO_SAMPLE_MIME_TYPES()">SUPPORTED_AUDIO_SAMPLE_MIME_TYPES</a></pre></devsite-code>
+        <p>A list of supported audio <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MimeTypes">sample MIME types</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getSUPPORTED_VIDEO_SAMPLE_MIME_TYPES()"></a><a name="setSUPPORTED_VIDEO_SAMPLE_MIME_TYPES()"></a><a name="getSUPPORTED_VIDEO_SAMPLE_MIME_TYPES--"></a><a name="setSUPPORTED_VIDEO_SAMPLE_MIME_TYPES--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SUPPORTED_VIDEO_SAMPLE_MIME_TYPES()" data-text="SUPPORTED_VIDEO_SAMPLE_MIME_TYPES" tabindex="-1">SUPPORTED_VIDEO_SAMPLE_MIME_TYPES</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#SUPPORTED_VIDEO_SAMPLE_MIME_TYPES()">SUPPORTED_VIDEO_SAMPLE_MIME_TYPES</a></pre></devsite-code>
+        <p>A list of supported video <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MimeTypes">sample MIME types</a></code>.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="addMetadataEntry-androidx.media3.common.Metadata.Entry-"></a><a name="addmetadataentry"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addMetadataEntry(androidx.media3.common.Metadata.Entry)" data-text="addMetadataEntry" tabindex="-1">addMetadataEntry</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#addMetadataEntry(androidx.media3.common.Metadata.Entry)">addMetadataEntry</a>(<a href="/reference/androidx/media3/common/Metadata.Entry">Metadata.Entry</a>&nbsp;metadataEntry)</pre></devsite-code>
+        <p>Adds metadata about the output file. </p>
+        <p>List of supported <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Metadata.Entry">metadata entries</a></code>: </p>
+        <ul>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/Mp4OrientationData">Mp4OrientationData</a></code></li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/Mp4LocationData">Mp4LocationData</a></code></li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/Mp4TimestampData">Mp4TimestampData</a></code></li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/MdtaMetadataEntry">MdtaMetadataEntry</a></code>: Only <code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/MdtaMetadataEntry#TYPE_INDICATOR_STRING()">string type</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/MdtaMetadataEntry#TYPE_INDICATOR_FLOAT32()">float type</a></code> value is supported. </li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/container/XmpData">XmpData</a></code></li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Metadata.Entry">Metadata.Entry</a>&nbsp;metadataEntry</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Metadata.Entry">metadata</a></code>. An  is thrown if the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Metadata.Entry">metadata</a></code> is not supported.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="addTrack-androidx.media3.common.Format-"></a><a name="addtrack"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addTrack(androidx.media3.common.Format)" data-text="addTrack" tabindex="-1">addTrack</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#addTrack(androidx.media3.common.Format)">addTrack</a>(<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format)</pre></devsite-code>
+        <p>Adds a track of the given media format. </p>
+        <p>All tracks must be added before any samples are written to any track.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> of the track.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>A track id for this track, which should be passed to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/Muxer#writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">writeSampleData</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/MuxerException">androidx.media3.muxer.MuxerException</a></code></td>
+                <td>
+                  <p>If the muxer encounters a problem while adding the track.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="close--"></a><a name="close"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="close()" data-text="close" tabindex="-1">close</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#close()">close</a>()</pre></devsite-code>
+        <p>Closes the file. </p>
+        <p>The muxer cannot be used anymore once this method returns.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/MuxerException">androidx.media3.muxer.MuxerException</a></code></td>
+                <td>
+                  <p>If the muxer fails to finish writing the output.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="writeSampleData(int, java.nio.ByteBuffer, androidx.media3.muxer.BufferInfo)"></a><a name="writeSampleData-int-java.nio.ByteBuffer-androidx.media3.muxer.BufferInfo-"></a><a name="writesampledata"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)" data-text="writeSampleData" tabindex="-1">writeSampleData</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer#writeSampleData(int,java.nio.ByteBuffer,androidx.media3.muxer.BufferInfo)">writeSampleData</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;trackId,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;byteBuffer,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/muxer/BufferInfo">BufferInfo</a>&nbsp;bufferInfo<br>)</pre></devsite-code>
+        <p>Writes encoded sample data. </p>
+        <p>Samples are written to the disk in batches. If <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer.Builder#setSampleCopyingEnabled(boolean)"> sample copying</a></code> is disabled, the <code translate="no" dir="ltr">byteBuffer</code> and the <code translate="no" dir="ltr">bufferInfo</code> must not be modified after calling this method. Otherwise, they are copied and it is safe to modify them after this method returns. </p>
+        <p>Note: Out of order B-frames are currently not supported.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;trackId</code></td>
+                <td>
+                  <p>The track id for which this sample is being written.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/nio/ByteBuffer.html">ByteBuffer</a>&nbsp;byteBuffer</code></td>
+                <td>
+                  <p>The encoded sample. The muxer takes ownership of the buffer if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/FragmentedMp4Muxer.Builder#setSampleCopyingEnabled(boolean)"> sample copying</a></code> is disabled. Otherwise, the position of the buffer is updated but the caller retains ownership.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/BufferInfo">BufferInfo</a>&nbsp;bufferInfo</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/BufferInfo">BufferInfo</a></code> related to this sample.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/muxer/MuxerException">androidx.media3.muxer.MuxerException</a></code></td>
+                <td>
+                  <p>If there is any error while writing data to the disk.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

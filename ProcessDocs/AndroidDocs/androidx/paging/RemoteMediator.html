@@ -1,1 +1,1064 @@
-<html><head><title>Class Documentation</title></head><body>RemoteMediator Artifact: androidx.paging:paging-common View Source Added in 3.0.0 Kotlin | Java @ ExperimentalPagingApi public abstract class RemoteMediator &lt;Key&nbsp;extends&nbsp; Object ,&nbsp;Value&nbsp;extends&nbsp; Object &gt; Known direct subclasses ListenableFutureRemoteMediator , RxRemoteMediator , RxRemoteMediator ListenableFutureRemoteMediator ListenableFuture -based compatibility wrapper around RemoteMediator 's suspending APIs. RxRemoteMediator RxJava2 compatibility wrapper around RemoteMediator 's suspending APIs. RxRemoteMediator RxJava3 compatibility wrapper around RemoteMediator 's suspending APIs. Defines a set of callbacks used to incrementally load data from a remote source into a local source wrapped by a PagingSource , e.g., loading data from network into a local db cache. A RemoteMediator is registered by passing it to Pager 's constructor. RemoteMediator allows hooking into the following events: Stream initialization REFRESH signal driven from UI PagingSource returns a LoadResult which signals a boundary condition, i.e., the most recent LoadResult.Page in the PREPEND or APPEND direction has LoadResult.Page.prevKey or LoadResult.Page.nextKey set to null respectively. import androidx.paging.ExperimentalPagingApi import androidx.paging.LoadType import androidx.paging.PagingState import androidx.paging.RemoteMediator import androidx.paging.samples.shared.ExampleBackendService import androidx.paging.samples.shared.RoomDb import androidx.paging.samples.shared.User import androidx.room.withTransaction /** * Sample RemoteMediator for a DB + Network based PagingData stream, which triggers network * requests to fetch additional items when a user scrolls to the end of the list of items stored * in DB. * * This sample loads a list of [User] items from an item-keyed Retrofit paginated source. This * source is "item-keyed" because we're loading the next page using information from the items * themselves (the ID param) as a key to fetch more data. */ @OptIn ( ExperimentalPagingApi :: class ) class ExampleRemoteMediator ( private val query : String , private val database : RoomDb , private val networkService : ExampleBackendService , ) : RemoteMediator&lt;Int , User &gt; () { val userDao = database . userDao () override suspend fun initialize (): InitializeAction { val cacheTimeout = TimeUnit . HOURS . convert ( 1 , TimeUnit . MILLISECONDS ) return if ( System . currentTimeMillis () - userDao . lastUpdated () &gt; = cacheTimeout ) { // Cached data is up-to-date, so there is no need to re-fetch from network. InitializeAction . SKIP_INITIAL_REFRESH } else { // Need to refresh cached data from network; returning LAUNCH_INITIAL_REFRESH here // will also block RemoteMediator's APPEND and PREPEND from running until REFRESH // succeeds. InitializeAction . LAUNCH_INITIAL_REFRESH } } override suspend fun load ( loadType : LoadType , state : PagingState&lt;Int , User &gt; , ): MediatorResult { return try { // The network load method takes an optional `after=&lt;user.id&gt;` parameter. For every // page after the first, we pass the last user ID to let it continue from where it // left off. For REFRESH, pass `null` to load the first page. val loadKey = when ( loadType ) { LoadType . REFRESH - &gt; null // In this example, we never need to prepend, since REFRESH will always load // the // first page in the list. Immediately return, reporting end of pagination. LoadType . PREPEND - &gt; return MediatorResult . Success ( endOfPaginationReached = true ) LoadType . APPEND - &gt; { val lastItem = state . lastItemOrNull () // We must explicitly check if the last item is `null` when appending, // since passing `null` to networkService is only valid for initial // load. // If lastItem is `null` it means no items were loaded after the initial // REFRESH and there are no more items to load. if ( lastItem == null ) { return MediatorResult . Success ( endOfPaginationReached = true ) } lastItem . id } } // Suspending network load via Retrofit. This doesn't need to be wrapped in a // withContext(Dispatcher.IO) { ... } block since Retrofit's Coroutine CallAdapter // dispatches on a worker thread. val response = networkService . searchUsers ( query = query , after = loadKey ) database . withTransaction { if ( loadType == LoadType . REFRESH ) { userDao . deleteByQuery ( query ) } // Insert new users into database, which invalidates the current // PagingData, allowing Paging to present the updates in the DB. userDao . insertAll ( response . users ) } MediatorResult . Success ( endOfPaginationReached = response . nextKey == null ) } catch ( e : IOException ) { MediatorResult . Error ( e ) } catch ( e : HttpException ) { MediatorResult . Error ( e ) } } } import androidx.paging.ExperimentalPagingApi import androidx.paging.LoadType import androidx.paging.PagingState import androidx.paging.RemoteMediator import androidx.paging.samples.shared.ExampleBackendService import androidx.paging.samples.shared.RemoteKey import androidx.paging.samples.shared.RoomDb import androidx.paging.samples.shared.User import androidx.room.withTransaction /** * Sample RemoteMediator for a DB + Network based PagingData stream, which triggers network * requests to fetch additional items when a user scrolls to the end of the list of items stored * in DB. * * This sample loads a list of [User] via Retrofit from a page-keyed network service using * [String] tokens to load pages (each response has a next/previous token), and inserts them * into database. */ @OptIn ( ExperimentalPagingApi :: class ) class ExampleRemoteMediator ( private val query : String , private val database : RoomDb , private val networkService : ExampleBackendService , ) : RemoteMediator&lt;Int , User &gt; () { val userDao = database . userDao () val remoteKeyDao = database . remoteKeyDao () override suspend fun initialize (): InitializeAction { val cacheTimeout = TimeUnit . HOURS . convert ( 1 , TimeUnit . MILLISECONDS ) return if ( System . currentTimeMillis () - userDao . lastUpdated () &gt; = cacheTimeout ) { // Cached data is up-to-date, so there is no need to re-fetch from network. InitializeAction . SKIP_INITIAL_REFRESH } else { // Need to refresh cached data from network; returning LAUNCH_INITIAL_REFRESH here // will also block RemoteMediator's APPEND and PREPEND from running until REFRESH // succeeds. InitializeAction . LAUNCH_INITIAL_REFRESH } } override suspend fun load ( loadType : LoadType , state : PagingState&lt;Int , User &gt; , ): MediatorResult { return try { // The network load method takes an optional [String] parameter. For every page // after the first, we pass the [String] token returned from the previous page to // let it continue from where it left off. For REFRESH, pass `null` to load the // first page. val loadKey = when ( loadType ) { LoadType . REFRESH - &gt; null // In this example, we never need to prepend, since REFRESH will always load // the // first page in the list. Immediately return, reporting end of pagination. LoadType . PREPEND - &gt; return MediatorResult . Success ( endOfPaginationReached = true ) // Query remoteKeyDao for the next RemoteKey. LoadType . APPEND - &gt; { val remoteKey = database . withTransaction { remoteKeyDao . remoteKeyByQuery ( query ) } // We must explicitly check if the page key is `null` when appending, // since `null` is only valid for initial load. If we receive `null` // for APPEND, that means we have reached the end of pagination and // there are no more items to load. if ( remoteKey . nextKey == null ) { return MediatorResult . Success ( endOfPaginationReached = true ) } remoteKey . nextKey } } // Suspending network load via Retrofit. This doesn't need to be wrapped in a // withContext(Dispatcher.IO) { ... } block since Retrofit's Coroutine CallAdapter // dispatches on a worker thread. val response = networkService . searchUsers ( query , loadKey ) // Store loaded data, and next key in transaction, so that they're always consistent database . withTransaction { if ( loadType == LoadType . REFRESH ) { remoteKeyDao . deleteByQuery ( query ) userDao . deleteByQuery ( query ) } // Update RemoteKey for this query. remoteKeyDao . insertOrReplace ( RemoteKey ( query , response . nextKey )) // Insert new users into database, which invalidates the current // PagingData, allowing Paging to present the updates in the DB. userDao . insertAll ( response . users ) } MediatorResult . Success ( endOfPaginationReached = response . nextKey == null ) } catch ( e : IOException ) { MediatorResult . Error ( e ) } catch ( e : HttpException ) { MediatorResult . Error ( e ) } } } Summary Nested types public enum RemoteMediator.InitializeAction extends Enum Return type of initialize , which signals the action to take after initialize completes. public sealed class RemoteMediator.MediatorResult Return type of load , which determines LoadState . public final class RemoteMediator.MediatorResult.Error extends RemoteMediator.MediatorResult Recoverable error that can be retried, sets the LoadState to LoadState.Error . public final class RemoteMediator.MediatorResult.Success extends RemoteMediator.MediatorResult Success signaling that LoadState should be set to LoadState.NotLoading if endOfPaginationReached is true , otherwise LoadState is kept at LoadState.Loading to await invalidation. Public constructors &lt;Key&nbsp;extends&nbsp; Object ,&nbsp;Value&nbsp;extends&nbsp; Object &gt; RemoteMediator () Public methods @ NonNull RemoteMediator.InitializeAction initialize () Callback fired during initialization of a PagingData stream, before initial load. abstract @ NonNull RemoteMediator.MediatorResult load ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LoadType &nbsp;loadType, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PagingState &lt;@ NonNull Key,&nbsp;@ NonNull Value&gt;&nbsp;state ) Callback triggered when Paging needs to request more data from a remote source due to any of the following events: * Stream initialization if initialize returns LAUNCH_INITIAL_REFRESH Public constructors RemoteMediator public&nbsp;&lt;Key&nbsp;extends&nbsp; Object ,&nbsp;Value&nbsp;extends&nbsp; Object &gt; RemoteMediator () Public methods initialize public&nbsp;@ NonNull RemoteMediator.InitializeAction &nbsp; initialize () Callback fired during initialization of a PagingData stream, before initial load. This function runs to completion before any loading is performed. Returns @ NonNull RemoteMediator.InitializeAction InitializeAction used to control whether load with load type REFRESH will be immediately dispatched when the first PagingData is submitted: * LAUNCH_INITIAL_REFRESH to immediately dispatch load asynchronously with load type REFRESH , to update paginated content when the stream is initialized. Note: This also prevents RemoteMediator from triggering PREPEND or APPEND until REFRESH succeeds. * SKIP_INITIAL_REFRESH to wait for a refresh request from the UI before dispatching load asynchronously with load type REFRESH . load public&nbsp;abstract&nbsp;@ NonNull RemoteMediator.MediatorResult &nbsp; load ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull LoadType &nbsp;loadType, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull PagingState &lt;@ NonNull Key,&nbsp;@ NonNull Value&gt;&nbsp;state ) Callback triggered when Paging needs to request more data from a remote source due to any of the following events: * Stream initialization if initialize returns LAUNCH_INITIAL_REFRESH REFRESH signal driven from UI PagingSource returns a LoadResult which signals a boundary condition, i.e., the most recent LoadResult.Page in the PREPEND or APPEND direction has LoadResult.Page.prevKey or LoadResult.Page.nextKey set to null respectively. It is the responsibility of this method to update the backing dataset and trigger PagingSource.invalidate to allow androidx.paging.PagingDataAdapter to pick up new items found by load . The runtime and result of this method defines the remote LoadState behavior sent to the UI via CombinedLoadStates . This method is never called concurrently unless Pager.flow has multiple collectors. Note that Paging might cancel calls to this function if it is currently executing a PREPEND or APPEND and a REFRESH is requested. In that case, REFRESH has higher priority and will be executed after the previous call is cancelled. If the load call with REFRESH returns an error, Paging will call load with the previously cancelled APPEND or PREPEND request. If REFRESH succeeds, it won't make the APPEND or PREPEND requests unless they are necessary again after the REFRESH is applied to the UI. Parameters @ NonNull LoadType &nbsp;loadType LoadType of the condition which triggered this callback. * PREPEND indicates the end of pagination in the PREPEND direction was reached. This occurs when PagingSource.load returns a LoadResult.Page with LoadResult.Page.prevKey == null . * APPEND indicates the end of pagination in the APPEND direction was reached. This occurs when PagingSource.load returns a LoadResult.Page with LoadResult.Page.nextKey == null . * REFRESH indicates this method was triggered due to a requested refresh. Generally, this means that a request to load remote data and replace all local data was made. This can happen when: * Stream initialization if initialize returns LAUNCH_INITIAL_REFRESH * An explicit call to refresh driven by the UI @ NonNull PagingState &lt;@ NonNull Key,&nbsp;@ NonNull Value&gt;&nbsp;state A copy of the state including the list of pages currently held in memory of the currently presented PagingData at the time of starting the load. E.g. for load(loadType = APPEND), you can use the page or item at the end as input for what to load from the network. Returns @ NonNull RemoteMediator.MediatorResult MediatorResult signifying what LoadState to be passed to the UI, and whether there's more data available.</body></html>
+<html><head><title>RemoteMediator</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="RemoteMediator">
+      <meta itemprop="path" content="androidx.paging">
+      <meta itemprop="property" content="initialize()">
+      <meta itemprop="property" content="load(androidx.paging.LoadType,androidx.paging.PagingState)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="remotemediator" data-text="RemoteMediator" tabindex="-1">RemoteMediator</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/paging">androidx.paging:paging-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/paging/RemoteMediator.kt+class:androidx.paging.RemoteMediator" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/paging#3.0.0">3.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/paging/RemoteMediator" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/paging/ExperimentalPagingApi">ExperimentalPagingApi</a><br>public abstract class <a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a>&lt;Key&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>,&nbsp;Value&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt;</pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/paging/ListenableFutureRemoteMediator">ListenableFutureRemoteMediator</a>, <a href="/reference/androidx/paging/rxjava2/RxRemoteMediator">RxRemoteMediator</a>, <a href="/reference/androidx/paging/rxjava3/RxRemoteMediator">RxRemoteMediator</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/ListenableFutureRemoteMediator">ListenableFutureRemoteMediator</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code>-based compatibility wrapper around <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code>'s suspending APIs.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/rxjava2/RxRemoteMediator">RxRemoteMediator</a></code></td>
+                <td>
+                  <p>RxJava2 compatibility wrapper around <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code>'s suspending APIs.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/paging/rxjava3/RxRemoteMediator">RxRemoteMediator</a></code></td>
+                <td>
+                  <p>RxJava3 compatibility wrapper around <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code>'s suspending APIs.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>Defines a set of callbacks used to incrementally load data from a remote source into a local source wrapped by a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code>, e.g., loading data from network into a local db cache.</p>
+    <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code> is registered by passing it to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/Pager">Pager</a></code>'s constructor.</p>
+    <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code> allows hooking into the following events:</p>
+    <ul>
+      <li>
+        <p>Stream initialization</p>
+      </li>
+      <li>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> signal driven from UI</p>
+      </li>
+      <li>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> returns a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult">LoadResult</a></code> which signals a boundary condition, i.e., the most recent <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">LoadResult.Page</a></code> in the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> direction has <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#prevKey()">LoadResult.Page.prevKey</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#nextKey()">LoadResult.Page.nextKey</a></code> set to <code translate="no" dir="ltr">null</code> respectively.</p>
+      </li>
+    </ul>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.ExperimentalPagingApi</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.LoadType</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.PagingState</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.RemoteMediator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.ExampleBackendService</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.RoomDb</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.User</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.room.withTransaction</span>
+
+<span class="devsite-syntax-cm">/**</span>
+<span class="devsite-syntax-cm"> * Sample RemoteMediator for a DB + Network based PagingData stream, which triggers network</span>
+<span class="devsite-syntax-cm"> * requests to fetch additional items when a user scrolls to the end of the list of items stored</span>
+<span class="devsite-syntax-cm"> * in DB.</span>
+<span class="devsite-syntax-cm"> *</span>
+<span class="devsite-syntax-cm"> * This sample loads a list of [User] items from an item-keyed Retrofit paginated source. This</span>
+<span class="devsite-syntax-cm"> * source is "item-keyed" because we're loading the next page using information from the items</span>
+<span class="devsite-syntax-cm"> * themselves (the ID param) as a key to fetch more data.</span>
+<span class="devsite-syntax-cm"> */</span>
+<span class="devsite-syntax-nd">@OptIn</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">ExperimentalPagingApi</span><span class="devsite-syntax-o">::</span><span class="devsite-syntax-n">class</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-kd">class</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nc">ExampleRemoteMediator</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">query</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kt">String</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">database</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RoomDb</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">networkService</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ExampleBackendService</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RemoteMediator&lt;Int</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">User</span>&gt;<span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">userDao</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">userDao</span><span class="devsite-syntax-p">()</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">override</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">suspend</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">initialize</span><span class="devsite-syntax-p">():</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">cacheTimeout</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">TimeUnit</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">HOURS</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">convert</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-m">1</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">TimeUnit</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">MILLISECONDS</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">System</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">currentTimeMillis</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastUpdated</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span>&gt;<span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cacheTimeout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Cached data is up-to-date, so there is no need to re-fetch from network.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">SKIP_INITIAL_REFRESH</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Need to refresh cached data from network; returning LAUNCH_INITIAL_REFRESH here</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// will also block RemoteMediator's APPEND and PREPEND from running until REFRESH</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// succeeds.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LAUNCH_INITIAL_REFRESH</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">override</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">suspend</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">load</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">state</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">PagingState&lt;Int</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">User</span>&gt;<span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">):</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">try</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// The network load method takes an optional `after=&lt;user.id&gt;` parameter. For every</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// page after the first, we pass the last user ID to let it continue from where it</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// left off. For REFRESH, pass `null` to load the first page.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">loadKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-k">when</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">REFRESH</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// In this example, we never need to prepend, since REFRESH will always load</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// the</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// first page in the list. Immediately return, reporting end of pagination.</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">PREPEND</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">APPEND</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">lastItem</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">state</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastItemOrNull</span><span class="devsite-syntax-p">()</span>
+
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// We must explicitly check if the last item is `null` when appending,</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// since passing `null` to networkService is only valid for initial</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// load.</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// If lastItem is `null` it means no items were loaded after the initial</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// REFRESH and there are no more items to load.</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">lastItem</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">lastItem</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">id</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Suspending network load via Retrofit. This doesn't need to be wrapped in a</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// withContext(Dispatcher.IO) { ... } block since Retrofit's Coroutine CallAdapter</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// dispatches on a worker thread.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">response</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">networkService</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">searchUsers</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">after</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">loadKey</span><span class="devsite-syntax-p">)</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">withTransaction</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">REFRESH</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">deleteByQuery</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Insert new users into database, which invalidates the current</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// PagingData, allowing Paging to present the updates in the DB.</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">insertAll</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">response</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">users</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">response</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">nextKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">catch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">IOException</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Error</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">catch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">HttpException</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Error</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.ExperimentalPagingApi</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.LoadType</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.PagingState</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.RemoteMediator</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.ExampleBackendService</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.RemoteKey</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.RoomDb</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.paging.samples.shared.User</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.room.withTransaction</span>
+
+<span class="devsite-syntax-cm">/**</span>
+<span class="devsite-syntax-cm"> * Sample RemoteMediator for a DB + Network based PagingData stream, which triggers network</span>
+<span class="devsite-syntax-cm"> * requests to fetch additional items when a user scrolls to the end of the list of items stored</span>
+<span class="devsite-syntax-cm"> * in DB.</span>
+<span class="devsite-syntax-cm"> *</span>
+<span class="devsite-syntax-cm"> * This sample loads a list of [User] via Retrofit from a page-keyed network service using</span>
+<span class="devsite-syntax-cm"> * [String] tokens to load pages (each response has a next/previous token), and inserts them</span>
+<span class="devsite-syntax-cm"> * into database.</span>
+<span class="devsite-syntax-cm"> */</span>
+<span class="devsite-syntax-nd">@OptIn</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">ExperimentalPagingApi</span><span class="devsite-syntax-o">::</span><span class="devsite-syntax-n">class</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-kd">class</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nc">ExampleRemoteMediator</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">query</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kt">String</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">database</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RoomDb</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">private</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">networkService</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ExampleBackendService</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">RemoteMediator&lt;Int</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">User</span>&gt;<span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">userDao</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">userDao</span><span class="devsite-syntax-p">()</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">remoteKeyDao</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">remoteKeyDao</span><span class="devsite-syntax-p">()</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">override</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">suspend</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">initialize</span><span class="devsite-syntax-p">():</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">cacheTimeout</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">TimeUnit</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">HOURS</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">convert</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-m">1</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">TimeUnit</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">MILLISECONDS</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">System</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">currentTimeMillis</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">lastUpdated</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-w"> </span>&gt;<span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">cacheTimeout</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Cached data is up-to-date, so there is no need to re-fetch from network.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">SKIP_INITIAL_REFRESH</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Need to refresh cached data from network; returning LAUNCH_INITIAL_REFRESH here</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// will also block RemoteMediator's APPEND and PREPEND from running until REFRESH</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// succeeds.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">InitializeAction</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">LAUNCH_INITIAL_REFRESH</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">override</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">suspend</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kd">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nf">load</span><span class="devsite-syntax-p">(</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">state</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">PagingState&lt;Int</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">User</span>&gt;<span class="devsite-syntax-p">,</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">):</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">try</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// The network load method takes an optional [String] parameter. For every page</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// after the first, we pass the [String] token returned from the previous page to</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// let it continue from where it left off. For REFRESH, pass `null` to load the</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// first page.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">loadKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-k">when</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">REFRESH</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// In this example, we never need to prepend, since REFRESH will always load</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// the</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// first page in the list. Immediately return, reporting end of pagination.</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">PREPEND</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-c1">// Query remoteKeyDao for the next RemoteKey.</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">APPEND</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">remoteKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">withTransaction</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">remoteKeyDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">remoteKeyByQuery</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// We must explicitly check if the page key is `null` when appending,</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// since `null` is only valid for initial load. If we receive `null`</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// for APPEND, that means we have reached the end of pagination and</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-c1">// there are no more items to load.</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">remoteKey</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">nextKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                            </span><span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">true</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-n">remoteKey</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">nextKey</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Suspending network load via Retrofit. This doesn't need to be wrapped in a</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// withContext(Dispatcher.IO) { ... } block since Retrofit's Coroutine CallAdapter</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// dispatches on a worker thread.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">response</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">networkService</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">searchUsers</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">loadKey</span><span class="devsite-syntax-p">)</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-c1">// Store loaded data, and next key in transaction, so that they're always consistent</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">database</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">withTransaction</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-k">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">loadType</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">LoadType</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">REFRESH</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">remoteKeyDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">deleteByQuery</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                    </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">deleteByQuery</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Update RemoteKey for this query.</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">remoteKeyDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">insertOrReplace</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">RemoteKey</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">query</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">response</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">nextKey</span><span class="devsite-syntax-p">))</span>
+
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Insert new users into database, which invalidates the current</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// PagingData, allowing Paging to present the updates in the DB.</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">userDao</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">insertAll</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">response</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">users</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Success</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">endOfPaginationReached</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">response</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">nextKey</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">==</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-kc">null</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">catch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">IOException</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Error</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-k">catch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">HttpException</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">MediatorResult</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Error</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">e</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public enum <a href="/reference/androidx/paging/RemoteMediator.InitializeAction">RemoteMediator.InitializeAction</a> extends <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a></code></div>
+              <p>Return type of <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a></code>, which signals the action to take after <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a></code> completes.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public sealed class <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a></code></div>
+              <p>Return type of <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code>, which determines <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/paging/RemoteMediator.MediatorResult.Error">RemoteMediator.MediatorResult.Error</a> extends <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a></code></div>
+              <p>Recoverable error that can be retried, sets the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code> to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState.Error">LoadState.Error</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/paging/RemoteMediator.MediatorResult.Success">RemoteMediator.MediatorResult.Success</a> extends <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a></code></div>
+              <p>Success signaling that <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code> should be set to <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState.NotLoading">LoadState.NotLoading</a></code> if <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.MediatorResult.Success#endOfPaginationReached()">endOfPaginationReached</a></code> is <code translate="no" dir="ltr">true</code>, otherwise <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code> is kept at <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState.Loading">LoadState.Loading</a></code> to await invalidation.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">&lt;Key&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>,&nbsp;Value&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/paging/RemoteMediator#RemoteMediator()">RemoteMediator</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.InitializeAction">RemoteMediator.InitializeAction</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a>()</code></div>
+              <p>Callback fired during initialization of a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> stream, before initial load.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/LoadType">LoadType</a>&nbsp;loadType,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/PagingState">PagingState</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Value&gt;&nbsp;state<br>)</code></div>
+              <p>Callback triggered when Paging needs to request more data from a remote source due to any of the following events:     * Stream initialization if <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.InitializeAction#LAUNCH_INITIAL_REFRESH">LAUNCH_INITIAL_REFRESH</a></code></p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="RemoteMediator--"></a><a name="remotemediator"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="RemoteMediator()" data-text="RemoteMediator" tabindex="-1">RemoteMediator</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;&lt;Key&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>,&nbsp;Value&nbsp;extends&nbsp;<a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&gt; <a href="/reference/androidx/paging/RemoteMediator#RemoteMediator()">RemoteMediator</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="initialize--"></a><a name="initialize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="initialize()" data-text="initialize" tabindex="-1">initialize</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.InitializeAction">RemoteMediator.InitializeAction</a>&nbsp;<a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a>()</pre></devsite-code>
+        <p>Callback fired during initialization of a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> stream, before initial load.</p>
+        <p>This function runs to completion before any loading is performed.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.InitializeAction">RemoteMediator.InitializeAction</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.InitializeAction">InitializeAction</a></code> used to control whether <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code> with load type <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> will be immediately dispatched when the first <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> is submitted:     * <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.InitializeAction#LAUNCH_INITIAL_REFRESH">LAUNCH_INITIAL_REFRESH</a></code> to immediately dispatch <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code> asynchronously with load type       <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code>, to update paginated content when the stream is initialized. Note: This also       prevents <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator">RemoteMediator</a></code> from triggering <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> until <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code>       succeeds.     * SKIP_INITIAL_REFRESH to wait for a refresh request from the UI before dispatching       <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code> asynchronously with load type <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="load(androidx.paging.LoadType, androidx.paging.PagingState)"></a><a name="load-androidx.paging.LoadType-androidx.paging.PagingState-"></a><a name="load"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="load(androidx.paging.LoadType,androidx.paging.PagingState)" data-text="load" tabindex="-1">load</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a>&nbsp;<a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/LoadType">LoadType</a>&nbsp;loadType,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/PagingState">PagingState</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Value&gt;&nbsp;state<br>)</pre></devsite-code>
+        <p>Callback triggered when Paging needs to request more data from a remote source due to any of the following events:     * Stream initialization if <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.InitializeAction#LAUNCH_INITIAL_REFRESH">LAUNCH_INITIAL_REFRESH</a></code></p>
+        <ul>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> signal driven from UI</p>
+          </li>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource">PagingSource</a></code> returns a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult">LoadResult</a></code> which signals a boundary condition, i.e., the most recent <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">LoadResult.Page</a></code> in the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> direction has <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#prevKey()">LoadResult.Page.prevKey</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#nextKey()">LoadResult.Page.nextKey</a></code> set to <code translate="no" dir="ltr">null</code> respectively.</p>
+          </li>
+        </ul>
+        <p>It is the responsibility of this method to update the backing dataset and trigger <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#invalidate()">PagingSource.invalidate</a></code> to allow androidx.paging.PagingDataAdapter to pick up new items found by <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code>.</p>
+        <p>The runtime and result of this method defines the remote <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code> behavior sent to the UI via <code translate="no" dir="ltr"><a href="/reference/androidx/paging/CombinedLoadStates">CombinedLoadStates</a></code>.</p>
+        <p>This method is never called concurrently <em>unless</em> <code translate="no" dir="ltr"><a href="/reference/androidx/paging/Pager#flow()">Pager.flow</a></code> has multiple collectors. Note that Paging might cancel calls to this function if it is currently executing a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> and a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> is requested. In that case, <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> has higher priority and will be executed after the previous call is cancelled. If the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code> call with <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> returns an error, Paging will call <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#load(androidx.paging.LoadType,androidx.paging.PagingState)">load</a></code> with the previously cancelled <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> request. If <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> succeeds, it won't make the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> requests unless they are necessary again after the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> is applied to the UI.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/LoadType">LoadType</a>&nbsp;loadType</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType">LoadType</a></code> of the condition which triggered this callback.     * <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> indicates the end of pagination in the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#PREPEND">PREPEND</a></code> direction was reached. This       occurs when <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#load(androidx.paging.PagingSource.LoadParams)">PagingSource.load</a></code> returns a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">LoadResult.Page</a></code> with       <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#prevKey()">LoadResult.Page.prevKey</a></code> == <code translate="no" dir="ltr">null</code>.     * <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> indicates the end of pagination in the <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#APPEND">APPEND</a></code> direction was reached. This       occurs when <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource#load(androidx.paging.PagingSource.LoadParams)">PagingSource.load</a></code> returns a <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page">LoadResult.Page</a></code> with       <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingSource.LoadResult.Page#nextKey()">LoadResult.Page.nextKey</a></code> == <code translate="no" dir="ltr">null</code>.     * <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadType#REFRESH">REFRESH</a></code> indicates this method was triggered due to a requested refresh. Generally,       this means that a request to load remote data and <b>replace</b> all local data was made.       This can happen when:         * Stream initialization if <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator#initialize()">initialize</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.InitializeAction#LAUNCH_INITIAL_REFRESH">LAUNCH_INITIAL_REFRESH</a></code>         * An explicit call to refresh driven by the UI</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/PagingState">PagingState</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Key,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Value&gt;&nbsp;state</code></td>
+                <td>
+                  <p>A copy of the state including the list of pages currently held in memory of the currently presented <code translate="no" dir="ltr"><a href="/reference/androidx/paging/PagingData">PagingData</a></code> at the time of starting the load. E.g. for load(loadType = APPEND), you can use the page or item at the end as input for what to load from the network.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/paging/RemoteMediator.MediatorResult">RemoteMediator.MediatorResult</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/paging/RemoteMediator.MediatorResult">MediatorResult</a></code> signifying what <code translate="no" dir="ltr"><a href="/reference/androidx/paging/LoadState">LoadState</a></code> to be passed to the UI, and whether there's more data available.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

@@ -1,1 +1,1836 @@
-<html><head><title>Class Documentation</title></head><body>SortedList Artifact: androidx.recyclerview:recyclerview View Source Added in 1.0.0 Kotlin | Java public class SortedList &lt;T&gt; A Sorted list implementation that can keep items in order and also notify for changes in the list such that it can be bound to a RecyclerView.Adapter . It keeps items ordered using the compare method and uses binary search to retrieve items. If the sorting criteria of your items may change, make sure you call appropriate methods while editing them to avoid data inconsistencies. You can control the order of items and change notifications via the Callback parameter. Summary Nested types public class SortedList.BatchedCallback &lt;T2&gt; extends SortedList.Callback A callback implementation that can batch notify events dispatched by the SortedList. public abstract class SortedList.Callback &lt;T2&gt; implements Comparator , ListUpdateCallback The class that controls the behavior of the SortedList . Constants static&nbsp;final int INVALID_POSITION = -1 Used by indexOf when the item cannot be found in the list. Public constructors SortedList ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;T&gt;&nbsp;klass, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback ) Creates a new SortedList of type T. SortedList ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;T&gt;&nbsp;klass, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;initialCapacity ) Creates a new SortedList of type T. Public methods int add (T&nbsp;item) Adds the given item to the list. void addAll (@ NonNull T[]&nbsp;items) Adds the given items to the list. void addAll (@ NonNull Collection &lt;T&gt;&nbsp;items) Adds the given items to the list. void addAll (@ NonNull T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput) Adds the given items to the list. void beginBatchedUpdates () Batches adapter updates that happen after calling this method and before calling endBatchedUpdates . void clear () Removes all items from the SortedList. void endBatchedUpdates () Ends the update transaction and dispatches any remaining event to the callback. T get (int&nbsp;index) Returns the item at the given index. int indexOf (T&nbsp;item) Returns the position of the provided item. void recalculatePositionOfItemAt (int&nbsp;index) This method can be used to recalculate the position of the item at the given index, without triggering an onChanged callback. boolean remove (T&nbsp;item) Removes the provided item from the list and calls onRemoved . T removeItemAt (int&nbsp;index) Removes the item at the given index and calls onRemoved . void replaceAll (@ NonNull T[]&nbsp;items) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. void replaceAll (@ NonNull Collection &lt;T&gt;&nbsp;items) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. void replaceAll (@ NonNull T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. int size () The number of items in the list. void updateItemAt (int&nbsp;index,&nbsp;T&nbsp;item) Updates the item at the given index and calls onChanged and/or onMoved if necessary. Constants INVALID_POSITION Added in 1.0.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; INVALID_POSITION = -1 Used by indexOf when the item cannot be found in the list. Public constructors SortedList Added in 1.0.0 public&nbsp; SortedList ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;T&gt;&nbsp;klass, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback ) Creates a new SortedList of type T. Parameters @ NonNull Class &lt;T&gt;&nbsp;klass The class of the contents of the SortedList. @ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback The callback that controls the behavior of SortedList. SortedList Added in 1.0.0 public&nbsp; SortedList ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Class &lt;T&gt;&nbsp;klass, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;initialCapacity ) Creates a new SortedList of type T. Parameters @ NonNull Class &lt;T&gt;&nbsp;klass The class of the contents of the SortedList. @ NonNull SortedList.Callback &lt;T&gt;&nbsp;callback The callback that controls the behavior of SortedList. int&nbsp;initialCapacity The initial capacity to hold items. Public methods add Added in 1.0.0 public&nbsp;int&nbsp; add (T&nbsp;item) Adds the given item to the list. If this is a new item, SortedList calls onInserted . If the item already exists in the list and its sorting criteria is not changed, it is replaced with the existing Item. SortedList uses areItemsTheSame to check if two items are the same item and uses areContentsTheSame to decide whether it should call onChanged or not. In both cases, it always removes the reference to the old item and puts the new item into the backing array even if areContentsTheSame returns false. If the sorting criteria of the item is changed, SortedList won't be able to find its duplicate in the list which will result in having a duplicate of the Item in the list. If you need to update sorting criteria of an item that already exists in the list, use updateItemAt . You can find the index of the item using indexOf before you update the object. Parameters T&nbsp;item The item to be added into the list. Returns int The index of the newly added item. See also compare areItemsTheSame areContentsTheSame } addAll public&nbsp;void&nbsp; addAll (@ NonNull T[]&nbsp;items) Adds the given items to the list. Does not modify or retain the input. Parameters @ NonNull T[]&nbsp;items Array of items to be added into the list. See also addAll addAll Added in 1.0.0 public&nbsp;void&nbsp; addAll (@ NonNull Collection &lt;T&gt;&nbsp;items) Adds the given items to the list. Does not modify or retain the input. Parameters @ NonNull Collection &lt;T&gt;&nbsp;items Collection of items to be added into the list. See also addAll addAll Added in 1.0.0 public&nbsp;void&nbsp; addAll (@ NonNull T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput) Adds the given items to the list. Equivalent to calling add in a loop, except the callback events may be in a different order/granularity since addAll can batch them for better performance. If allowed, will reference the input array during, and possibly after, the operation to avoid extra memory allocation, in which case you should not continue to reference or modify the array yourself. Parameters @ NonNull T[]&nbsp;items Array of items to be added into the list. boolean&nbsp;mayModifyInput If true, SortedList is allowed to modify and permanently reference the input array. See also addAll beginBatchedUpdates Added in 1.0.0 public&nbsp;void&nbsp; beginBatchedUpdates () Batches adapter updates that happen after calling this method and before calling endBatchedUpdates . For example, if you add multiple items in a loop and they are placed into consecutive indices, SortedList calls onInserted only once with the proper item count. If an event cannot be merged with the previous event, the previous event is dispatched to the callback instantly. After running your data updates, you must call endBatchedUpdates which will dispatch any deferred data change event to the current callback. A sample implementation may look like this: mSortedList.beginBatchedUpdates(); try { mSortedList.add(item1) mSortedList.add(item2) mSortedList.remove(item3) ... } finally { mSortedList.endBatchedUpdates(); } Instead of using this method to batch calls, you can use a Callback that extends BatchedCallback . In that case, you must make sure that you are manually calling dispatchLastEvent right after you complete your data changes. Failing to do so may create data inconsistencies with the Callback. If the current Callback is an instance of BatchedCallback , calling this method has no effect. clear Added in 1.0.0 public&nbsp;void&nbsp; clear () Removes all items from the SortedList. endBatchedUpdates Added in 1.0.0 public&nbsp;void&nbsp; endBatchedUpdates () Ends the update transaction and dispatches any remaining event to the callback. get Added in 1.0.0 public&nbsp;T&nbsp; get (int&nbsp;index) Returns the item at the given index. Parameters int&nbsp;index The index of the item to retrieve. Returns T The item at the given index. Throws java.lang.IndexOutOfBoundsException if provided index is negative or larger than the size of the list. indexOf Added in 1.0.0 public&nbsp;int&nbsp; indexOf (T&nbsp;item) Returns the position of the provided item. Parameters T&nbsp;item The item to query for position. Returns int The position of the provided item or INVALID_POSITION if item is not in the list. recalculatePositionOfItemAt Added in 1.0.0 public&nbsp;void&nbsp; recalculatePositionOfItemAt (int&nbsp;index) This method can be used to recalculate the position of the item at the given index, without triggering an onChanged callback. If you are editing objects in the list such that their position in the list may change but you don't want to trigger an onChange animation, you can use this method to re-position it. If the item changes position, SortedList will call onMoved without calling onChanged . A sample usage may look like: final int position = mSortedList.indexOf(item); item.incrementPriority(); // assume items are sorted by priority mSortedList.recalculatePositionOfItemAt(position); In the example above, because the sorting criteria of the item has been changed, mSortedList.indexOf(item) will not be able to find the item. This is why the code above first gets the position before editing the item, edits it and informs the SortedList that item should be repositioned. Parameters int&nbsp;index The current index of the Item whose position should be re-calculated. See also updateItemAt add remove Added in 1.0.0 public&nbsp;boolean&nbsp; remove (T&nbsp;item) Removes the provided item from the list and calls onRemoved . Parameters T&nbsp;item The item to be removed from the list. Returns boolean True if item is removed, false if item cannot be found in the list. removeItemAt Added in 1.0.0 public&nbsp;T&nbsp; removeItemAt (int&nbsp;index) Removes the item at the given index and calls onRemoved . Parameters int&nbsp;index The index of the item to be removed. Returns T The removed item. replaceAll public&nbsp;void&nbsp; replaceAll (@ NonNull T[]&nbsp;items) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. Does not modify or retain the input. Parameters @ NonNull T[]&nbsp;items Array of items to replace current items. See also replaceAll replaceAll Added in 1.0.0 public&nbsp;void&nbsp; replaceAll (@ NonNull Collection &lt;T&gt;&nbsp;items) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. Does not modify or retain the input. Parameters @ NonNull Collection &lt;T&gt;&nbsp;items Array of items to replace current items. See also replaceAll replaceAll Added in 1.0.0 public&nbsp;void&nbsp; replaceAll (@ NonNull T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput) Replaces the current items with the new items, dispatching ListUpdateCallback events for each change detected as appropriate. If allowed, will reference the input array during, and possibly after, the operation to avoid extra memory allocation, in which case you should not continue to reference or modify the array yourself. Note: this method does not detect moves or dispatch onMoved events. It instead treats moves as a remove followed by an add and therefore dispatches onRemoved and onRemoved events. See DiffUtil if you want your implementation to dispatch move events. Parameters @ NonNull T[]&nbsp;items Array of items to replace current items. boolean&nbsp;mayModifyInput If true, SortedList is allowed to modify and permanently reference the input array. See also replaceAll size Added in 1.0.0 public&nbsp;int&nbsp; size () The number of items in the list. Returns int The number of items in the list. updateItemAt Added in 1.0.0 public&nbsp;void&nbsp; updateItemAt (int&nbsp;index,&nbsp;T&nbsp;item) Updates the item at the given index and calls onChanged and/or onMoved if necessary. You can use this method if you need to change an existing Item such that its position in the list may change. If the new object is a different object ( get(index) != item ) and areContentsTheSame returns true , SortedList avoids calling onChanged otherwise it calls onChanged . If the new position of the item is different than the provided index , SortedList calls onMoved . Parameters int&nbsp;index The index of the item to replace T&nbsp;item The item to replace the item at the given Index. See also add</body></html>
+<html><head><title>SortedList</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="SortedList">
+      <meta itemprop="path" content="androidx.recyclerview.widget">
+      <meta itemprop="property" content="add(T)">
+      <meta itemprop="property" content="addAll(T...)">
+      <meta itemprop="property" content="addAll(java.util.Collection&lt;T&gt;)">
+      <meta itemprop="property" content="addAll(T[],boolean)">
+      <meta itemprop="property" content="beginBatchedUpdates()">
+      <meta itemprop="property" content="clear()">
+      <meta itemprop="property" content="endBatchedUpdates()">
+      <meta itemprop="property" content="get(int)">
+      <meta itemprop="property" content="indexOf(T)">
+      <meta itemprop="property" content="recalculatePositionOfItemAt(int)">
+      <meta itemprop="property" content="remove(T)">
+      <meta itemprop="property" content="removeItemAt(int)">
+      <meta itemprop="property" content="replaceAll(T...)">
+      <meta itemprop="property" content="replaceAll(java.util.Collection&lt;T&gt;)">
+      <meta itemprop="property" content="replaceAll(T[],boolean)">
+      <meta itemprop="property" content="size()">
+      <meta itemprop="property" content="updateItemAt(int,T)">
+      <meta itemprop="property" content="INVALID_POSITION()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="sortedlist" data-text="SortedList" tabindex="-1">SortedList</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/recyclerview">androidx.recyclerview:recyclerview</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/recyclerview/widget/SortedList.java+class:androidx.recyclerview.widget.SortedList" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/recyclerview/widget/SortedList" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public class <a href="/reference/androidx/recyclerview/widget/SortedList">SortedList</a>&lt;T&gt;</pre></devsite-code>
+    </p>
+    <hr>
+    <p>A Sorted list implementation that can keep items in order and also notify for changes in the list such that it can be bound to a <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/RecyclerView.Adapter">RecyclerView.Adapter</a></code>. </p>
+    <p> It keeps items ordered using the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#compare(T2,T2)">compare</a></code> method and uses binary search to retrieve items. If the sorting criteria of your items may change, make sure you call appropriate methods while editing them to avoid data inconsistencies. </p>
+    <p> You can control the order of items and change notifications via the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback">Callback</a></code> parameter.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public class <a href="/reference/androidx/recyclerview/widget/SortedList.BatchedCallback">SortedList.BatchedCallback</a>&lt;T2&gt; extends <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a></code></div>
+              <p>A callback implementation that can batch notify events dispatched by the SortedList.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public abstract class <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T2&gt; implements <a href="https://developer.android.com/reference/java/util/Comparator.html">Comparator</a>, <a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code></div>
+              <p>The class that controls the behavior of the <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList">SortedList</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#INVALID_POSITION()">INVALID_POSITION</a> = -1</code></div>
+              <p>Used by <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#indexOf(T)">indexOf</a></code> when the item cannot be found in the list.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;)">SortedList</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback<br>)</code></div>
+              <p>Creates a new SortedList of type T.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;,int)">SortedList</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;initialCapacity<br>)</code></div>
+              <p>Creates a new SortedList of type T.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#add(T)">add</a>(T&nbsp;item)</code></div>
+              <p>Adds the given item to the list.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T...)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items)</code></div>
+              <p>Adds the given items to the list.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(java.util.Collection&lt;T&gt;)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items)</code></div>
+              <p>Adds the given items to the list.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T[],boolean)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput)</code></div>
+              <p>Adds the given items to the list.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#beginBatchedUpdates()">beginBatchedUpdates</a>()</code></div>
+              <p>Batches adapter updates that happen after calling this method and before calling <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#endBatchedUpdates()">endBatchedUpdates</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#clear()">clear</a>()</code></div>
+              <p>Removes all items from the SortedList.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#endBatchedUpdates()">endBatchedUpdates</a>()</code></div>
+              <p>Ends the update transaction and dispatches any remaining event to the callback.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">T</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#get(int)">get</a>(int&nbsp;index)</code></div>
+              <p>Returns the item at the given index.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#indexOf(T)">indexOf</a>(T&nbsp;item)</code></div>
+              <p>Returns the position of the provided item.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#recalculatePositionOfItemAt(int)">recalculatePositionOfItemAt</a>(int&nbsp;index)</code></div>
+              <p>This method can be used to recalculate the position of the item at the given index, without triggering an <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> callback.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#remove(T)">remove</a>(T&nbsp;item)</code></div>
+              <p>Removes the provided item from the list and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">T</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#removeItemAt(int)">removeItemAt</a>(int&nbsp;index)</code></div>
+              <p>Removes the item at the given index and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T...)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items)</code></div>
+              <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(java.util.Collection&lt;T&gt;)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items)</code></div>
+              <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T[],boolean)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput)</code></div>
+              <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#size()">size</a>()</code></div>
+              <p>The number of items in the list.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#updateItemAt(int,T)">updateItemAt</a>(int&nbsp;index,&nbsp;T&nbsp;item)</code></div>
+              <p>Updates the item at the given index and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> and/or <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onMoved(int,int)">onMoved</a></code> if necessary.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getINVALID_POSITION()"></a><a name="setINVALID_POSITION()"></a><a name="getINVALID_POSITION--"></a><a name="setINVALID_POSITION--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INVALID_POSITION()" data-text="INVALID_POSITION" tabindex="-1">INVALID_POSITION</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#INVALID_POSITION()">INVALID_POSITION</a> = -1</pre></devsite-code>
+        <p>Used by <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#indexOf(T)">indexOf</a></code> when the item cannot be found in the list.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="SortedList(java.lang.Class&lt;T&gt;, androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;)"></a><a name="SortedList-java.lang.Class&lt;T&gt;-androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;-"></a><a name="sortedlist"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;)" data-text="SortedList" tabindex="-1">SortedList</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;)">SortedList</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback<br>)</pre></devsite-code>
+        <p>Creates a new SortedList of type T.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass</code></td>
+                <td>
+                  <p>The class of the contents of the SortedList.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback</code></td>
+                <td>
+                  <p>The callback that controls the behavior of SortedList.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="SortedList(java.lang.Class&lt;T&gt;, androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;, int)"></a><a name="SortedList-java.lang.Class&lt;T&gt;-androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;-int-"></a><a name="sortedlist"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;,int)" data-text="SortedList" tabindex="-1">SortedList</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#SortedList(java.lang.Class&lt;T&gt;,androidx.recyclerview.widget.SortedList.Callback&lt;T&gt;,int)">SortedList</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;initialCapacity<br>)</pre></devsite-code>
+        <p>Creates a new SortedList of type T.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Class.html">Class</a>&lt;T&gt;&nbsp;klass</code></td>
+                <td>
+                  <p>The class of the contents of the SortedList.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/recyclerview/widget/SortedList.Callback">SortedList.Callback</a>&lt;T&gt;&nbsp;callback</code></td>
+                <td>
+                  <p>The callback that controls the behavior of SortedList.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;initialCapacity</code></td>
+                <td>
+                  <p>The initial capacity to hold items.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="add-T-"></a><a name="add"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="add(T)" data-text="add" tabindex="-1">add</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#add(T)">add</a>(T&nbsp;item)</pre></devsite-code>
+        <p>Adds the given item to the list. If this is a new item, SortedList calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onInserted(int,int)">onInserted</a></code>. </p>
+        <p> If the item already exists in the list and its sorting criteria is not changed, it is replaced with the existing Item. SortedList uses <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areItemsTheSame(T2,T2)">areItemsTheSame</a></code> to check if two items are the same item and uses <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areContentsTheSame(T2,T2)">areContentsTheSame</a></code> to decide whether it should call <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> or not. In both cases, it always removes the reference to the old item and puts the new item into the backing array even if <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areContentsTheSame(T2,T2)">areContentsTheSame</a></code> returns false. </p>
+        <p> If the sorting criteria of the item is changed, SortedList won't be able to find its duplicate in the list which will result in having a duplicate of the Item in the list. If you need to update sorting criteria of an item that already exists in the list, use <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#updateItemAt(int,T)">updateItemAt</a></code>. You can find the index of the item using <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#indexOf(T)">indexOf</a></code> before you update the object.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">T&nbsp;item</code></td>
+                <td>
+                  <p>The item to be added into the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The index of the newly added item.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#compare(T2,T2)">compare</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areItemsTheSame(T2,T2)">areItemsTheSame</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areContentsTheSame(T2,T2)">areContentsTheSame</a></code></td>
+                <td>
+                  <p>}</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="addAll-T...-"></a><a name="addall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addAll(T...)" data-text="addAll" tabindex="-1">addAll</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T...)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items)</pre></devsite-code>
+        <p>Adds the given items to the list. Does not modify or retain the input.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items</code></td>
+                <td>
+                  <p>Array of items to be added into the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T[],boolean)">addAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="addAll-java.util.Collection&lt;T&gt;-"></a><a name="addall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addAll(java.util.Collection&lt;T&gt;)" data-text="addAll" tabindex="-1">addAll</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#addAll(java.util.Collection&lt;T&gt;)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items)</pre></devsite-code>
+        <p>Adds the given items to the list. Does not modify or retain the input.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items</code></td>
+                <td>
+                  <p>Collection of items to be added into the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T[],boolean)">addAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="addAll(T[], boolean)"></a><a name="addAll-T[]-boolean-"></a><a name="addall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="addAll(T[],boolean)" data-text="addAll" tabindex="-1">addAll</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T[],boolean)">addAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput)</pre></devsite-code>
+        <p>Adds the given items to the list. Equivalent to calling add in a loop, except the callback events may be in a different order/granularity since addAll can batch them for better performance. </p>
+        <p> If allowed, will reference the input array during, and possibly after, the operation to avoid extra memory allocation, in which case you should not continue to reference or modify the array yourself. </p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items</code></td>
+                <td>
+                  <p>Array of items to be added into the list.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">boolean&nbsp;mayModifyInput</code></td>
+                <td>
+                  <p>If true, SortedList is allowed to modify and permanently reference the input array.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#addAll(T...)">addAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="beginBatchedUpdates--"></a><a name="beginbatchedupdates"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="beginBatchedUpdates()" data-text="beginBatchedUpdates" tabindex="-1">beginBatchedUpdates</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#beginBatchedUpdates()">beginBatchedUpdates</a>()</pre></devsite-code>
+        <p>Batches adapter updates that happen after calling this method and before calling <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#endBatchedUpdates()">endBatchedUpdates</a></code>. For example, if you add multiple items in a loop and they are placed into consecutive indices, SortedList calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onInserted(int,int)">onInserted</a></code> only once with the proper item count. If an event cannot be merged with the previous event, the previous event is dispatched to the callback instantly. </p>
+        <p> After running your data updates, you <b>must</b> call <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#endBatchedUpdates()">endBatchedUpdates</a></code> which will dispatch any deferred data change event to the current callback. </p>
+        <p> A sample implementation may look like this: </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">    mSortedList.beginBatchedUpdates();
+    try {
+        mSortedList.add(item1)
+        mSortedList.add(item2)
+        mSortedList.remove(item3)
+        ...
+    } finally {
+        mSortedList.endBatchedUpdates();
+    }</pre></devsite-code>
+        <p> Instead of using this method to batch calls, you can use a Callback that extends <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.BatchedCallback">BatchedCallback</a></code>. In that case, you must make sure that you are manually calling <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.BatchedCallback#dispatchLastEvent()">dispatchLastEvent</a></code> right after you complete your data changes. Failing to do so may create data inconsistencies with the Callback. </p>
+        <p> If the current Callback is an instance of <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.BatchedCallback">BatchedCallback</a></code>, calling this method has no effect.</p>
+      </div>
+      <div class="api-item"><a name="clear--"></a><a name="clear"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="clear()" data-text="clear" tabindex="-1">clear</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#clear()">clear</a>()</pre></devsite-code>
+        <p>Removes all items from the SortedList.</p>
+      </div>
+      <div class="api-item"><a name="endBatchedUpdates--"></a><a name="endbatchedupdates"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="endBatchedUpdates()" data-text="endBatchedUpdates" tabindex="-1">endBatchedUpdates</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#endBatchedUpdates()">endBatchedUpdates</a>()</pre></devsite-code>
+        <p>Ends the update transaction and dispatches any remaining event to the callback.</p>
+      </div>
+      <div class="api-item"><a name="get-int-"></a><a name="get"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="get(int)" data-text="get" tabindex="-1">get</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;T&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#get(int)">get</a>(int&nbsp;index)</pre></devsite-code>
+        <p>Returns the item at the given index.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;index</code></td>
+                <td>
+                  <p>The index of the item to retrieve.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">T</code></td>
+                <td>
+                  <p>The item at the given index.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IndexOutOfBoundsException.html">java.lang.IndexOutOfBoundsException</a></code></td>
+                <td>
+                  <p>if provided index is negative or larger than the size of the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="indexOf-T-"></a><a name="indexof"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="indexOf(T)" data-text="indexOf" tabindex="-1">indexOf</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#indexOf(T)">indexOf</a>(T&nbsp;item)</pre></devsite-code>
+        <p>Returns the position of the provided item.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">T&nbsp;item</code></td>
+                <td>
+                  <p>The item to query for position.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The position of the provided item or <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#INVALID_POSITION()">INVALID_POSITION</a></code> if item is not in the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="recalculatePositionOfItemAt-int-"></a><a name="recalculatepositionofitemat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="recalculatePositionOfItemAt(int)" data-text="recalculatePositionOfItemAt" tabindex="-1">recalculatePositionOfItemAt</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#recalculatePositionOfItemAt(int)">recalculatePositionOfItemAt</a>(int&nbsp;index)</pre></devsite-code>
+        <p>This method can be used to recalculate the position of the item at the given index, without triggering an <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> callback. </p>
+        <p> If you are editing objects in the list such that their position in the list may change but you don't want to trigger an onChange animation, you can use this method to re-position it. If the item changes position, SortedList will call <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onMoved(int,int)">onMoved</a></code> without calling <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code>. </p>
+        <p> A sample usage may look like: </p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Text only">    final int position = mSortedList.indexOf(item);
+    item.incrementPriority(); // assume items are sorted by priority
+    mSortedList.recalculatePositionOfItemAt(position);</pre></devsite-code>
+ In the example above, because the sorting criteria of the item has been changed, mSortedList.indexOf(item) will not be able to find the item. This is why the code above first gets the position before editing the item, edits it and informs the SortedList that item should be repositioned.
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;index</code></td>
+                <td>
+                  <p>The current index of the Item whose position should be re-calculated.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#updateItemAt(int,T)">updateItemAt</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#add(T)">add</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="remove-T-"></a><a name="remove"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="remove(T)" data-text="remove" tabindex="-1">remove</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#remove(T)">remove</a>(T&nbsp;item)</pre></devsite-code>
+        <p>Removes the provided item from the list and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">T&nbsp;item</code></td>
+                <td>
+                  <p>The item to be removed from the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>True if item is removed, false if item cannot be found in the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeItemAt-int-"></a><a name="removeitemat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeItemAt(int)" data-text="removeItemAt" tabindex="-1">removeItemAt</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;T&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#removeItemAt(int)">removeItemAt</a>(int&nbsp;index)</pre></devsite-code>
+        <p>Removes the item at the given index and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;index</code></td>
+                <td>
+                  <p>The index of the item to be removed.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">T</code></td>
+                <td>
+                  <p>The removed item.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="replaceAll-T...-"></a><a name="replaceall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="replaceAll(T...)" data-text="replaceAll" tabindex="-1">replaceAll</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T...)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items)</pre></devsite-code>
+        <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate. Does not modify or retain the input.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items</code></td>
+                <td>
+                  <p>Array of items to replace current items.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T[],boolean)">replaceAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="replaceAll-java.util.Collection&lt;T&gt;-"></a><a name="replaceall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="replaceAll(java.util.Collection&lt;T&gt;)" data-text="replaceAll" tabindex="-1">replaceAll</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(java.util.Collection&lt;T&gt;)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items)</pre></devsite-code>
+        <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate. Does not modify or retain the input.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Collection.html">Collection</a>&lt;T&gt;&nbsp;items</code></td>
+                <td>
+                  <p>Array of items to replace current items.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T[],boolean)">replaceAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="replaceAll(T[], boolean)"></a><a name="replaceAll-T[]-boolean-"></a><a name="replaceall"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="replaceAll(T[],boolean)" data-text="replaceAll" tabindex="-1">replaceAll</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T[],boolean)">replaceAll</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items,&nbsp;boolean&nbsp;mayModifyInput)</pre></devsite-code>
+        <p>Replaces the current items with the new items, dispatching <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback">ListUpdateCallback</a></code> events for each change detected as appropriate. </p>
+        <p> If allowed, will reference the input array during, and possibly after, the operation to avoid extra memory allocation, in which case you should not continue to reference or modify the array yourself. </p>
+        <p> Note: this method does not detect moves or dispatch <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onMoved(int,int)">onMoved</a></code> events. It instead treats moves as a remove followed by an add and therefore dispatches <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onRemoved(int,int)">onRemoved</a></code> events. See <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/DiffUtil">DiffUtil</a></code> if you want your implementation to dispatch move events. </p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> T[]&nbsp;items</code></td>
+                <td>
+                  <p>Array of items to replace current items.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">boolean&nbsp;mayModifyInput</code></td>
+                <td>
+                  <p>If true, SortedList is allowed to modify and permanently reference the input array.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#replaceAll(T...)">replaceAll</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="size--"></a><a name="size"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="size()" data-text="size" tabindex="-1">size</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#size()">size</a>()</pre></devsite-code>
+        <p>The number of items in the list.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The number of items in the list.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="updateItemAt(int, T)"></a><a name="updateItemAt-int-T-"></a><a name="updateitemat"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="updateItemAt(int,T)" data-text="updateItemAt" tabindex="-1">updateItemAt</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/recyclerview#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/recyclerview/widget/SortedList#updateItemAt(int,T)">updateItemAt</a>(int&nbsp;index,&nbsp;T&nbsp;item)</pre></devsite-code>
+        <p>Updates the item at the given index and calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> and/or <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onMoved(int,int)">onMoved</a></code> if necessary. </p>
+        <p> You can use this method if you need to change an existing Item such that its position in the list may change. </p>
+        <p> If the new object is a different object (<code translate="no" dir="ltr">get(index) != item</code>) and <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#areContentsTheSame(T2,T2)">areContentsTheSame</a></code> returns <code translate="no" dir="ltr">true</code>, SortedList avoids calling <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code> otherwise it calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList.Callback#onChanged(int,int)">onChanged</a></code>. </p>
+        <p> If the new position of the item is different than the provided <code translate="no" dir="ltr">index</code>, SortedList calls <code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/ListUpdateCallback#onMoved(int,int)">onMoved</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;index</code></td>
+                <td>
+                  <p>The index of the item to replace</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">T&nbsp;item</code></td>
+                <td>
+                  <p>The item to replace the item at the given Index.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/recyclerview/widget/SortedList#add(T)">add</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

@@ -1,1 +1,902 @@
-<html><head><title>Class Documentation</title></head><body>Database Artifact: androidx.room:room-common View Source Added in 2.0.0 Kotlin | Java @ Target (allowedTargets&nbsp;=&nbsp;[AnnotationTarget.CLASS]) @ Retention (value&nbsp;=&nbsp;AnnotationRetention.BINARY) public annotation Database Marks a class as a androidx.room.RoomDatabase . The class should be an abstract class and extend androidx.room.RoomDatabase . You can receive an implementation of the class via androidx.room.Room.databaseBuilder or androidx.room.Room.inMemoryDatabaseBuilder. // Song and Album are classes annotated with @Entity. @Database(version = 1, entities = [Song::class, Album::class]) abstract class MusicDatabase : RoomDatabase { // SongDao is a class annotated with @Dao. abstract fun getSongDao(): SongDao // AlbumDao is a class annotated with @Dao. abstract fun getArtistDao(): ArtistDao // SongAlbumDao is a class annotated with @Dao. abstract fun getSongAlbumDao(): SongAlbumDao } The example above defines a class that has 2 tables and 3 DAO classes that are used to access it. There is no limit on the number of Entity or Dao classes but they must be unique within the Database. Instead of running queries on the database directly, you are highly recommended to create Dao classes. Using Dao classes will allow you to abstract the database communication in a more logical layer which will be much easier to mock in tests (compared to running direct SQL queries). It also automatically does the conversion from Cursor to your application data classes so you don't need to deal with lower level database APIs for most of your data access. Room also verifies all of your queries in Dao classes while the application is being compiled so that if there is a problem in one of the queries, you will be notified instantly. To automatically generate a migration between two versions of the database, assuming you have the relevant schema files, you are recommended to use AutoMigration annotations. Note that if an autoMigration is defined in a database, exportSchema must be true . See also Dao Entity AutoMigration RoomDatabase ConstructedBy Summary Public constructors Database ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull KClass[]&nbsp;entities, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull KClass[]&nbsp;views, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;version, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;exportSchema, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull AutoMigration[]&nbsp;autoMigrations ) Public methods final @ NonNull AutoMigration[] getAutoMigrations () List of AutoMigrations that can be performed on this Database. final @ NonNull KClass[] getEntities () The list of entities included in the database. final boolean getExportSchema () You can set the annotation processor argument ( room.schemaLocation ) to tell Room to export the database schema into a folder. final int getVersion () The database version. final @ NonNull KClass[] getViews () The list of database views included in the database. Public constructors Database public&nbsp; Database ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull KClass[]&nbsp;entities, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull KClass[]&nbsp;views, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;version, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;exportSchema, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull AutoMigration[]&nbsp;autoMigrations ) Public methods getAutoMigrations public&nbsp;final&nbsp;@ NonNull AutoMigration[]&nbsp; getAutoMigrations () List of AutoMigrations that can be performed on this Database. See AutoMigration for example code usage. For more complicated cases not covered by AutoMigration , runtime defined androidx.room.migration.Migration added with androidx.room.RoomDatabase.Builder.addMigrations can still be used. Returns @ NonNull AutoMigration[] List of AutoMigration annotations. getEntities public&nbsp;final&nbsp;@ NonNull KClass[]&nbsp; getEntities () The list of entities included in the database. Each entity turns into a table in the database. Returns @ NonNull KClass[] The list of entities in the database. getExportSchema public&nbsp;final&nbsp;boolean&nbsp; getExportSchema () You can set the annotation processor argument ( room.schemaLocation ) to tell Room to export the database schema into a folder. Even though it is not mandatory, it is a good practice to have version history of your schema in your codebase and you should commit the schema files into your version control system (but don't ship them with your app!). When room.schemaLocation is set, Room will check this variable and if it is set to true , the database schema will be exported into the given folder. Value of exportSchema is true by default but you can disable it for databases when you don't want to keep history of versions (like an in-memory only database). Returns boolean Whether the schema should be exported to the given folder when the room.schemaLocation argument is set. Defaults to true . getVersion public&nbsp;final&nbsp;int&nbsp; getVersion () The database version. Returns int The database version. getViews public&nbsp;final&nbsp;@ NonNull KClass[]&nbsp; getViews () The list of database views included in the database. Each class turns into a view in the database. Returns @ NonNull KClass[] The list of database views.</body></html>
+<html><head><title>Database</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="Database">
+      <meta itemprop="path" content="androidx.room">
+      <meta itemprop="property" content="getAutoMigrations()">
+      <meta itemprop="property" content="getEntities()">
+      <meta itemprop="property" content="getExportSchema()">
+      <meta itemprop="property" content="getVersion()">
+      <meta itemprop="property" content="getViews()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="database" data-text="Database" tabindex="-1">Database</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/room">androidx.room:room-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/room/Database.kt+class:androidx.room.Database" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/room#2.0.0">2.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/room/Database" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.annotation/-target/index.html">Target</a>(allowedTargets&nbsp;=&nbsp;[AnnotationTarget.CLASS])<br>@<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.annotation/-retention/index.html">Retention</a>(value&nbsp;=&nbsp;AnnotationRetention.BINARY)<br>public annotation <a href="/reference/androidx/room/Database">Database</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Marks a class as a <code translate="no" dir="ltr"><a href="/reference/androidx/room/RoomDatabase">androidx.room.RoomDatabase</a></code>.</p>
+    <p>The class should be an abstract class and extend <code translate="no" dir="ltr"><a href="/reference/androidx/room/RoomDatabase">androidx.room.RoomDatabase</a></code>.</p>
+    <p>You can receive an implementation of the class via androidx.room.Room.databaseBuilder or androidx.room.Room.inMemoryDatabaseBuilder.</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Scilab"><span class="devsite-syntax-c1">// Song and Album are classes annotated with @Entity.<br>@Database(version = 1, entities = [Song::class, Album::class])<br>abstract class MusicDatabase : RoomDatabase {<br>  // SongDao is a class annotated with @Dao.<br>  abstract fun getSongDao(): SongDao<br><br>  // AlbumDao is a class annotated with @Dao.<br>  abstract fun getArtistDao(): ArtistDao<br><br>  // SongAlbumDao is a class annotated with @Dao.<br>  abstract fun getSongAlbumDao(): SongAlbumDao<br>}</span></pre></devsite-code>
+    <p>The example above defines a class that has 2 tables and 3 DAO classes that are used to access it. There is no limit on the number of <code translate="no" dir="ltr"><a href="/reference/androidx/room/Entity">Entity</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/room/Dao">Dao</a></code> classes but they must be unique within the Database.</p>
+    <p>Instead of running queries on the database directly, you are highly recommended to create <code translate="no" dir="ltr"><a href="/reference/androidx/room/Dao">Dao</a></code> classes. Using Dao classes will allow you to abstract the database communication in a more logical layer which will be much easier to mock in tests (compared to running direct SQL queries). It also automatically does the conversion from <code translate="no" dir="ltr">Cursor</code> to your application data classes so you don't need to deal with lower level database APIs for most of your data access.</p>
+    <p>Room also verifies all of your queries in <code translate="no" dir="ltr"><a href="/reference/androidx/room/Dao">Dao</a></code> classes while the application is being compiled so that if there is a problem in one of the queries, you will be notified instantly.</p>
+    <p>To automatically generate a migration between two versions of the database, assuming you have the relevant schema files, you are recommended to use <code translate="no" dir="ltr"><a href="/reference/androidx/room/AutoMigration">AutoMigration</a></code> annotations. Note that if an autoMigration is defined in a database, <code translate="no" dir="ltr">exportSchema</code> must be <code translate="no" dir="ltr">true</code>.</p>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">See also</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/room/Dao">Dao</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/room/Entity">Entity</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/room/AutoMigration">AutoMigration</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/room/RoomDatabase">RoomDatabase</a></code></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/room/ConstructedBy">ConstructedBy</a></code></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#Database(kotlin.Array,kotlin.Array,kotlin.Int,kotlin.Boolean,kotlin.Array)">Database</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;entities,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;views,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;version,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;exportSchema,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> AutoMigration[]&nbsp;autoMigrations<br>)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> AutoMigration[]</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#getAutoMigrations()">getAutoMigrations</a>()</code></div>
+              <p>List of AutoMigrations that can be performed on this Database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#getEntities()">getEntities</a>()</code></div>
+              <p>The list of entities included in the database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#getExportSchema()">getExportSchema</a>()</code></div>
+              <p>You can set the annotation processor argument (<code translate="no" dir="ltr">room.schemaLocation</code>) to tell Room to export the database schema into a folder.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#getVersion()">getVersion</a>()</code></div>
+              <p>The database version.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Database#getViews()">getViews</a>()</code></div>
+              <p>The list of database views included in the database.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="Database(kotlin.Array, kotlin.Array, kotlin.Int, kotlin.Boolean, kotlin.Array)"></a><a name="Database-kotlin.Array-kotlin.Array-kotlin.Int-kotlin.Boolean-kotlin.Array-"></a><a name="database"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="Database(kotlin.Array,kotlin.Array,kotlin.Int,kotlin.Boolean,kotlin.Array)" data-text="Database" tabindex="-1">Database</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/room/Database#Database(kotlin.Array,kotlin.Array,kotlin.Int,kotlin.Boolean,kotlin.Array)">Database</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;entities,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;views,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;version,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;exportSchema,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> AutoMigration[]&nbsp;autoMigrations<br>)</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getAutoMigrations--"></a><a name="getautomigrations"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getAutoMigrations()" data-text="getAutoMigrations" tabindex="-1">getAutoMigrations</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> AutoMigration[]&nbsp;<a href="/reference/androidx/room/Database#getAutoMigrations()">getAutoMigrations</a>()</pre></devsite-code>
+        <p>List of AutoMigrations that can be performed on this Database.</p>
+        <p>See <code translate="no" dir="ltr"><a href="/reference/androidx/room/AutoMigration">AutoMigration</a></code> for example code usage.</p>
+        <p>For more complicated cases not covered by <code translate="no" dir="ltr"><a href="/reference/androidx/room/AutoMigration">AutoMigration</a></code>, runtime defined <code translate="no" dir="ltr"><a href="/reference/androidx/room/migration/Migration">androidx.room.migration.Migration</a></code> added with <code translate="no" dir="ltr"><a href="/reference/androidx/room/RoomDatabase.Builder#addMigrations(kotlin.Array)">androidx.room.RoomDatabase.Builder.addMigrations</a></code> can still be used.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> AutoMigration[]</code></td>
+                <td>
+                  <p>List of <code translate="no" dir="ltr"><a href="/reference/androidx/room/AutoMigration">AutoMigration</a></code> annotations.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getEntities--"></a><a name="getentities"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getEntities()" data-text="getEntities" tabindex="-1">getEntities</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;<a href="/reference/androidx/room/Database#getEntities()">getEntities</a>()</pre></devsite-code>
+        <p>The list of entities included in the database. Each entity turns into a table in the database.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]</code></td>
+                <td>
+                  <p>The list of entities in the database.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getExportSchema--"></a><a name="getexportschema"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getExportSchema()" data-text="getExportSchema" tabindex="-1">getExportSchema</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/room/Database#getExportSchema()">getExportSchema</a>()</pre></devsite-code>
+        <p>You can set the annotation processor argument (<code translate="no" dir="ltr">room.schemaLocation</code>) to tell Room to export the database schema into a folder. Even though it is not mandatory, it is a good practice to have version history of your schema in your codebase and you should commit the schema files into your version control system (but don't ship them with your app!).</p>
+        <p>When <code translate="no" dir="ltr">room.schemaLocation</code> is set, Room will check this variable and if it is set to <code translate="no" dir="ltr">true</code>, the database schema will be exported into the given folder.</p>
+        <p>Value of <code translate="no" dir="ltr">exportSchema</code> is <code translate="no" dir="ltr">true</code> by default but you can disable it for databases when you don't want to keep history of versions (like an in-memory only database).</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the schema should be exported to the given folder when the <code translate="no" dir="ltr">room.schemaLocation</code> argument is set. Defaults to <code translate="no" dir="ltr">true</code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getVersion--"></a><a name="getversion"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getVersion()" data-text="getVersion" tabindex="-1">getVersion</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/room/Database#getVersion()">getVersion</a>()</pre></devsite-code>
+        <p>The database version.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The database version.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getViews--"></a><a name="getviews"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getViews()" data-text="getViews" tabindex="-1">getViews</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]&nbsp;<a href="/reference/androidx/room/Database#getViews()">getViews</a>()</pre></devsite-code>
+        <p>The list of database views included in the database. Each class turns into a view in the database.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> KClass[]</code></td>
+                <td>
+                  <p>The list of database views.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

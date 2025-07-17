@@ -1,1 +1,1241 @@
-<html><head><title>Class Documentation</title></head><body>UdpDataSource Artifact: androidx.media3:media3-datasource View Source Kotlin | Java @ UnstableApi public final class UdpDataSource extends BaseDataSource java.lang.Object &nbsp;&nbsp;&nbsp;↳ androidx.media3.datasource.BaseDataSource &nbsp; &nbsp;&nbsp;&nbsp;↳ androidx.media3.datasource.UdpDataSource A UDP DataSource . Summary Nested types public final class UdpDataSource.UdpDataSourceException extends DataSourceException Thrown when an error is encountered when trying to read from a UdpDataSource . Constants static&nbsp;final int DEFAULT_MAX_PACKET_SIZE = 2000 The default maximum datagram packet size, in bytes. static&nbsp;final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 8000 The default socket timeout, in milliseconds. static&nbsp;final int UDP_PORT_UNSET = -1 Public fields @ Nullable Uri uri Public constructors UdpDataSource () UdpDataSource (int&nbsp;maxPacketSize) Constructs a new instance. UdpDataSource (int&nbsp;maxPacketSize,&nbsp;int&nbsp;socketTimeoutMillis) Constructs a new instance. Public methods void close () Closes the source. int getLocalPort () Returns the local port number opened for the UDP connection, or UDP_PORT_UNSET if no connection is open @ Nullable Uri getUri () When the source is open, returns the Uri from which data is being read. long open ( DataSpec &nbsp;dataSpec) Opens the source to read the specified data. int read (byte[]&nbsp;buffer,&nbsp;int&nbsp;offset,&nbsp;int&nbsp;length) Reads up to length bytes of data from the input. Inherited methods From androidx.media3.datasource.BaseDataSource final void @ UnstableApi addTransferListener ( TransferListener &nbsp;transferListener) Adds a TransferListener to listen to data transfers. final void bytesTransferred (int&nbsp;bytesTransferred) Notifies listeners that bytes were transferred. final void transferEnded () Notifies listeners that a transfer ended. final void transferInitializing ( DataSpec &nbsp;dataSpec) Notifies listeners that data transfer for the specified DataSpec is being initialized. final void transferStarted ( DataSpec &nbsp;dataSpec) Notifies listeners that data transfer for the specified DataSpec started. From androidx.media3.datasource.DataSource Map &lt; String ,&nbsp; List &lt; String &gt;&gt; @ UnstableApi getResponseHeaders () When the source is open, returns the response headers associated with the last open call. Constants DEFAULT_MAX_PACKET_SIZE public&nbsp;static&nbsp;final&nbsp;int&nbsp; DEFAULT_MAX_PACKET_SIZE = 2000 The default maximum datagram packet size, in bytes. DEFAULT_SOCKET_TIMEOUT_MILLIS public&nbsp;static&nbsp;final&nbsp;int&nbsp; DEFAULT_SOCKET_TIMEOUT_MILLIS = 8000 The default socket timeout, in milliseconds. UDP_PORT_UNSET public&nbsp;static&nbsp;final&nbsp;int&nbsp; UDP_PORT_UNSET = -1 Public fields uri public&nbsp;@ Nullable Uri &nbsp; uri Public constructors UdpDataSource public&nbsp; UdpDataSource () UdpDataSource public&nbsp; UdpDataSource (int&nbsp;maxPacketSize) Constructs a new instance. Parameters int&nbsp;maxPacketSize The maximum datagram packet size, in bytes. UdpDataSource public&nbsp; UdpDataSource (int&nbsp;maxPacketSize,&nbsp;int&nbsp;socketTimeoutMillis) Constructs a new instance. Parameters int&nbsp;maxPacketSize The maximum datagram packet size, in bytes. int&nbsp;socketTimeoutMillis The socket timeout in milliseconds. A timeout of zero is interpreted as an infinite timeout. Public methods close public&nbsp;void&nbsp; close () Closes the source. This method must be called even if the corresponding call to open threw an IOException . Throws java.io.IOException If an error occurs closing the source. getLocalPort public&nbsp;int&nbsp; getLocalPort () Returns the local port number opened for the UDP connection, or UDP_PORT_UNSET if no connection is open getUri public&nbsp;@ Nullable Uri &nbsp; getUri () When the source is open, returns the Uri from which data is being read. The returned Uri will be identical to the one passed open in the DataSpec unless redirection has occurred. If redirection has occurred, the Uri after redirection is returned. Returns @ Nullable Uri The Uri from which data is being read, or null if the source is not open. open public&nbsp;long&nbsp; open ( DataSpec &nbsp;dataSpec) Opens the source to read the specified data. If an IOException is thrown, callers must still call close to ensure that any partial effects of the invocation are cleaned up. The following edge case behaviors apply: If the requested position is within the resource, but the requested length extends beyond the end of the resource, then open will succeed and data from the requested position to the end of the resource will be made available through read . If the requested position is equal to the length of the resource, then open will succeed, and read will immediately return RESULT_END_OF_INPUT . If the requested position is greater than the length of the resource, then open will throw an IOException for which isCausedByPositionOutOfRange will be true . Parameters DataSpec &nbsp;dataSpec Defines the data to be read. Returns long The number of bytes that can be read from the opened source. For unbounded requests (i.e., requests where length equals LENGTH_UNSET ) this value is the resolved length of the request, or LENGTH_UNSET if the length is still unresolved. For all other requests, the value returned will be equal to the request's length . Throws java.io.IOException If an error occurs opening the source. DataSourceException can be thrown or used as a cause of the thrown exception to specify the reason of the error. androidx.media3.datasource.UdpDataSource.UdpDataSourceException read public&nbsp;int&nbsp; read (byte[]&nbsp;buffer,&nbsp;int&nbsp;offset,&nbsp;int&nbsp;length) Reads up to length bytes of data from the input. If readLength is zero then 0 is returned. Otherwise, if no data is available because the end of the opened range has been reached, then RESULT_END_OF_INPUT is returned. Otherwise, the call will block until at least one byte of data has been read and the number of bytes read is returned. Parameters byte[]&nbsp;buffer A target array into which data should be written. int&nbsp;offset The offset into the target array at which to write. int&nbsp;length The maximum number of bytes to read from the input. Returns int The number of bytes read, or RESULT_END_OF_INPUT if the input has ended. This may be less than length because the end of the input (or available data) was reached, the method was interrupted, or the operation was aborted early for another reason. Throws java.io.IOException If an error occurs reading from the input. androidx.media3.datasource.UdpDataSource.UdpDataSourceException</body></html>
+<html><head><title>UdpDataSource</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="UdpDataSource">
+      <meta itemprop="path" content="androidx.media3.datasource">
+      <meta itemprop="property" content="close()">
+      <meta itemprop="property" content="getLocalPort()">
+      <meta itemprop="property" content="getUri()">
+      <meta itemprop="property" content="open(androidx.media3.datasource.DataSpec)">
+      <meta itemprop="property" content="read(byte[],int,int)">
+      <meta itemprop="property" content="DEFAULT_MAX_PACKET_SIZE()">
+      <meta itemprop="property" content="DEFAULT_SOCKET_TIMEOUT_MILLIS()">
+      <meta itemprop="property" content="UDP_PORT_UNSET()">
+      <meta itemprop="property" content="uri()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="udpdatasource" data-text="UdpDataSource" tabindex="-1">UdpDataSource</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-datasource</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/datasource/UdpDataSource.java+class:androidx.media3.datasource.UdpDataSource" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/datasource/UdpDataSource" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/datasource/UdpDataSource">UdpDataSource</a> extends <a href="/reference/androidx/media3/datasource/BaseDataSource">BaseDataSource</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper">
+      <table class="jd-inheritance-table">
+        <tbody>
+          <tr>
+            <td colspan="3"><a href="https://developer.android.com/reference/java/lang/Object.html">java.lang.Object</a></td>
+          </tr>
+          <tr>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="2"><a href="/reference/androidx/media3/datasource/BaseDataSource">androidx.media3.datasource.BaseDataSource</a></td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="1"><a href="/reference/androidx/media3/datasource/UdpDataSource">androidx.media3.datasource.UdpDataSource</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <hr>
+    <p>A UDP <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource">DataSource</a></code>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/datasource/UdpDataSource.UdpDataSourceException">UdpDataSource.UdpDataSourceException</a> extends <a href="/reference/androidx/media3/datasource/DataSourceException">DataSourceException</a></code></div>
+              <p>Thrown when an error is encountered when trying to read from a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource">UdpDataSource</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#DEFAULT_MAX_PACKET_SIZE()">DEFAULT_MAX_PACKET_SIZE</a> = 2000</code></div>
+              <p>The default maximum datagram packet size, in bytes.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#DEFAULT_SOCKET_TIMEOUT_MILLIS()">DEFAULT_SOCKET_TIMEOUT_MILLIS</a> = 8000</code></div>
+              <p>The default socket timeout, in milliseconds.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UDP_PORT_UNSET()">UDP_PORT_UNSET</a> = -1</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-fields" data-text="Public fields" tabindex="-1">Public fields</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#uri()">uri</a></code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource()">UdpDataSource</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource(int)">UdpDataSource</a>(int&nbsp;maxPacketSize)</code></div>
+              <p>Constructs a new instance.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource(int,int)">UdpDataSource</a>(int&nbsp;maxPacketSize,&nbsp;int&nbsp;socketTimeoutMillis)</code></div>
+              <p>Constructs a new instance.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#close()">close</a>()</code></div>
+              <p>Closes the source.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#getLocalPort()">getLocalPort</a>()</code></div>
+              <p>Returns the local port number opened for the UDP connection, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UDP_PORT_UNSET()">UDP_PORT_UNSET</a></code> if no connection is open</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#getUri()">getUri</a>()</code></div>
+              <p>When the source is open, returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code> from which data is being read.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#open(androidx.media3.datasource.DataSpec)">open</a>(<a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a>&nbsp;dataSpec)</code></div>
+              <p>Opens the source to read the specified data.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#read(byte[],int,int)">read</a>(byte[]&nbsp;buffer,&nbsp;int&nbsp;offset,&nbsp;int&nbsp;length)</code></div>
+              <p>Reads up to <code translate="no" dir="ltr">length</code> bytes of data from the input.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-methods" data-text="Inherited methods" tabindex="-1">Inherited methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="/reference/androidx/media3/datasource/BaseDataSource">androidx.media3.datasource.BaseDataSource</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/datasource/BaseDataSource#addTransferListener(androidx.media3.datasource.TransferListener)">addTransferListener</a>(<a href="/reference/androidx/media3/datasource/TransferListener">TransferListener</a>&nbsp;transferListener)</code></div>
+                        <p>Adds a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/TransferListener">TransferListener</a></code> to listen to data transfers.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/BaseDataSource#bytesTransferred(int)">bytesTransferred</a>(int&nbsp;bytesTransferred)</code></div>
+                        <p>Notifies listeners that bytes were transferred.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/BaseDataSource#transferEnded()">transferEnded</a>()</code></div>
+                        <p>Notifies listeners that a transfer ended.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/BaseDataSource#transferInitializing(androidx.media3.datasource.DataSpec)">transferInitializing</a>(<a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a>&nbsp;dataSpec)</code></div>
+                        <p>Notifies listeners that data transfer for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a></code> is being initialized.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">final void</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/BaseDataSource#transferStarted(androidx.media3.datasource.DataSpec)">transferStarted</a>(<a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a>&nbsp;dataSpec)</code></div>
+                        <p>Notifies listeners that data transfer for the specified <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a></code> started.</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="/reference/androidx/media3/datasource/DataSource">androidx.media3.datasource.DataSource</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/Map.html">Map</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&gt;</code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/datasource/DataSource#getResponseHeaders()">getResponseHeaders</a>()</code></div>
+                        <p>When the source is open, returns the response headers associated with the last <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> call.</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDEFAULT_MAX_PACKET_SIZE()"></a><a name="setDEFAULT_MAX_PACKET_SIZE()"></a><a name="getDEFAULT_MAX_PACKET_SIZE--"></a><a name="setDEFAULT_MAX_PACKET_SIZE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT_MAX_PACKET_SIZE()" data-text="DEFAULT_MAX_PACKET_SIZE" tabindex="-1">DEFAULT_MAX_PACKET_SIZE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#DEFAULT_MAX_PACKET_SIZE()">DEFAULT_MAX_PACKET_SIZE</a> = 2000</pre></devsite-code>
+        <p>The default maximum datagram packet size, in bytes.</p>
+      </div>
+      <div class="api-item"><a name="getDEFAULT_SOCKET_TIMEOUT_MILLIS()"></a><a name="setDEFAULT_SOCKET_TIMEOUT_MILLIS()"></a><a name="getDEFAULT_SOCKET_TIMEOUT_MILLIS--"></a><a name="setDEFAULT_SOCKET_TIMEOUT_MILLIS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT_SOCKET_TIMEOUT_MILLIS()" data-text="DEFAULT_SOCKET_TIMEOUT_MILLIS" tabindex="-1">DEFAULT_SOCKET_TIMEOUT_MILLIS</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#DEFAULT_SOCKET_TIMEOUT_MILLIS()">DEFAULT_SOCKET_TIMEOUT_MILLIS</a> = 8000</pre></devsite-code>
+        <p>The default socket timeout, in milliseconds.</p>
+      </div>
+      <div class="api-item"><a name="getUDP_PORT_UNSET()"></a><a name="setUDP_PORT_UNSET()"></a><a name="getUDP_PORT_UNSET--"></a><a name="setUDP_PORT_UNSET--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="UDP_PORT_UNSET()" data-text="UDP_PORT_UNSET" tabindex="-1">UDP_PORT_UNSET</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#UDP_PORT_UNSET()">UDP_PORT_UNSET</a> = -1</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-fields_1" data-text="Public fields" tabindex="-1">Public fields</h2>
+      <div class="api-item"><a name="getUri()"></a><a name="setUri()"></a><a name="getUri--"></a><a name="setUri--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="uri()" data-text="uri" tabindex="-1">uri</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a>&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#uri()">uri</a></pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="UdpDataSource--"></a><a name="udpdatasource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="UdpDataSource()" data-text="UdpDataSource" tabindex="-1">UdpDataSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource()">UdpDataSource</a>()</pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="UdpDataSource-int-"></a><a name="udpdatasource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="UdpDataSource(int)" data-text="UdpDataSource" tabindex="-1">UdpDataSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource(int)">UdpDataSource</a>(int&nbsp;maxPacketSize)</pre></devsite-code>
+        <p>Constructs a new instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;maxPacketSize</code></td>
+                <td>
+                  <p>The maximum datagram packet size, in bytes.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="UdpDataSource(int, int)"></a><a name="UdpDataSource-int-int-"></a><a name="udpdatasource"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="UdpDataSource(int,int)" data-text="UdpDataSource" tabindex="-1">UdpDataSource</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#UdpDataSource(int,int)">UdpDataSource</a>(int&nbsp;maxPacketSize,&nbsp;int&nbsp;socketTimeoutMillis)</pre></devsite-code>
+        <p>Constructs a new instance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;maxPacketSize</code></td>
+                <td>
+                  <p>The maximum datagram packet size, in bytes.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;socketTimeoutMillis</code></td>
+                <td>
+                  <p>The socket timeout in milliseconds. A timeout of zero is interpreted as an infinite timeout.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="close--"></a><a name="close"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="close()" data-text="close" tabindex="-1">close</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#close()">close</a>()</pre></devsite-code>
+        <p>Closes the source. This method must be called even if the corresponding call to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> threw an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">IOException</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">java.io.IOException</a></code></td>
+                <td>
+                  <p>If an error occurs closing the source.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getLocalPort--"></a><a name="getlocalport"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getLocalPort()" data-text="getLocalPort" tabindex="-1">getLocalPort</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#getLocalPort()">getLocalPort</a>()</pre></devsite-code>
+        <p>Returns the local port number opened for the UDP connection, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource#UDP_PORT_UNSET()">UDP_PORT_UNSET</a></code> if no connection is open</p>
+      </div>
+      <div class="api-item"><a name="getUri--"></a><a name="geturi"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getUri()" data-text="getUri" tabindex="-1">getUri</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a>&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#getUri()">getUri</a>()</pre></devsite-code>
+        <p>When the source is open, returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code> from which data is being read. The returned <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code> will be identical to the one passed <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> in the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a></code> unless redirection has occurred. If redirection has occurred, the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code> after redirection is returned.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/net/Uri.html">Uri</a></code> from which data is being read, or null if the source is not open.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="open-androidx.media3.datasource.DataSpec-"></a><a name="open"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="open(androidx.media3.datasource.DataSpec)" data-text="open" tabindex="-1">open</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;long&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#open(androidx.media3.datasource.DataSpec)">open</a>(<a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a>&nbsp;dataSpec)</pre></devsite-code>
+        <p>Opens the source to read the specified data. If an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">IOException</a></code> is thrown, callers must still call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#close()">close</a></code> to ensure that any partial effects of the invocation are cleaned up. </p>
+        <p>The following edge case behaviors apply: </p>
+        <ul>
+          <li>If the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#position()">requested position</a></code> is within the resource, but the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#length()">requested length</a></code> extends beyond the end of the resource, then <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> will succeed and data from the requested position to the end of the resource will be made available through <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/DataReader#read(byte[],int,int)">read</a></code>. </li>
+          <li>If the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#position()">requested position</a></code> is equal to the length of the resource, then <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> will succeed, and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/DataReader#read(byte[],int,int)">read</a></code> will immediately return <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#RESULT_END_OF_INPUT()">RESULT_END_OF_INPUT</a></code>. </li>
+          <li>If the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#position()">requested position</a></code> is greater than the length of the resource, then <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSource#open(androidx.media3.datasource.DataSpec)">open</a></code> will throw an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">IOException</a></code> for which <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSourceException#isCausedByPositionOutOfRange(java.io.IOException)">isCausedByPositionOutOfRange</a></code> will be <code translate="no" dir="ltr">true</code>. </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec">DataSpec</a>&nbsp;dataSpec</code></td>
+                <td>
+                  <p>Defines the data to be read.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>The number of bytes that can be read from the opened source. For unbounded requests (i.e., requests where <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#length()">length</a></code> equals <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code>) this value is the resolved length of the request, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#LENGTH_UNSET()">LENGTH_UNSET</a></code> if the length is still unresolved. For all other requests, the value returned will be equal to the request's <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSpec#length()">length</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">java.io.IOException</a></code></td>
+                <td>
+                  <p>If an error occurs opening the source. <code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/DataSourceException">DataSourceException</a></code> can be thrown or used as a cause of the thrown exception to specify the reason of the error.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource.UdpDataSourceException">androidx.media3.datasource.UdpDataSource.UdpDataSourceException</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="read(byte[], int, int)"></a><a name="read-byte[]-int-int-"></a><a name="read"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="read(byte[],int,int)" data-text="read" tabindex="-1">read</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/media3/datasource/UdpDataSource#read(byte[],int,int)">read</a>(byte[]&nbsp;buffer,&nbsp;int&nbsp;offset,&nbsp;int&nbsp;length)</pre></devsite-code>
+        <p>Reads up to <code translate="no" dir="ltr">length</code> bytes of data from the input. </p>
+        <p>If <code translate="no" dir="ltr">readLength</code> is zero then 0 is returned. Otherwise, if no data is available because the end of the opened range has been reached, then <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#RESULT_END_OF_INPUT()">RESULT_END_OF_INPUT</a></code> is returned. Otherwise, the call will block until at least one byte of data has been read and the number of bytes read is returned.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">byte[]&nbsp;buffer</code></td>
+                <td>
+                  <p>A target array into which data should be written.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;offset</code></td>
+                <td>
+                  <p>The offset into the target array at which to write.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;length</code></td>
+                <td>
+                  <p>The maximum number of bytes to read from the input.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>The number of bytes read, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/C#RESULT_END_OF_INPUT()">RESULT_END_OF_INPUT</a></code> if the input has ended. This may be less than <code translate="no" dir="ltr">length</code> because the end of the input (or available data) was reached, the method was interrupted, or the operation was aborted early for another reason.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/io/IOException.html">java.io.IOException</a></code></td>
+                <td>
+                  <p>If an error occurs reading from the input.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/datasource/UdpDataSource.UdpDataSourceException">androidx.media3.datasource.UdpDataSource.UdpDataSourceException</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

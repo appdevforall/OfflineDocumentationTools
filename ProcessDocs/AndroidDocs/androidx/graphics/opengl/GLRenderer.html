@@ -1,1 +1,1476 @@
-<html><head><title>Class Documentation</title></head><body>GLRenderer Artifact: androidx.graphics:graphics-core View Source Added in 1.0.3 Kotlin | Java public final class GLRenderer Class responsible for coordination of requests to render into surfaces using OpenGL. This creates a backing thread to handle EGL dependencies and draw leveraging OpenGL across multiple android.view.Surface instances that can be attached and detached throughout the lifecycle of an application. Usage of this class is recommended to be done on the UI thread. Summary Nested types public interface GLRenderer.EGLContextCallback Callbacks invoked when the GL dependencies are created and destroyed. public interface GLRenderer.RenderCallback Interface used for creating an EGLSurface with a user defined configuration from the provided surface as well as a callback used to render content into the surface for a given frame public final class GLRenderer.RenderTarget Handle to a android.view.Surface that is given to GLRenderer to handle rendering. Public constructors GLRenderer ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function0&lt;@ NonNull EGLSpec &gt;&nbsp;eglSpecFactory, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull EGLManager ,&nbsp;@ NonNull EGLConfig &gt;&nbsp;eglConfigFactory ) Public methods final @ NonNull GLRenderer.RenderTarget attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SurfaceView &nbsp;surfaceView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface provided by the given SurfaceView to be managed by the backing thread. final @ NonNull GLRenderer.RenderTarget attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull TextureView &nbsp;textureView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface provided by the given TextureView to be managed by the backing thread. final @ NonNull GLRenderer.RenderTarget attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Surface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface to be managed by the GLThread. final @ NonNull GLRenderer.RenderTarget createRenderTarget ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Creates a new RenderTarget without a corresponding android.view.Surface . final void detach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;cancelPending, &nbsp;&nbsp;&nbsp;&nbsp;@ WorkerThread Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onDetachComplete ) Removes the corresponding RenderTarget from management of the GLThread. final void execute (@ NonNull Runnable &nbsp;runnable) Queue a Runnable to be executed on the GL rendering thread. final boolean isRunning () Determines if the GLThread has been started. final void registerEGLContextCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.EGLContextCallback &nbsp;callback ) Add an EGLContextCallback to receive callbacks for construction and destruction of EGL dependencies. final void requestRender ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onRenderComplete ) Mark the corresponding surface session with the given token as dirty to schedule a call to RenderCallback#onDrawFrame. final void resize ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onResizeComplete ) Resize the corresponding surface associated with the RenderTarget to the specified width and height and re-render. final void start (@ NonNull String &nbsp;name) Starts the GLThread. final void stop (boolean&nbsp;cancelPending,&nbsp;Function1&lt;@ NonNull GLRenderer ,&nbsp; Unit &gt;&nbsp;onStop) Stop the corresponding GL thread. final void unregisterEGLContextCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.EGLContextCallback &nbsp;callback ) Remove EGLContextCallback to no longer receive callbacks for construction and destruction of EGL dependencies. Public constructors GLRenderer public&nbsp; GLRenderer ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function0&lt;@ NonNull EGLSpec &gt;&nbsp;eglSpecFactory, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Function1&lt;@ NonNull EGLManager ,&nbsp;@ NonNull EGLConfig &gt;&nbsp;eglConfigFactory ) Parameters @ NonNull Function0&lt;@ NonNull EGLSpec &gt;&nbsp;eglSpecFactory Callback invoked to determine the EGL spec version to use for EGL management. This is invoked on the GL Thread @ NonNull Function1&lt;@ NonNull EGLManager ,&nbsp;@ NonNull EGLConfig &gt;&nbsp;eglConfigFactory Callback invoked to determine the appropriate EGLConfig used to create the EGL context. This is invoked on the GL Thread Public methods attach Added in 1.0.3 public&nbsp;final&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp; attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SurfaceView &nbsp;surfaceView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface provided by the given SurfaceView to be managed by the backing thread. A corresponding EGLSurface is created on the GLThread as well as a callback for rendering into the surface through RenderCallback . This method automatically configures a SurfaceHolder.Callback used to attach the android.view.Surface when the underlying SurfaceHolder that contains the surface is available. Similarly this surface will be detached from GLRenderer when the surface provided by the SurfaceView is destroyed (i.e. SurfaceHolder.Callback.surfaceDestroyed is called. If the android.view.Surface is already available by the time this method is invoked, it is attached synchronously. Parameters @ NonNull SurfaceView &nbsp;surfaceView SurfaceView that provides the surface to be rendered by the backing thread @ NonNull GLRenderer.RenderCallback &nbsp;renderer callbacks used to create a corresponding EGLSurface from the given surface as well as render content into the created EGLSurface Returns @ NonNull GLRenderer.RenderTarget RenderTarget used for subsequent requests to communicate with the provided Surface (ex. requestRender or detach ). Throws kotlin.IllegalStateException If this method was called when the GLThread has not started (i.e. start has not been called) attach Added in 1.0.3 public&nbsp;final&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp; attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull TextureView &nbsp;textureView, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface provided by the given TextureView to be managed by the backing thread. A corresponding EGLSurface is created on the GLThread as well as a callback for rendering into the surface through RenderCallback . This method automatically configures a TextureView.SurfaceTextureListener used to create a android.view.Surface when the underlying SurfaceTexture is available. Similarly this surface will be detached from GLRenderer if the underlying SurfaceTexture is destroyed (i.e. TextureView.SurfaceTextureListener.onSurfaceTextureDestroyed is called. If the SurfaceTexture is already available by the time this method is called, then it is attached synchronously. Parameters @ NonNull TextureView &nbsp;textureView TextureView that provides the surface to be rendered into on the GLThread @ NonNull GLRenderer.RenderCallback &nbsp;renderer callbacks used to create a corresponding EGLSurface from the given surface as well as render content into the created EGLSurface Returns @ NonNull GLRenderer.RenderTarget RenderTarget used for subsequent requests to communicate with the provided Surface (ex. requestRender or detach ). Throws kotlin.IllegalStateException If this method was called when the GLThread has not started (i.e. start has not been called) attach Added in 1.0.3 public&nbsp;final&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp; attach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Surface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Adds the android.view.Surface to be managed by the GLThread. A corresponding EGLSurface is created on the GLThread as well as a callback for rendering into the surface through RenderCallback . Unlike the other attach methods that consume a SurfaceView or TextureView , this method does not handle any lifecycle callbacks associated with the target surface. Therefore it is up to the consumer to properly setup/teardown resources associated with this surface. Parameters @ NonNull Surface &nbsp;surface Target surface to be managed by the backing thread int&nbsp;width Desired width of the surface int&nbsp;height Desired height of the surface @ NonNull GLRenderer.RenderCallback &nbsp;renderer Callbacks used to create a corresponding EGLSurface from the given surface as well as render content into the created EGLSurface Returns @ NonNull GLRenderer.RenderTarget RenderTarget used for subsequent requests to communicate with the provided Surface (ex. requestRender or detach ). Throws kotlin.IllegalStateException If this method was called when the GLThread has not started (i.e. start has not been called) createRenderTarget Added in 1.0.3 public&nbsp;final&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp; createRenderTarget ( &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderCallback &nbsp;renderer ) Creates a new RenderTarget without a corresponding android.view.Surface . This avoids creation of an EGLSurface which is useful in scenarios where only rendering to a frame buffer object is required. Parameters int&nbsp;width Desired width of the RenderTarget int&nbsp;height Desired height of the RenderTarget @ NonNull GLRenderer.RenderCallback &nbsp;renderer Callbacks used to issue OpenGL commands to the RenderTarget Returns @ NonNull GLRenderer.RenderTarget RenderTarget used for subsequent requests to render through RenderTarget.requestRender or to remove itself from the GLRenderer through RenderTarget.detach Throws kotlin.IllegalStateException If this method was called when the GLThread has not started (i.e. start has not been called) detach Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; detach ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;cancelPending, &nbsp;&nbsp;&nbsp;&nbsp;@ WorkerThread Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onDetachComplete ) Removes the corresponding RenderTarget from management of the GLThread. This destroys the EGLSurface associated with this surface and subsequent requests to render into the surface with the provided token are ignored. If the cancelPending flag is set to true, any queued request to render that has not started yet is cancelled. However, if this is invoked in the middle of the frame being rendered, it will continue to process the current frame. Additionally if this flag is false, all pending requests to render will be processed before the RenderTarget is detached. Note the detach operation will only occur if the GLRenderer is started, that is if isRunning returns true. Otherwise this is a no-op. GLRenderer will automatically detach all RenderTarget instances as part of its teardown process. execute Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; execute (@ NonNull Runnable &nbsp;runnable) Queue a Runnable to be executed on the GL rendering thread. Note it is important that this Runnable does not block otherwise it can stall the GL thread. The EGLContext will be created after start is invoked and before the runnable is executed. Parameters @ NonNull Runnable &nbsp;runnable Runnable to be executed isRunning Added in 1.0.3 public&nbsp;final&nbsp;boolean&nbsp; isRunning () Determines if the GLThread has been started. That is start has been invoked on this GLRenderer instance without a corresponding call to stop . registerEGLContextCallback Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; registerEGLContextCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.EGLContextCallback &nbsp;callback ) Add an EGLContextCallback to receive callbacks for construction and destruction of EGL dependencies. These callbacks are invoked on the backing thread. requestRender Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; requestRender ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onRenderComplete ) Mark the corresponding surface session with the given token as dirty to schedule a call to RenderCallback#onDrawFrame. If there is already a queued request to render into the provided surface with the specified token, this request is ignored. Note the render operation will only occur if the GLRenderer is started, that is if isRunning returns true. Otherwise this is a no-op. Parameters @ NonNull GLRenderer.RenderTarget &nbsp;target RenderTarget to be re-rendered Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onRenderComplete Optional callback invoked on the backing thread after the frame has been rendered. resize Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; resize ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.RenderTarget &nbsp;target, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height, &nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onResizeComplete ) Resize the corresponding surface associated with the RenderTarget to the specified width and height and re-render. This will destroy the EGLSurface created by RenderCallback.onSurfaceCreated and invoke it again with the updated dimensions. An optional callback is invoked on the backing thread after the resize operation is complete. Note the resize operation will only occur if the GLRenderer is started, that is if isRunning returns true. Otherwise this is a no-op. Parameters @ NonNull GLRenderer.RenderTarget &nbsp;target RenderTarget to be resized int&nbsp;width Updated width of the corresponding surface int&nbsp;height Updated height of the corresponding surface Function1&lt;@ NonNull GLRenderer.RenderTarget ,&nbsp; Unit &gt;&nbsp;onResizeComplete Optional callback invoked on the backing thread when the resize operation is complete start Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; start (@ NonNull String &nbsp;name) Starts the GLThread. After this method is called, consumers can attempt to attach android.view.Surface instances through attach as well as schedule content to be drawn through requestRender Parameters @ NonNull String &nbsp;name Optional name to provide to the GLThread Throws kotlin.IllegalStateException if EGLConfig with desired attributes cannot be created stop Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; stop (boolean&nbsp;cancelPending,&nbsp;Function1&lt;@ NonNull GLRenderer ,&nbsp; Unit &gt;&nbsp;onStop) Stop the corresponding GL thread. This destroys all EGLSurfaces as well as any other EGL dependencies. All queued requests that have not been processed yet are cancelled. Note the stop operation will only occur if the GLRenderer was previously started, that is isRunning returns true. Otherwise this is a no-op. Parameters boolean&nbsp;cancelPending If true all pending requests and cancelled and the backing thread is torn down immediately. If false, all pending requests are processed first before tearing down the backing thread. Subsequent requests made after this call are ignored. Function1&lt;@ NonNull GLRenderer ,&nbsp; Unit &gt;&nbsp;onStop Optional callback invoked on the backing thread after it is torn down. unregisterEGLContextCallback Added in 1.0.3 public&nbsp;final&nbsp;void&nbsp; unregisterEGLContextCallback ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull GLRenderer.EGLContextCallback &nbsp;callback ) Remove EGLContextCallback to no longer receive callbacks for construction and destruction of EGL dependencies. These callbacks are invoked on the backing thread</body></html>
+<html><head><title>GLRenderer</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="GLRenderer">
+      <meta itemprop="path" content="androidx.graphics.opengl">
+      <meta itemprop="property" content="attach(android.view.SurfaceView,androidx.graphics.opengl.GLRenderer.RenderCallback)">
+      <meta itemprop="property" content="attach(android.view.TextureView,androidx.graphics.opengl.GLRenderer.RenderCallback)">
+      <meta itemprop="property" content="attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">
+      <meta itemprop="property" content="createRenderTarget(kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">
+      <meta itemprop="property" content="detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">
+      <meta itemprop="property" content="execute(java.lang.Runnable)">
+      <meta itemprop="property" content="isRunning()">
+      <meta itemprop="property" content="registerEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">
+      <meta itemprop="property" content="requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">
+      <meta itemprop="property" content="resize(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Int,kotlin.Int,kotlin.Function1)">
+      <meta itemprop="property" content="start(kotlin.String)">
+      <meta itemprop="property" content="stop(kotlin.Boolean,kotlin.Function1)">
+      <meta itemprop="property" content="unregisterEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="glrenderer" data-text="GLRenderer" tabindex="-1">GLRenderer</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/graphics">androidx.graphics:graphics-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/graphics/opengl/GLRenderer.kt+class:androidx.graphics.opengl.GLRenderer" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/graphics/opengl/GLRenderer" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Class responsible for coordination of requests to render into surfaces using OpenGL. This creates a backing thread to handle EGL dependencies and draw leveraging OpenGL across multiple <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> instances that can be attached and detached throughout the lifecycle of an application. Usage of this class is recommended to be done on the UI thread.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">GLRenderer.EGLContextCallback</a></code></div>
+              <p>Callbacks invoked when the GL dependencies are created and destroyed.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a></code></div>
+              <p>Interface used for creating an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> with a user defined configuration from the provided surface as well as a callback used to render content into the surface for a given frame</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></div>
+              <p>Handle to a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> that is given to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a></code> to handle rendering.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#GLRenderer(kotlin.Function0,kotlin.Function1)">GLRenderer</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function0&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a>&gt;&nbsp;eglSpecFactory,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLManager">EGLManager</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&gt;&nbsp;eglConfigFactory<br>)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.SurfaceView,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</code></div>
+              <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> provided by the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code> to be managed by the backing thread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.TextureView,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a>&nbsp;textureView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</code></div>
+              <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> provided by the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code> to be managed by the backing thread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</code></div>
+              <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> to be managed by the GLThread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#createRenderTarget(kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">createRenderTarget</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</code></div>
+              <p>Creates a new <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> without a corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">detach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;cancelPending,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onDetachComplete<br>)</code></div>
+              <p>Removes the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> from management of the GLThread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#execute(java.lang.Runnable)">execute</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable)</code></div>
+              <p>Queue a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a></code> to be executed on the GL rendering thread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a>()</code></div>
+              <p>Determines if the GLThread has been started.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#registerEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">registerEGLContextCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">GLRenderer.EGLContextCallback</a>&nbsp;callback<br>)</code></div>
+              <p>Add an <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">EGLContextCallback</a></code> to receive callbacks for construction and destruction of EGL dependencies.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onRenderComplete<br>)</code></div>
+              <p>Mark the corresponding surface session with the given token as dirty to schedule a call to RenderCallback#onDrawFrame.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#resize(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Int,kotlin.Int,kotlin.Function1)">resize</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onResizeComplete<br>)</code></div>
+              <p>Resize the corresponding surface associated with the RenderTarget to the specified width and height and re-render.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#start(kotlin.String)">start</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;name)</code></div>
+              <p>Starts the GLThread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#stop(kotlin.Boolean,kotlin.Function1)">stop</a>(boolean&nbsp;cancelPending,&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onStop)</code></div>
+              <p>Stop the corresponding GL thread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#unregisterEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">unregisterEGLContextCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">GLRenderer.EGLContextCallback</a>&nbsp;callback<br>)</code></div>
+              <p>Remove <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">EGLContextCallback</a></code> to no longer receive callbacks for construction and destruction of EGL dependencies.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="GLRenderer(kotlin.Function0, kotlin.Function1)"></a><a name="GLRenderer-kotlin.Function0-kotlin.Function1-"></a><a name="glrenderer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="GLRenderer(kotlin.Function0,kotlin.Function1)" data-text="GLRenderer" tabindex="-1">GLRenderer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#GLRenderer(kotlin.Function0,kotlin.Function1)">GLRenderer</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function0&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a>&gt;&nbsp;eglSpecFactory,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLManager">EGLManager</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&gt;&nbsp;eglConfigFactory<br>)</pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function0&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a>&gt;&nbsp;eglSpecFactory</code></td>
+                <td>
+                  <p>Callback invoked to determine the EGL spec version to use for EGL management. This is invoked on the GL Thread</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLManager">EGLManager</a>,&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&gt;&nbsp;eglConfigFactory</code></td>
+                <td>
+                  <p>Callback invoked to determine the appropriate EGLConfig used to create the EGL context. This is invoked on the GL Thread</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="attach(android.view.SurfaceView, androidx.graphics.opengl.GLRenderer.RenderCallback)"></a><a name="attach-android.view.SurfaceView-androidx.graphics.opengl.GLRenderer.RenderCallback-"></a><a name="attach"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="attach(android.view.SurfaceView,androidx.graphics.opengl.GLRenderer.RenderCallback)" data-text="attach" tabindex="-1">attach</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.SurfaceView,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</pre></devsite-code>
+        <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> provided by the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code> to be managed by the backing thread.</p>
+        <p>A corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> is created on the GLThread as well as a callback for rendering into the surface through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">RenderCallback</a></code>.</p>
+        <p>This method automatically configures a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceHolder.Callback.html">SurfaceHolder.Callback</a></code> used to attach the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> when the underlying <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceHolder.html">SurfaceHolder</a></code> that contains the surface is available. Similarly this surface will be detached from <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a></code> when the surface provided by the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code> is destroyed (i.e. <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceHolder.Callback.html#surfaceDestroyed(android.view.SurfaceHolder)">SurfaceHolder.Callback.surfaceDestroyed</a></code> is called.</p>
+        <p>If the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> is already available by the time this method is invoked, it is attached synchronously.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a>&nbsp;surfaceView</code></td>
+                <td>
+                  <p>SurfaceView that provides the surface to be rendered by the backing thread</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer</code></td>
+                <td>
+                  <p>callbacks used to create a corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> from the given surface as well as render content into the created <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> used for subsequent requests to communicate with the provided Surface (ex. <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">detach</a></code>).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method was called when the GLThread has not started (i.e. start has not been called)</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="attach(android.view.TextureView, androidx.graphics.opengl.GLRenderer.RenderCallback)"></a><a name="attach-android.view.TextureView-androidx.graphics.opengl.GLRenderer.RenderCallback-"></a><a name="attach"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="attach(android.view.TextureView,androidx.graphics.opengl.GLRenderer.RenderCallback)" data-text="attach" tabindex="-1">attach</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.TextureView,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a>&nbsp;textureView,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</pre></devsite-code>
+        <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> provided by the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code> to be managed by the backing thread.</p>
+        <p>A corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> is created on the GLThread as well as a callback for rendering into the surface through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">RenderCallback</a></code>.</p>
+        <p>This method automatically configures a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.SurfaceTextureListener.html">TextureView.SurfaceTextureListener</a></code> used to create a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> when the underlying <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html">SurfaceTexture</a></code> is available. Similarly this surface will be detached from <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a></code> if the underlying <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html">SurfaceTexture</a></code> is destroyed (i.e. <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.SurfaceTextureListener.html#onSurfaceTextureDestroyed(android.graphics.SurfaceTexture)">TextureView.SurfaceTextureListener.onSurfaceTextureDestroyed</a></code> is called.</p>
+        <p>If the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html">SurfaceTexture</a></code> is already available by the time this method is called, then it is attached synchronously.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a>&nbsp;textureView</code></td>
+                <td>
+                  <p>TextureView that provides the surface to be rendered into on the GLThread</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer</code></td>
+                <td>
+                  <p>callbacks used to create a corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> from the given surface as well as render content into the created <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> used for subsequent requests to communicate with the provided Surface (ex. <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">detach</a></code>).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method was called when the GLThread has not started (i.e. start has not been called)</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="attach(android.view.Surface, kotlin.Int, kotlin.Int, androidx.graphics.opengl.GLRenderer.RenderCallback)"></a><a name="attach-android.view.Surface-kotlin.Int-kotlin.Int-androidx.graphics.opengl.GLRenderer.RenderCallback-"></a><a name="attach"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)" data-text="attach" tabindex="-1">attach</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</pre></devsite-code>
+        <p>Adds the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> to be managed by the GLThread. A corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> is created on the GLThread as well as a callback for rendering into the surface through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">RenderCallback</a></code>. Unlike the other <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a></code> methods that consume a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/SurfaceView.html">SurfaceView</a></code> or <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/TextureView.html">TextureView</a></code>, this method does not handle any lifecycle callbacks associated with the target surface. Therefore it is up to the consumer to properly setup/teardown resources associated with this surface.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface</code></td>
+                <td>
+                  <p>Target surface to be managed by the backing thread</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;width</code></td>
+                <td>
+                  <p>Desired width of the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">surface</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;height</code></td>
+                <td>
+                  <p>Desired height of the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">surface</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer</code></td>
+                <td>
+                  <p>Callbacks used to create a corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> from the given surface as well as render content into the created <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> used for subsequent requests to communicate with the provided Surface (ex. <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">detach</a></code>).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method was called when the GLThread has not started (i.e. start has not been called)</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="createRenderTarget(kotlin.Int, kotlin.Int, androidx.graphics.opengl.GLRenderer.RenderCallback)"></a><a name="createRenderTarget-kotlin.Int-kotlin.Int-androidx.graphics.opengl.GLRenderer.RenderCallback-"></a><a name="createrendertarget"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="createRenderTarget(kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)" data-text="createRenderTarget" tabindex="-1">createRenderTarget</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#createRenderTarget(kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">createRenderTarget</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer<br>)</pre></devsite-code>
+        <p>Creates a new <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> without a corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code>. This avoids creation of an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code> which is useful in scenarios where only rendering to a frame buffer object is required.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;width</code></td>
+                <td>
+                  <p>Desired width of the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;height</code></td>
+                <td>
+                  <p>Desired height of the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback">GLRenderer.RenderCallback</a>&nbsp;renderer</code></td>
+                <td>
+                  <p>Callbacks used to issue OpenGL commands to the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> used for subsequent requests to render through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget#requestRender(kotlin.Function1)">RenderTarget.requestRender</a></code> or to remove itself from the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a></code> through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget#detach(kotlin.Boolean,kotlin.Function1)">RenderTarget.detach</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If this method was called when the GLThread has not started (i.e. start has not been called)</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="detach(androidx.graphics.opengl.GLRenderer.RenderTarget, kotlin.Boolean, kotlin.Function1)"></a><a name="detach-androidx.graphics.opengl.GLRenderer.RenderTarget-kotlin.Boolean-kotlin.Function1-"></a><a name="detach"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)" data-text="detach" tabindex="-1">detach</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">detach</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;boolean&nbsp;cancelPending,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/WorkerThread">WorkerThread</a> Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onDetachComplete<br>)</pre></devsite-code>
+        <p>Removes the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> from management of the GLThread. This destroys the EGLSurface associated with this surface and subsequent requests to render into the surface with the provided token are ignored.</p>
+        <p>If the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#detach(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Boolean,kotlin.Function1)">cancelPending</a></code> flag is set to true, any queued request to render that has not started yet is cancelled. However, if this is invoked in the middle of the frame being rendered, it will continue to process the current frame.</p>
+        <p>Additionally if this flag is false, all pending requests to render will be processed before the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> is detached.</p>
+        <p>Note the detach operation will only occur if the GLRenderer is started, that is if <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a></code> returns true. Otherwise this is a no-op. GLRenderer will automatically detach all <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">RenderTarget</a></code> instances as part of its teardown process.</p>
+      </div>
+      <div class="api-item"><a name="execute-java.lang.Runnable-"></a><a name="execute"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="execute(java.lang.Runnable)" data-text="execute" tabindex="-1">execute</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#execute(java.lang.Runnable)">execute</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable)</pre></devsite-code>
+        <p>Queue a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a></code> to be executed on the GL rendering thread. Note it is important that this <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a></code> does not block otherwise it can stall the GL thread. The EGLContext will be created after <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#start(kotlin.String)">start</a></code> is invoked and before the runnable is executed.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;runnable</code></td>
+                <td>
+                  <p>Runnable to be executed</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isRunning--"></a><a name="isrunning"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isRunning()" data-text="isRunning" tabindex="-1">isRunning</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a>()</pre></devsite-code>
+        <p>Determines if the GLThread has been started. That is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#start(kotlin.String)">start</a></code> has been invoked on this GLRenderer instance without a corresponding call to <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#stop(kotlin.Boolean,kotlin.Function1)">stop</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="registerEGLContextCallback-androidx.graphics.opengl.GLRenderer.EGLContextCallback-"></a><a name="registereglcontextcallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="registerEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)" data-text="registerEGLContextCallback" tabindex="-1">registerEGLContextCallback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#registerEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">registerEGLContextCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">GLRenderer.EGLContextCallback</a>&nbsp;callback<br>)</pre></devsite-code>
+        <p>Add an <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">EGLContextCallback</a></code> to receive callbacks for construction and destruction of EGL dependencies.</p>
+        <p>These callbacks are invoked on the backing thread.</p>
+      </div>
+      <div class="api-item"><a name="requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget, kotlin.Function1)"></a><a name="requestRender-androidx.graphics.opengl.GLRenderer.RenderTarget-kotlin.Function1-"></a><a name="requestrender"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)" data-text="requestRender" tabindex="-1">requestRender</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onRenderComplete<br>)</pre></devsite-code>
+        <p>Mark the corresponding surface session with the given token as dirty to schedule a call to RenderCallback#onDrawFrame. If there is already a queued request to render into the provided surface with the specified token, this request is ignored.</p>
+        <p>Note the render operation will only occur if the GLRenderer is started, that is if <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a></code> returns true. Otherwise this is a no-op.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target</code></td>
+                <td>
+                  <p>RenderTarget to be re-rendered</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onRenderComplete</code></td>
+                <td>
+                  <p>Optional callback invoked on the backing thread after the frame has been rendered.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="resize(androidx.graphics.opengl.GLRenderer.RenderTarget, kotlin.Int, kotlin.Int, kotlin.Function1)"></a><a name="resize-androidx.graphics.opengl.GLRenderer.RenderTarget-kotlin.Int-kotlin.Int-kotlin.Function1-"></a><a name="resize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="resize(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Int,kotlin.Int,kotlin.Function1)" data-text="resize" tabindex="-1">resize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#resize(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Int,kotlin.Int,kotlin.Function1)">resize</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;width,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;height,<br>&nbsp;&nbsp;&nbsp;&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onResizeComplete<br>)</pre></devsite-code>
+        <p>Resize the corresponding surface associated with the RenderTarget to the specified width and height and re-render. This will destroy the EGLSurface created by <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.RenderCallback#onSurfaceCreated(androidx.graphics.opengl.egl.EGLSpec,android.opengl.EGLConfig,android.view.Surface,kotlin.Int,kotlin.Int)">RenderCallback.onSurfaceCreated</a></code> and invoke it again with the updated dimensions. An optional callback is invoked on the backing thread after the resize operation is complete.</p>
+        <p>Note the resize operation will only occur if the GLRenderer is started, that is if <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a></code> returns true. Otherwise this is a no-op.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>&nbsp;target</code></td>
+                <td>
+                  <p>RenderTarget to be resized</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;width</code></td>
+                <td>
+                  <p>Updated width of the corresponding surface</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;height</code></td>
+                <td>
+                  <p>Updated height of the corresponding surface</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.RenderTarget">GLRenderer.RenderTarget</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onResizeComplete</code></td>
+                <td>
+                  <p>Optional callback invoked on the backing thread when the resize operation is complete</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="start-kotlin.String-"></a><a name="start"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="start(kotlin.String)" data-text="start" tabindex="-1">start</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#start(kotlin.String)">start</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;name)</pre></devsite-code>
+        <p>Starts the GLThread. After this method is called, consumers can attempt to attach <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">android.view.Surface</a></code> instances through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#attach(android.view.Surface,kotlin.Int,kotlin.Int,androidx.graphics.opengl.GLRenderer.RenderCallback)">attach</a></code> as well as schedule content to be drawn through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#requestRender(androidx.graphics.opengl.GLRenderer.RenderTarget,kotlin.Function1)">requestRender</a></code></p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;name</code></td>
+                <td>
+                  <p>Optional name to provide to the GLThread</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>if EGLConfig with desired attributes cannot be created</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="stop(kotlin.Boolean, kotlin.Function1)"></a><a name="stop-kotlin.Boolean-kotlin.Function1-"></a><a name="stop"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="stop(kotlin.Boolean,kotlin.Function1)" data-text="stop" tabindex="-1">stop</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#stop(kotlin.Boolean,kotlin.Function1)">stop</a>(boolean&nbsp;cancelPending,&nbsp;Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onStop)</pre></devsite-code>
+        <p>Stop the corresponding GL thread. This destroys all EGLSurfaces as well as any other EGL dependencies. All queued requests that have not been processed yet are cancelled.</p>
+        <p>Note the stop operation will only occur if the GLRenderer was previously started, that is <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer#isRunning()">isRunning</a></code> returns true. Otherwise this is a no-op.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean&nbsp;cancelPending</code></td>
+                <td>
+                  <p>If true all pending requests and cancelled and the backing thread is torn down immediately. If false, all pending requests are processed first before tearing down the backing thread. Subsequent requests made after this call are ignored.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">Function1&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer">GLRenderer</a>,&nbsp;<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unit/index.html">Unit</a>&gt;&nbsp;onStop</code></td>
+                <td>
+                  <p>Optional callback invoked on the backing thread after it is torn down.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="unregisterEGLContextCallback-androidx.graphics.opengl.GLRenderer.EGLContextCallback-"></a><a name="unregistereglcontextcallback"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="unregisterEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)" data-text="unregisterEGLContextCallback" tabindex="-1">unregisterEGLContextCallback</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/GLRenderer#unregisterEGLContextCallback(androidx.graphics.opengl.GLRenderer.EGLContextCallback)">unregisterEGLContextCallback</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">GLRenderer.EGLContextCallback</a>&nbsp;callback<br>)</pre></devsite-code>
+        <p>Remove <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/GLRenderer.EGLContextCallback">EGLContextCallback</a></code> to no longer receive callbacks for construction and destruction of EGL dependencies.</p>
+        <p>These callbacks are invoked on the backing thread</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

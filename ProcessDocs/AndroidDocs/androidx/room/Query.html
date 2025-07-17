@@ -1,1 +1,741 @@
-<html><head><title>Class Documentation</title></head><body>Query Artifact: androidx.room:room-common View Source Added in 2.0.0 Kotlin | Java @ Target (allowedTargets&nbsp;=&nbsp;[AnnotationTarget.FUNCTION,&nbsp;AnnotationTarget.PROPERTY_GETTER]) @ Retention (value&nbsp;=&nbsp;AnnotationRetention.BINARY) public annotation Query Marks a method in a Dao annotated class as a query method. The value of the annotation includes the query that will be run when this method is called. This query is verified at compile time by Room to ensure that it compiles fine against the database. The arguments of the method will be bound to the bind arguments in the SQL statement. See SQLite's binding documentation for details of bind arguments in SQLite. Room only supports named bind parameter :name to avoid any confusion between the method parameters and the query bind parameters. Room will automatically bind the parameters of the method into the bind arguments. This is done by matching the name of the parameters to the name of the bind arguments. @Query ( "SELECT * FROM song WHERE release_year = :year" ) public abstract fun findSongsByReleaseYear ( year : Int ) : List&lt;Song&gt; As an extension over SQLite bind arguments, Room supports binding a list of parameters to the query. At runtime, Room will build the correct query to have matching number of bind arguments depending on the number of items in the method parameter. @Query ( "SELECT * FROM song WHERE id IN(:songIds)" ) public abstract fun findByIds ( songIds : Array&lt;Long&gt; ) : List&lt;Song&gt; For the example above, if the songIds is an array of 3 elements, Room will run the query as: SELECT * FROM song WHERE id IN(?, ?, ?) and bind each item in the songIds array into the statement. One caveat of this type of binding is that only 999 items can be bound to the query, this is a limitation of SQLite see Section 9 of SQLite Limits There are 4 type of statements supported in Query methods: SELECT, INSERT, UPDATE, and DELETE. For SELECT queries, Room will infer the result contents from the method's return type and generate the code that will automatically convert the query result into the method's return type. For single result queries, the return type can be any data object (also known as data classes). For queries that return multiple values, you can use java.util.List or Array . In addition to these, any query may return android.database.Cursor or any query result can be wrapped in a androidx.lifecycle.LiveData. INSERT queries can return void or Long . If it is a Long , the value is the SQLite rowid of the row inserted by this query. Note that queries which insert multiple rows cannot return more than one rowid, so avoid such statements if returning Long . UPDATE or DELETE queries can return void or Int . If it is an Int , the value is the number of rows affected by this query. Flow If you are using Kotlin, you can also return Flow&lt;T&gt; from query methods. This creates a Flow&lt;T&gt; object that emits the results of the query and re-dispatches the query every time the data in the queried table changes. Note that querying a table with a return type of Flow&lt;T&gt; always returns the first row in the result set, rather than emitting all of the rows in sequence. To observe changes over multiple rows in a table, use a return type of Flow&lt;List&lt;T&gt;&gt; instead. Keep nullability in mind when choosing a return type, as it affects how the query method handles empty tables: When the return type is Flow&lt;T&gt; , querying an empty table throws a null pointer exception. When the return type is Flow&lt;T?&gt; , querying an empty table emits a null value. When the return type is Flow&lt;List&lt;T&gt;&gt; , querying an empty table emits an empty list. RxJava2 If you are using RxJava2, you can also return Flowable&lt;T&gt; or Publisher&lt;T&gt; from query methods. Since Reactive Streams does not allow null , if the query returns a nullable type, it will not dispatch anything if the value is null (like fetching an Entity row that does not exist). You can return [Flowable ] or Flowable > to workaround this limitation. Both Flowable&lt;T&gt; and Publisher&lt;T&gt; will observe the database for changes and re-dispatch if data changes. If you want to query the database without observing changes, you can use Maybe&lt;T&gt; or Single&lt;T&gt; . If a Single&lt;T&gt; query returns null , Room will throw androidx.room.EmptyResultSetException. Additionally if the statement is an INSERT, UPDATE or DELETE then the return types, Single&lt;T&gt; , Maybe&lt;T&gt; and Completable are supported. You can return arbitrary data classes from your query methods as long as the properties of the data class match the column names in the query result. For example, if you have class: data class SongDuration ( val name: String, @ColumnInfo(name = "duration") val length: String ) You can write a query like this: @Query ( "SELECT name, duration FROM song WHERE id = :songId LIMIT 1" ) public abstract fun findSongDuration ( songId : Int ) : SongDuration And Room will create the correct implementation to convert the query result into a SongDuration object. If there is a mismatch between the query result and the properties of the data class, and as long as there is at least 1 field match, Room prints a RoomWarnings.QUERY_MISMATCH warning and sets as many properties as it can. Summary Public constructors Query (@ NonNull String &nbsp;value) Public methods final @ NonNull String getValue () The SQLite query to be run. Public constructors Query public&nbsp; Query (@ NonNull String &nbsp;value) Public methods getValue public&nbsp;final&nbsp;@ NonNull String &nbsp; getValue () The SQLite query to be run. Returns @ NonNull String The query to be run.</body></html>
+<html><head><title>Query</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="Query">
+      <meta itemprop="path" content="androidx.room">
+      <meta itemprop="property" content="getValue()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="query" data-text="Query" tabindex="-1">Query</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/room">androidx.room:room-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/room/Query.kt+class:androidx.room.Query" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/room#2.0.0">2.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/room/Query" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.annotation/-target/index.html">Target</a>(allowedTargets&nbsp;=&nbsp;[AnnotationTarget.FUNCTION,&nbsp;AnnotationTarget.PROPERTY_GETTER])<br>@<a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.annotation/-retention/index.html">Retention</a>(value&nbsp;=&nbsp;AnnotationRetention.BINARY)<br>public annotation <a href="/reference/androidx/room/Query">Query</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Marks a method in a <code translate="no" dir="ltr">Dao</code> annotated class as a query method.</p>
+    <p>The value of the annotation includes the query that will be run when this method is called. This query is <b>verified at compile time</b> by Room to ensure that it compiles fine against the database.</p>
+    <p>The arguments of the method will be bound to the bind arguments in the SQL statement. See <a href="https://www.sqlite.org/c3ref/bind_blob.html">SQLite's binding documentation</a> for details of bind arguments in SQLite.</p>
+    <p>Room only supports named bind parameter <code translate="no" dir="ltr">:name</code> to avoid any confusion between the method parameters and the query bind parameters.</p>
+    <p>Room will automatically bind the parameters of the method into the bind arguments. This is done by matching the name of the parameters to the name of the bind arguments.</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Transact-SQL"><span class="devsite-syntax-nv">@Query</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-ss">"SELECT * FROM song WHERE release_year = :year"</span><span class="devsite-syntax-p">)</span><br><span class="devsite-syntax-k">public</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">abstract</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">findSongsByReleaseYear</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nf">year</span><span class="devsite-syntax-err">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nc">Int</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-err">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">List&lt;Song&gt;</span></pre></devsite-code>
+    <p>As an extension over SQLite bind arguments, Room supports binding a list of parameters to the query. At runtime, Room will build the correct query to have matching number of bind arguments depending on the number of items in the method parameter.</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Transact-SQL"><span class="devsite-syntax-nv">@Query</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-ss">"SELECT * FROM song WHERE id IN(:songIds)"</span><span class="devsite-syntax-p">)</span><br><span class="devsite-syntax-k">public</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">abstract</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">findByIds</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nl">songIds</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">Array&lt;Long&gt;</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-err">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">List&lt;Song&gt;</span></pre></devsite-code>
+    <p>For the example above, if the <code translate="no" dir="ltr">songIds</code> is an array of 3 elements, Room will run the query as: <code translate="no" dir="ltr">SELECT * FROM song WHERE id IN(?, ?, ?)</code> and bind each item in the <code translate="no" dir="ltr">songIds</code> array into the statement. One caveat of this type of binding is that only 999 items can be bound to the query, this is a limitation of SQLite <a href="https://www.sqlite.org/limits.html">see Section 9 of SQLite Limits</a></p>
+    <p>There are 4 type of statements supported in <code translate="no" dir="ltr">Query</code> methods: SELECT, INSERT, UPDATE, and DELETE.</p>
+    <p>For SELECT queries, Room will infer the result contents from the method's return type and generate the code that will automatically convert the query result into the method's return type. For single result queries, the return type can be any data object (also known as data classes). For queries that return multiple values, you can use java.util.List or <code translate="no" dir="ltr">Array</code>. In addition to these, any query may return android.database.Cursor or any query result can be wrapped in a androidx.lifecycle.LiveData.</p>
+    <p>INSERT queries can return <code translate="no" dir="ltr">void</code> or <code translate="no" dir="ltr">Long</code>. If it is a <code translate="no" dir="ltr">Long</code>, the value is the SQLite rowid of the row inserted by this query. Note that queries which insert multiple rows cannot return more than one rowid, so avoid such statements if returning <code translate="no" dir="ltr">Long</code>.</p>
+    <p>UPDATE or DELETE queries can return <code translate="no" dir="ltr">void</code> or <code translate="no" dir="ltr">Int</code>. If it is an <code translate="no" dir="ltr">Int</code>, the value is the number of rows affected by this query.</p>
+    <p><b>Flow</b></p>
+    <p>If you are using Kotlin, you can also return <code translate="no" dir="ltr">Flow&lt;T&gt;</code> from query methods. This creates a <code translate="no" dir="ltr">Flow&lt;T&gt;</code> object that emits the results of the query and re-dispatches the query every time the data in the queried table changes.</p>
+    <p>Note that querying a table with a return type of <code translate="no" dir="ltr">Flow&lt;T&gt;</code> always returns the first row in the result set, rather than emitting all of the rows in sequence. To observe changes over multiple rows in a table, use a return type of <code translate="no" dir="ltr">Flow&lt;List&lt;T&gt;&gt;</code> instead.</p>
+    <p>Keep nullability in mind when choosing a return type, as it affects how the query method handles empty tables:</p>
+    <ul>
+      <li>
+        <p>When the return type is <code translate="no" dir="ltr">Flow&lt;T&gt;</code>, querying an empty table throws a null pointer exception.</p>
+      </li>
+      <li>
+        <p>When the return type is <code translate="no" dir="ltr">Flow&lt;T?&gt;</code>, querying an empty table emits a null value.</p>
+      </li>
+      <li>
+        <p>When the return type is <code translate="no" dir="ltr">Flow&lt;List&lt;T&gt;&gt;</code>, querying an empty table emits an empty list.</p>
+      </li>
+    </ul>
+    <p><b>RxJava2</b></p>
+    <p>If you are using RxJava2, you can also return <code translate="no" dir="ltr">Flowable&lt;T&gt;</code> or <code translate="no" dir="ltr">Publisher&lt;T&gt;</code> from query methods. Since Reactive Streams does not allow <code translate="no" dir="ltr">null</code>, if the query returns a nullable type, it will not dispatch anything if the value is <code translate="no" dir="ltr">null</code> (like fetching an <code translate="no" dir="ltr"><a href="/reference/androidx/room/Entity">Entity</a></code> row that does not exist). You can return [Flowable<T[]>] or Flowable<List<T>> to workaround this limitation.</p>
+    <p>Both <code translate="no" dir="ltr">Flowable&lt;T&gt;</code> and <code translate="no" dir="ltr">Publisher&lt;T&gt;</code> will observe the database for changes and re-dispatch if data changes. If you want to query the database without observing changes, you can use <code translate="no" dir="ltr">Maybe&lt;T&gt;</code> or <code translate="no" dir="ltr">Single&lt;T&gt;</code>. If a <code translate="no" dir="ltr">Single&lt;T&gt;</code> query returns <code translate="no" dir="ltr">null</code>, Room will throw androidx.room.EmptyResultSetException.</p>
+    <p>Additionally if the statement is an INSERT, UPDATE or DELETE then the return types, <code translate="no" dir="ltr">Single&lt;T&gt;</code>, <code translate="no" dir="ltr">Maybe&lt;T&gt;</code> and <code translate="no" dir="ltr">Completable</code> are supported.</p>
+    <p>You can return arbitrary data classes from your query methods as long as the properties of the data class match the column names in the query result.</p>
+    <p>For example, if you have class:</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Scalate Server Page">data<span class="devsite-syntax-w"> </span>class<span class="devsite-syntax-w"> </span>SongDuration<span class="devsite-syntax-w"> </span>(<br><span class="devsite-syntax-w">  </span>val<span class="devsite-syntax-w"> </span>name:<span class="devsite-syntax-w"> </span>String,<br><span class="devsite-syntax-w">  </span>@ColumnInfo(name<span class="devsite-syntax-w"> </span>=<span class="devsite-syntax-w"> </span>"duration")<br><span class="devsite-syntax-w">  </span>val<span class="devsite-syntax-w"> </span>length:<span class="devsite-syntax-w"> </span>String<br>)</pre></devsite-code>
+    <p>You can write a query like this:</p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Transact-SQL"><span class="devsite-syntax-nv">@Query</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-ss">"SELECT name, duration FROM song WHERE id = :songId LIMIT 1"</span><span class="devsite-syntax-p">)</span><br><span class="devsite-syntax-k">public</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">abstract</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">fun</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">findSongDuration</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-nl">songId</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nc">Int</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-err">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">SongDuration</span></pre></devsite-code>
+    <p>And Room will create the correct implementation to convert the query result into a <code translate="no" dir="ltr">SongDuration</code> object. If there is a mismatch between the query result and the properties of the data class, and as long as there is at least 1 field match, Room prints a <code translate="no" dir="ltr"><a href="/reference/androidx/room/RoomWarnings#QUERY_MISMATCH()">RoomWarnings.QUERY_MISMATCH</a></code> warning and sets as many properties as it can.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Query#Query(kotlin.String)">Query</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;value)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/room/Query#getValue()">getValue</a>()</code></div>
+              <p>The SQLite query to be run.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="Query-kotlin.String-"></a><a name="query"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="Query(kotlin.String)" data-text="Query" tabindex="-1">Query</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/room/Query#Query(kotlin.String)">Query</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;value)</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getValue--"></a><a name="getvalue"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getValue()" data-text="getValue" tabindex="-1">getValue</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/room/Query#getValue()">getValue</a>()</pre></devsite-code>
+        <p>The SQLite query to be run.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+                <td>
+                  <p>The query to be run.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

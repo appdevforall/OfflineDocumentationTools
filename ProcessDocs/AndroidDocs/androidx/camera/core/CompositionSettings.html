@@ -1,1 +1,875 @@
-<html><head><title>Class Documentation</title></head><body>CompositionSettings Artifact: androidx.camera:camera-core View Source Added in 1.5.0-beta01 Kotlin | Java public class CompositionSettings Composition settings for dual concurrent camera. It includes alpha value for blending, offset in x, y coordinates, scale of width and height. The offset, and scale of width and height are specified in normalized device coordinates(NDCs). The offset is applied after scale. The origin of normalized device coordinates is at the center of the viewing volume. The positive X-axis extends to the right, the positive Y-axis extends upwards.The x, y values range from -1 to 1. E.g. scale with (0.5f, 0.5f) and offset with (0.5f, 0.5f) is the bottom-right quadrant of the output device. Composited dual camera frames preview and recording can be supported using CompositionSettings and SingleCameraConfig . The z-order of composition is determined by the order of camera configs to bind. Currently the background color will be black by default. The resolution of camera frames for preview and recording will be determined by resolution selection strategy configured for each use case and the scale of width and height set in CompositionSettings , so it is recommended to use 16:9 aspect ratio strategy for preview if 16:9 quality selector is configured for video capture. The mirroring and rotation of the camera frame will be applied after composition because both cameras are using the same use cases. The following code snippet demonstrates how to display in Picture-in-Picture mode: 16 -------------------------------- | c0 | | | | | | | | --------- | 9 | | | | | | c1 | | | | | | | --------- | -------------------------------- c0 : primary camera c1 : secondary camera ResolutionSelector resolutionSelector = new ResolutionSelector . Builder () . setAspectRatioStrategy ( AspectRatioStrategy . RATIO_16_9_FALLBACK_AUTO_STRATEGY ) . build (); Preview preview = new Preview . Builder () . setResolutionSelector ( resolutionSelector ) . build (); preview . setSurfaceProvider ( mSinglePreviewView . getSurfaceProvider ()); UseCaseGroup useCaseGroup = new UseCaseGroup . Builder () . addUseCase ( preview ) . addUseCase ( mVideoCapture ) . build (); SingleCameraConfig primary = new SingleCameraConfig ( cameraSelectorPrimary , useCaseGroup , new CompositionSettings . Builder () . setAlpha ( 1 . 0f ) . setOffset ( 0 . 0f , 0 . 0f ) . setScale ( 1 . 0f , 1 . 0f ) . build (), lifecycleOwner ); SingleCameraConfig secondary = new SingleCameraConfig ( cameraSelectorSecondary , useCaseGroup , new CompositionSettings . Builder () . setAlpha ( 1 . 0f ) . setOffset ( -0 . 3f , -0 . 4f ) . setScale ( 0 . 3f , 0 . 3f ) . build (), lifecycleOwner ); cameraProvider . bindToLifecycle ( ImmutableList . of ( primary , secondary )); Summary Nested types public final class CompositionSettings.Builder A builder for CompositionSettings instances. Constants static&nbsp;final CompositionSettings DEFAULT Default composition settings, which will display in full screen with no offset and scale. Public methods float getAlpha () Gets the alpha. @ NonNull Pair &lt; Float ,&nbsp; Float &gt; getOffset () Gets the offset. @ NonNull Pair &lt; Float ,&nbsp; Float &gt; getScale () Gets the scale. Constants DEFAULT Added in 1.5.0-beta01 public&nbsp;static&nbsp;final&nbsp; CompositionSettings &nbsp; DEFAULT Default composition settings, which will display in full screen with no offset and scale. Public methods getAlpha Added in 1.5.0-beta01 public&nbsp;float&nbsp; getAlpha () Gets the alpha. Returns float alpha value. getOffset Added in 1.5.0-beta01 public&nbsp;@ NonNull Pair &lt; Float ,&nbsp; Float &gt;&nbsp; getOffset () Gets the offset. Returns @ NonNull Pair &lt; Float ,&nbsp; Float &gt; offset value. getScale Added in 1.5.0-beta01 public&nbsp;@ NonNull Pair &lt; Float ,&nbsp; Float &gt;&nbsp; getScale () Gets the scale. Negative value means mirroring in X or Y direction. Returns @ NonNull Pair &lt; Float ,&nbsp; Float &gt; scale value.</body></html>
+<html><head><title>CompositionSettings</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="CompositionSettings">
+      <meta itemprop="path" content="androidx.camera.core">
+      <meta itemprop="property" content="getAlpha()">
+      <meta itemprop="property" content="getOffset()">
+      <meta itemprop="property" content="getScale()">
+      <meta itemprop="property" content="DEFAULT()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="compositionsettings" data-text="CompositionSettings" tabindex="-1">CompositionSettings</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/core/CompositionSettings.java+class:androidx.camera.core.CompositionSettings" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/core/CompositionSettings" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public class <a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Composition settings for dual concurrent camera. It includes alpha value for blending, offset in x, y coordinates, scale of width and height. The offset, and scale of width and height are specified in normalized device coordinates(NDCs). The offset is applied after scale. The origin of normalized device coordinates is at the center of the viewing volume. The positive X-axis extends to the right, the positive Y-axis extends upwards.The x, y values range from -1 to 1. E.g. scale with <code translate="no" dir="ltr">(0.5f, 0.5f)</code> and offset with <code translate="no" dir="ltr">(0.5f, 0.5f)</code> is the bottom-right quadrant of the output device. </p>
+    <p>Composited dual camera frames preview and recording can be supported using <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/ConcurrentCamera.SingleCameraConfig">SingleCameraConfig</a></code>. The z-order of composition is determined by the order of camera configs to bind. Currently the background color will be black by default. The resolution of camera frames for preview and recording will be determined by resolution selection strategy configured for each use case and the scale of width and height set in <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code>, so it is recommended to use 16:9 aspect ratio strategy for preview if 16:9 quality selector is configured for video capture. The mirroring and rotation of the camera frame will be applied after composition because both cameras are using the same use cases. </p>
+    <p>The following code snippet demonstrates how to display in Picture-in-Picture mode: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="CSS+Lasso"><span class="devsite-syntax-w">                       </span><span class="devsite-syntax-nt">16</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">--------------------------------</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">               </span><span class="devsite-syntax-nt">c0</span><span class="devsite-syntax-w">             </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                              </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                              </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                              </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">---------</span><span class="devsite-syntax-w">                   </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">9</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">       </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                   </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">   </span><span class="devsite-syntax-nt">c1</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                   </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">       </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">                   </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-o">|</span><span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">---------</span><span class="devsite-syntax-w">                   </span><span class="devsite-syntax-o">|</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">--------------------------------</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">c0</span><span class="devsite-syntax-o">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">primary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">camera</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">c1</span><span class="devsite-syntax-o">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">secondary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">camera</span>
+<span class="devsite-syntax-w">    </span>
+<span class="devsite-syntax-w">      </span><pre class="prettyprint" translate="no" dir="ltr">
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">ResolutionSelector</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">resolutionSelector</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">ResolutionSelector</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Builder</span><span class="devsite-syntax-o">()</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setAspectRatioStrategy</span><span class="devsite-syntax-o">(</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-nt">AspectRatioStrategy</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">RATIO_16_9_FALLBACK_AUTO_STRATEGY</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">build</span><span class="devsite-syntax-o">();</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">Preview</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">preview</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">Preview</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Builder</span><span class="devsite-syntax-o">()</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setResolutionSelector</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">resolutionSelector</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">build</span><span class="devsite-syntax-o">();</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">preview</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setSurfaceProvider</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">mSinglePreviewView</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">getSurfaceProvider</span><span class="devsite-syntax-o">());</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">UseCaseGroup</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">useCaseGroup</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">UseCaseGroup</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Builder</span><span class="devsite-syntax-o">()</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">addUseCase</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">preview</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">addUseCase</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">mVideoCapture</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">build</span><span class="devsite-syntax-o">();</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">SingleCameraConfig</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">primary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">SingleCameraConfig</span><span class="devsite-syntax-o">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">cameraSelectorPrimary</span><span class="devsite-syntax-o">,</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">useCaseGroup</span><span class="devsite-syntax-o">,</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">CompositionSettings</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Builder</span><span class="devsite-syntax-o">()</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setAlpha</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">1</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setOffset</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setScale</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">1</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">1</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">build</span><span class="devsite-syntax-o">(),</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">lifecycleOwner</span><span class="devsite-syntax-o">);</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">SingleCameraConfig</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">secondary</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">SingleCameraConfig</span><span class="devsite-syntax-o">(</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">cameraSelectorSecondary</span><span class="devsite-syntax-o">,</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">useCaseGroup</span><span class="devsite-syntax-o">,</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">new</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">CompositionSettings</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Builder</span><span class="devsite-syntax-o">()</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setAlpha</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">1</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">0f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setOffset</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">-0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">3f</span><span class="devsite-syntax-o">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">-0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">4f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">setScale</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">3f</span><span class="devsite-syntax-o">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">0</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">3f</span><span class="devsite-syntax-o">)</span>
+<span class="devsite-syntax-w">                        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">build</span><span class="devsite-syntax-o">(),</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-nt">lifecycleOwner</span><span class="devsite-syntax-o">);</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">cameraProvider</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">bindToLifecycle</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">ImmutableList</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">of</span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">primary</span><span class="devsite-syntax-o">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">secondary</span><span class="devsite-syntax-o">));</span></pre></devsite-code>
+    </pre>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/camera/core/CompositionSettings.Builder">CompositionSettings.Builder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code> instances.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final <a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings#DEFAULT()">DEFAULT</a></code></div>
+              <p>Default composition settings, which will display in full screen with no offset and scale.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">float</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings#getAlpha()">getAlpha</a>()</code></div>
+              <p>Gets the alpha.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings#getOffset()">getOffset</a>()</code></div>
+              <p>Gets the offset.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/core/CompositionSettings#getScale()">getScale</a>()</code></div>
+              <p>Gets the scale.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDEFAULT()"></a><a name="setDEFAULT()"></a><a name="getDEFAULT--"></a><a name="setDEFAULT--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DEFAULT()" data-text="DEFAULT" tabindex="-1">DEFAULT</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;<a href="/reference/androidx/camera/core/CompositionSettings">CompositionSettings</a>&nbsp;<a href="/reference/androidx/camera/core/CompositionSettings#DEFAULT()">DEFAULT</a></pre></devsite-code>
+        <p>Default composition settings, which will display in full screen with no offset and scale.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getAlpha--"></a><a name="getalpha"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getAlpha()" data-text="getAlpha" tabindex="-1">getAlpha</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;float&nbsp;<a href="/reference/androidx/camera/core/CompositionSettings#getAlpha()">getAlpha</a>()</pre></devsite-code>
+        <p>Gets the alpha.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">float</code></td>
+                <td>
+                  <p>alpha value.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getOffset--"></a><a name="getoffset"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOffset()" data-text="getOffset" tabindex="-1">getOffset</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;&nbsp;<a href="/reference/androidx/camera/core/CompositionSettings#getOffset()">getOffset</a>()</pre></devsite-code>
+        <p>Gets the offset.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;</code></td>
+                <td>
+                  <p>offset value.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getScale--"></a><a name="getscale"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getScale()" data-text="getScale" tabindex="-1">getScale</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.5.0-beta01">1.5.0-beta01</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;&nbsp;<a href="/reference/androidx/camera/core/CompositionSettings#getScale()">getScale</a>()</pre></devsite-code>
+        <p>Gets the scale. Negative value means mirroring in X or Y direction.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/core/util/Pair">Pair</a>&lt;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Float.html">Float</a>&gt;</code></td>
+                <td>
+                  <p>scale value.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

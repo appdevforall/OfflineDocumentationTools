@@ -1,1 +1,1105 @@
-<html><head><title>Class Documentation</title></head><body>VideoRecordEvent.Finalize Artifact: androidx.camera:camera-video View Source Added in 1.1.0 Kotlin | Java public final class VideoRecordEvent.Finalize extends VideoRecordEvent java.lang.Object &nbsp;&nbsp;&nbsp;↳ androidx.camera.video.VideoRecordEvent &nbsp; &nbsp;&nbsp;&nbsp;↳ androidx.camera.video.VideoRecordEvent.Finalize Indicates the finalization of recording. The finalize event will be triggered regardless of whether the recording succeeds or fails. Use getError to obtain the error type and getCause to get the error cause. If there is no error, ERROR_NONE will be returned. Other error types indicate the recording is failed or stopped due to a certain reason. Please note that receiving a finalize event with error does not necessarily mean that the video file has not been generated. In some cases, the file can still be successfully generated depending on the error type. For example, a file will still be generated when the recording is finalized with ERROR_FILE_SIZE_LIMIT_REACHED . A file may or may not be generated when the recording is finalized with ERROR_INSUFFICIENT_STORAGE . Example to detect if an output file is generated: if ( videoRecordEvent instanceof VideoRecordEvent . Finalize ) { VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent ; OutputOptions options = finalizeEvent.getOutputOptions() ; switch (finalizeEvent.getError()) { case ERROR_INSUFFICIENT_STORAGE : if ( options instanceof FileOutputOptions ) { if ((( FileOutputOptions ) options ) . getFile () . exists ()) { // file exists } } else if ( options instanceof MediaStoreOutputOptions ) { Uri uri = finalizeEvent.getOutputResults().getOutputUri() ; if (uri != Uri.EMPTY) { // file exists } } else if ( options instanceof FileDescriptorOutputOptions ) { // User has to check the referenced target of the file descriptor. } break ; } } For certain types of errors, the output file will not be constructed correctly, and it will be the user's responsibility to deal with the incomplete file, such as deleting it. Example to delete the file: if ( videoRecordEvent instanceof VideoRecordEvent . Finalize ) { VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) videoRecordEvent ; OutputOptions options = finalizeEvent.getOutputOptions() ; switch (finalizeEvent.getError()) { case ERROR_UNKNOWN : case ERROR_RECORDER_ERROR : case ERROR_ENCODING_FAILED : case ERROR_NO_VALID_DATA : if ( options instanceof FileOutputOptions ) { (( FileOutputOptions ) options ) . getFile () . delete (); } else if ( options instanceof MediaStoreOutputOptions ) { Uri uri = finalizeEvent.getOutputResults().getOutputUri() ; if (uri != Uri.EMPTY) { context.getContentResolver().delete(uri, null, null) ; } } else if ( options instanceof FileDescriptorOutputOptions ) { // User has to clean up the referenced target of the file descriptor. } break ; } } If there's no error that prevents the file to be generated, the file can be accessed safely after receiving the finalize event. Summary Constants static&nbsp;final int ERROR_DURATION_LIMIT_REACHED = 9 The recording failed due to duration limitation. static&nbsp;final int ERROR_ENCODING_FAILED = 6 The recording failed while encoding. static&nbsp;final int ERROR_FILE_SIZE_LIMIT_REACHED = 2 The recording failed due to file size limitation. static&nbsp;final int ERROR_INSUFFICIENT_STORAGE = 3 The recording failed due to insufficient storage space. static&nbsp;final int ERROR_INVALID_OUTPUT_OPTIONS = 5 The recording failed due to invalid output options. static&nbsp;final int ERROR_NONE = 0 The recording succeeded with no error. static&nbsp;final int ERROR_NO_VALID_DATA = 8 The recording failed because no valid data was produced to be recorded. static&nbsp;final int ERROR_RECORDER_ERROR = 7 The recording failed because the Recorder is in an unrecoverable error state. static&nbsp;final int ERROR_RECORDING_GARBAGE_COLLECTED = 10 The recording was stopped because the Recording object was garbage collected. static&nbsp;final int ERROR_SOURCE_INACTIVE = 4 The recording failed because the source becomes inactive and stops sending frames. static&nbsp;final int ERROR_UNKNOWN = 1 An unknown error occurred. Public methods @ Nullable Throwable getCause () Gets the error cause. int getError () Gets the error type for a video recording. @ NonNull OutputResults getOutputResults () Gets the OutputResults . boolean hasError () Indicates whether an error occurred. Inherited methods From androidx.camera.video.VideoRecordEvent @ NonNull OutputOptions getOutputOptions () Gets the OutputOptions associated with this event. @ NonNull RecordingStats getRecordingStats () Gets the recording statistics of current event. Constants ERROR_DURATION_LIMIT_REACHED Added in 1.3.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_DURATION_LIMIT_REACHED = 9 The recording failed due to duration limitation. The duration limit refers to getDurationLimitMillis . The recording will be finalized automatically with this error when the limit is reached and the data produced before the limit is reached will be saved to the output file. ERROR_ENCODING_FAILED Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_ENCODING_FAILED = 6 The recording failed while encoding. This error may be generated when the video or audio codec encounters an error during encoding. When this happens and the output file is generated, the output file is not properly constructed. The application will need to clean up the output file, such as deleting the file. ERROR_FILE_SIZE_LIMIT_REACHED Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_FILE_SIZE_LIMIT_REACHED = 2 The recording failed due to file size limitation. The file size limit refers to getFileSizeLimit . The recording will be finalized automatically with this error when the limit is reached and the data produced before the limit is reached will be saved to the output file. ERROR_INSUFFICIENT_STORAGE Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_INSUFFICIENT_STORAGE = 3 The recording failed due to insufficient storage space. There are two possible cases that will cause this error. The storage is already full before the recording starts, so no output file will be generated. The storage becomes full during recording, so the output file will be generated. ERROR_INVALID_OUTPUT_OPTIONS Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_INVALID_OUTPUT_OPTIONS = 5 The recording failed due to invalid output options. This error is generated when invalid output options have been used while preparing a recording, such as with the prepareRecording method. The error will depend on the subclass of OutputOptions used. No output file will be generated with this error. ERROR_NONE Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_NONE = 0 The recording succeeded with no error. ERROR_NO_VALID_DATA Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_NO_VALID_DATA = 8 The recording failed because no valid data was produced to be recorded. This error is generated when the essential data for a recording to be played correctly is missing, for example, a recording must contain at least one key frame. The application will need to clean up the output file, such as deleting the file. ERROR_RECORDER_ERROR Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_RECORDER_ERROR = 7 The recording failed because the Recorder is in an unrecoverable error state. When this happens and the output file is generated, the output file is not properly constructed. The application will need to clean up the output file, such as deleting the file. Such an error will usually require creating a new Recorder object to start a new recording. ERROR_RECORDING_GARBAGE_COLLECTED Added in 1.3.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_RECORDING_GARBAGE_COLLECTED = 10 The recording was stopped because the Recording object was garbage collected. The Recording object returned by start must be referenced until the recording is no longer needed. If it is not, the active recording will be stopped and this error will be produced. Once stop or close has been invoked, the recording object no longer needs to be referenced. ERROR_SOURCE_INACTIVE Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_SOURCE_INACTIVE = 4 The recording failed because the source becomes inactive and stops sending frames. One case is that if camera is closed due to lifecycle stopped, the active recording will be finalized with this error, and the output will be generated, containing the frames produced before camera closing. Attempting to start a new recording will be finalized immediately if the source remains inactive and no output will be generated. ERROR_UNKNOWN Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;int&nbsp; ERROR_UNKNOWN = 1 An unknown error occurred. The output file may or moy not be generated. Since the error is not determined, application should clean up the output file, such as deleting it. Public methods getCause Added in 1.1.0 public&nbsp;@ Nullable Throwable &nbsp; getCause () Gets the error cause. Returns the error cause if any, otherwise returns null . Note that not all error types include an error cause. For some error types, the file may still be generated successfully with no error cause. For example, ERROR_FILE_SIZE_LIMIT_REACHED , ERROR_DURATION_LIMIT_REACHED and ERROR_SOURCE_INACTIVE . getError Added in 1.1.0 public&nbsp;int&nbsp; getError () Gets the error type for a video recording. Possible values are ERROR_NONE , ERROR_UNKNOWN , ERROR_FILE_SIZE_LIMIT_REACHED , ERROR_INSUFFICIENT_STORAGE , ERROR_INVALID_OUTPUT_OPTIONS , ERROR_ENCODING_FAILED , ERROR_RECORDER_ERROR , ERROR_NO_VALID_DATA and ERROR_SOURCE_INACTIVE . getOutputResults Added in 1.1.0 public&nbsp;@ NonNull OutputResults &nbsp; getOutputResults () Gets the OutputResults . hasError Added in 1.1.0 public&nbsp;boolean&nbsp; hasError () Indicates whether an error occurred. Returns false if getError returns ERROR_NONE , otherwise true .</body></html>
+<html><head><title>VideoRecordEvent.Finalize</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="VideoRecordEvent.Finalize">
+      <meta itemprop="path" content="androidx.camera.video">
+      <meta itemprop="property" content="getCause()">
+      <meta itemprop="property" content="getError()">
+      <meta itemprop="property" content="getOutputResults()">
+      <meta itemprop="property" content="hasError()">
+      <meta itemprop="property" content="ERROR_DURATION_LIMIT_REACHED()">
+      <meta itemprop="property" content="ERROR_ENCODING_FAILED()">
+      <meta itemprop="property" content="ERROR_FILE_SIZE_LIMIT_REACHED()">
+      <meta itemprop="property" content="ERROR_INSUFFICIENT_STORAGE()">
+      <meta itemprop="property" content="ERROR_INVALID_OUTPUT_OPTIONS()">
+      <meta itemprop="property" content="ERROR_NONE()">
+      <meta itemprop="property" content="ERROR_NO_VALID_DATA()">
+      <meta itemprop="property" content="ERROR_RECORDER_ERROR()">
+      <meta itemprop="property" content="ERROR_RECORDING_GARBAGE_COLLECTED()">
+      <meta itemprop="property" content="ERROR_SOURCE_INACTIVE()">
+      <meta itemprop="property" content="ERROR_UNKNOWN()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="videorecordevent.finalize" data-text="VideoRecordEvent.Finalize" tabindex="-1">VideoRecordEvent.Finalize</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera">androidx.camera:camera-video</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/video/VideoRecordEvent.java+class:androidx.camera.video.VideoRecordEvent.Finalize" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/video/VideoRecordEvent.Finalize" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize">VideoRecordEvent.Finalize</a> extends <a href="/reference/androidx/camera/video/VideoRecordEvent">VideoRecordEvent</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper">
+      <table class="jd-inheritance-table">
+        <tbody>
+          <tr>
+            <td colspan="3"><a href="https://developer.android.com/reference/java/lang/Object.html">java.lang.Object</a></td>
+          </tr>
+          <tr>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="2"><a href="/reference/androidx/camera/video/VideoRecordEvent">androidx.camera.video.VideoRecordEvent</a></td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td class="jd-inheritance-space">&nbsp;&nbsp;&nbsp;↳</td>
+            <td colspan="1"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize">androidx.camera.video.VideoRecordEvent.Finalize</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <hr>
+    <p>Indicates the finalization of recording. </p>
+    <p>The finalize event will be triggered regardless of whether the recording succeeds or fails. Use <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getError()">getError</a></code> to obtain the error type and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getCause()">getCause</a></code> to get the error cause. If there is no error, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NONE()">ERROR_NONE</a></code> will be returned. Other error types indicate the recording is failed or stopped due to a certain reason. Please note that receiving a finalize event with error does not necessarily mean that the video file has not been generated. In some cases, the file can still be successfully generated depending on the error type. For example, a file will still be generated when the recording is finalized with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_FILE_SIZE_LIMIT_REACHED()">ERROR_FILE_SIZE_LIMIT_REACHED</a></code>. A file may or may not be generated when the recording is finalized with <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INSUFFICIENT_STORAGE()">ERROR_INSUFFICIENT_STORAGE</a></code>. Example to detect if an output file is generated: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="CSS+Lasso"><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">videoRecordEvent</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">VideoRecordEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Finalize</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">VideoRecordEvent.Finalize</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">(VideoRecordEvent.Finalize)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">videoRecordEvent</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">OutputOptions</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent.getOutputOptions()</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">switch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">(finalizeEvent.getError())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ERROR_INSUFFICIENT_STORAGE</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">FileOutputOptions</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-n">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(((</span><span class="devsite-syntax-n">FileOutputOptions</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">options</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-nf">getFile</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-nf">exists</span><span class="devsite-syntax-p">())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-o">//</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">file</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">exists</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-err">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">MediaStoreOutputOptions</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">Uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent.getOutputResults().getOutputUri()</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">(uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">!=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Uri.EMPTY)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-err">//</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">file</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">exists</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-err">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">FileDescriptorOutputOptions</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">//</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">User</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">has</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">to</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">check</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">the</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">referenced</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">target</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">of</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">the</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">file</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">descriptor.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">break</span><span class="devsite-syntax-o">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">}</span>
+<span class="devsite-syntax-err">}</span></pre></devsite-code>
+    <p>For certain types of errors, the output file will not be constructed correctly, and it will be the user's responsibility to deal with the incomplete file, such as deleting it. Example to delete the file: </p>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="CSS+Lasso"><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">videoRecordEvent</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">VideoRecordEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-nc">Finalize</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">VideoRecordEvent.Finalize</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">(VideoRecordEvent.Finalize)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">videoRecordEvent</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">OutputOptions</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent.getOutputOptions()</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">switch</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">(finalizeEvent.getError())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ERROR_UNKNOWN</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ERROR_RECORDER_ERROR</span><span class="devsite-syntax-o">:</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ERROR_ENCODING_FAILED</span><span class="devsite-syntax-o">:</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">case</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ERROR_NO_VALID_DATA</span><span class="devsite-syntax-o">:</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">FileOutputOptions</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">((</span><span class="devsite-syntax-n">FileOutputOptions</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">options</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-nf">getFile</span><span class="devsite-syntax-p">()</span><span class="devsite-syntax-o">.</span><span class="devsite-syntax-nf">delete</span><span class="devsite-syntax-p">();</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">MediaStoreOutputOptions</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">Uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">finalizeEvent.getOutputResults().getOutputUri()</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">(uri</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">!=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">Uri.EMPTY)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-err">context.getContentResolver().delete(uri,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">null,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">null)</span><span class="devsite-syntax-p">;</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-err">}</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">else</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">if</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">(</span><span class="devsite-syntax-nt">options</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">instanceof</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nt">FileDescriptorOutputOptions</span><span class="devsite-syntax-o">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-err">//</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">User</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">has</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">to</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">clean</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">up</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">the</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">referenced</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">target</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">of</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">the</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">file</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-err">descriptor.</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-nt">break</span><span class="devsite-syntax-o">;</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-err">}</span>
+<span class="devsite-syntax-err">}</span></pre></devsite-code>
+    <p>If there's no error that prevents the file to be generated, the file can be accessed safely after receiving the finalize event.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_DURATION_LIMIT_REACHED()">ERROR_DURATION_LIMIT_REACHED</a> = 9</code></div>
+              <p>The recording failed due to duration limitation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_ENCODING_FAILED()">ERROR_ENCODING_FAILED</a> = 6</code></div>
+              <p>The recording failed while encoding.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_FILE_SIZE_LIMIT_REACHED()">ERROR_FILE_SIZE_LIMIT_REACHED</a> = 2</code></div>
+              <p>The recording failed due to file size limitation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INSUFFICIENT_STORAGE()">ERROR_INSUFFICIENT_STORAGE</a> = 3</code></div>
+              <p>The recording failed due to insufficient storage space.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INVALID_OUTPUT_OPTIONS()">ERROR_INVALID_OUTPUT_OPTIONS</a> = 5</code></div>
+              <p>The recording failed due to invalid output options.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NONE()">ERROR_NONE</a> = 0</code></div>
+              <p>The recording succeeded with no error.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NO_VALID_DATA()">ERROR_NO_VALID_DATA</a> = 8</code></div>
+              <p>The recording failed because no valid data was produced to be recorded.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_RECORDER_ERROR()">ERROR_RECORDER_ERROR</a> = 7</code></div>
+              <p>The recording failed because the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> is in an unrecoverable error state.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_RECORDING_GARBAGE_COLLECTED()">ERROR_RECORDING_GARBAGE_COLLECTED</a> = 10</code></div>
+              <p>The recording was stopped because the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recording">Recording</a></code> object was garbage collected.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_SOURCE_INACTIVE()">ERROR_SOURCE_INACTIVE</a> = 4</code></div>
+              <p>The recording failed because the source becomes inactive and stops sending frames.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_UNKNOWN()">ERROR_UNKNOWN</a> = 1</code></div>
+              <p>An unknown error occurred.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/Throwable.html">Throwable</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getCause()">getCause</a>()</code></div>
+              <p>Gets the error cause.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getError()">getError</a>()</code></div>
+              <p>Gets the error type for a video recording.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/OutputResults">OutputResults</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getOutputResults()">getOutputResults</a>()</code></div>
+              <p>Gets the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputResults">OutputResults</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#hasError()">hasError</a>()</code></div>
+              <p>Indicates whether an error occurred.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive" id="inhmethods">
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="inherited-methods" data-text="Inherited methods" tabindex="-1">Inherited methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><devsite-expandable><span class="expand-control">From <a href="/reference/androidx/camera/video/VideoRecordEvent">androidx.camera.video.VideoRecordEvent</a></span>
+              <div class="devsite-table-wrapper">
+                <table class="responsive">
+                  <colgroup>
+                    <col width="40%">
+                    <col>
+                  </colgroup>
+                  <tbody class="list">
+                    <tr>
+                      <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/OutputOptions">OutputOptions</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent#getOutputOptions()">getOutputOptions</a>()</code></div>
+                        <p>Gets the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputOptions">OutputOptions</a></code> associated with this event.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/RecordingStats">RecordingStats</a></code></td>
+                      <td>
+                        <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent#getRecordingStats()">getRecordingStats</a>()</code></div>
+                        <p>Gets the recording statistics of current event.</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+</devsite-expandable>            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getERROR_DURATION_LIMIT_REACHED()"></a><a name="setERROR_DURATION_LIMIT_REACHED()"></a><a name="getERROR_DURATION_LIMIT_REACHED--"></a><a name="setERROR_DURATION_LIMIT_REACHED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_DURATION_LIMIT_REACHED()" data-text="ERROR_DURATION_LIMIT_REACHED" tabindex="-1">ERROR_DURATION_LIMIT_REACHED</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_DURATION_LIMIT_REACHED()">ERROR_DURATION_LIMIT_REACHED</a> = 9</pre></devsite-code>
+        <p>The recording failed due to duration limitation. </p>
+        <p>The duration limit refers to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputOptions#getDurationLimitMillis()">getDurationLimitMillis</a></code>. The recording will be finalized automatically with this error when the limit is reached and the data produced before the limit is reached will be saved to the output file.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_ENCODING_FAILED()"></a><a name="setERROR_ENCODING_FAILED()"></a><a name="getERROR_ENCODING_FAILED--"></a><a name="setERROR_ENCODING_FAILED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_ENCODING_FAILED()" data-text="ERROR_ENCODING_FAILED" tabindex="-1">ERROR_ENCODING_FAILED</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_ENCODING_FAILED()">ERROR_ENCODING_FAILED</a> = 6</pre></devsite-code>
+        <p>The recording failed while encoding. </p>
+        <p>This error may be generated when the video or audio codec encounters an error during encoding. When this happens and the output file is generated, the output file is not properly constructed. The application will need to clean up the output file, such as deleting the file.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_FILE_SIZE_LIMIT_REACHED()"></a><a name="setERROR_FILE_SIZE_LIMIT_REACHED()"></a><a name="getERROR_FILE_SIZE_LIMIT_REACHED--"></a><a name="setERROR_FILE_SIZE_LIMIT_REACHED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_FILE_SIZE_LIMIT_REACHED()" data-text="ERROR_FILE_SIZE_LIMIT_REACHED" tabindex="-1">ERROR_FILE_SIZE_LIMIT_REACHED</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_FILE_SIZE_LIMIT_REACHED()">ERROR_FILE_SIZE_LIMIT_REACHED</a> = 2</pre></devsite-code>
+        <p>The recording failed due to file size limitation. </p>
+        <p>The file size limit refers to <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputOptions#getFileSizeLimit()">getFileSizeLimit</a></code>. The recording will be finalized automatically with this error when the limit is reached and the data produced before the limit is reached will be saved to the output file.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_INSUFFICIENT_STORAGE()"></a><a name="setERROR_INSUFFICIENT_STORAGE()"></a><a name="getERROR_INSUFFICIENT_STORAGE--"></a><a name="setERROR_INSUFFICIENT_STORAGE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_INSUFFICIENT_STORAGE()" data-text="ERROR_INSUFFICIENT_STORAGE" tabindex="-1">ERROR_INSUFFICIENT_STORAGE</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INSUFFICIENT_STORAGE()">ERROR_INSUFFICIENT_STORAGE</a> = 3</pre></devsite-code>
+        <p>The recording failed due to insufficient storage space. </p>
+        <p>There are two possible cases that will cause this error. </p>
+        <ul>
+          <li>The storage is already full before the recording starts, so no output file will be generated.</li>
+          <li>The storage becomes full during recording, so the output file will be generated. </li>
+        </ul>
+      </div>
+      <div class="api-item"><a name="getERROR_INVALID_OUTPUT_OPTIONS()"></a><a name="setERROR_INVALID_OUTPUT_OPTIONS()"></a><a name="getERROR_INVALID_OUTPUT_OPTIONS--"></a><a name="setERROR_INVALID_OUTPUT_OPTIONS--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_INVALID_OUTPUT_OPTIONS()" data-text="ERROR_INVALID_OUTPUT_OPTIONS" tabindex="-1">ERROR_INVALID_OUTPUT_OPTIONS</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INVALID_OUTPUT_OPTIONS()">ERROR_INVALID_OUTPUT_OPTIONS</a> = 5</pre></devsite-code>
+        <p>The recording failed due to invalid output options. </p>
+        <p>This error is generated when invalid output options have been used while preparing a recording, such as with the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder#prepareRecording(android.content.Context,androidx.camera.video.MediaStoreOutputOptions)">prepareRecording</a></code> method. The error will depend on the subclass of <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputOptions">OutputOptions</a></code> used. </p>
+        <p>No output file will be generated with this error.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_NONE()"></a><a name="setERROR_NONE()"></a><a name="getERROR_NONE--"></a><a name="setERROR_NONE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_NONE()" data-text="ERROR_NONE" tabindex="-1">ERROR_NONE</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NONE()">ERROR_NONE</a> = 0</pre></devsite-code>
+        <p>The recording succeeded with no error.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_NO_VALID_DATA()"></a><a name="setERROR_NO_VALID_DATA()"></a><a name="getERROR_NO_VALID_DATA--"></a><a name="setERROR_NO_VALID_DATA--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_NO_VALID_DATA()" data-text="ERROR_NO_VALID_DATA" tabindex="-1">ERROR_NO_VALID_DATA</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NO_VALID_DATA()">ERROR_NO_VALID_DATA</a> = 8</pre></devsite-code>
+        <p>The recording failed because no valid data was produced to be recorded. </p>
+        <p>This error is generated when the essential data for a recording to be played correctly is missing, for example, a recording must contain at least one key frame. The application will need to clean up the output file, such as deleting the file.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_RECORDER_ERROR()"></a><a name="setERROR_RECORDER_ERROR()"></a><a name="getERROR_RECORDER_ERROR--"></a><a name="setERROR_RECORDER_ERROR--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_RECORDER_ERROR()" data-text="ERROR_RECORDER_ERROR" tabindex="-1">ERROR_RECORDER_ERROR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_RECORDER_ERROR()">ERROR_RECORDER_ERROR</a> = 7</pre></devsite-code>
+        <p>The recording failed because the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> is in an unrecoverable error state. </p>
+        <p>When this happens and the output file is generated, the output file is not properly constructed. The application will need to clean up the output file, such as deleting the file. Such an error will usually require creating a new <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recorder">Recorder</a></code> object to start a new recording.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_RECORDING_GARBAGE_COLLECTED()"></a><a name="setERROR_RECORDING_GARBAGE_COLLECTED()"></a><a name="getERROR_RECORDING_GARBAGE_COLLECTED--"></a><a name="setERROR_RECORDING_GARBAGE_COLLECTED--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_RECORDING_GARBAGE_COLLECTED()" data-text="ERROR_RECORDING_GARBAGE_COLLECTED" tabindex="-1">ERROR_RECORDING_GARBAGE_COLLECTED</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.3.0">1.3.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_RECORDING_GARBAGE_COLLECTED()">ERROR_RECORDING_GARBAGE_COLLECTED</a> = 10</pre></devsite-code>
+        <p>The recording was stopped because the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recording">Recording</a></code> object was garbage collected. </p>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recording">Recording</a></code> object returned by <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/PendingRecording#start(java.util.concurrent.Executor,androidx.core.util.Consumer&lt;androidx.camera.video.VideoRecordEvent&gt;)">start</a></code> must be referenced until the recording is no longer needed. If it is not, the active recording will be stopped and this error will be produced. Once <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recording#stop()">stop</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/Recording#close()">close</a></code> has been invoked, the recording object no longer needs to be referenced.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_SOURCE_INACTIVE()"></a><a name="setERROR_SOURCE_INACTIVE()"></a><a name="getERROR_SOURCE_INACTIVE--"></a><a name="setERROR_SOURCE_INACTIVE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_SOURCE_INACTIVE()" data-text="ERROR_SOURCE_INACTIVE" tabindex="-1">ERROR_SOURCE_INACTIVE</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_SOURCE_INACTIVE()">ERROR_SOURCE_INACTIVE</a> = 4</pre></devsite-code>
+        <p>The recording failed because the source becomes inactive and stops sending frames. </p>
+        <p>One case is that if camera is closed due to lifecycle stopped, the active recording will be finalized with this error, and the output will be generated, containing the frames produced before camera closing. Attempting to start a new recording will be finalized immediately if the source remains inactive and no output will be generated.</p>
+      </div>
+      <div class="api-item"><a name="getERROR_UNKNOWN()"></a><a name="setERROR_UNKNOWN()"></a><a name="getERROR_UNKNOWN--"></a><a name="setERROR_UNKNOWN--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ERROR_UNKNOWN()" data-text="ERROR_UNKNOWN" tabindex="-1">ERROR_UNKNOWN</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_UNKNOWN()">ERROR_UNKNOWN</a> = 1</pre></devsite-code>
+        <p>An unknown error occurred. </p>
+        <p>The output file may or moy not be generated. Since the error is not determined, application should clean up the output file, such as deleting it.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getCause--"></a><a name="getcause"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCause()" data-text="getCause" tabindex="-1">getCause</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/Throwable.html">Throwable</a>&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getCause()">getCause</a>()</pre></devsite-code>
+        <p>Gets the error cause. </p>
+        <p>Returns the error cause if any, otherwise returns <code translate="no" dir="ltr">null</code>. </p>
+        <p>Note that not all error types include an error cause. For some error types, the file may still be generated successfully with no error cause. For example, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_FILE_SIZE_LIMIT_REACHED()">ERROR_FILE_SIZE_LIMIT_REACHED</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_DURATION_LIMIT_REACHED()">ERROR_DURATION_LIMIT_REACHED</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_SOURCE_INACTIVE()">ERROR_SOURCE_INACTIVE</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getError--"></a><a name="geterror"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getError()" data-text="getError" tabindex="-1">getError</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;int&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getError()">getError</a>()</pre></devsite-code>
+        <p>Gets the error type for a video recording. </p>
+        <p>Possible values are <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NONE()">ERROR_NONE</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_UNKNOWN()">ERROR_UNKNOWN</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_FILE_SIZE_LIMIT_REACHED()">ERROR_FILE_SIZE_LIMIT_REACHED</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INSUFFICIENT_STORAGE()">ERROR_INSUFFICIENT_STORAGE</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_INVALID_OUTPUT_OPTIONS()">ERROR_INVALID_OUTPUT_OPTIONS</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_ENCODING_FAILED()">ERROR_ENCODING_FAILED</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_RECORDER_ERROR()">ERROR_RECORDER_ERROR</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NO_VALID_DATA()">ERROR_NO_VALID_DATA</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_SOURCE_INACTIVE()">ERROR_SOURCE_INACTIVE</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getOutputResults--"></a><a name="getoutputresults"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOutputResults()" data-text="getOutputResults" tabindex="-1">getOutputResults</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/camera/video/OutputResults">OutputResults</a>&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getOutputResults()">getOutputResults</a>()</pre></devsite-code>
+        <p>Gets the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/OutputResults">OutputResults</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="hasError--"></a><a name="haserror"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="hasError()" data-text="hasError" tabindex="-1">hasError</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#hasError()">hasError</a>()</pre></devsite-code>
+        <p>Indicates whether an error occurred. </p>
+        <p>Returns <code translate="no" dir="ltr">false</code> if <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#getError()">getError</a></code> returns <code translate="no" dir="ltr"><a href="/reference/androidx/camera/video/VideoRecordEvent.Finalize#ERROR_NONE()">ERROR_NONE</a></code>, otherwise <code translate="no" dir="ltr">true</code>.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

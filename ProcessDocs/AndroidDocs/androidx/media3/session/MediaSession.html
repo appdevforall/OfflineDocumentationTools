@@ -1,1 +1,2152 @@
-<html><head><title>Class Documentation</title></head><body>MediaSession Artifact: androidx.media3:media3-session View Source Kotlin | Java @ DoNotMock public class MediaSession Known direct subclasses MediaLibraryService.MediaLibrarySession MediaLibraryService.MediaLibrarySession An extended MediaSession for the MediaLibraryService . A session that allows a media app to expose its player functionality, information of the playlist and the media item currently being played to other processes including the Android framework and other apps. The common use cases are as follows: Receiving and dispatching media key events (for instance Bluetooth/wired headset and remote control devices). Publish media playback information and player commands to SystemUI (media notification) and Android Auto/Wear OS. Separating UI process and playback process. A session should be created when an app wants to publish media playback information or handle media key events. In general, an app only needs one session for all playback, though multiple sessions can be created to provide finer grain controls of media. See Supporting Multiple Sessions for details. If an app wants to support playback when in the background, using a is the preferred approach. See MediaSessionService for details. Topics covered here: Session Lifecycle Threading Model Media Key Events Mapping Supporting Multiple Sessions Backward Compatibility with Legacy Session APIs Backward Compatibility with Legacy Controller APIs Session Lifecycle A session can be created by Builder . The owner of the session may pass its session token to other processes to allow them to create a MediaController to interact with the session. When a session receives playback commands, the session calls corresponding methods directly on the underlying player set by Builder or setPlayer . When an app is finished performing playback it must call release to clean up the session and notify any controllers. The app is responsible for releasing the underlying player after releasing the session. Threading Model The instances are thread safe, but must be used on a thread with a looper. Callback methods will be called on the application thread associated with the application looper of the underlying player. When a new player is set by setPlayer , the player must use the same application looper as the previous one. The session listens to player events via Player.Listener and expects the callback methods to be called on the application thread. If the player violates the threading contract, an IllegalStateException will be thrown. Media Key Events Mapping When the session receives media key events they are mapped to a method call on the underlying player. The following table shows the mapping between the event key code and the Player method which is called. Key code and corresponding Player API Key code Player API KEYCODE_MEDIA_PLAY play KEYCODE_MEDIA_PAUSE pause KEYCODE_MEDIA_PLAY_PAUSE KEYCODE_HEADSETHOOK For a single tap, pause if playWhenReady is true play otherwise In case the media key events are coming from another package ID than the package ID of the media app (events coming for instance from Bluetooth), a double tap generating two key events within a brief amount of time, is converted to seekToNext KEYCODE_MEDIA_NEXT seekToNext KEYCODE_MEDIA_PREVIOUS seekToPrevious KEYCODE_MEDIA_STOP stop KEYCODE_MEDIA_FAST_FORWARD seekForward KEYCODE_MEDIA_REWIND seekBack Supporting Multiple Sessions Generally, multiple sessions aren't necessary for most media apps. One exception is if your app can play multiple media content at the same time, but only for the playback of video-only media or remote playback, since the audio focus policy recommends not playing multiple audio content at the same time. Also, keep in mind that multiple media sessions would make Android Auto and Bluetooth devices with display to show your app multiple times, because they list up media sessions, not media apps. Backward compatibility with platform and legacy session APIs An active android.media.session.MediaSession is internally created with the session for backwards compatibility. It's used to handle incoming connections and commands from and legacy android.support.v4.media.session.MediaControllerCompat instances. Backward compatibility with platform and legacy controller APIs In addition to MediaController , the session also supports connections from the platform and legacy controller APIs - android.media.session.MediaController and android.support.v4.media.session.MediaControllerCompat . However, ControllerInfo may not be precise for these controllers. See ControllerInfo for the details. Neither an unknown package name nor an unknown UID mean that you should disallow a connection or commands per se. For SDK levels where such issues happen, session tokens can only be obtained by trusted controllers (e.g. Bluetooth, Auto, ...). This means only trusted controllers can connect and an app can accept such controllers in the same way as with legacy sessions. Summary Nested types public final class MediaSession.Builder A builder for MediaSession . public interface MediaSession.Callback A callback to handle incoming commands from MediaController . public final class MediaSession.ConnectionResult A result for onConnect to denote the set of available commands and the media button preferences for a controller . @ UnstableApi public class MediaSession.ConnectionResult.AcceptedResultBuilder A builder for ConnectionResult instances to accept a connection. public final class MediaSession.ControllerInfo Information of a MediaController or a MediaBrowser . @ UnstableApi public final class MediaSession.MediaItemsWithStartPosition Representation of a list of media items and where to start playing. Public methods final void broadcastCustomCommand ( SessionCommand &nbsp;command,&nbsp; Bundle &nbsp;args) Broadcasts a custom command to all connected controllers. final BitmapLoader @ UnstableApi getBitmapLoader () Returns the BitmapLoader . final List &lt; MediaSession.ControllerInfo &gt; getConnectedControllers () Returns the list of connected controllers. final @ Nullable MediaSession.ControllerInfo getControllerForCurrentRequest () Returns the ControllerInfo for the controller that sent the current request for a Player method. ImmutableList &lt; CommandButton &gt; @ UnstableApi getCustomLayout () Returns the custom layout of the session. final String getId () Returns the session ID. ImmutableList &lt; CommandButton &gt; @ UnstableApi getMediaButtonPreferences () Returns the media button preferences of the session. @ Nullable MediaSession.ControllerInfo @ UnstableApi getMediaNotificationControllerInfo () Returns the ControllerInfo of the media notification controller. final MediaSession.Token @ UnstableApi getPlatformToken () Returns the platform android.media.session.MediaSession.Token of the created internally by this session. final Player getPlayer () Returns the underlying Player . final @ Nullable PendingIntent getSessionActivity () Returns the PendingIntent to launch the session activity or null if not set. Bundle getSessionExtras () Returns the session extras. final boolean @ UnstableApi getShowPlayButtonIfPlaybackIsSuppressed () Returns whether a play button is shown if playback is suppressed . final SessionToken getToken () Returns the SessionToken for creating MediaController instances. final boolean @ UnstableApi isAutoCompanionController ( MediaSession.ControllerInfo &nbsp;controllerInfo) Returns whether the given ControllerInfo belongs to an Android Auto companion app controller. final boolean @ UnstableApi isAutomotiveController ( MediaSession.ControllerInfo &nbsp;controllerInfo) Returns whether the given ControllerInfo belongs to an Automotive OS controller. boolean @ UnstableApi isMediaNotificationController ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo ) Returns whether the given media controller info belongs to the media notification controller. final void release () Releases the session and disconnects all connected controllers. final ListenableFuture &lt; SessionResult &gt; sendCustomCommand ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; SessionCommand &nbsp;command, &nbsp;&nbsp;&nbsp;&nbsp; Bundle &nbsp;args ) Sends a custom command to a specific controller. final void @ UnstableApi sendError ( SessionError &nbsp;sessionError) Sends a non-fatal error to all connected controllers. final void @ UnstableApi sendError ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo, &nbsp;&nbsp;&nbsp;&nbsp; SessionError &nbsp;sessionError ) Sends a non-fatal error to the given controller. final void setAvailableCommands ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; SessionCommands &nbsp;sessionCommands, &nbsp;&nbsp;&nbsp;&nbsp; Player.Commands &nbsp;playerCommands ) Sets the new available commands for the controller. final void setCustomLayout ( List &lt; CommandButton &gt;&nbsp;layout) Sets the custom layout for all controllers. final ListenableFuture &lt; SessionResult &gt; @ CanIgnoreReturnValue setCustomLayout ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; CommandButton &gt;&nbsp;layout ) Sets the custom layout for the given controller. final void @ UnstableApi setMediaButtonPreferences ( List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences) Sets the media button preferences for all controllers. final ListenableFuture &lt; SessionResult &gt; @ UnstableApi @ CanIgnoreReturnValue setMediaButtonPreferences ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences ) Sets the media button preferences for the given controller. final void @ UnstableApi setPlaybackException (@ Nullable PlaybackException &nbsp;playbackException) Sets the playback exception for all connected controllers. final void @ UnstableApi setPlaybackException ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable PlaybackException &nbsp;playbackException ) Sets the playback exception for the given controller. final void setPlayer ( Player &nbsp;player) Sets the underlying Player for this session to dispatch incoming events to. final void @ UnstableApi setSessionActivity (@ Nullable PendingIntent &nbsp;activityPendingIntent) Updates the session activity that was set when building the session . final void @ UnstableApi setSessionActivity ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable PendingIntent &nbsp;activityPendingIntent ) Sends the session activity to the connected controller. final void setSessionExtras ( Bundle &nbsp;sessionExtras) Sets the session extras and sends them to connected controllers. final void setSessionExtras ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; Bundle &nbsp;sessionExtras ) Sends the session extras to the connected controller. Public methods broadcastCustomCommand public&nbsp;final&nbsp;void&nbsp; broadcastCustomCommand ( SessionCommand &nbsp;command,&nbsp; Bundle &nbsp;args) Broadcasts a custom command to all connected controllers. This call immediately returns and doesn't wait for a result from the controller. A command is not accepted if it is not a custom command. Parameters SessionCommand &nbsp;command A custom command. Bundle &nbsp;args A Bundle for additional arguments. May be empty. See also sendCustomCommand getBitmapLoader @ UnstableApi public&nbsp;final&nbsp; BitmapLoader &nbsp; getBitmapLoader () Returns the BitmapLoader . getConnectedControllers public&nbsp;final&nbsp; List &lt; MediaSession.ControllerInfo &gt;&nbsp; getConnectedControllers () Returns the list of connected controllers. getControllerForCurrentRequest public&nbsp;final&nbsp;@ Nullable MediaSession.ControllerInfo &nbsp; getControllerForCurrentRequest () Returns the ControllerInfo for the controller that sent the current request for a Player method. This method will return a non-null value while Player methods triggered by a controller are executed. Note: If you want to prevent a controller from calling a method, specify the available commands in onConnect or set them via setAvailableCommands . This method must be called on the application thread of the underlying player. Returns @ Nullable MediaSession.ControllerInfo The ControllerInfo of the controller that sent the current request, or null if not applicable. getCustomLayout @ UnstableApi public&nbsp; ImmutableList &lt; CommandButton &gt;&nbsp; getCustomLayout () Returns the custom layout of the session. This method will be deprecated, prefer to use getMediaButtonPreferences instead. Note that the media button preferences use slots to define the allowed button placement. For informational purpose only. Mutations on the Bundle of either a or a SessionCommand do not have effect. To change the custom layout use setCustomLayout or setCustomLayout . getId public&nbsp;final&nbsp; String &nbsp; getId () Returns the session ID. getMediaButtonPreferences @ UnstableApi public&nbsp; ImmutableList &lt; CommandButton &gt;&nbsp; getMediaButtonPreferences () Returns the media button preferences of the session. For informational purpose only. Mutations on the Bundle of either a or a SessionCommand do not have effect. To change the media button preferences use setMediaButtonPreferences. getMediaNotificationControllerInfo @ UnstableApi public&nbsp;@ Nullable MediaSession.ControllerInfo &nbsp; getMediaNotificationControllerInfo () Returns the ControllerInfo of the media notification controller. Use this controller info to set available commands and media button preferences that are consistently applied to the media notification on all API levels. Available session commands of the media notification controller are used to enable or disable buttons of the media button preferences before they are passed to the notification provider . Disabled command buttons are not converted to notification actions when using . This affects the media notification displayed by System UI below API 33. The available session commands of the media notification controller are used to maintain custom actions of the platform session (see PlaybackStateCompat.getCustomActions() ). Command buttons of the media button preferences are disabled or enabled according to the available session commands. Disabled command buttons are not converted to custom actions of the platform session. This affects the media notification displayed by System UI starting with API 33 . The available player commands are intersected with the actual available commands of the underlying player to determine the playback actions of the platform session (see PlaybackStateCompat.getActions() ). getPlatformToken @ UnstableApi public&nbsp;final&nbsp; MediaSession.Token &nbsp; getPlatformToken () Returns the platform android.media.session.MediaSession.Token of the created internally by this session. getPlayer public&nbsp;final&nbsp; Player &nbsp; getPlayer () Returns the underlying Player . getSessionActivity public&nbsp;final&nbsp;@ Nullable PendingIntent &nbsp; getSessionActivity () Returns the PendingIntent to launch the session activity or null if not set. Returns @ Nullable PendingIntent The PendingIntent to launch an activity belonging to the session. getSessionExtras public&nbsp; Bundle &nbsp; getSessionExtras () Returns the session extras. For informational purpose only. Mutations on the Bundle do not have immediate effect. To change the session extras use setSessionExtras or setSessionExtras . getShowPlayButtonIfPlaybackIsSuppressed @ UnstableApi public&nbsp;final&nbsp;boolean&nbsp; getShowPlayButtonIfPlaybackIsSuppressed () Returns whether a play button is shown if playback is suppressed . getToken public&nbsp;final&nbsp; SessionToken &nbsp; getToken () Returns the SessionToken for creating MediaController instances. isAutoCompanionController @ UnstableApi public&nbsp;final&nbsp;boolean&nbsp; isAutoCompanionController ( MediaSession.ControllerInfo &nbsp;controllerInfo) Returns whether the given ControllerInfo belongs to an Android Auto companion app controller. Note: This is not a security validation. Parameters MediaSession.ControllerInfo &nbsp;controllerInfo The controller info of the connected controller. Returns boolean True if the controller into belongs to a connected Auto companion client app. isAutomotiveController @ UnstableApi public&nbsp;final&nbsp;boolean&nbsp; isAutomotiveController ( MediaSession.ControllerInfo &nbsp;controllerInfo) Returns whether the given ControllerInfo belongs to an Automotive OS controller. Note: This is not a security validation. Parameters MediaSession.ControllerInfo &nbsp;controllerInfo The controller info of the connected controller. Returns boolean True if the controller into belongs to a connected Automotive OS controller. isMediaNotificationController @ UnstableApi public&nbsp;boolean&nbsp; isMediaNotificationController ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo ) Returns whether the given media controller info belongs to the media notification controller. See getMediaNotificationControllerInfo . Parameters MediaSession.ControllerInfo &nbsp;controllerInfo The controller info. Returns boolean Whether the controller info belongs to the media notification controller. release public&nbsp;final&nbsp;void&nbsp; release () Releases the session and disconnects all connected controllers. The session must not be used after calling this method. Releasing the session removes the session's listeners from the player but does not stop or release the player. An app can further use the player after the session is released and needs to make sure to eventually release the player. sendCustomCommand public&nbsp;final&nbsp; ListenableFuture &lt; SessionResult &gt;&nbsp; sendCustomCommand ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; SessionCommand &nbsp;command, &nbsp;&nbsp;&nbsp;&nbsp; Bundle &nbsp;args ) Sends a custom command to a specific controller. The result from onCustomCommand will be returned. A command is not accepted if it is not a custom command. Interoperability: This call has no effect when called for a platform or legacy controller . Parameters MediaSession.ControllerInfo &nbsp;controller The controller to send the custom command to. SessionCommand &nbsp;command A custom command. Bundle &nbsp;args A Bundle for additional arguments. May be empty. Returns ListenableFuture &lt; SessionResult &gt; A ListenableFuture of SessionResult from the controller. See also broadcastCustomCommand sendError @ UnstableApi public&nbsp;final&nbsp;void&nbsp; sendError ( SessionError &nbsp;sessionError) Sends a non-fatal error to all connected controllers. See sendError for sending an error to a specific controller only. Parameters SessionError &nbsp;sessionError The session error. sendError @ UnstableApi public&nbsp;final&nbsp;void&nbsp; sendError ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo, &nbsp;&nbsp;&nbsp;&nbsp; SessionError &nbsp;sessionError ) Sends a non-fatal error to the given controller. This will call onError of the given connected controller. When an error is sent to getMediaNotificationControllerInfo or a platform or legacy controller , the error of the playback state of the platform session is updated accordingly. Parameters MediaSession.ControllerInfo &nbsp;controllerInfo The controller to send the error to. SessionError &nbsp;sessionError The session error. Throws java.lang.IllegalArgumentException thrown if an error is attempted to be sent to a legacy controller. setAvailableCommands public&nbsp;final&nbsp;void&nbsp; setAvailableCommands ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; SessionCommands &nbsp;sessionCommands, &nbsp;&nbsp;&nbsp;&nbsp; Player.Commands &nbsp;playerCommands ) Sets the new available commands for the controller. This is a synchronous call. Changes in the available commands take effect immediately regardless of the controller notified about the change through onAvailableCommandsChanged and onAvailableSessionCommandsChanged . Note that playerCommands will be intersected with the available commands of the underlying Player and the controller will only be able to call the commonly available commands. Parameters MediaSession.ControllerInfo &nbsp;controller The controller to change allowed commands. SessionCommands &nbsp;sessionCommands The new available session commands. Player.Commands &nbsp;playerCommands The new available player commands. setCustomLayout public&nbsp;final&nbsp;void&nbsp; setCustomLayout ( List &lt; CommandButton &gt;&nbsp;layout) Sets the custom layout for all controllers. This method will be deprecated, prefer to use setMediaButtonPreferences . Note that the media button preferences use slots to define the allowed button placement. Calling this method broadcasts the custom layout to all connected Media3 controllers, including the media notification controller . On the controller side, the enabled flag is set to false if the available commands of a controller do not allow to use a button. onCustomLayoutChanged is only called if the new custom layout is different to the custom layout the controller already has available . Note that extras are ignored when comparing command buttons . Controllers that connect after calling this method will have the new custom layout available with the initial connection result. A custom layout specific to a controller can be set when the controller connects by using an . Parameters List &lt; CommandButton &gt;&nbsp;layout The ordered list of command buttons . setCustomLayout @ CanIgnoreReturnValue public&nbsp;final&nbsp; ListenableFuture &lt; SessionResult &gt;&nbsp; setCustomLayout ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; CommandButton &gt;&nbsp;layout ) Sets the custom layout for the given controller. This method will be deprecated, prefer to use setMediaButtonPreferences . Note that the media button preferences use slots to define the allowed button placement. Make sure to have the session commands of all command buttons of the custom layout available for controllers . Include the custom session commands a controller should be able to send in the available commands of the connection result that your app returns when the controller connects . The isEnabled flag is set according to the available commands of the controller and overrides a value that may have been set by the app. On the controller side, onCustomLayoutChanged is only called if the new custom layout is different to the custom layout the controller already has available . Note that this comparison uses equals and therefore ignores extras . On the controller side, the enabled flag is set to false if the available commands of the controller do not allow to use a button. Interoperability: This call has no effect when called for a platform or legacy controller . Parameters MediaSession.ControllerInfo &nbsp;controller The controller for which to set the custom layout. List &lt; CommandButton &gt;&nbsp;layout The ordered list of command buttons . setMediaButtonPreferences @ UnstableApi public&nbsp;final&nbsp;void&nbsp; setMediaButtonPreferences ( List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences) Sets the media button preferences for all controllers. Calling this method broadcasts the media button preferences to all connected Media3 controllers, including the media notification controller . On the controller side, the enabled flag is set to false if the available commands of a controller do not allow to use a button. onMediaButtonPreferencesChanged is only called if the new media button preferences are different to the media button preferences the controller already has available . Note that extras are ignored when comparing command buttons . Controllers that connect after calling this method will have the new media button preferences available with the initial connection result. Media button preferences specific to a controller can be set when the controller connects by using an ConnectionResult.AcceptedResultBuilder . Parameters List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences The ordered list of command buttons . setMediaButtonPreferences @ UnstableApi @ CanIgnoreReturnValue public&nbsp;final&nbsp; ListenableFuture &lt; SessionResult &gt;&nbsp; setMediaButtonPreferences ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences ) Sets the media button preferences for the given controller. Make sure to have the session commands of all command buttons of the media button preferences available for controllers . Include the custom session commands a controller should be able to send in the available commands of the connection result that your app returns when the controller connects . The isEnabled flag is set according to the available commands of the controller and overrides a value that may have been set by the app. On the controller side, onMediaButtonPreferencesChanged is only called if the new media button preferences are different to the media button preferences the controller already has available . Note that this comparison uses equals and therefore ignores extras . On the controller side, the enabled flag is set to false if the available commands of the controller do not allow to use a button. Interoperability: This call has no effect when called for a platform or legacy controller . Parameters MediaSession.ControllerInfo &nbsp;controller The controller for which to set the media button preferences. List &lt; CommandButton &gt;&nbsp;mediaButtonPreferences The ordered list of command buttons . setPlaybackException @ UnstableApi public&nbsp;final&nbsp;void&nbsp; setPlaybackException (@ Nullable PlaybackException &nbsp;playbackException) Sets the playback exception for all connected controllers. The exception set for controllers can be removed by passing null. This also resets any exception that may have been set for a specific controller with setPlaybackException . Parameters @ Nullable PlaybackException &nbsp;playbackException The PlaybackException or null. See also setPlaybackException setPlaybackException @ UnstableApi public&nbsp;final&nbsp;void&nbsp; setPlaybackException ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controllerInfo, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable PlaybackException &nbsp;playbackException ) Sets the playback exception for the given controller. When setting a non-null instance, the original player state is overridden. When the player is not in an error state, the exception is used to modify the player state and send it to the controller. If the player is already in an error state, then this exception replaces the original exception and sends the updated player state to the controller. An exception set for a given controller can be removed by setting null. Passing in a playback exception that has equal error info to the previously set exception for the given controller, results in a no-op. Parameters MediaSession.ControllerInfo &nbsp;controllerInfo The controller for which to set the playback exception. @ Nullable PlaybackException &nbsp;playbackException The PlaybackException or null. setPlayer public&nbsp;final&nbsp;void&nbsp; setPlayer ( Player &nbsp;player) Sets the underlying Player for this session to dispatch incoming events to. Parameters Player &nbsp;player A player that handles actual media playback in your app. Throws java.lang.IllegalArgumentException if the new player's application looper differs from the current player's looper, or canAdvertiseSession returns false. java.lang.IllegalStateException if the new player's application looper differs from the current looper. setSessionActivity @ UnstableApi public&nbsp;final&nbsp;void&nbsp; setSessionActivity (@ Nullable PendingIntent &nbsp;activityPendingIntent) Updates the session activity that was set when building the session . Note: When a controller is connected to the session that has a version smaller than 1.6.0, then setting the session activity to null has no effect on the controller side. Parameters @ Nullable PendingIntent &nbsp;activityPendingIntent The pending intent to start the session activity or null. Throws java.lang.IllegalArgumentException if the PendingIntent passed into this method is not an activity . setSessionActivity @ UnstableApi public&nbsp;final&nbsp;void&nbsp; setSessionActivity ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp;@ Nullable PendingIntent &nbsp;activityPendingIntent ) Sends the session activity to the connected controller. This call immediately returns and doesn't wait for a result from the controller. Interoperability: This call has no effect when called for a platform or legacy controller . To set the session activity of the platform session use the media notification controller as the target controller. Parameters MediaSession.ControllerInfo &nbsp;controller The controller to send the session activity to. @ Nullable PendingIntent &nbsp;activityPendingIntent The pending intent to start the session activity. Throws java.lang.IllegalArgumentException if the PendingIntent passed into this method is not an activity . setSessionExtras public&nbsp;final&nbsp;void&nbsp; setSessionExtras ( Bundle &nbsp;sessionExtras) Sets the session extras and sends them to connected controllers. The initial extras can be set when building the session . This call immediately returns and doesn't wait for a result from the controller. Parameters Bundle &nbsp;sessionExtras The session extras. setSessionExtras public&nbsp;final&nbsp;void&nbsp; setSessionExtras ( &nbsp;&nbsp;&nbsp;&nbsp; MediaSession.ControllerInfo &nbsp;controller, &nbsp;&nbsp;&nbsp;&nbsp; Bundle &nbsp;sessionExtras ) Sends the session extras to the connected controller. The initial extras for a specific controller can be set in onConnect when building the connection result . This call immediately returns and doesn't wait for a result from the controller. Interoperability: This call has no effect when called for a platform or legacy controller . Parameters MediaSession.ControllerInfo &nbsp;controller The controller to send the extras to. Bundle &nbsp;sessionExtras The session extras.</body></html>
+<html><head><title>MediaSession</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="MediaSession">
+      <meta itemprop="path" content="androidx.media3.session">
+      <meta itemprop="property" content="broadcastCustomCommand(androidx.media3.session.SessionCommand,android.os.Bundle)">
+      <meta itemprop="property" content="getBitmapLoader()">
+      <meta itemprop="property" content="getConnectedControllers()">
+      <meta itemprop="property" content="getControllerForCurrentRequest()">
+      <meta itemprop="property" content="getCustomLayout()">
+      <meta itemprop="property" content="getId()">
+      <meta itemprop="property" content="getMediaButtonPreferences()">
+      <meta itemprop="property" content="getMediaNotificationControllerInfo()">
+      <meta itemprop="property" content="getPlatformToken()">
+      <meta itemprop="property" content="getPlayer()">
+      <meta itemprop="property" content="getSessionActivity()">
+      <meta itemprop="property" content="getSessionExtras()">
+      <meta itemprop="property" content="getShowPlayButtonIfPlaybackIsSuppressed()">
+      <meta itemprop="property" content="getToken()">
+      <meta itemprop="property" content="isAutoCompanionController(androidx.media3.session.MediaSession.ControllerInfo)">
+      <meta itemprop="property" content="isAutomotiveController(androidx.media3.session.MediaSession.ControllerInfo)">
+      <meta itemprop="property" content="isMediaNotificationController(androidx.media3.session.MediaSession.ControllerInfo)">
+      <meta itemprop="property" content="release()">
+      <meta itemprop="property" content="sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)">
+      <meta itemprop="property" content="sendError(androidx.media3.session.SessionError)">
+      <meta itemprop="property" content="sendError(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionError)">
+      <meta itemprop="property" content="setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)">
+      <meta itemprop="property" content="setCustomLayout(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">
+      <meta itemprop="property" content="setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">
+      <meta itemprop="property" content="setMediaButtonPreferences(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">
+      <meta itemprop="property" content="setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">
+      <meta itemprop="property" content="setPlaybackException(androidx.media3.common.PlaybackException)">
+      <meta itemprop="property" content="setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)">
+      <meta itemprop="property" content="setPlayer(androidx.media3.common.Player)">
+      <meta itemprop="property" content="setSessionActivity(android.app.PendingIntent)">
+      <meta itemprop="property" content="setSessionActivity(androidx.media3.session.MediaSession.ControllerInfo,android.app.PendingIntent)">
+      <meta itemprop="property" content="setSessionExtras(android.os.Bundle)">
+      <meta itemprop="property" content="setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo,android.os.Bundle)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="mediasession" data-text="MediaSession" tabindex="-1">MediaSession</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-session</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/session/MediaSession.java+class:androidx.media3.session.MediaSession" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/session/MediaSession" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="https://errorprone.info/api/latest/com/google/errorprone/annotations/DoNotMock.html">DoNotMock</a><br>public class <a href="/reference/androidx/media3/session/MediaSession">MediaSession</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/media3/session/MediaLibraryService.MediaLibrarySession">MediaLibraryService.MediaLibrarySession</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaLibraryService.MediaLibrarySession">MediaLibraryService.MediaLibrarySession</a></code></td>
+                <td>
+                  <p>An extended <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession">MediaSession</a></code> for the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaLibraryService">MediaLibraryService</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>A session that allows a media app to expose its player functionality, information of the playlist and the media item currently being played to other processes including the Android framework and other apps. The common use cases are as follows: </p>
+    <ul>
+      <li>Receiving and dispatching media key events (for instance Bluetooth/wired headset and remote control devices). </li>
+      <li>Publish media playback information and player commands to SystemUI (media notification) and Android Auto/Wear OS. </li>
+      <li>Separating UI process and playback process. </li>
+    </ul>
+    <p>A session should be created when an app wants to publish media playback information or handle media key events. In general, an app only needs one session for all playback, though multiple sessions can be created to provide finer grain controls of media. See <a href="#MultipleSessions">Supporting Multiple Sessions</a> for details. </p>
+    <p>If an app wants to support playback when in the background, using a  is the preferred approach. See <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSessionService">MediaSessionService</a></code> for details. </p>
+    <p>Topics covered here: </p>
+    <ol>
+      <li><a href="#SessionLifecycle">Session Lifecycle</a></li>
+      <li><a href="#ThreadingModel">Threading Model</a></li>
+      <li><a href="#KeyEvents">Media Key Events Mapping</a></li>
+      <li><a href="#MultipleSessions">Supporting Multiple Sessions</a></li>
+      <li><a href="#BackwardCompatibility">Backward Compatibility with Legacy Session APIs</a></li>
+      <li><a href="#CompatibilityController">Backward Compatibility with Legacy Controller APIs</a></li>
+    </ol>
+    <h2 id="session-lifecycle" data-text="Session Lifecycle" tabindex="-1">Session Lifecycle</h2>
+    <p>A session can be created by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder">Builder</a></code>. The owner of the session may pass its <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getToken()"> session token</a></code> to other processes to allow them to create a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code> to interact with the session. </p>
+    <p>When a session receives playback commands, the session calls corresponding methods directly on the underlying player set by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#Builder(android.content.Context,androidx.media3.common.Player)">Builder</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setPlayer(androidx.media3.common.Player)">setPlayer</a></code>. </p>
+    <p>When an app is finished performing playback it must call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#release()">release</a></code> to clean up the session and notify any controllers. The app is responsible for releasing the underlying player after releasing the session. </p>
+    <h2 id="threading-model" data-text="Threading Model" tabindex="-1">Threading Model</h2>
+    <p>The instances are thread safe, but must be used on a thread with a looper. </p>
+    <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback">Callback</a></code> methods will be called on the application thread associated with the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getApplicationLooper()"> application looper</a></code> of the underlying player. When a new player is set by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setPlayer(androidx.media3.common.Player)">setPlayer</a></code>, the player must use the same application looper as the previous one. </p>
+    <p>The session listens to player events via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player.Listener">Player.Listener</a></code> and expects the callback methods to be called on the application thread. If the player violates the threading contract, an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">IllegalStateException</a></code> will be thrown. </p>
+    <h2 id="media-key-events-mapping" data-text="Media Key Events Mapping" tabindex="-1">Media Key Events Mapping</h2>
+    <p>When the session receives media key events they are mapped to a method call on the underlying player. The following table shows the mapping between the event key code and the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> method which is called. </p>
+    <table>
+      <caption>Key code and corresponding Player API</caption>
+      <tbody>
+        <tr>
+          <th>Key code</th>
+          <th>Player API</th>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PLAY()">KEYCODE_MEDIA_PLAY</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#play()">play</a></code></td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PAUSE()">KEYCODE_MEDIA_PAUSE</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#pause()">pause</a></code></td>
+        </tr>
+        <tr>
+          <td>
+            <ul>
+              <li><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PLAY_PAUSE()">KEYCODE_MEDIA_PLAY_PAUSE</a></code></li>
+              <li><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_HEADSETHOOK()">KEYCODE_HEADSETHOOK</a></code></li>
+            </ul>
+          </td>
+          <td>
+            <ul>
+              <li>For a single tap, 
+                <ul>
+                  <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#pause()">pause</a></code> if <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getPlayWhenReady()">playWhenReady</a></code> is <code translate="no" dir="ltr">true</code></li>
+                  <li><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#play()">play</a></code> otherwise</li>
+                </ul>
+              </li>
+              <li>In case the media key events are coming from another package ID than the package ID of the media app (events coming for instance from Bluetooth), a double tap generating two key events within a brief amount of time, is converted to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#seekToNext()">seekToNext</a></code></li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_NEXT()">KEYCODE_MEDIA_NEXT</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#seekToNext()">seekToNext</a></code></td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_PREVIOUS()">KEYCODE_MEDIA_PREVIOUS</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#seekToPrevious()">seekToPrevious</a></code></td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_STOP()">KEYCODE_MEDIA_STOP</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#stop()">stop</a></code></td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_FAST_FORWARD()">KEYCODE_MEDIA_FAST_FORWARD</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#seekForward()">seekForward</a></code></td>
+        </tr>
+        <tr>
+          <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/KeyEvent.html#KEYCODE_MEDIA_REWIND()">KEYCODE_MEDIA_REWIND</a></code></td>
+          <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#seekBack()">seekBack</a></code></td>
+        </tr>
+      </tbody>
+    </table>
+    <h2 id="supporting-multiple-sessions" data-text="Supporting Multiple Sessions" tabindex="-1">Supporting Multiple Sessions</h2>
+    <p>Generally, multiple sessions aren't necessary for most media apps. One exception is if your app can play multiple media content at the same time, but only for the playback of video-only media or remote playback, since the <a href="https://developer.android.com/media/optimize/audio-focus">audio focus policy</a> recommends not playing multiple audio content at the same time. Also, keep in mind that multiple media sessions would make Android Auto and Bluetooth devices with display to show your app multiple times, because they list up media sessions, not media apps. </p>
+    <h2 id="backward-compatibility-with-platform-and-legacy-session-apis" data-text="Backward compatibility with platform and legacy session APIs" tabindex="-1">Backward compatibility with platform and legacy session APIs</h2>
+    <p>An active <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/session/MediaSession.html">android.media.session.MediaSession</a></code> is internally created with the session for backwards compatibility. It's used to handle incoming connections and commands from  and legacy <code translate="no" dir="ltr">
+android.support.v4.media.session.MediaControllerCompat</code> instances. </p>
+    <h2 id="backward-compatibility-with-platform-and-legacy-controller-apis" data-text="Backward compatibility with platform and legacy controller APIs " tabindex="-1">Backward compatibility with platform and legacy controller APIs </h2>
+    <p>In addition to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code>, the session also supports connections from the platform and legacy controller APIs - <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/session/MediaController.html">android.media.session.MediaController</a></code> and <code translate="no" dir="ltr">
+android.support.v4.media.session.MediaControllerCompat</code>. However, <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> may not be precise for these controllers. See <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> for the details. </p>
+    <p>Neither an unknown package name nor an unknown UID mean that you should disallow a connection or commands per se. For SDK levels where such issues happen, session tokens can only be obtained by trusted controllers (e.g. Bluetooth, Auto, ...). This means only trusted controllers can connect and an app can accept such controllers in the same way as with legacy sessions.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/session/MediaSession.Builder">MediaSession.Builder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession">MediaSession</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/session/MediaSession.Callback">MediaSession.Callback</a></code></div>
+              <p>A callback to handle incoming commands from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/session/MediaSession.ConnectionResult">MediaSession.ConnectionResult</a></code></div>
+              <p>A result for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">onConnect</a></code> to denote the set of available commands and the media button preferences for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">controller</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public class <a href="/reference/androidx/media3/session/MediaSession.ConnectionResult.AcceptedResultBuilder">MediaSession.ConnectionResult.AcceptedResultBuilder</a></code></div>
+              <p>A builder for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ConnectionResult">ConnectionResult</a></code> instances to accept a connection.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a></code></div>
+              <p>Information of a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code> or a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaBrowser">MediaBrowser</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public final class <a href="/reference/androidx/media3/session/MediaSession.MediaItemsWithStartPosition">MediaSession.MediaItemsWithStartPosition</a></code></div>
+              <p>Representation of a list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/MediaItem">media items</a></code> and where to start playing.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#broadcastCustomCommand(androidx.media3.session.SessionCommand,android.os.Bundle)">broadcastCustomCommand</a>(<a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command,&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args)</code></div>
+              <p>Broadcasts a custom command to all connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="/reference/androidx/media3/common/util/BitmapLoader">BitmapLoader</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getBitmapLoader()">getBitmapLoader</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/BitmapLoader">BitmapLoader</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getConnectedControllers()">getConnectedControllers</a>()</code></div>
+              <p>Returns the list of connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getControllerForCurrentRequest()">getControllerForCurrentRequest</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> for the controller that sent the current request for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> method.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getCustomLayout()">getCustomLayout</a>()</code></div>
+              <p>Returns the custom layout of the session.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getId()">getId</a>()</code></div>
+              <p>Returns the session ID.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getMediaButtonPreferences()">getMediaButtonPreferences</a>()</code></div>
+              <p>Returns the media button preferences of the session.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">getMediaNotificationControllerInfo</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> of the media notification controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://developer.android.com/reference/android/media/session/MediaSession.Token.html">MediaSession.Token</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getPlatformToken()">getPlatformToken</a>()</code></div>
+              <p>Returns the platform <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/session/MediaSession.Token.html">android.media.session.MediaSession.Token</a></code> of the  created internally by this session.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="/reference/androidx/media3/common/Player">Player</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getPlayer()">getPlayer</a>()</code></div>
+              <p>Returns the underlying <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getSessionActivity()">getSessionActivity</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code> to launch <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#setSessionActivity(android.app.PendingIntent)"> the session activity</a></code> or null if not set.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getSessionExtras()">getSessionExtras</a>()</code></div>
+              <p>Returns the session extras.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#getShowPlayButtonIfPlaybackIsSuppressed()">getShowPlayButtonIfPlaybackIsSuppressed</a>()</code></div>
+              <p>Returns whether a play button is shown if playback is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getPlaybackSuppressionReason()"> suppressed</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="/reference/androidx/media3/session/SessionToken">SessionToken</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getToken()">getToken</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionToken">SessionToken</a></code> for creating <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code> instances.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#isAutoCompanionController(androidx.media3.session.MediaSession.ControllerInfo)">isAutoCompanionController</a>(<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo)</code></div>
+              <p>Returns whether the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> belongs to an Android Auto companion app controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#isAutomotiveController(androidx.media3.session.MediaSession.ControllerInfo)">isAutomotiveController</a>(<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo)</code></div>
+              <p>Returns whether the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> belongs to an Automotive OS controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#isMediaNotificationController(androidx.media3.session.MediaSession.ControllerInfo)">isMediaNotificationController</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo<br>)</code></div>
+              <p>Returns whether the given media controller info belongs to the media notification controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#release()">release</a>()</code></div>
+              <p>Releases the session and disconnects all connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)">sendCustomCommand</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args<br>)</code></div>
+              <p>Sends a custom command to a specific controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#sendError(androidx.media3.session.SessionError)">sendError</a>(<a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError)</code></div>
+              <p>Sends a non-fatal error to all connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#sendError(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionError)">sendError</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError<br>)</code></div>
+              <p>Sends a non-fatal error to the given controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)">setAvailableCommands</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionCommands">SessionCommands</a>&nbsp;sessionCommands,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Player.Commands">Player.Commands</a>&nbsp;playerCommands<br>)</code></div>
+              <p>Sets the new available commands for the controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a>(<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout)</code></div>
+              <p>Sets the custom layout for all controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="https://errorprone.info/api/latest/com/google/errorprone/annotations/CanIgnoreReturnValue.html">CanIgnoreReturnValue</a><br><a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout<br>)</code></div>
+              <p>Sets the custom layout for the given controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a>(<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences)</code></div>
+              <p>Sets the media button preferences for all controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>@<a href="https://errorprone.info/api/latest/com/google/errorprone/annotations/CanIgnoreReturnValue.html">CanIgnoreReturnValue</a><br><a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences<br>)</code></div>
+              <p>Sets the media button preferences for the given controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.common.PlaybackException)">setPlaybackException</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException)</code></div>
+              <p>Sets the playback exception for all connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)">setPlaybackException</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException<br>)</code></div>
+              <p>Sets the playback exception for the given controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setPlayer(androidx.media3.common.Player)">setPlayer</a>(<a href="/reference/androidx/media3/common/Player">Player</a>&nbsp;player)</code></div>
+              <p>Sets the underlying <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> for this session to dispatch incoming events to.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#setSessionActivity(android.app.PendingIntent)">setSessionActivity</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent)</code></div>
+              <p>Updates the session activity that was set when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#setSessionActivity(android.app.PendingIntent)"> building the session</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br><a href="/reference/androidx/media3/session/MediaSession#setSessionActivity(androidx.media3.session.MediaSession.ControllerInfo,android.app.PendingIntent)">setSessionActivity</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent<br>)</code></div>
+              <p>Sends the session activity to the connected controller.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(android.os.Bundle)">setSessionExtras</a>(<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras)</code></div>
+              <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getSessionExtras()">session extras</a></code> and sends them to connected controllers.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo,android.os.Bundle)">setSessionExtras</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras<br>)</code></div>
+              <p>Sends the session extras to the connected controller.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="broadcastCustomCommand(androidx.media3.session.SessionCommand, android.os.Bundle)"></a><a name="broadcastCustomCommand-androidx.media3.session.SessionCommand-android.os.Bundle-"></a><a name="broadcastcustomcommand"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="broadcastCustomCommand(androidx.media3.session.SessionCommand,android.os.Bundle)" data-text="broadcastCustomCommand" tabindex="-1">broadcastCustomCommand</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#broadcastCustomCommand(androidx.media3.session.SessionCommand,android.os.Bundle)">broadcastCustomCommand</a>(<a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command,&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args)</pre></devsite-code>
+        <p>Broadcasts a custom command to all connected controllers. </p>
+        <p>This call immediately returns and doesn't wait for a result from the controller. </p>
+        <p>A command is not accepted if it is not a custom command.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command</code></td>
+                <td>
+                  <p>A custom command.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code> for additional arguments. May be empty.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)">sendCustomCommand</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getBitmapLoader--"></a><a name="getbitmaploader"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getBitmapLoader()" data-text="getBitmapLoader" tabindex="-1">getBitmapLoader</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/util/BitmapLoader">BitmapLoader</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getBitmapLoader()">getBitmapLoader</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/BitmapLoader">BitmapLoader</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getConnectedControllers--"></a><a name="getconnectedcontrollers"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getConnectedControllers()" data-text="getConnectedControllers" tabindex="-1">getConnectedControllers</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getConnectedControllers()">getConnectedControllers</a>()</pre></devsite-code>
+        <p>Returns the list of connected controllers.</p>
+      </div>
+      <div class="api-item"><a name="getControllerForCurrentRequest--"></a><a name="getcontrollerforcurrentrequest"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getControllerForCurrentRequest()" data-text="getControllerForCurrentRequest" tabindex="-1">getControllerForCurrentRequest</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getControllerForCurrentRequest()">getControllerForCurrentRequest</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> for the controller that sent the current request for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> method. </p>
+        <p>This method will return a non-null value while <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> methods triggered by a controller are executed. </p>
+        <p>Note: If you want to prevent a controller from calling a method, specify the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ConnectionResult#availablePlayerCommands()"> available commands</a></code> in <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">onConnect</a></code> or set them via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)">setAvailableCommands</a></code>. </p>
+        <p>This method must be called on the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getApplicationLooper()">application thread</a></code> of the underlying player.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> of the controller that sent the current request, or <code translate="no" dir="ltr">
+    null</code> if not applicable.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getCustomLayout--"></a><a name="getcustomlayout"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCustomLayout()" data-text="getCustomLayout" tabindex="-1">getCustomLayout</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getCustomLayout()">getCustomLayout</a>()</pre></devsite-code>
+        <p>Returns the custom layout of the session. </p>
+        <p>This method will be deprecated, prefer to use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaButtonPreferences()">getMediaButtonPreferences</a></code> instead. Note that the media button preferences use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#slots()">slots</a></code> to define the allowed button placement. </p>
+        <p>For informational purpose only. Mutations on the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code> of either a  or a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a></code> do not have effect. To change the custom layout use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getId--"></a><a name="getid"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getId()" data-text="getId" tabindex="-1">getId</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getId()">getId</a>()</pre></devsite-code>
+        <p>Returns the session ID.</p>
+      </div>
+      <div class="api-item"><a name="getMediaButtonPreferences--"></a><a name="getmediabuttonpreferences"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getMediaButtonPreferences()" data-text="getMediaButtonPreferences" tabindex="-1">getMediaButtonPreferences</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getMediaButtonPreferences()">getMediaButtonPreferences</a>()</pre></devsite-code>
+        <p>Returns the media button preferences of the session. </p>
+        <p>For informational purpose only. Mutations on the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code> of either a  or a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a></code> do not have effect. To change the media button preferences use setMediaButtonPreferences.</p>
+      </div>
+      <div class="api-item"><a name="getMediaNotificationControllerInfo--"></a><a name="getmedianotificationcontrollerinfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getMediaNotificationControllerInfo()" data-text="getMediaNotificationControllerInfo" tabindex="-1">getMediaNotificationControllerInfo</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">getMediaNotificationControllerInfo</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> of the media notification controller. </p>
+        <p>Use this controller info to set <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)">available commands</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)"> media button preferences</a></code> that are consistently applied to the media notification on all API levels. </p>
+        <p>Available <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommands">session commands</a></code> of the media notification controller are used to enable or disable buttons of the media button preferences before they are passed to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaNotification.Provider#createNotification(androidx.media3.session.MediaSession,com.google.common.collect.ImmutableList&lt;androidx.media3.session.CommandButton&gt;,androidx.media3.session.MediaNotification.ActionFactory,androidx.media3.session.MediaNotification.Provider.Callback)">notification provider</a></code>. Disabled command buttons are not converted to notification actions when using . This affects the media notification displayed by System UI below API 33. </p>
+        <p>The available session commands of the media notification controller are used to maintain custom actions of the platform session (see <code translate="no" dir="ltr">PlaybackStateCompat.getCustomActions()</code>). Command buttons of the media button preferences are disabled or enabled according to the available session commands. Disabled command buttons are not converted to custom actions of the platform session. This affects the media notification displayed by System UI <a href="https://developer.android.com/about/versions/13/behavior-changes-13#playback-controls">starting with API 33</a>. </p>
+        <p>The available <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player.Commands">player commands</a></code> are intersected with the actual available commands of the underlying player to determine the playback actions of the platform session (see <code translate="no" dir="ltr">PlaybackStateCompat.getActions()</code>).</p>
+      </div>
+      <div class="api-item"><a name="getPlatformToken--"></a><a name="getplatformtoken"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getPlatformToken()" data-text="getPlatformToken" tabindex="-1">getPlatformToken</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;<a href="https://developer.android.com/reference/android/media/session/MediaSession.Token.html">MediaSession.Token</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getPlatformToken()">getPlatformToken</a>()</pre></devsite-code>
+        <p>Returns the platform <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/session/MediaSession.Token.html">android.media.session.MediaSession.Token</a></code> of the  created internally by this session.</p>
+      </div>
+      <div class="api-item"><a name="getPlayer--"></a><a name="getplayer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getPlayer()" data-text="getPlayer" tabindex="-1">getPlayer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="/reference/androidx/media3/common/Player">Player</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getPlayer()">getPlayer</a>()</pre></devsite-code>
+        <p>Returns the underlying <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getSessionActivity--"></a><a name="getsessionactivity"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSessionActivity()" data-text="getSessionActivity" tabindex="-1">getSessionActivity</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getSessionActivity()">getSessionActivity</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code> to launch <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#setSessionActivity(android.app.PendingIntent)"> the session activity</a></code> or null if not set.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code> to launch an activity belonging to the session.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSessionExtras--"></a><a name="getsessionextras"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSessionExtras()" data-text="getSessionExtras" tabindex="-1">getSessionExtras</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getSessionExtras()">getSessionExtras</a>()</pre></devsite-code>
+        <p>Returns the session extras. </p>
+        <p>For informational purpose only. Mutations on the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code> do not have immediate effect. To change the session extras use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(android.os.Bundle)">setSessionExtras</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo,android.os.Bundle)">setSessionExtras</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getShowPlayButtonIfPlaybackIsSuppressed--"></a><a name="getshowplaybuttonifplaybackissuppressed"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getShowPlayButtonIfPlaybackIsSuppressed()" data-text="getShowPlayButtonIfPlaybackIsSuppressed" tabindex="-1">getShowPlayButtonIfPlaybackIsSuppressed</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getShowPlayButtonIfPlaybackIsSuppressed()">getShowPlayButtonIfPlaybackIsSuppressed</a>()</pre></devsite-code>
+        <p>Returns whether a play button is shown if playback is <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getPlaybackSuppressionReason()"> suppressed</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getToken--"></a><a name="gettoken"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getToken()" data-text="getToken" tabindex="-1">getToken</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="/reference/androidx/media3/session/SessionToken">SessionToken</a>&nbsp;<a href="/reference/androidx/media3/session/MediaSession#getToken()">getToken</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionToken">SessionToken</a></code> for creating <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController">MediaController</a></code> instances.</p>
+      </div>
+      <div class="api-item"><a name="isAutoCompanionController-androidx.media3.session.MediaSession.ControllerInfo-"></a><a name="isautocompanioncontroller"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isAutoCompanionController(androidx.media3.session.MediaSession.ControllerInfo)" data-text="isAutoCompanionController" tabindex="-1">isAutoCompanionController</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/session/MediaSession#isAutoCompanionController(androidx.media3.session.MediaSession.ControllerInfo)">isAutoCompanionController</a>(<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo)</pre></devsite-code>
+        <p>Returns whether the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> belongs to an Android Auto companion app controller. </p>
+        <p>Note: This is not a security validation.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo</code></td>
+                <td>
+                  <p>The controller info of the connected controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>True if the controller into belongs to a connected Auto companion client app.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isAutomotiveController-androidx.media3.session.MediaSession.ControllerInfo-"></a><a name="isautomotivecontroller"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isAutomotiveController(androidx.media3.session.MediaSession.ControllerInfo)" data-text="isAutomotiveController" tabindex="-1">isAutomotiveController</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/session/MediaSession#isAutomotiveController(androidx.media3.session.MediaSession.ControllerInfo)">isAutomotiveController</a>(<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo)</pre></devsite-code>
+        <p>Returns whether the given <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">ControllerInfo</a></code> belongs to an Automotive OS controller. </p>
+        <p>Note: This is not a security validation.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo</code></td>
+                <td>
+                  <p>The controller info of the connected controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>True if the controller into belongs to a connected Automotive OS controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isMediaNotificationController-androidx.media3.session.MediaSession.ControllerInfo-"></a><a name="ismedianotificationcontroller"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isMediaNotificationController(androidx.media3.session.MediaSession.ControllerInfo)" data-text="isMediaNotificationController" tabindex="-1">isMediaNotificationController</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/session/MediaSession#isMediaNotificationController(androidx.media3.session.MediaSession.ControllerInfo)">isMediaNotificationController</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo<br>)</pre></devsite-code>
+        <p>Returns whether the given media controller info belongs to the media notification controller. </p>
+        <p>See <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">getMediaNotificationControllerInfo</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo</code></td>
+                <td>
+                  <p>The controller info.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the controller info belongs to the media notification controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="release--"></a><a name="release"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="release()" data-text="release" tabindex="-1">release</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#release()">release</a>()</pre></devsite-code>
+        <p>Releases the session and disconnects all connected controllers. </p>
+        <p>The session must not be used after calling this method. </p>
+        <p>Releasing the session removes the session's listeners from the player but does not <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#stop()">stop</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#release()">release</a></code> the player. An app can further use the player after the session is released and needs to make sure to eventually release the player.</p>
+      </div>
+      <div class="api-item"><a name="sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo, androidx.media3.session.SessionCommand, android.os.Bundle)"></a><a name="sendCustomCommand-androidx.media3.session.MediaSession.ControllerInfo-androidx.media3.session.SessionCommand-android.os.Bundle-"></a><a name="sendcustomcommand"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)" data-text="sendCustomCommand" tabindex="-1">sendCustomCommand</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#sendCustomCommand(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommand,android.os.Bundle)">sendCustomCommand</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args<br>)</pre></devsite-code>
+        <p>Sends a custom command to a specific controller. </p>
+        <p>The result from <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onCustomCommand(androidx.media3.session.MediaController,androidx.media3.session.SessionCommand,android.os.Bundle)">onCustomCommand</a></code> will be returned. </p>
+        <p>A command is not accepted if it is not a custom command. </p>
+        <p>Interoperability: This call has no effect when called for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()"> platform or legacy controller</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller to send the custom command to.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommand">SessionCommand</a>&nbsp;command</code></td>
+                <td>
+                  <p>A custom command.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;args</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a></code> for additional arguments. May be empty.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionResult">SessionResult</a></code> from the controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#broadcastCustomCommand(androidx.media3.session.SessionCommand,android.os.Bundle)">broadcastCustomCommand</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="sendError-androidx.media3.session.SessionError-"></a><a name="senderror"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="sendError(androidx.media3.session.SessionError)" data-text="sendError" tabindex="-1">sendError</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#sendError(androidx.media3.session.SessionError)">sendError</a>(<a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError)</pre></devsite-code>
+        <p>Sends a non-fatal error to all connected controllers. </p>
+        <p>See <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#sendError(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionError)">sendError</a></code> for sending an error to a specific controller only.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError</code></td>
+                <td>
+                  <p>The session error.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="sendError(androidx.media3.session.MediaSession.ControllerInfo, androidx.media3.session.SessionError)"></a><a name="sendError-androidx.media3.session.MediaSession.ControllerInfo-androidx.media3.session.SessionError-"></a><a name="senderror"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="sendError(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionError)" data-text="sendError" tabindex="-1">sendError</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#sendError(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionError)">sendError</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError<br>)</pre></devsite-code>
+        <p>Sends a non-fatal error to the given controller. </p>
+        <p>This will call <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onError(androidx.media3.session.MediaController,androidx.media3.session.SessionError)">onError</a></code> of the given connected controller. </p>
+        <p>When an error is sent to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">getMediaNotificationControllerInfo</a></code> or a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()">platform or legacy controller</a></code>, the error of the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/media/session/PlaybackState.html">playback state</a></code> of the platform session is updated accordingly.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo</code></td>
+                <td>
+                  <p>The controller to send the error to.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionError">SessionError</a>&nbsp;sessionError</code></td>
+                <td>
+                  <p>The session error.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>thrown if an error is attempted to be sent to a legacy controller.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo, androidx.media3.session.SessionCommands, androidx.media3.common.Player.Commands)"></a><a name="setAvailableCommands-androidx.media3.session.MediaSession.ControllerInfo-androidx.media3.session.SessionCommands-androidx.media3.common.Player.Commands-"></a><a name="setavailablecommands"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)" data-text="setAvailableCommands" tabindex="-1">setAvailableCommands</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setAvailableCommands(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.session.SessionCommands,androidx.media3.common.Player.Commands)">setAvailableCommands</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/SessionCommands">SessionCommands</a>&nbsp;sessionCommands,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Player.Commands">Player.Commands</a>&nbsp;playerCommands<br>)</pre></devsite-code>
+        <p>Sets the new available commands for the controller. </p>
+        <p>This is a synchronous call. Changes in the available commands take effect immediately regardless of the controller notified about the change through <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player.Listener#onAvailableCommandsChanged(androidx.media3.common.Player.Commands)">onAvailableCommandsChanged</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onAvailableSessionCommandsChanged(androidx.media3.session.MediaController,androidx.media3.session.SessionCommands)">onAvailableSessionCommandsChanged</a></code>. </p>
+        <p>Note that <code translate="no" dir="ltr">playerCommands</code> will be intersected with the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#getAvailableCommands()"> available commands</a></code> of the underlying <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> and the controller will only be able to call the commonly available commands.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller to change allowed commands.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/SessionCommands">SessionCommands</a>&nbsp;sessionCommands</code></td>
+                <td>
+                  <p>The new available session commands.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player.Commands">Player.Commands</a>&nbsp;playerCommands</code></td>
+                <td>
+                  <p>The new available player commands.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setCustomLayout-java.util.List&lt;androidx.media3.session.CommandButton&gt;-"></a><a name="setcustomlayout"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setCustomLayout(java.util.List&lt;androidx.media3.session.CommandButton&gt;)" data-text="setCustomLayout" tabindex="-1">setCustomLayout</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a>(<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout)</pre></devsite-code>
+        <p>Sets the custom layout for all controllers. </p>
+        <p>This method will be deprecated, prefer to use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a></code>. Note that the media button preferences use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#slots()">slots</a></code> to define the allowed button placement. </p>
+        <p>Calling this method broadcasts the custom layout to all connected Media3 controllers, including the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">media notification controller</a></code>. </p>
+        <p>On the controller side, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">enabled</a></code> flag is set to <code translate="no" dir="ltr">false</code> if the available commands of a controller do not allow to use a button. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onCustomLayoutChanged(androidx.media3.session.MediaController,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">onCustomLayoutChanged</a></code> is only called if the new custom layout is different to the custom layout the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getCustomLayout()"> controller already has available</a></code>. Note that <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">extras</a></code> are ignored when comparing <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>. </p>
+        <p>Controllers that connect after calling this method will have the new custom layout available with the initial connection result. A custom layout specific to a controller can be set when the controller <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">connects</a></code> by using an .</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout</code></td>
+                <td>
+                  <p>The ordered list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo, java.util.List&lt;androidx.media3.session.CommandButton&gt;)"></a><a name="setCustomLayout-androidx.media3.session.MediaSession.ControllerInfo-java.util.List&lt;androidx.media3.session.CommandButton&gt;-"></a><a name="setcustomlayout"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)" data-text="setCustomLayout" tabindex="-1">setCustomLayout</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="https://errorprone.info/api/latest/com/google/errorprone/annotations/CanIgnoreReturnValue.html">CanIgnoreReturnValue</a><br>public&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setCustomLayout(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setCustomLayout</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout<br>)</pre></devsite-code>
+        <p>Sets the custom layout for the given controller. </p>
+        <p>This method will be deprecated, prefer to use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a></code>. Note that the media button preferences use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#slots()">slots</a></code> to define the allowed button placement. </p>
+        <p>Make sure to have the session commands of all command buttons of the custom layout <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getAvailableSessionCommands()">available for controllers</a></code>. Include the custom session commands a controller should be able to send in the available commands of the connection result <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">that your app returns when the controller connects</a></code>. The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">isEnabled</a></code> flag is set according to the available commands of the controller and overrides a value that may have been set by the app. </p>
+        <p>On the controller side, <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onCustomLayoutChanged(androidx.media3.session.MediaController,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">onCustomLayoutChanged</a></code> is only called if the new custom layout is different to the custom layout the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getCustomLayout()"> controller already has available</a></code>. Note that this comparison uses <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#equals(java.lang.Object)">equals</a></code> and therefore ignores <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#extras()">extras</a></code>. </p>
+        <p>On the controller side, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">enabled</a></code> flag is set to <code translate="no" dir="ltr">false</code> if the available commands of the controller do not allow to use a button. </p>
+        <p>Interoperability: This call has no effect when called for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()"> platform or legacy controller</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller for which to set the custom layout.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;layout</code></td>
+                <td>
+                  <p>The ordered list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setMediaButtonPreferences-java.util.List&lt;androidx.media3.session.CommandButton&gt;-"></a><a name="setmediabuttonpreferences"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setMediaButtonPreferences(java.util.List&lt;androidx.media3.session.CommandButton&gt;)" data-text="setMediaButtonPreferences" tabindex="-1">setMediaButtonPreferences</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a>(<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences)</pre></devsite-code>
+        <p>Sets the media button preferences for all controllers. </p>
+        <p>Calling this method broadcasts the media button preferences to all connected Media3 controllers, including the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">media notification controller</a></code>. </p>
+        <p>On the controller side, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">enabled</a></code> flag is set to <code translate="no" dir="ltr">false</code> if the available commands of a controller do not allow to use a button. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onMediaButtonPreferencesChanged(androidx.media3.session.MediaController,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">onMediaButtonPreferencesChanged</a></code> is only called if the new media button preferences are different to the media button preferences the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getMediaButtonPreferences()">controller already has available</a></code>. Note that <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">extras</a></code> are ignored when comparing <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>. </p>
+        <p>Controllers that connect after calling this method will have the new media button preferences available with the initial connection result. Media button preferences specific to a controller can be set when the controller <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">connects</a></code> by using an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ConnectionResult.AcceptedResultBuilder">ConnectionResult.AcceptedResultBuilder</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences</code></td>
+                <td>
+                  <p>The ordered list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo, java.util.List&lt;androidx.media3.session.CommandButton&gt;)"></a><a name="setMediaButtonPreferences-androidx.media3.session.MediaSession.ControllerInfo-java.util.List&lt;androidx.media3.session.CommandButton&gt;-"></a><a name="setmediabuttonpreferences"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)" data-text="setMediaButtonPreferences" tabindex="-1">setMediaButtonPreferences</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>@<a href="https://errorprone.info/api/latest/com/google/errorprone/annotations/CanIgnoreReturnValue.html">CanIgnoreReturnValue</a><br>public&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/media3/session/SessionResult">SessionResult</a>&gt;&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setMediaButtonPreferences(androidx.media3.session.MediaSession.ControllerInfo,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">setMediaButtonPreferences</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences<br>)</pre></devsite-code>
+        <p>Sets the media button preferences for the given controller. </p>
+        <p>Make sure to have the session commands of all command buttons of the media button preferences <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getAvailableSessionCommands()">available for controllers</a></code>. Include the custom session commands a controller should be able to send in the available commands of the connection result <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)"> that your app returns when the controller connects</a></code>. The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">isEnabled</a></code> flag is set according to the available commands of the controller and overrides a value that may have been set by the app. </p>
+        <p>On the controller side, <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController.Listener#onMediaButtonPreferencesChanged(androidx.media3.session.MediaController,java.util.List&lt;androidx.media3.session.CommandButton&gt;)">onMediaButtonPreferencesChanged</a></code> is only called if the new media button preferences are different to the media button preferences the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaController#getMediaButtonPreferences()"> controller already has available</a></code>. Note that this comparison uses <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#equals(java.lang.Object)">equals</a></code> and therefore ignores <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#extras()">extras</a></code>. </p>
+        <p>On the controller side, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton#isEnabled()">enabled</a></code> flag is set to <code translate="no" dir="ltr">false</code> if the available commands of the controller do not allow to use a button. </p>
+        <p>Interoperability: This call has no effect when called for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()"> platform or legacy controller</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller for which to set the media button preferences.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/session/CommandButton">CommandButton</a>&gt;&nbsp;mediaButtonPreferences</code></td>
+                <td>
+                  <p>The ordered list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/CommandButton">command buttons</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPlaybackException-androidx.media3.common.PlaybackException-"></a><a name="setplaybackexception"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPlaybackException(androidx.media3.common.PlaybackException)" data-text="setPlaybackException" tabindex="-1">setPlaybackException</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.common.PlaybackException)">setPlaybackException</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException)</pre></devsite-code>
+        <p>Sets the playback exception for all connected controllers. </p>
+        <p>The exception set for controllers can be removed by passing null. This also resets any exception that may have been set for a specific controller with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)">setPlaybackException</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a></code> or null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)">setPlaybackException</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo, androidx.media3.common.PlaybackException)"></a><a name="setPlaybackException-androidx.media3.session.MediaSession.ControllerInfo-androidx.media3.common.PlaybackException-"></a><a name="setplaybackexception"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)" data-text="setPlaybackException" tabindex="-1">setPlaybackException</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setPlaybackException(androidx.media3.session.MediaSession.ControllerInfo,androidx.media3.common.PlaybackException)">setPlaybackException</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException<br>)</pre></devsite-code>
+        <p>Sets the playback exception for the given controller. </p>
+        <p>When setting a non-null instance, the original player state is overridden. When the player is not in an error state, the exception is used to modify the player state and send it to the controller. If the player is already in an error state, then this exception replaces the original exception and sends the updated player state to the controller. </p>
+        <p>An exception set for a given controller can be removed by setting null. </p>
+        <p>Passing in a playback exception that has <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/PlaybackException#areErrorInfosEqual(androidx.media3.common.PlaybackException,androidx.media3.common.PlaybackException)"> equal error info</a></code> to the previously set exception for the given controller, results in a no-op.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controllerInfo</code></td>
+                <td>
+                  <p>The controller for which to set the playback exception.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a>&nbsp;playbackException</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/PlaybackException">PlaybackException</a></code> or null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setPlayer-androidx.media3.common.Player-"></a><a name="setplayer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setPlayer(androidx.media3.common.Player)" data-text="setPlayer" tabindex="-1">setPlayer</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setPlayer(androidx.media3.common.Player)">setPlayer</a>(<a href="/reference/androidx/media3/common/Player">Player</a>&nbsp;player)</pre></devsite-code>
+        <p>Sets the underlying <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a></code> for this session to dispatch incoming events to.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player">Player</a>&nbsp;player</code></td>
+                <td>
+                  <p>A player that handles actual media playback in your app.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if the new player's application looper differs from the current player's looper, or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Player#canAdvertiseSession()">canAdvertiseSession</a></code> returns false.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>if the new player's application looper differs from the current looper.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSessionActivity-android.app.PendingIntent-"></a><a name="setsessionactivity"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSessionActivity(android.app.PendingIntent)" data-text="setSessionActivity" tabindex="-1">setSessionActivity</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setSessionActivity(android.app.PendingIntent)">setSessionActivity</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent)</pre></devsite-code>
+        <p>Updates the session activity that was set when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#setSessionActivity(android.app.PendingIntent)"> building the session</a></code>. </p>
+        <p>Note: When a controller is connected to the session that has a version smaller than 1.6.0, then setting the session activity to null has no effect on the controller side.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent</code></td>
+                <td>
+                  <p>The pending intent to start the session activity or null.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code> passed into this method is <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html#getActivity(android.content.Context, int, android.content.Intent, int)">not an activity</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSessionActivity(androidx.media3.session.MediaSession.ControllerInfo, android.app.PendingIntent)"></a><a name="setSessionActivity-androidx.media3.session.MediaSession.ControllerInfo-android.app.PendingIntent-"></a><a name="setsessionactivity"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSessionActivity(androidx.media3.session.MediaSession.ControllerInfo,android.app.PendingIntent)" data-text="setSessionActivity" tabindex="-1">setSessionActivity</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setSessionActivity(androidx.media3.session.MediaSession.ControllerInfo,android.app.PendingIntent)">setSessionActivity</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent<br>)</pre></devsite-code>
+        <p>Sends the session activity to the connected controller. </p>
+        <p>This call immediately returns and doesn't wait for a result from the controller. </p>
+        <p>Interoperability: This call has no effect when called for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()"> platform or legacy controller</a></code>. To set the session activity of the platform session use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getMediaNotificationControllerInfo()">the media notification controller</a></code> as the target controller.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller to send the session activity to.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a>&nbsp;activityPendingIntent</code></td>
+                <td>
+                  <p>The pending intent to start the session activity.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html">PendingIntent</a></code> passed into this method is <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/PendingIntent.html#getActivity(android.content.Context, int, android.content.Intent, int)">not an activity</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSessionExtras-android.os.Bundle-"></a><a name="setsessionextras"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSessionExtras(android.os.Bundle)" data-text="setSessionExtras" tabindex="-1">setSessionExtras</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(android.os.Bundle)">setSessionExtras</a>(<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras)</pre></devsite-code>
+        <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession#getSessionExtras()">session extras</a></code> and sends them to connected controllers. </p>
+        <p>The initial extras can be set <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Builder#setSessionExtras(android.os.Bundle)">when building the session</a></code>. </p>
+        <p>This call immediately returns and doesn't wait for a result from the controller.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras</code></td>
+                <td>
+                  <p>The session extras.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo, android.os.Bundle)"></a><a name="setSessionExtras-androidx.media3.session.MediaSession.ControllerInfo-android.os.Bundle-"></a><a name="setsessionextras"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo,android.os.Bundle)" data-text="setSessionExtras" tabindex="-1">setSessionExtras</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/media3/session/MediaSession#setSessionExtras(androidx.media3.session.MediaSession.ControllerInfo,android.os.Bundle)">setSessionExtras</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras<br>)</pre></devsite-code>
+        <p>Sends the session extras to the connected controller. </p>
+        <p>The initial extras for a specific controller can be set in <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.Callback#onConnect(androidx.media3.session.MediaSession,androidx.media3.session.MediaSession.ControllerInfo)">onConnect</a></code> when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ConnectionResult.AcceptedResultBuilder#setSessionExtras(android.os.Bundle)"> building the connection result</a></code>. </p>
+        <p>This call immediately returns and doesn't wait for a result from the controller. </p>
+        <p>Interoperability: This call has no effect when called for a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo#LEGACY_CONTROLLER_VERSION()"> platform or legacy controller</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/session/MediaSession.ControllerInfo">MediaSession.ControllerInfo</a>&nbsp;controller</code></td>
+                <td>
+                  <p>The controller to send the extras to.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/Bundle.html">Bundle</a>&nbsp;sessionExtras</code></td>
+                <td>
+                  <p>The session extras.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

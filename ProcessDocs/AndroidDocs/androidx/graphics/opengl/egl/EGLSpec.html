@@ -1,1 +1,1784 @@
-<html><head><title>Class Documentation</title></head><body>EGLSpec Artifact: androidx.graphics:graphics-core View Source Added in 1.0.3 Kotlin | Java public interface EGLSpec Interface for accessing various EGL facilities independent of EGL versions. That is each EGL version implements this specification. EGLSpec is not thread safe and is up to the caller of these methods to guarantee thread safety. Summary Public fields default&nbsp;static&nbsp;final @ NonNull EGLSpec V14 Public methods abstract int eglClientWaitSyncKHR ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSyncKHR &nbsp;sync, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;flags, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutNanos ) Blocks the calling thread until the specified sync object is signalled or until timeoutNanos nanoseconds have passed. abstract @ NonNull EGLContext eglCreateContext (@ NonNull EGLConfig &nbsp;config) Create an EGLContext with the default display. abstract EGLImageKHR @ RequiresApi (value&nbsp;=&nbsp;26) eglCreateImageFromHardwareBuffer (@ NonNull HardwareBuffer &nbsp;hardwareBuffer) Creates an EGLImage from the provided HardwareBuffer . abstract @ NonNull EGLSurface eglCreatePBufferSurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp; EGLConfigAttributes &nbsp;configAttributes ) Create a Pixel Buffer surface with the corresponding EGLConfigAttributes . abstract EGLSyncKHR eglCreateSyncKHR (int&nbsp;type,&nbsp; EGLConfigAttributes &nbsp;attributes) Creates a sync object of the specified type associated with the specified display, and returns a handle to the new object. abstract @ NonNull EGLSurface eglCreateWindowSurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Surface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp; EGLConfigAttributes &nbsp;configAttributes ) Creates an on screen EGL window surface from the given Surface and returns a handle to it. abstract void eglDestroyContext (@ NonNull EGLContext &nbsp;eglContext) Destroy the given EGLContext generated in eglCreateContext abstract boolean eglDestroyImageKHR (@ NonNull EGLImageKHR &nbsp;image) Destroy the given EGLImageKHR instance. abstract boolean eglDestroySurface (@ NonNull EGLSurface &nbsp;surface) Destroys an EGL surface. abstract boolean eglDestroySyncKHR (@ NonNull EGLSyncKHR &nbsp;sync) Destroys the given sync object associated with the specified display abstract @ NonNull EGLSurface eglGetCurrentDrawSurface () Return the current surface used for drawing pixels. abstract @ NonNull EGLSurface eglGetCurrentReadSurface () Return the current surface used for reading or copying pixels. abstract int eglGetError () Returns the error of the last called EGL function in the current thread. abstract boolean eglGetSyncAttribKHR ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSyncKHR &nbsp;sync, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull int[]&nbsp;value, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset ) Query attributes of the provided sync object. abstract @ NonNull EGLVersion eglInitialize () Initialize the EGL implementation and return the major and minor version of the EGL implementation through EGLVersion . abstract boolean eglMakeCurrent ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLContext &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;drawSurface, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;readSurface ) Binds the current context to the given draw and read surfaces. abstract @ NonNull String eglQueryString (int&nbsp;nameId) Query for the capabilities associated with the given eglDisplay. abstract boolean eglQuerySurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull int[]&nbsp;result, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset ) Query the EGL attributes of the provided surface abstract boolean eglSwapBuffers (@ NonNull EGLSurface &nbsp;surface) Post EGL surface color buffer to a native window default @ NonNull String getErrorMessage () Convenience method to obtain the corresponding error string from the error code obtained from EGLSpec.eglGetError default&nbsp;static&nbsp;final @ NonNull String getStatusString (int&nbsp;error) Return a string representation of the corresponding EGL status code. abstract EGLConfig loadConfig (@ NonNull EGLConfigAttributes &nbsp;configAttributes) Load a corresponding EGLConfig from the provided EGLConfigAttributes If the EGLConfig could not be loaded, null is returned Public fields V14 default&nbsp;static&nbsp;final&nbsp;@ NonNull EGLSpec &nbsp; V14 Public methods eglClientWaitSyncKHR Added in 1.0.3 abstract&nbsp;int&nbsp; eglClientWaitSyncKHR ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSyncKHR &nbsp;sync, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;flags, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutNanos ) Blocks the calling thread until the specified sync object is signalled or until timeoutNanos nanoseconds have passed. More than one eglClientWaitSyncKHR may be outstanding on the same sync at any given time. When there are multiple threads blocked on the same sync and the sync object has signalled, all such threads are released, but the order in which they are released is not defined. If the value of timeoutNanos is zero, then eglClientWaitSyncKHR simply tests the current status of sync. If the value of timeoutNanos is the special value EGL_FOREVER_KHR , then eglClientWaitSyncKHR does not time out. For all other values, timeoutNanos is adjusted to the closest value allowed by the implementation-dependent timeout accuracy, which may be substantially longer than one nanosecond. eglClientWaitSyncKHR returns one of three status values describing the reason for returning. A return value of EGL_TIMEOUT_EXPIRED_KHR indicates that the specified timeout period expired before sync was signalled, or if timeoutNanos is zero, indicates that sync is not signaled. A return value of EGL_CONDITION_SATISFIED_KHR indicates that sync was signaled before the timeout expired, which includes the case when sync was already signaled when eglClientWaitSyncKHR was called. If an error occurs then an error is generated and EGL_FALSE is returned. If the sync object being blocked upon will not be signaled in finite time (for example by an associated fence command issued previously, but not yet flushed to the graphics pipeline), then eglClientWaitSyncKHR may wait forever. To help prevent this behavior, if the EGL_SYNC_FLUSH_COMMANDS_BIT_KHR is set on the flags parameter and the sync is unsignaled when eglClientWaitSyncKHR is called, then the equivalent flush will be performed for the current EGL context before blocking on sync. If no context is current bound for the API, the EGL_SYNC_FLUSH_COMMANDS_BIT_KHR bit is ignored. Parameters @ NonNull EGLSyncKHR &nbsp;sync EGLSyncKHR object to wait on int&nbsp;flags Optional flags to provide to handle flushing of pending commands long&nbsp;timeoutNanos Optional timeout value to wait before this method returns, measured in nanoseconds. This value is always consumed as an unsigned long value so even negative values will be converted to their unsigned equivalent. Returns int Result code indicating the status of the wait request. Either EGL_CONDITION_SATISFIED_KHR , if the sync did signal within the specified timeout, EGL_TIMEOUT_EXPIRED_KHR if the sync did not signal within the specified timeout, or EGL_FALSE if an error occurs. eglCreateContext Added in 1.0.3 abstract&nbsp;@ NonNull EGLContext &nbsp; eglCreateContext (@ NonNull EGLConfig &nbsp;config) Create an EGLContext with the default display. If createContext fails to create a rendering context, EGL_NO_CONTEXT is returned Parameters @ NonNull EGLConfig &nbsp;config EGLConfig used to create the EGLContext eglCreateImageFromHardwareBuffer Added in 1.0.3 @ RequiresApi (value&nbsp;=&nbsp;26) abstract&nbsp; EGLImageKHR &nbsp; eglCreateImageFromHardwareBuffer (@ NonNull HardwareBuffer &nbsp;hardwareBuffer) Creates an EGLImage from the provided HardwareBuffer . This handles internally creating an EGLClientBuffer and an EGLImageKHR from the client buffer. When this EGLImageKHR instance is no longer necessary, consumers should be sure to call the corresponding method eglDestroyImageKHR to deallocate the resource. Parameters @ NonNull HardwareBuffer &nbsp;hardwareBuffer Backing HardwareBuffer for the generated EGLImage instance Returns EGLImageKHR an EGLImageKHR instance representing the EGLImageKHR created from the HardwareBuffer. Because this is created internally through EGL's eglCreateImageKR method, this has the KHR suffix. This can return null if the EGL_ANDROID_image_native_buffer and EGL_KHR_image_base extensions are not supported or if allocation of the buffer fails. See www.khronos.org/registry/EGL/extensions/ANDROID/EGL_ANDROID_get_native_client_buffer.txt eglCreatePBufferSurface Added in 1.0.3 abstract&nbsp;@ NonNull EGLSurface &nbsp; eglCreatePBufferSurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp; EGLConfigAttributes &nbsp;configAttributes ) Create a Pixel Buffer surface with the corresponding EGLConfigAttributes . Accepted attributes are defined as part of the OpenGL specification here: https://www.khronos.org/registry/EGL/sdk/docs/man/html/eglCreatePbufferSurface.xhtml If a pixel buffer surface could not be created, EGL14.EGL_NO_SURFACE is returned. Parameters @ NonNull EGLConfig &nbsp;config Specifies the EGL Frame buffer configuration that defines the frame buffer resource available to the surface EGLConfigAttributes &nbsp;configAttributes Optional list of attributes for the pixel buffer surface eglCreateSyncKHR Added in 1.0.3 abstract&nbsp; EGLSyncKHR &nbsp; eglCreateSyncKHR (int&nbsp;type,&nbsp; EGLConfigAttributes &nbsp;attributes) Creates a sync object of the specified type associated with the specified display, and returns a handle to the new object. The configuration of the returned EGLSyncKHR object is specified by the provided attributes. Consumers should ensure that the EGL_KHR_fence_sync EGL extension is supported before invoking this method otherwise a null EGLSyncFenceKHR object is returned. When the EGLSyncKHR instance is no longer necessary, consumers are encouraged to call eglDestroySyncKHR to deallocate this resource. See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt Parameters int&nbsp;type Indicates the type of sync object that is returned EGLConfigAttributes &nbsp;attributes Specifies the configuration of the sync object returned Returns EGLSyncKHR the EGLSyncKHR object to be used as a fence or null if this extension is not supported eglCreateWindowSurface Added in 1.0.3 abstract&nbsp;@ NonNull EGLSurface &nbsp; eglCreateWindowSurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLConfig &nbsp;config, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Surface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp; EGLConfigAttributes &nbsp;configAttributes ) Creates an on screen EGL window surface from the given Surface and returns a handle to it. See https://khronos.org/registry/EGL/sdk/docs/man/html/eglCreateWindowSurface.xhtml Parameters @ NonNull EGLConfig &nbsp;config Specifies the EGL frame buffer configuration that defines the frame buffer resource available to the surface @ NonNull Surface &nbsp;surface Android surface to consume rendered content EGLConfigAttributes &nbsp;configAttributes Optional list of attributes for the specified surface eglDestroyContext Added in 1.0.3 abstract&nbsp;void&nbsp; eglDestroyContext (@ NonNull EGLContext &nbsp;eglContext) Destroy the given EGLContext generated in eglCreateContext See https://khronos.org/registry/EGL/sdk/docs/man/html/eglDestroyContext.xhtml Parameters @ NonNull EGLContext &nbsp;eglContext EGL rendering context to be destroyed eglDestroyImageKHR Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglDestroyImageKHR (@ NonNull EGLImageKHR &nbsp;image) Destroy the given EGLImageKHR instance. Once destroyed, the image may not be used to create any additional EGLImageKHR target resources within any client API contexts, although existing EGLImageKHR siblings may continue to be used. true is returned if DestroyImageKHR succeeds, false indicates failure. This can return false if the corresponding EGLContext is not valid. See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_image_base.txt Parameters @ NonNull EGLImageKHR &nbsp;image EGLImageKHR to be destroyed Returns boolean true if the destruction of the EGLImageKHR object was successful, false otherwise eglDestroySurface Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglDestroySurface (@ NonNull EGLSurface &nbsp;surface) Destroys an EGL surface. If the EGL surface is not current to any thread, eglDestroySurface destroys it immediately. Otherwise, surface is destroyed when it becomes not current to any thread. Furthermore, resources associated with a pbuffer surface are not released until all color buffers of that pbuffer bound to a texture object have been released. Deferral of surface destruction would still return true as deferral does not indicate a failure condition Returns boolean true if destruction of the EGLSurface was successful, false otherwise eglDestroySyncKHR Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglDestroySyncKHR (@ NonNull EGLSyncKHR &nbsp;sync) Destroys the given sync object associated with the specified display Consumers should ensure that the EGL_KHR_fence_sync EGL extension is supported before invoking this method otherwise a null EGLSyncFenceKHR object is returned. See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt Parameters @ NonNull EGLSyncKHR &nbsp;sync Fence object to be destroyed Returns boolean true if the EGLSyncKHR object was destroyed successfully false otherwise. This can return false if the sync object is not a valid sync object for the provided display or if the display provided in this method does not match the display used to create this sync in eglCreateSyncKHR . eglGetCurrentDrawSurface Added in 1.0.3 abstract&nbsp;@ NonNull EGLSurface &nbsp; eglGetCurrentDrawSurface () Return the current surface used for drawing pixels. If no context is current, EGL14.EGL_NO_SURFACE is returned. eglGetCurrentReadSurface Added in 1.0.3 abstract&nbsp;@ NonNull EGLSurface &nbsp; eglGetCurrentReadSurface () Return the current surface used for reading or copying pixels. If no context is current, EGL14.EGL_NO_SURFACE is returned eglGetError Added in 1.0.3 abstract&nbsp;int&nbsp; eglGetError () Returns the error of the last called EGL function in the current thread. Initially, the error is set to EGL_SUCCESS. When an EGL function could potentially generate several different errors (for example, when passed both a bad attribute name, and a bad attribute value for a legal attribute name), the implementation may choose to generate any one of the applicable errors. See https://khronos.org/registry/EGL/sdk/docs/man/html/eglGetError.xhtml for more information and error codes that could potentially be returned eglGetSyncAttribKHR Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglGetSyncAttribKHR ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSyncKHR &nbsp;sync, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull int[]&nbsp;value, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset ) Query attributes of the provided sync object. Accepted attributes to query depend on the type of sync object. If no errors are generated, this returns true and the value of the queried attribute is stored in the value array at the offset position. If this method returns false, the provided value array is unmodified. See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt Parameters @ NonNull EGLSyncKHR &nbsp;sync EGLSyncKHR object to query attributes int&nbsp;attribute Corresponding EGLSyncKHR attribute to query on sync @ NonNull int[]&nbsp;value Integer array used to store the result of the query int&nbsp;offset Index within the value array to store the result of the attribute query Returns boolean true if the attribute was queried successfully, false otherwise. Failure cases include attempting to call this method on an invalid sync object, or the display provided not matching the display that was used to create this sync object. Additionally if the queried attribute is not supported for the sync object, false is returned. eglInitialize Added in 1.0.3 abstract&nbsp;@ NonNull EGLVersion &nbsp; eglInitialize () Initialize the EGL implementation and return the major and minor version of the EGL implementation through EGLVersion . If initialization fails, this returns EGLVersion.Unknown eglMakeCurrent Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglMakeCurrent ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLContext &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;drawSurface, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;readSurface ) Binds the current context to the given draw and read surfaces. The draw surface is used for all operations except for any pixel data read back or copy operations which are taken from the read surface. The same EGLSurface may be specified for both draw and read surfaces. See https://www.khronos.org/registry/EGL/sdk/docs/man/html/eglMakeCurrent.xhtml for more information Parameters @ NonNull EGLContext &nbsp;context EGL rendering context to be attached to the surfaces @ NonNull EGLSurface &nbsp;drawSurface EGLSurface to draw pixels into. @ NonNull EGLSurface &nbsp;readSurface EGLSurface used for read/copy operations. eglQueryString Added in 1.0.3 abstract&nbsp;@ NonNull String &nbsp; eglQueryString (int&nbsp;nameId) Query for the capabilities associated with the given eglDisplay. The result contains a space separated list of the capabilities. Parameters int&nbsp;nameId identifier for the EGL string to query eglQuerySurface Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglQuerySurface ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EGLSurface &nbsp;surface, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull int[]&nbsp;result, &nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset ) Query the EGL attributes of the provided surface Parameters @ NonNull EGLSurface &nbsp;surface EGLSurface to be queried int&nbsp;attribute EGL attribute to query on the given EGL Surface @ NonNull int[]&nbsp;result Int array to store the result of the query int&nbsp;offset Index within result to store the value of the queried attribute Returns boolean true if the query was completed successfully, false otherwise. If the query fails, result is unmodified eglSwapBuffers Added in 1.0.3 abstract&nbsp;boolean&nbsp; eglSwapBuffers (@ NonNull EGLSurface &nbsp;surface) Post EGL surface color buffer to a native window See https://khronos.org/registry/EGL/sdk/docs/man/html/eglSwapBuffers.xhtml Parameters @ NonNull EGLSurface &nbsp;surface Specifies the EGL drawing surface whose buffers are to be swapped Returns boolean true if swapping of buffers succeeds, false otherwise getErrorMessage Added in 1.0.3 default&nbsp;@ NonNull String &nbsp; getErrorMessage () Convenience method to obtain the corresponding error string from the error code obtained from EGLSpec.eglGetError getStatusString Added in 1.0.3 default&nbsp;static&nbsp;final&nbsp;@ NonNull String &nbsp; getStatusString (int&nbsp;error) Return a string representation of the corresponding EGL status code. If the provided error value is not an EGL status code, the hex representation is returned instead loadConfig Added in 1.0.3 abstract&nbsp; EGLConfig &nbsp; loadConfig (@ NonNull EGLConfigAttributes &nbsp;configAttributes) Load a corresponding EGLConfig from the provided EGLConfigAttributes If the EGLConfig could not be loaded, null is returned Parameters @ NonNull EGLConfigAttributes &nbsp;configAttributes Desired EGLConfigAttributes to create an EGLConfig Returns EGLConfig the EGLConfig with the provided EGLConfigAttributes or null if an EGLConfig could not be created with the specified attributes</body></html>
+<html><head><title>EGLSpec</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="EGLSpec">
+      <meta itemprop="path" content="androidx.graphics.opengl.egl">
+      <meta itemprop="property" content="eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">
+      <meta itemprop="property" content="eglCreateContext(android.opengl.EGLConfig)">
+      <meta itemprop="property" content="eglCreateImageFromHardwareBuffer(android.hardware.HardwareBuffer)">
+      <meta itemprop="property" content="eglCreatePBufferSurface(android.opengl.EGLConfig,androidx.graphics.opengl.egl.EGLConfigAttributes)">
+      <meta itemprop="property" content="eglCreateSyncKHR(kotlin.Int,androidx.graphics.opengl.egl.EGLConfigAttributes)">
+      <meta itemprop="property" content="eglCreateWindowSurface(android.opengl.EGLConfig,android.view.Surface,androidx.graphics.opengl.egl.EGLConfigAttributes)">
+      <meta itemprop="property" content="eglDestroyContext(android.opengl.EGLContext)">
+      <meta itemprop="property" content="eglDestroyImageKHR(androidx.opengl.EGLImageKHR)">
+      <meta itemprop="property" content="eglDestroySurface(android.opengl.EGLSurface)">
+      <meta itemprop="property" content="eglDestroySyncKHR(androidx.opengl.EGLSyncKHR)">
+      <meta itemprop="property" content="eglGetCurrentDrawSurface()">
+      <meta itemprop="property" content="eglGetCurrentReadSurface()">
+      <meta itemprop="property" content="eglGetError()">
+      <meta itemprop="property" content="eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.IntArray,kotlin.Int)">
+      <meta itemprop="property" content="eglInitialize()">
+      <meta itemprop="property" content="eglMakeCurrent(android.opengl.EGLContext,android.opengl.EGLSurface,android.opengl.EGLSurface)">
+      <meta itemprop="property" content="eglQueryString(kotlin.Int)">
+      <meta itemprop="property" content="eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)">
+      <meta itemprop="property" content="eglSwapBuffers(android.opengl.EGLSurface)">
+      <meta itemprop="property" content="getErrorMessage()">
+      <meta itemprop="property" content="getStatusString(kotlin.Int)">
+      <meta itemprop="property" content="loadConfig(androidx.graphics.opengl.egl.EGLConfigAttributes)">
+      <meta itemprop="property" content="V14()">
+      <meta itemprop="property" content="getStatusString(kotlin.Int)">
+      <meta itemprop="property" content="V14()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="eglspec" data-text="EGLSpec" tabindex="-1">EGLSpec</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/graphics">androidx.graphics:graphics-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/graphics/opengl/egl/EGLSpec.kt+class:androidx.graphics.opengl.egl.EGLSpec" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/graphics/opengl/egl/EGLSpec" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public interface <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Interface for accessing various EGL facilities independent of EGL versions. That is each EGL version implements this specification.</p>
+    <p>EGLSpec is not thread safe and is up to the caller of these methods to guarantee thread safety.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-fields" data-text="Public fields" tabindex="-1">Public fields</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#V14()">V14</a></code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;flags,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutNanos<br>)</code></div>
+              <p>Blocks the calling thread until the specified sync object is signalled or until <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> nanoseconds have passed.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateContext(android.opengl.EGLConfig)">eglCreateContext</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config)</code></div>
+              <p>Create an EGLContext with the default display.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;26)<br><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateImageFromHardwareBuffer(android.hardware.HardwareBuffer)">eglCreateImageFromHardwareBuffer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a>&nbsp;hardwareBuffer)</code></div>
+              <p>Creates an EGLImage from the provided <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreatePBufferSurface(android.opengl.EGLConfig,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreatePBufferSurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes<br>)</code></div>
+              <p>Create a Pixel Buffer surface with the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateSyncKHR(kotlin.Int,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreateSyncKHR</a>(int&nbsp;type,&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;attributes)</code></div>
+              <p>Creates a sync object of the specified type associated with the specified display, and returns a handle to the new object.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateWindowSurface(android.opengl.EGLConfig,android.view.Surface,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreateWindowSurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes<br>)</code></div>
+              <p>Creates an on screen EGL window surface from the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> and returns a handle to it.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroyContext(android.opengl.EGLContext)">eglDestroyContext</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;eglContext)</code></div>
+              <p>Destroy the given EGLContext generated in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateContext(android.opengl.EGLConfig)">eglCreateContext</a></code></p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroyImageKHR(androidx.opengl.EGLImageKHR)">eglDestroyImageKHR</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a>&nbsp;image)</code></div>
+              <p>Destroy the given <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> instance.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroySurface(android.opengl.EGLSurface)">eglDestroySurface</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface)</code></div>
+              <p>Destroys an EGL surface.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroySyncKHR(androidx.opengl.EGLSyncKHR)">eglDestroySyncKHR</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync)</code></div>
+              <p>Destroys the given sync object associated with the specified display</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetCurrentDrawSurface()">eglGetCurrentDrawSurface</a>()</code></div>
+              <p>Return the current surface used for drawing pixels.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetCurrentReadSurface()">eglGetCurrentReadSurface</a>()</code></div>
+              <p>Return the current surface used for reading or copying pixels.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetError()">eglGetError</a>()</code></div>
+              <p>Returns the error of the last called EGL function in the current thread.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.IntArray,kotlin.Int)">eglGetSyncAttribKHR</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;value,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset<br>)</code></div>
+              <p>Query attributes of the provided sync object.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLVersion">EGLVersion</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglInitialize()">eglInitialize</a>()</code></div>
+              <p>Initialize the EGL implementation and return the major and minor version of the EGL implementation through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLVersion">EGLVersion</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglMakeCurrent(android.opengl.EGLContext,android.opengl.EGLSurface,android.opengl.EGLSurface)">eglMakeCurrent</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;drawSurface,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;readSurface<br>)</code></div>
+              <p>Binds the current context to the given draw and read surfaces.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQueryString(kotlin.Int)">eglQueryString</a>(int&nbsp;nameId)</code></div>
+              <p>Query for the capabilities associated with the given eglDisplay.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)">eglQuerySurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;result,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset<br>)</code></div>
+              <p>Query the EGL attributes of the provided surface</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglSwapBuffers(android.opengl.EGLSurface)">eglSwapBuffers</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface)</code></div>
+              <p>Post EGL surface color buffer to a native window</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#getErrorMessage()">getErrorMessage</a>()</code></div>
+              <p>Convenience method to obtain the corresponding error string from the error code obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetError()">EGLSpec.eglGetError</a></code></p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#getStatusString(kotlin.Int)">getStatusString</a>(int&nbsp;error)</code></div>
+              <p>Return a string representation of the corresponding EGL status code.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#loadConfig(androidx.graphics.opengl.egl.EGLConfigAttributes)">loadConfig</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes)</code></div>
+              <p>Load a corresponding EGLConfig from the provided <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code> If the EGLConfig could not be loaded, null is returned</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-fields_1" data-text="Public fields" tabindex="-1">Public fields</h2>
+      <div class="api-item"><a name="getV14()"></a><a name="setV14()"></a><a name="getV14--"></a><a name="setV14--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="V14()" data-text="V14" tabindex="-1">V14</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLSpec">EGLSpec</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#V14()">V14</a></pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR, kotlin.Int, kotlin.Long)"></a><a name="eglClientWaitSyncKHR-androidx.opengl.EGLSyncKHR-kotlin.Int-kotlin.Long-"></a><a name="eglclientwaitsynckhr"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)" data-text="eglClientWaitSyncKHR" tabindex="-1">eglClientWaitSyncKHR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;int&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;flags,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;timeoutNanos<br>)</pre></devsite-code>
+        <p>Blocks the calling thread until the specified sync object is signalled or until <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> nanoseconds have passed. More than one <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> may be outstanding on the same <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> at any given time. When there are multiple threads blocked on the same <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> and the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> object has signalled, all such threads are released, but the order in which they are released is not defined.</p>
+        <p>If the value of <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> is zero, then <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> simply tests the current status of sync. If the value of <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> is the special value <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_FOREVER_KHR()">EGL_FOREVER_KHR</a></code>, then <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> does not time out. For all other values, <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> is adjusted to the closest value allowed by the implementation-dependent timeout accuracy, which may be substantially longer than one nanosecond.</p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> returns one of three status values describing the reason for returning. A return value of <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_TIMEOUT_EXPIRED_KHR()">EGL_TIMEOUT_EXPIRED_KHR</a></code> indicates that the specified timeout period expired before <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> was signalled, or if <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">timeoutNanos</a></code> is zero, indicates that <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> is not signaled. A return value of <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_CONDITION_SATISFIED_KHR()">EGL_CONDITION_SATISFIED_KHR</a></code> indicates that <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> was signaled before the timeout expired, which includes the case when <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> was already signaled when <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> was called. If an error occurs then an error is generated and <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_FALSE()">EGL_FALSE</a></code> is returned.</p>
+        <p>If the sync object being blocked upon will not be signaled in finite time (for example by an associated fence command issued previously, but not yet flushed to the graphics pipeline), then <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> may wait forever. To help prevent this behavior, if the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_SYNC_FLUSH_COMMANDS_BIT_KHR()">EGL_SYNC_FLUSH_COMMANDS_BIT_KHR</a></code> is set on the flags parameter and the <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">sync</a></code> is unsignaled when <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglClientWaitSyncKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.Long)">eglClientWaitSyncKHR</a></code> is called, then the equivalent flush will be performed for the current EGL context before blocking on sync. If no context is current bound for the API, the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_SYNC_FLUSH_COMMANDS_BIT_KHR()">EGL_SYNC_FLUSH_COMMANDS_BIT_KHR</a></code> bit is ignored.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync</code></td>
+                <td>
+                  <p>EGLSyncKHR object to wait on</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;flags</code></td>
+                <td>
+                  <p>Optional flags to provide to handle flushing of pending commands</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;timeoutNanos</code></td>
+                <td>
+                  <p>Optional timeout value to wait before this method returns, measured in nanoseconds. This value is always consumed as an unsigned long value so even negative values will be converted to their unsigned equivalent.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int</code></td>
+                <td>
+                  <p>Result code indicating the status of the wait request. Either <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_CONDITION_SATISFIED_KHR()">EGL_CONDITION_SATISFIED_KHR</a></code>, if the sync did signal within the specified timeout, <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_TIMEOUT_EXPIRED_KHR()">EGL_TIMEOUT_EXPIRED_KHR</a></code> if the sync did not signal within the specified timeout, or <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLExt#EGL_FALSE()">EGL_FALSE</a></code> if an error occurs.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglCreateContext-android.opengl.EGLConfig-"></a><a name="eglcreatecontext"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglCreateContext(android.opengl.EGLConfig)" data-text="eglCreateContext" tabindex="-1">eglCreateContext</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateContext(android.opengl.EGLConfig)">eglCreateContext</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config)</pre></devsite-code>
+        <p>Create an EGLContext with the default display. If createContext fails to create a rendering context, EGL_NO_CONTEXT is returned</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code> used to create the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglCreateImageFromHardwareBuffer-android.hardware.HardwareBuffer-"></a><a name="eglcreateimagefromhardwarebuffer"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglCreateImageFromHardwareBuffer(android.hardware.HardwareBuffer)" data-text="eglCreateImageFromHardwareBuffer" tabindex="-1">eglCreateImageFromHardwareBuffer</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresApi">RequiresApi</a>(value&nbsp;=&nbsp;26)<br>abstract&nbsp;<a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateImageFromHardwareBuffer(android.hardware.HardwareBuffer)">eglCreateImageFromHardwareBuffer</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a>&nbsp;hardwareBuffer)</pre></devsite-code>
+        <p>Creates an EGLImage from the provided <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a></code>. This handles internally creating an EGLClientBuffer and an <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> from the client buffer.</p>
+        <p>When this <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> instance is no longer necessary, consumers should be sure to call the corresponding method <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroyImageKHR(androidx.opengl.EGLImageKHR)">eglDestroyImageKHR</a></code> to deallocate the resource.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a>&nbsp;hardwareBuffer</code></td>
+                <td>
+                  <p>Backing <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/hardware/HardwareBuffer.html">HardwareBuffer</a></code> for the generated EGLImage instance</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code></td>
+                <td>
+                  <p>an <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> instance representing the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> created from the HardwareBuffer. Because this is created internally through EGL's eglCreateImageKR method, this has the KHR suffix.</p>
+                  <p>This can return null if the EGL_ANDROID_image_native_buffer and EGL_KHR_image_base extensions are not supported or if allocation of the buffer fails.</p>
+                  <p>See www.khronos.org/registry/EGL/extensions/ANDROID/EGL_ANDROID_get_native_client_buffer.txt</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglCreatePBufferSurface(android.opengl.EGLConfig, androidx.graphics.opengl.egl.EGLConfigAttributes)"></a><a name="eglCreatePBufferSurface-android.opengl.EGLConfig-androidx.graphics.opengl.egl.EGLConfigAttributes-"></a><a name="eglcreatepbuffersurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglCreatePBufferSurface(android.opengl.EGLConfig,androidx.graphics.opengl.egl.EGLConfigAttributes)" data-text="eglCreatePBufferSurface" tabindex="-1">eglCreatePBufferSurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreatePBufferSurface(android.opengl.EGLConfig,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreatePBufferSurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes<br>)</pre></devsite-code>
+        <p>Create a Pixel Buffer surface with the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code>. Accepted attributes are defined as part of the OpenGL specification here: https://www.khronos.org/registry/EGL/sdk/docs/man/html/eglCreatePbufferSurface.xhtml</p>
+        <p>If a pixel buffer surface could not be created, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGL14.html#EGL_NO_SURFACE()">EGL14.EGL_NO_SURFACE</a></code> is returned.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>Specifies the EGL Frame buffer configuration that defines the frame buffer resource available to the surface</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes</code></td>
+                <td>
+                  <p>Optional list of attributes for the pixel buffer surface</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglCreateSyncKHR(kotlin.Int, androidx.graphics.opengl.egl.EGLConfigAttributes)"></a><a name="eglCreateSyncKHR-kotlin.Int-androidx.graphics.opengl.egl.EGLConfigAttributes-"></a><a name="eglcreatesynckhr"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglCreateSyncKHR(kotlin.Int,androidx.graphics.opengl.egl.EGLConfigAttributes)" data-text="eglCreateSyncKHR" tabindex="-1">eglCreateSyncKHR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateSyncKHR(kotlin.Int,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreateSyncKHR</a>(int&nbsp;type,&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;attributes)</pre></devsite-code>
+        <p>Creates a sync object of the specified type associated with the specified display, and returns a handle to the new object. The configuration of the returned <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code> object is specified by the provided attributes.</p>
+        <p>Consumers should ensure that the EGL_KHR_fence_sync EGL extension is supported before invoking this method otherwise a null EGLSyncFenceKHR object is returned.</p>
+        <p>When the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code> instance is no longer necessary, consumers are encouraged to call <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroySyncKHR(androidx.opengl.EGLSyncKHR)">eglDestroySyncKHR</a></code> to deallocate this resource.</p>
+        <p>See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;type</code></td>
+                <td>
+                  <p>Indicates the type of sync object that is returned</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;attributes</code></td>
+                <td>
+                  <p>Specifies the configuration of the sync object returned</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code> object to be used as a fence or null if this extension is not supported</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglCreateWindowSurface(android.opengl.EGLConfig, android.view.Surface, androidx.graphics.opengl.egl.EGLConfigAttributes)"></a><a name="eglCreateWindowSurface-android.opengl.EGLConfig-android.view.Surface-androidx.graphics.opengl.egl.EGLConfigAttributes-"></a><a name="eglcreatewindowsurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglCreateWindowSurface(android.opengl.EGLConfig,android.view.Surface,androidx.graphics.opengl.egl.EGLConfigAttributes)" data-text="eglCreateWindowSurface" tabindex="-1">eglCreateWindowSurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateWindowSurface(android.opengl.EGLConfig,android.view.Surface,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreateWindowSurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes<br>)</pre></devsite-code>
+        <p>Creates an on screen EGL window surface from the given <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> and returns a handle to it.</p>
+        <p>See https://khronos.org/registry/EGL/sdk/docs/man/html/eglCreateWindowSurface.xhtml</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;config</code></td>
+                <td>
+                  <p>Specifies the EGL frame buffer configuration that defines the frame buffer resource available to the surface</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;surface</code></td>
+                <td>
+                  <p>Android surface to consume rendered content</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes</code></td>
+                <td>
+                  <p>Optional list of attributes for the specified surface</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglDestroyContext-android.opengl.EGLContext-"></a><a name="egldestroycontext"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglDestroyContext(android.opengl.EGLContext)" data-text="eglDestroyContext" tabindex="-1">eglDestroyContext</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroyContext(android.opengl.EGLContext)">eglDestroyContext</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;eglContext)</pre></devsite-code>
+        <p>Destroy the given EGLContext generated in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateContext(android.opengl.EGLConfig)">eglCreateContext</a></code></p>
+        <p>See https://khronos.org/registry/EGL/sdk/docs/man/html/eglDestroyContext.xhtml</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;eglContext</code></td>
+                <td>
+                  <p>EGL rendering context to be destroyed</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglDestroyImageKHR-androidx.opengl.EGLImageKHR-"></a><a name="egldestroyimagekhr"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglDestroyImageKHR(androidx.opengl.EGLImageKHR)" data-text="eglDestroyImageKHR" tabindex="-1">eglDestroyImageKHR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroyImageKHR(androidx.opengl.EGLImageKHR)">eglDestroyImageKHR</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a>&nbsp;image)</pre></devsite-code>
+        <p>Destroy the given <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> instance. Once destroyed, the image may not be used to create any additional <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> target resources within any client API contexts, although existing <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a></code> siblings may continue to be used. <code translate="no" dir="ltr">true</code> is returned if DestroyImageKHR succeeds, <code translate="no" dir="ltr">false</code> indicates failure. This can return <code translate="no" dir="ltr">false</code> if the corresponding <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a></code> is not valid.</p>
+        <p>See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_image_base.txt</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLImageKHR">EGLImageKHR</a>&nbsp;image</code></td>
+                <td>
+                  <p>EGLImageKHR to be destroyed</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the destruction of the EGLImageKHR object was successful, <code translate="no" dir="ltr">false</code> otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglDestroySurface-android.opengl.EGLSurface-"></a><a name="egldestroysurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglDestroySurface(android.opengl.EGLSurface)" data-text="eglDestroySurface" tabindex="-1">eglDestroySurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroySurface(android.opengl.EGLSurface)">eglDestroySurface</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface)</pre></devsite-code>
+        <p>Destroys an EGL surface.</p>
+        <p>If the EGL surface is not current to any thread, eglDestroySurface destroys it immediately. Otherwise, surface is destroyed when it becomes not current to any thread. Furthermore, resources associated with a pbuffer surface are not released until all color buffers of that pbuffer bound to a texture object have been released. Deferral of surface destruction would still return true as deferral does not indicate a failure condition</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if destruction of the EGLSurface was successful, false otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglDestroySyncKHR-androidx.opengl.EGLSyncKHR-"></a><a name="egldestroysynckhr"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglDestroySyncKHR(androidx.opengl.EGLSyncKHR)" data-text="eglDestroySyncKHR" tabindex="-1">eglDestroySyncKHR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglDestroySyncKHR(androidx.opengl.EGLSyncKHR)">eglDestroySyncKHR</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync)</pre></devsite-code>
+        <p>Destroys the given sync object associated with the specified display</p>
+        <p>Consumers should ensure that the EGL_KHR_fence_sync EGL extension is supported before invoking this method otherwise a null EGLSyncFenceKHR object is returned. See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync</code></td>
+                <td>
+                  <p>Fence object to be destroyed</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the <code translate="no" dir="ltr"><a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a></code> object was destroyed successfully <code translate="no" dir="ltr">false</code> otherwise. This can return <code translate="no" dir="ltr">false</code> if the sync object is not a valid sync object for the provided display or if the display provided in this method does not match the display used to create this sync in <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglCreateSyncKHR(kotlin.Int,androidx.graphics.opengl.egl.EGLConfigAttributes)">eglCreateSyncKHR</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglGetCurrentDrawSurface--"></a><a name="eglgetcurrentdrawsurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglGetCurrentDrawSurface()" data-text="eglGetCurrentDrawSurface" tabindex="-1">eglGetCurrentDrawSurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetCurrentDrawSurface()">eglGetCurrentDrawSurface</a>()</pre></devsite-code>
+        <p>Return the current surface used for drawing pixels. If no context is current, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGL14.html#EGL_NO_SURFACE()">EGL14.EGL_NO_SURFACE</a></code> is returned.</p>
+      </div>
+      <div class="api-item"><a name="eglGetCurrentReadSurface--"></a><a name="eglgetcurrentreadsurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglGetCurrentReadSurface()" data-text="eglGetCurrentReadSurface" tabindex="-1">eglGetCurrentReadSurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetCurrentReadSurface()">eglGetCurrentReadSurface</a>()</pre></devsite-code>
+        <p>Return the current surface used for reading or copying pixels. If no context is current, <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGL14.html#EGL_NO_SURFACE()">EGL14.EGL_NO_SURFACE</a></code> is returned</p>
+      </div>
+      <div class="api-item"><a name="eglGetError--"></a><a name="eglgeterror"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglGetError()" data-text="eglGetError" tabindex="-1">eglGetError</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;int&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetError()">eglGetError</a>()</pre></devsite-code>
+        <p>Returns the error of the last called EGL function in the current thread. Initially, the error is set to EGL_SUCCESS. When an EGL function could potentially generate several different errors (for example, when passed both a bad attribute name, and a bad attribute value for a legal attribute name), the implementation may choose to generate any one of the applicable errors.</p>
+        <p>See https://khronos.org/registry/EGL/sdk/docs/man/html/eglGetError.xhtml for more information and error codes that could potentially be returned</p>
+      </div>
+      <div class="api-item"><a name="eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR, kotlin.Int, kotlin.IntArray, kotlin.Int)"></a><a name="eglGetSyncAttribKHR-androidx.opengl.EGLSyncKHR-kotlin.Int-kotlin.IntArray-kotlin.Int-"></a><a name="eglgetsyncattribkhr"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.IntArray,kotlin.Int)" data-text="eglGetSyncAttribKHR" tabindex="-1">eglGetSyncAttribKHR</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.IntArray,kotlin.Int)">eglGetSyncAttribKHR</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;value,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset<br>)</pre></devsite-code>
+        <p>Query attributes of the provided sync object. Accepted attributes to query depend on the type of sync object. If no errors are generated, this returns true and the value of the queried attribute is stored in the value array at the offset position. If this method returns false, the provided value array is unmodified.</p>
+        <p>See: https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_fence_sync.txt</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/opengl/EGLSyncKHR">EGLSyncKHR</a>&nbsp;sync</code></td>
+                <td>
+                  <p>EGLSyncKHR object to query attributes</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;attribute</code></td>
+                <td>
+                  <p>Corresponding EGLSyncKHR attribute to query on <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetSyncAttribKHR(androidx.opengl.EGLSyncKHR,kotlin.Int,kotlin.IntArray,kotlin.Int)">sync</a></code></p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;value</code></td>
+                <td>
+                  <p>Integer array used to store the result of the query</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;offset</code></td>
+                <td>
+                  <p>Index within the value array to store the result of the attribute query</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the attribute was queried successfully, false otherwise. Failure cases include attempting to call this method on an invalid sync object, or the display provided not matching the display that was used to create this sync object. Additionally if the queried attribute is not supported for the sync object, false is returned.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglInitialize--"></a><a name="eglinitialize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglInitialize()" data-text="eglInitialize" tabindex="-1">eglInitialize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLVersion">EGLVersion</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglInitialize()">eglInitialize</a>()</pre></devsite-code>
+        <p>Initialize the EGL implementation and return the major and minor version of the EGL implementation through <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLVersion">EGLVersion</a></code>. If initialization fails, this returns <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLVersion#Unknown()">EGLVersion.Unknown</a></code></p>
+      </div>
+      <div class="api-item"><a name="eglMakeCurrent(android.opengl.EGLContext, android.opengl.EGLSurface, android.opengl.EGLSurface)"></a><a name="eglMakeCurrent-android.opengl.EGLContext-android.opengl.EGLSurface-android.opengl.EGLSurface-"></a><a name="eglmakecurrent"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglMakeCurrent(android.opengl.EGLContext,android.opengl.EGLSurface,android.opengl.EGLSurface)" data-text="eglMakeCurrent" tabindex="-1">eglMakeCurrent</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglMakeCurrent(android.opengl.EGLContext,android.opengl.EGLSurface,android.opengl.EGLSurface)">eglMakeCurrent</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;drawSurface,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;readSurface<br>)</pre></devsite-code>
+        <p>Binds the current context to the given draw and read surfaces. The draw surface is used for all operations except for any pixel data read back or copy operations which are taken from the read surface.</p>
+        <p>The same EGLSurface may be specified for both draw and read surfaces.</p>
+        <p>See https://www.khronos.org/registry/EGL/sdk/docs/man/html/eglMakeCurrent.xhtml for more information</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLContext.html">EGLContext</a>&nbsp;context</code></td>
+                <td>
+                  <p>EGL rendering context to be attached to the surfaces</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;drawSurface</code></td>
+                <td>
+                  <p>EGLSurface to draw pixels into.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;readSurface</code></td>
+                <td>
+                  <p>EGLSurface used for read/copy operations.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglQueryString-kotlin.Int-"></a><a name="eglquerystring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglQueryString(kotlin.Int)" data-text="eglQueryString" tabindex="-1">eglQueryString</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQueryString(kotlin.Int)">eglQueryString</a>(int&nbsp;nameId)</pre></devsite-code>
+        <p>Query for the capabilities associated with the given eglDisplay. The result contains a space separated list of the capabilities.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;nameId</code></td>
+                <td>
+                  <p>identifier for the EGL string to query</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglQuerySurface(android.opengl.EGLSurface, kotlin.Int, kotlin.IntArray, kotlin.Int)"></a><a name="eglQuerySurface-android.opengl.EGLSurface-kotlin.Int-kotlin.IntArray-kotlin.Int-"></a><a name="eglquerysurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)" data-text="eglQuerySurface" tabindex="-1">eglQuerySurface</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)">eglQuerySurface</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;attribute,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;result,<br>&nbsp;&nbsp;&nbsp;&nbsp;int&nbsp;offset<br>)</pre></devsite-code>
+        <p>Query the EGL attributes of the provided surface</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface</code></td>
+                <td>
+                  <p>EGLSurface to be queried</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;attribute</code></td>
+                <td>
+                  <p>EGL attribute to query on the given EGL Surface</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> int[]&nbsp;result</code></td>
+                <td>
+                  <p>Int array to store the result of the query</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;offset</code></td>
+                <td>
+                  <p>Index within <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)">result</a></code> to store the value of the queried attribute</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the query was completed successfully, false otherwise. If the query fails, <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglQuerySurface(android.opengl.EGLSurface,kotlin.Int,kotlin.IntArray,kotlin.Int)">result</a></code> is unmodified</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="eglSwapBuffers-android.opengl.EGLSurface-"></a><a name="eglswapbuffers"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="eglSwapBuffers(android.opengl.EGLSurface)" data-text="eglSwapBuffers" tabindex="-1">eglSwapBuffers</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglSwapBuffers(android.opengl.EGLSurface)">eglSwapBuffers</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface)</pre></devsite-code>
+        <p>Post EGL surface color buffer to a native window</p>
+        <p>See https://khronos.org/registry/EGL/sdk/docs/man/html/eglSwapBuffers.xhtml</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/opengl/EGLSurface.html">EGLSurface</a>&nbsp;surface</code></td>
+                <td>
+                  <p>Specifies the EGL drawing surface whose buffers are to be swapped</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if swapping of buffers succeeds, false otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getErrorMessage--"></a><a name="geterrormessage"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getErrorMessage()" data-text="getErrorMessage" tabindex="-1">getErrorMessage</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#getErrorMessage()">getErrorMessage</a>()</pre></devsite-code>
+        <p>Convenience method to obtain the corresponding error string from the error code obtained from <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLSpec#eglGetError()">EGLSpec.eglGetError</a></code></p>
+      </div>
+      <div class="api-item"><a name="getStatusString-kotlin.Int-"></a><a name="getstatusstring"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getStatusString(kotlin.Int)" data-text="getStatusString" tabindex="-1">getStatusString</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#getStatusString(kotlin.Int)">getStatusString</a>(int&nbsp;error)</pre></devsite-code>
+        <p>Return a string representation of the corresponding EGL status code. If the provided error value is not an EGL status code, the hex representation is returned instead</p>
+      </div>
+      <div class="api-item"><a name="loadConfig-androidx.graphics.opengl.egl.EGLConfigAttributes-"></a><a name="loadconfig"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="loadConfig(androidx.graphics.opengl.egl.EGLConfigAttributes)" data-text="loadConfig" tabindex="-1">loadConfig</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/graphics#1.0.3">1.0.3</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a>&nbsp;<a href="/reference/androidx/graphics/opengl/egl/EGLSpec#loadConfig(androidx.graphics.opengl.egl.EGLConfigAttributes)">loadConfig</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes)</pre></devsite-code>
+        <p>Load a corresponding EGLConfig from the provided <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code> If the EGLConfig could not be loaded, null is returned</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a>&nbsp;configAttributes</code></td>
+                <td>
+                  <p>Desired <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code> to create an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code> with the provided <code translate="no" dir="ltr"><a href="/reference/androidx/graphics/opengl/egl/EGLConfigAttributes">EGLConfigAttributes</a></code> or null if an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLConfig.html">EGLConfig</a></code> could not be created with the specified attributes</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

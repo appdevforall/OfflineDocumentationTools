@@ -1,1 +1,1422 @@
-<html><head><title>Class Documentation</title></head><body>VideoFrameProcessor Artifact: androidx.media3:media3-common View Source Kotlin | Java @ UnstableApi public interface VideoFrameProcessor Known direct subclasses DefaultVideoFrameProcessor DefaultVideoFrameProcessor A VideoFrameProcessor implementation that applies GlEffect instances using OpenGL on a background thread. Interface for a video frame processor that applies changes to individual video frames. The changes are specified by Effect instances passed to registerInputStream . Manages its input Surface , which can be accessed via getInputSurface . The output Surface must be set by the caller using setOutputSurfaceInfo . VideoFrameProcessor instances can be created from any thread, but instance methods for each stream must be called from the same thread. Summary Nested types public interface VideoFrameProcessor.Factory A factory for VideoFrameProcessor instances. @ Documented @ Retention (value&nbsp;=&nbsp;RetentionPolicy.SOURCE) @ Target (value&nbsp;=&nbsp;TYPE_USE) @ IntDef (value&nbsp;=&nbsp;) public annotation VideoFrameProcessor.InputType Specifies how the input frames are made available to the VideoFrameProcessor . public interface VideoFrameProcessor.Listener Listener for asynchronous frame processing events. Constants default&nbsp;static&nbsp;final long DROP_OUTPUT_FRAME = -2 Indicates the frame should be dropped after renderOutputFrame is invoked. default&nbsp;static&nbsp;final int INPUT_TYPE_BITMAP = 2 Input frames come from a Bitmap . default&nbsp;static&nbsp;final int INPUT_TYPE_SURFACE = 1 Input frames come from a surface . default&nbsp;static&nbsp;final int INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION = 4 Input frames come from the input surface and don't need to be registered (unlike with INPUT_TYPE_SURFACE ). default&nbsp;static&nbsp;final int INPUT_TYPE_TEXTURE_ID = 3 Input frames come from a traditional GLES texture . default&nbsp;static&nbsp;final ImmutableList &lt; Effect &gt; REDRAW A maker for passing to registerInputStream to signal a redraw. default&nbsp;static&nbsp;final long RENDER_OUTPUT_FRAME_IMMEDIATELY = -1 This field is deprecated. Pass nanoTime to renderOutputFrame to render an output frame immediately. default&nbsp;static&nbsp;final long RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME = -3 Indicates the frame should preserve the input presentation time when renderOutputFrame is invoked. Public methods abstract void flush () Flushes the VideoFrameProcessor . abstract Surface getInputSurface () Returns the input Surface , where VideoFrameProcessor consumes input frames from. abstract int getPendingInputFrameCount () Returns the number of input frames that have been made available to the VideoFrameProcessor but have not been processed yet. abstract boolean queueInputBitmap ( &nbsp;&nbsp;&nbsp;&nbsp; Bitmap &nbsp;inputBitmap, &nbsp;&nbsp;&nbsp;&nbsp; TimestampIterator &nbsp;timestampIterator ) Provides an input Bitmap to the VideoFrameProcessor . abstract boolean queueInputTexture (int&nbsp;textureId,&nbsp;long&nbsp;presentationTimeUs) Provides an input texture ID to the VideoFrameProcessor . abstract void redraw () Updates an available frame with the modified effects. abstract boolean registerInputFrame () Informs the VideoFrameProcessor that a frame will be queued to its input surface . abstract void registerInputStream ( &nbsp;&nbsp;&nbsp;&nbsp;@ VideoFrameProcessor.InputType int&nbsp;inputType, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; Effect &gt;&nbsp;effects, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;offsetToAddUs ) Informs the VideoFrameProcessor that a new input stream will be queued with the list of Effects to apply to the new input stream. abstract void release () Releases all resources. abstract void renderOutputFrame (long&nbsp;renderTimeNs) Renders the oldest unrendered output frame that has become available for rendering at the given renderTimeNs . abstract void setOnInputFrameProcessedListener ( &nbsp;&nbsp;&nbsp;&nbsp; OnInputFrameProcessedListener &nbsp;listener ) Sets the OnInputFrameProcessedListener . abstract void setOnInputSurfaceReadyListener ( Runnable &nbsp;listener) Sets a listener that's called when the input surface is ready to use. abstract void setOutputSurfaceInfo (@ Nullable SurfaceInfo &nbsp;outputSurfaceInfo) Sets the output surface and supporting information. abstract void signalEndOfInput () Informs the VideoFrameProcessor that no further input frames should be accepted. Constants DROP_OUTPUT_FRAME default&nbsp;static&nbsp;final&nbsp;long&nbsp; DROP_OUTPUT_FRAME = -2 Indicates the frame should be dropped after renderOutputFrame is invoked. INPUT_TYPE_BITMAP default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_TYPE_BITMAP = 2 Input frames come from a Bitmap . INPUT_TYPE_SURFACE default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_TYPE_SURFACE = 1 Input frames come from a surface . When receiving input from a Surface, the caller must register input frames before rendering them to the input Surface . INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION = 4 Input frames come from the input surface and don't need to be registered (unlike with INPUT_TYPE_SURFACE ). Every frame must use the input stream's registered frame format. Also sets the surface's default buffer size . INPUT_TYPE_TEXTURE_ID default&nbsp;static&nbsp;final&nbsp;int&nbsp; INPUT_TYPE_TEXTURE_ID = 3 Input frames come from a traditional GLES texture . REDRAW default&nbsp;static&nbsp;final&nbsp; ImmutableList &lt; Effect &gt;&nbsp; REDRAW A maker for passing to registerInputStream to signal a redraw. RENDER_OUTPUT_FRAME_IMMEDIATELY default&nbsp;static&nbsp;final&nbsp;long&nbsp; RENDER_OUTPUT_FRAME_IMMEDIATELY = -1 This field is deprecated. Pass nanoTime to renderOutputFrame to render an output frame immediately. RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME default&nbsp;static&nbsp;final&nbsp;long&nbsp; RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME = -3 Indicates the frame should preserve the input presentation time when renderOutputFrame is invoked. Public methods flush abstract&nbsp;void&nbsp; flush () Flushes the VideoFrameProcessor . All the frames that are registered prior to calling this method are no longer considered to be registered when this method returns. Listener methods invoked prior to calling this method should be ignored. Throws java.lang.UnsupportedOperationException If the VideoFrameProcessor does not accept surface input . getInputSurface abstract&nbsp; Surface &nbsp; getInputSurface () Returns the input Surface , where VideoFrameProcessor consumes input frames from. The frames arriving on the Surface will not be consumed by the VideoFrameProcessor until registerInputStream is called with INPUT_TYPE_SURFACE . For streams with INPUT_TYPE_SURFACE , the returned surface is ready to use immediately and will not have a default buffer size set on it. This is suitable for configuring a decoder. For streams with INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION , set a listener for the surface becoming ready via setOnInputSurfaceReadyListener and wait for the event before using the returned surface. This is suitable for use with non-decoder producers like media projection. Throws java.lang.UnsupportedOperationException If the VideoFrameProcessor does not accept surface input . getPendingInputFrameCount abstract&nbsp;int&nbsp; getPendingInputFrameCount () Returns the number of input frames that have been made available to the VideoFrameProcessor but have not been processed yet. queueInputBitmap abstract&nbsp;boolean&nbsp; queueInputBitmap ( &nbsp;&nbsp;&nbsp;&nbsp; Bitmap &nbsp;inputBitmap, &nbsp;&nbsp;&nbsp;&nbsp; TimestampIterator &nbsp;timestampIterator ) Provides an input Bitmap to the VideoFrameProcessor . Can be called many times after registering the input stream to put multiple frames in the same input stream. An implementation could recycle the passed in Bitmap , so it may not be suitable for reuse. Parameters Bitmap &nbsp;inputBitmap The Bitmap queued to the VideoFrameProcessor . TimestampIterator &nbsp;timestampIterator A TimestampIterator generating the exact timestamps that the bitmap should be shown at. Returns boolean Whether the Bitmap was successfully queued. A return value of false indicates the VideoFrameProcessor is not ready to accept input. Throws java.lang.UnsupportedOperationException If the VideoFrameProcessor does not accept bitmap input . queueInputTexture abstract&nbsp;boolean&nbsp; queueInputTexture (int&nbsp;textureId,&nbsp;long&nbsp;presentationTimeUs) Provides an input texture ID to the VideoFrameProcessor . It must be only called after setOnInputFrameProcessedListener and registerInputStream have been called. Parameters int&nbsp;textureId The ID of the texture queued to the VideoFrameProcessor . long&nbsp;presentationTimeUs The presentation time of the queued texture, in microseconds. Returns boolean Whether the texture was successfully queued. A return value of false indicates the VideoFrameProcessor is not ready to accept input. redraw abstract&nbsp;void&nbsp; redraw () Updates an available frame with the modified effects. This method can be called from any thread. registerInputFrame abstract&nbsp;boolean&nbsp; registerInputFrame () Informs the VideoFrameProcessor that a frame will be queued to its input surface . Must be called before rendering a frame to the input surface. The caller must not render frames to the input surface when false is returned. Returns boolean Whether the input frame was successfully registered. If registerInputStream is called, this method returns false until onInputStreamRegistered is called. Otherwise, a return value of false indicates the VideoFrameProcessor is not ready to accept input. Throws java.lang.UnsupportedOperationException If the VideoFrameProcessor does not accept surface input . java.lang.IllegalStateException If called after signalEndOfInput or before registerInputStream . registerInputStream abstract&nbsp;void&nbsp; registerInputStream ( &nbsp;&nbsp;&nbsp;&nbsp;@ VideoFrameProcessor.InputType int&nbsp;inputType, &nbsp;&nbsp;&nbsp;&nbsp; Format &nbsp;format, &nbsp;&nbsp;&nbsp;&nbsp; List &lt; Effect &gt;&nbsp;effects, &nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;offsetToAddUs ) Informs the VideoFrameProcessor that a new input stream will be queued with the list of Effects to apply to the new input stream. After registering the first input stream, this method must only be called after the last frame of the already-registered input stream has been registered , last bitmap queued or last texture id queued . This method blocks the calling thread until the previous calls to this method finish, that is when onInputStreamRegistered is called after the underlying processing pipeline has been adapted to the registered input stream. Parameters @ VideoFrameProcessor.InputType int&nbsp;inputType The InputType of the new input stream. Format &nbsp;format The Format of the new input stream. The colorInfo , the width , the height and the pixelWidthHeightRatio must be set. List &lt; Effect &gt;&nbsp;effects The list of effects to apply to the new input stream. long&nbsp;offsetToAddUs The offset that must be added to the frame presentation timestamps, in microseconds. This offset is not part of the input timestamps. It is added to the frame timestamps before processing, and is retained in the output timestamps. release abstract&nbsp;void&nbsp; release () Releases all resources. If the VideoFrameProcessor is released before it has ended , it will attempt to cancel processing any input frames that have already become available. Input frames that become available after release are ignored. This method blocks until all resources are released or releasing times out. This VideoFrameProcessor instance must not be used after this method is called. renderOutputFrame abstract&nbsp;void&nbsp; renderOutputFrame (long&nbsp;renderTimeNs) Renders the oldest unrendered output frame that has become available for rendering at the given renderTimeNs . This will either render the output frame to the output surface , or drop the frame, per renderTimeNs . This method must only be called if renderFramesAutomatically was set to false using the Factory and should be called exactly once for each frame that becomes available for rendering . The renderTimeNs may be passed to eglPresentationTimeANDROID depending on the implementation. Parameters long&nbsp;renderTimeNs The render time to use for the frame, in nanoseconds. The render time can be before or after the current system time. Use DROP_OUTPUT_FRAME to drop the frame or RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME to render the frame to the output surface with the presentation timestamp seen in onOutputFrameAvailableForRendering . If the frame should be rendered immediately, pass in nanoTime . setOnInputFrameProcessedListener abstract&nbsp;void&nbsp; setOnInputFrameProcessedListener ( &nbsp;&nbsp;&nbsp;&nbsp; OnInputFrameProcessedListener &nbsp;listener ) Sets the OnInputFrameProcessedListener . Parameters OnInputFrameProcessedListener &nbsp;listener The OnInputFrameProcessedListener . setOnInputSurfaceReadyListener abstract&nbsp;void&nbsp; setOnInputSurfaceReadyListener ( Runnable &nbsp;listener) Sets a listener that's called when the input surface is ready to use. setOutputSurfaceInfo abstract&nbsp;void&nbsp; setOutputSurfaceInfo (@ Nullable SurfaceInfo &nbsp;outputSurfaceInfo) Sets the output surface and supporting information. When output frames are rendered and not dropped, they will be rendered to this output SurfaceInfo . The new output SurfaceInfo is applied from the next output frame rendered onwards. If the output SurfaceInfo is null , the VideoFrameProcessor will stop rendering pending frames and resume rendering once a non-null SurfaceInfo is set. If the dimensions given in SurfaceInfo do not match the output size after applying the final effect the frames are resized before rendering to the surface and letter/pillar-boxing is applied. The caller is responsible for tracking the lifecycle of the surface including calling this method with a new surface if it is destroyed. When this method returns, the previous output surface is no longer being used and can safely be released by the caller. signalEndOfInput abstract&nbsp;void&nbsp; signalEndOfInput () Informs the VideoFrameProcessor that no further input frames should be accepted. Throws java.lang.IllegalStateException If called more than once.</body></html>
+<html><head><title>VideoFrameProcessor</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="VideoFrameProcessor">
+      <meta itemprop="path" content="androidx.media3.common">
+      <meta itemprop="property" content="flush()">
+      <meta itemprop="property" content="getInputSurface()">
+      <meta itemprop="property" content="getPendingInputFrameCount()">
+      <meta itemprop="property" content="queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">
+      <meta itemprop="property" content="queueInputTexture(int,long)">
+      <meta itemprop="property" content="redraw()">
+      <meta itemprop="property" content="registerInputFrame()">
+      <meta itemprop="property" content="registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">
+      <meta itemprop="property" content="release()">
+      <meta itemprop="property" content="renderOutputFrame(long)">
+      <meta itemprop="property" content="setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">
+      <meta itemprop="property" content="setOnInputSurfaceReadyListener(java.lang.Runnable)">
+      <meta itemprop="property" content="setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">
+      <meta itemprop="property" content="signalEndOfInput()">
+      <meta itemprop="property" content="DROP_OUTPUT_FRAME()">
+      <meta itemprop="property" content="INPUT_TYPE_BITMAP()">
+      <meta itemprop="property" content="INPUT_TYPE_SURFACE()">
+      <meta itemprop="property" content="INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()">
+      <meta itemprop="property" content="INPUT_TYPE_TEXTURE_ID()">
+      <meta itemprop="property" content="REDRAW()">
+      <meta itemprop="property" content="RENDER_OUTPUT_FRAME_IMMEDIATELY()">
+      <meta itemprop="property" content="RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="videoframeprocessor" data-text="VideoFrameProcessor" tabindex="-1">VideoFrameProcessor</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/media3">androidx.media3:media3-common</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/media3/common/VideoFrameProcessor.java+class:androidx.media3.common.VideoFrameProcessor" class="external">View Source</a></div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/media3/common/VideoFrameProcessor" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/media3/common/util/UnstableApi">UnstableApi</a><br>public interface <a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></pre></devsite-code>
+    </p>
+    <div class="devsite-table-wrapper"><devsite-expandable><span class="expand-control jd-sumtable-subclasses">Known direct subclasses
+        <div class="showalways" id="subclasses-direct"><a href="/reference/androidx/media3/effect/DefaultVideoFrameProcessor">DefaultVideoFrameProcessor</a></div>
+      </span>
+      <div id="subclasses-direct-summary">
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/effect/DefaultVideoFrameProcessor">DefaultVideoFrameProcessor</a></code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code> implementation that applies <code translate="no" dir="ltr"><a href="/reference/androidx/media3/effect/GlEffect">GlEffect</a></code> instances using OpenGL on a background thread.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+</devsite-expandable>    </div>
+    <hr>
+    <p>Interface for a video frame processor that applies changes to individual video frames. </p>
+    <p>The changes are specified by <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Effect">Effect</a></code> instances passed to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code>. </p>
+    <p>Manages its input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>, which can be accessed via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">getInputSurface</a></code>. The output <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> must be set by the caller using <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">setOutputSurfaceInfo</a></code>. </p>
+    <p><code translate="no" dir="ltr">VideoFrameProcessor</code> instances can be created from any thread, but instance methods for each <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">stream</a></code> must be called from the same thread.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/common/VideoFrameProcessor.Factory">VideoFrameProcessor.Factory</a></code></div>
+              <p>A factory for <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code> instances.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="https://developer.android.com/reference/java/lang/annotation/Documented.html">Documented</a><br>@<a href="https://developer.android.com/reference/java/lang/annotation/Retention.html">Retention</a>(value&nbsp;=&nbsp;RetentionPolicy.SOURCE)<br>@<a href="https://developer.android.com/reference/java/lang/annotation/Target.html">Target</a>(value&nbsp;=&nbsp;TYPE_USE)<br>@<a href="/reference/androidx/annotation/IntDef">IntDef</a>(value&nbsp;=&nbsp;)<br>public annotation <a href="/reference/androidx/media3/common/VideoFrameProcessor.InputType">VideoFrameProcessor.InputType</a></code></div>
+              <p>Specifies how the input frames are made available to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public interface <a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener">VideoFrameProcessor.Listener</a></code></div>
+              <p>Listener for asynchronous frame processing events.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="constants" data-text="Constants" tabindex="-1">Constants</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#DROP_OUTPUT_FRAME()">DROP_OUTPUT_FRAME</a> = -2</code></div>
+              <p>Indicates the frame should be dropped after <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> is invoked.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_BITMAP()">INPUT_TYPE_BITMAP</a> = 2</code></div>
+              <p>Input frames come from a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a> = 1</code></div>
+              <p>Input frames come from a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">surface</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()">INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION</a> = 4</code></div>
+              <p>Input frames come from the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">input surface</a></code> and don't need to be <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registered</a></code> (unlike with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a></code>).</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_TEXTURE_ID()">INPUT_TYPE_TEXTURE_ID</a> = 3</code></div>
+              <p>Input frames come from a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/GLES10.html#GL_TEXTURE_2D()">traditional GLES texture</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/common/Effect">Effect</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#REDRAW()">REDRAW</a></code></div>
+              <p>A maker for passing to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code> to signal a redraw.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#RENDER_OUTPUT_FRAME_IMMEDIATELY()">RENDER_OUTPUT_FRAME_IMMEDIATELY</a> = -1</code></div>
+              <p><strong>This field is deprecated.</strong>
+                <p>Pass <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/SystemClock#nanoTime()">nanoTime</a></code> to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> to render an output frame immediately.</p>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default&nbsp;static&nbsp;final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()">RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME</a> = -3</code></div>
+              <p>Indicates the frame should preserve the input presentation time when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> is invoked.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#flush()">flush</a>()</code></div>
+              <p>Flushes the <code translate="no" dir="ltr">VideoFrameProcessor</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract <a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">getInputSurface</a>()</code></div>
+              <p>Returns the input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>, where <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code> consumes input frames from.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getPendingInputFrameCount()">getPendingInputFrameCount</a>()</code></div>
+              <p>Returns the number of input frames that have been made available to the <code translate="no" dir="ltr">
+VideoFrameProcessor</code> but have not been processed yet.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">queueInputBitmap</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator<br>)</code></div>
+              <p>Provides an input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputTexture(int,long)">queueInputTexture</a>(int&nbsp;textureId,&nbsp;long&nbsp;presentationTimeUs)</code></div>
+              <p>Provides an input texture ID to the <code translate="no" dir="ltr">VideoFrameProcessor</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#redraw()">redraw</a>()</code></div>
+              <p>Updates an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)">available frame</a></code> with the modified effects.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registerInputFrame</a>()</code></div>
+              <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that a frame will be queued to its <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()"> input surface</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/media3/common/VideoFrameProcessor.InputType">VideoFrameProcessor.InputType</a> int&nbsp;inputType,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/common/Effect">Effect</a>&gt;&nbsp;effects,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;offsetToAddUs<br>)</code></div>
+              <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that a new input stream will be queued with the list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Effect">Effects</a></code> to apply to the new input stream.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#release()">release</a>()</code></div>
+              <p>Releases all resources.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a>(long&nbsp;renderTimeNs)</code></div>
+              <p>Renders the oldest unrendered output frame that has become <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)"> available for rendering</a></code> at the given <code translate="no" dir="ltr">renderTimeNs</code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">setOnInputFrameProcessedListener</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener<br>)</code></div>
+              <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputSurfaceReadyListener(java.lang.Runnable)">setOnInputSurfaceReadyListener</a>(<a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;listener)</code></div>
+              <p>Sets a listener that's called when the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">input surface</a></code> is ready to use.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">setOutputSurfaceInfo</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a>&nbsp;outputSurfaceInfo)</code></div>
+              <p>Sets the output surface and supporting information.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#signalEndOfInput()">signalEndOfInput</a>()</code></div>
+              <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that no further input frames should be accepted.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="constants_1" data-text="Constants" tabindex="-1">Constants</h2>
+      <div class="api-item"><a name="getDROP_OUTPUT_FRAME()"></a><a name="setDROP_OUTPUT_FRAME()"></a><a name="getDROP_OUTPUT_FRAME--"></a><a name="setDROP_OUTPUT_FRAME--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="DROP_OUTPUT_FRAME()" data-text="DROP_OUTPUT_FRAME" tabindex="-1">DROP_OUTPUT_FRAME</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#DROP_OUTPUT_FRAME()">DROP_OUTPUT_FRAME</a> = -2</pre></devsite-code>
+        <p>Indicates the frame should be dropped after <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> is invoked.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_TYPE_BITMAP()"></a><a name="setINPUT_TYPE_BITMAP()"></a><a name="getINPUT_TYPE_BITMAP--"></a><a name="setINPUT_TYPE_BITMAP--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_TYPE_BITMAP()" data-text="INPUT_TYPE_BITMAP" tabindex="-1">INPUT_TYPE_BITMAP</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_BITMAP()">INPUT_TYPE_BITMAP</a> = 2</pre></devsite-code>
+        <p>Input frames come from a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_TYPE_SURFACE()"></a><a name="setINPUT_TYPE_SURFACE()"></a><a name="getINPUT_TYPE_SURFACE--"></a><a name="setINPUT_TYPE_SURFACE--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_TYPE_SURFACE()" data-text="INPUT_TYPE_SURFACE" tabindex="-1">INPUT_TYPE_SURFACE</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a> = 1</pre></devsite-code>
+        <p>Input frames come from a <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">surface</a></code>. </p>
+        <p>When receiving input from a Surface, the caller must <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">register</a></code> input frames before rendering them to the input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()"></a><a name="setINPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()"></a><a name="getINPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION--"></a><a name="setINPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()" data-text="INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION" tabindex="-1">INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()">INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION</a> = 4</pre></devsite-code>
+        <p>Input frames come from the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">input surface</a></code> and don't need to be <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registered</a></code> (unlike with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a></code>). </p>
+        <p>Every frame must use the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">input stream's registered</a></code> frame format. Also sets the surface's <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html#setDefaultBufferSize(int, int)"> default buffer size</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getINPUT_TYPE_TEXTURE_ID()"></a><a name="setINPUT_TYPE_TEXTURE_ID()"></a><a name="getINPUT_TYPE_TEXTURE_ID--"></a><a name="setINPUT_TYPE_TEXTURE_ID--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="INPUT_TYPE_TEXTURE_ID()" data-text="INPUT_TYPE_TEXTURE_ID" tabindex="-1">INPUT_TYPE_TEXTURE_ID</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;int&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_TEXTURE_ID()">INPUT_TYPE_TEXTURE_ID</a> = 3</pre></devsite-code>
+        <p>Input frames come from a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/GLES10.html#GL_TEXTURE_2D()">traditional GLES texture</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getREDRAW()"></a><a name="setREDRAW()"></a><a name="getREDRAW--"></a><a name="setREDRAW--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="REDRAW()" data-text="REDRAW" tabindex="-1">REDRAW</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;<a href="https://guava.dev/releases/18.0/api/docs/com/google/common/collect/ImmutableList.html">ImmutableList</a>&lt;<a href="/reference/androidx/media3/common/Effect">Effect</a>&gt;&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#REDRAW()">REDRAW</a></pre></devsite-code>
+        <p>A maker for passing to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code> to signal a redraw.</p>
+      </div>
+      <div class="api-item"><a name="getRENDER_OUTPUT_FRAME_IMMEDIATELY()"></a><a name="setRENDER_OUTPUT_FRAME_IMMEDIATELY()"></a><a name="getRENDER_OUTPUT_FRAME_IMMEDIATELY--"></a><a name="setRENDER_OUTPUT_FRAME_IMMEDIATELY--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="RENDER_OUTPUT_FRAME_IMMEDIATELY()" data-text="RENDER_OUTPUT_FRAME_IMMEDIATELY" tabindex="-1">RENDER_OUTPUT_FRAME_IMMEDIATELY</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#RENDER_OUTPUT_FRAME_IMMEDIATELY()">RENDER_OUTPUT_FRAME_IMMEDIATELY</a> = -1</pre></devsite-code>
+        <aside class="caution"><strong>This field is deprecated.</strong><br>
+          <p>Pass <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/SystemClock#nanoTime()">nanoTime</a></code> to <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> to render an output frame immediately.</p>
+        </aside>
+      </div>
+      <div class="api-item"><a name="getRENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()"></a><a name="setRENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()"></a><a name="getRENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME--"></a><a name="setRENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME--"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()" data-text="RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME" tabindex="-1">RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>default&nbsp;static&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()">RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME</a> = -3</pre></devsite-code>
+        <p>Indicates the frame should preserve the input presentation time when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a></code> is invoked.</p>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="flush--"></a><a name="flush"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="flush()" data-text="flush" tabindex="-1">flush</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#flush()">flush</a>()</pre></devsite-code>
+        <p>Flushes the <code translate="no" dir="ltr">VideoFrameProcessor</code>. </p>
+        <p>All the frames that are <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registered</a></code> prior to calling this method are no longer considered to be registered when this method returns. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener">Listener</a></code> methods invoked prior to calling this method should be ignored.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/UnsupportedOperationException.html">java.lang.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the <code translate="no" dir="ltr">VideoFrameProcessor</code> does not accept <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">surface input</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getInputSurface--"></a><a name="getinputsurface"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInputSurface()" data-text="getInputSurface" tabindex="-1">getInputSurface</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;<a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a>&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">getInputSurface</a>()</pre></devsite-code>
+        <p>Returns the input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code>, where <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code> consumes input frames from. </p>
+        <p>The frames arriving on the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/Surface.html">Surface</a></code> will not be consumed by the <code translate="no" dir="ltr">
+VideoFrameProcessor</code> until <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code> is called with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a></code>. </p>
+        <p>For streams with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">INPUT_TYPE_SURFACE</a></code>, the returned surface is ready to use immediately and will not have a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/SurfaceTexture.html#setDefaultBufferSize(int, int)">default buffer size</a></code> set on it. This is suitable for configuring a  decoder. </p>
+        <p>For streams with <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION()">INPUT_TYPE_SURFACE_AUTOMATIC_FRAME_REGISTRATION</a></code>, set a listener for the surface becoming ready via <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputSurfaceReadyListener(java.lang.Runnable)">setOnInputSurfaceReadyListener</a></code> and wait for the event before using the returned surface. This is suitable for use with non-decoder producers like media projection.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/UnsupportedOperationException.html">java.lang.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the <code translate="no" dir="ltr">VideoFrameProcessor</code> does not accept <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">surface input</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getPendingInputFrameCount--"></a><a name="getpendinginputframecount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getPendingInputFrameCount()" data-text="getPendingInputFrameCount" tabindex="-1">getPendingInputFrameCount</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;int&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#getPendingInputFrameCount()">getPendingInputFrameCount</a>()</pre></devsite-code>
+        <p>Returns the number of input frames that have been made available to the <code translate="no" dir="ltr">
+VideoFrameProcessor</code> but have not been processed yet.</p>
+      </div>
+      <div class="api-item"><a name="queueInputBitmap(android.graphics.Bitmap, androidx.media3.common.util.TimestampIterator)"></a><a name="queueInputBitmap-android.graphics.Bitmap-androidx.media3.common.util.TimestampIterator-"></a><a name="queueinputbitmap"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)" data-text="queueInputBitmap" tabindex="-1">queueInputBitmap</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">queueInputBitmap</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator<br>)</pre></devsite-code>
+        <p>Provides an input <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code>. </p>
+        <p>Can be called many times after <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registering the input stream</a></code> to put multiple frames in the same input stream. </p>
+        <p>An implementation could <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html#recycle()">recycle</a></code> the passed in <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code>, so it may not be suitable for reuse.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a>&nbsp;inputBitmap</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> queued to the <code translate="no" dir="ltr">VideoFrameProcessor</code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a>&nbsp;timestampIterator</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/TimestampIterator">TimestampIterator</a></code> generating the exact timestamps that the bitmap should be shown at.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/graphics/Bitmap.html">Bitmap</a></code> was successfully queued. A return value of <code translate="no" dir="ltr">false</code> indicates the <code translate="no" dir="ltr">VideoFrameProcessor</code> is not ready to accept input.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/UnsupportedOperationException.html">java.lang.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the <code translate="no" dir="ltr">VideoFrameProcessor</code> does not accept <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_BITMAP()">bitmap input</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="queueInputTexture(int, long)"></a><a name="queueInputTexture-int-long-"></a><a name="queueinputtexture"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="queueInputTexture(int,long)" data-text="queueInputTexture" tabindex="-1">queueInputTexture</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputTexture(int,long)">queueInputTexture</a>(int&nbsp;textureId,&nbsp;long&nbsp;presentationTimeUs)</pre></devsite-code>
+        <p>Provides an input texture ID to the <code translate="no" dir="ltr">VideoFrameProcessor</code>. </p>
+        <p>It must be only called after <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">setOnInputFrameProcessedListener</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code> have been called.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;textureId</code></td>
+                <td>
+                  <p>The ID of the texture queued to the <code translate="no" dir="ltr">VideoFrameProcessor</code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;presentationTimeUs</code></td>
+                <td>
+                  <p>The presentation time of the queued texture, in microseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the texture was successfully queued. A return value of <code translate="no" dir="ltr">false</code> indicates the <code translate="no" dir="ltr">VideoFrameProcessor</code> is not ready to accept input.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="redraw--"></a><a name="redraw"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="redraw()" data-text="redraw" tabindex="-1">redraw</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#redraw()">redraw</a>()</pre></devsite-code>
+        <p>Updates an <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)">available frame</a></code> with the modified effects. </p>
+        <p>This method can be called from any thread.</p>
+      </div>
+      <div class="api-item"><a name="registerInputFrame--"></a><a name="registerinputframe"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="registerInputFrame()" data-text="registerInputFrame" tabindex="-1">registerInputFrame</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;boolean&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registerInputFrame</a>()</pre></devsite-code>
+        <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that a frame will be queued to its <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()"> input surface</a></code>. </p>
+        <p>Must be called before rendering a frame to the input surface. The caller must not render frames to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">input surface</a></code> when <code translate="no" dir="ltr">false</code> is returned.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>Whether the input frame was successfully registered. If <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code> is called, this method returns <code translate="no" dir="ltr">false</code> until <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onInputStreamRegistered(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;)">onInputStreamRegistered</a></code> is called. Otherwise, a return value of <code translate="no" dir="ltr">false</code> indicates the <code translate="no" dir="ltr">VideoFrameProcessor</code> is not ready to accept input.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/UnsupportedOperationException.html">java.lang.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>If the <code translate="no" dir="ltr">VideoFrameProcessor</code> does not accept <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#INPUT_TYPE_SURFACE()">surface input</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If called after <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#signalEndOfInput()">signalEndOfInput</a></code> or before <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="registerInputStream(int, androidx.media3.common.Format, java.util.List&lt;androidx.media3.common.Effect&gt;, long)"></a><a name="registerInputStream-int-androidx.media3.common.Format-java.util.List&lt;androidx.media3.common.Effect&gt;-long-"></a><a name="registerinputstream"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)" data-text="registerInputStream" tabindex="-1">registerInputStream</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputStream(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;,long)">registerInputStream</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/media3/common/VideoFrameProcessor.InputType">VideoFrameProcessor.InputType</a> int&nbsp;inputType,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/common/Effect">Effect</a>&gt;&nbsp;effects,<br>&nbsp;&nbsp;&nbsp;&nbsp;long&nbsp;offsetToAddUs<br>)</pre></devsite-code>
+        <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that a new input stream will be queued with the list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Effect">Effects</a></code> to apply to the new input stream. </p>
+        <p>After registering the first input stream, this method must only be called after the last frame of the already-registered input stream has been <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#registerInputFrame()">registered</a></code>, last bitmap <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputBitmap(android.graphics.Bitmap,androidx.media3.common.util.TimestampIterator)">queued</a></code> or last texture id <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#queueInputTexture(int,long)"> queued</a></code>. </p>
+        <p>This method blocks the calling thread until the previous calls to this method finish, that is when <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onInputStreamRegistered(int,androidx.media3.common.Format,java.util.List&lt;androidx.media3.common.Effect&gt;)">onInputStreamRegistered</a></code> is called after the underlying processing pipeline has been adapted to the registered input stream.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/media3/common/VideoFrameProcessor.InputType">VideoFrameProcessor.InputType</a> int&nbsp;inputType</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.InputType">InputType</a></code> of the new input stream.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a>&nbsp;format</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format">Format</a></code> of the new input stream. The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#colorInfo()">colorInfo</a></code>, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#width()">width</a></code>, the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#height()">height</a></code> and the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Format#pixelWidthHeightRatio()">pixelWidthHeightRatio</a></code> must be set.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/media3/common/Effect">Effect</a>&gt;&nbsp;effects</code></td>
+                <td>
+                  <p>The list of <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/Effect">effects</a></code> to apply to the new input stream.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;offsetToAddUs</code></td>
+                <td>
+                  <p>The offset that must be added to the frame presentation timestamps, in microseconds. This offset is not part of the input timestamps. It is added to the frame timestamps before processing, and is retained in the output timestamps.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="release--"></a><a name="release"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="release()" data-text="release" tabindex="-1">release</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#release()">release</a>()</pre></devsite-code>
+        <p>Releases all resources. </p>
+        <p>If the <code translate="no" dir="ltr">VideoFrameProcessor</code> is released before it has <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onEnded()">ended</a></code>, it will attempt to cancel processing any input frames that have already become available. Input frames that become available after release are ignored. </p>
+        <p>This method blocks until all resources are released or releasing times out. </p>
+        <p>This <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor">VideoFrameProcessor</a></code> instance must not be used after this method is called.</p>
+      </div>
+      <div class="api-item"><a name="renderOutputFrame-long-"></a><a name="renderoutputframe"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="renderOutputFrame(long)" data-text="renderOutputFrame" tabindex="-1">renderOutputFrame</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#renderOutputFrame(long)">renderOutputFrame</a>(long&nbsp;renderTimeNs)</pre></devsite-code>
+        <p>Renders the oldest unrendered output frame that has become <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)"> available for rendering</a></code> at the given <code translate="no" dir="ltr">renderTimeNs</code>. </p>
+        <p>This will either render the output frame to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">output surface</a></code>, or drop the frame, per <code translate="no" dir="ltr">renderTimeNs</code>. </p>
+        <p>This method must only be called if <code translate="no" dir="ltr">renderFramesAutomatically</code> was set to <code translate="no" dir="ltr">
+false</code> using the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Factory">Factory</a></code> and should be called exactly once for each frame that becomes <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)">available for rendering</a></code>. </p>
+        <p>The <code translate="no" dir="ltr">renderTimeNs</code> may be passed to <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/opengl/EGLExt.html#eglPresentationTimeANDROID(android.opengl.EGLDisplay, android.opengl.EGLSurface, long)">eglPresentationTimeANDROID</a></code> depending on the implementation.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long&nbsp;renderTimeNs</code></td>
+                <td>
+                  <p>The render time to use for the frame, in nanoseconds. The render time can be before or after the current system time. Use <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#DROP_OUTPUT_FRAME()">DROP_OUTPUT_FRAME</a></code> to drop the frame or <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME()">RENDER_OUTPUT_FRAME_WITH_PRESENTATION_TIME</a></code> to render the frame to the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">output surface</a></code> with the presentation timestamp seen in <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputFrameAvailableForRendering(long,boolean)">onOutputFrameAvailableForRendering</a></code>. If the frame should be rendered immediately, pass in <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/util/SystemClock#nanoTime()">nanoTime</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOnInputFrameProcessedListener-androidx.media3.common.OnInputFrameProcessedListener-"></a><a name="setoninputframeprocessedlistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)" data-text="setOnInputFrameProcessedListener" tabindex="-1">setOnInputFrameProcessedListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputFrameProcessedListener(androidx.media3.common.OnInputFrameProcessedListener)">setOnInputFrameProcessedListener</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener<br>)</pre></devsite-code>
+        <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/OnInputFrameProcessedListener">OnInputFrameProcessedListener</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setOnInputSurfaceReadyListener-java.lang.Runnable-"></a><a name="setoninputsurfacereadylistener"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOnInputSurfaceReadyListener(java.lang.Runnable)" data-text="setOnInputSurfaceReadyListener" tabindex="-1">setOnInputSurfaceReadyListener</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#setOnInputSurfaceReadyListener(java.lang.Runnable)">setOnInputSurfaceReadyListener</a>(<a href="https://developer.android.com/reference/java/lang/Runnable.html">Runnable</a>&nbsp;listener)</pre></devsite-code>
+        <p>Sets a listener that's called when the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor#getInputSurface()">input surface</a></code> is ready to use.</p>
+      </div>
+      <div class="api-item"><a name="setOutputSurfaceInfo-androidx.media3.common.SurfaceInfo-"></a><a name="setoutputsurfaceinfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)" data-text="setOutputSurfaceInfo" tabindex="-1">setOutputSurfaceInfo</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#setOutputSurfaceInfo(androidx.media3.common.SurfaceInfo)">setOutputSurfaceInfo</a>(@<a href="/reference/androidx/annotation/Nullable">Nullable</a> <a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a>&nbsp;outputSurfaceInfo)</pre></devsite-code>
+        <p>Sets the output surface and supporting information. When output frames are rendered and not dropped, they will be rendered to this output <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a></code>. </p>
+        <p>The new output <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a></code> is applied from the next output frame rendered onwards. If the output <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a></code> is <code translate="no" dir="ltr">null</code>, the <code translate="no" dir="ltr">VideoFrameProcessor</code> will stop rendering pending frames and resume rendering once a non-null <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a></code> is set. </p>
+        <p>If the dimensions given in <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo">SurfaceInfo</a></code> do not match the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/VideoFrameProcessor.Listener#onOutputSizeChanged(int,int)"> output size after applying the final effect</a></code> the frames are resized before rendering to the surface and letter/pillar-boxing is applied. </p>
+        <p>The caller is responsible for tracking the lifecycle of the <code translate="no" dir="ltr"><a href="/reference/androidx/media3/common/SurfaceInfo#surface()">surface</a></code> including calling this method with a new surface if it is destroyed. When this method returns, the previous output surface is no longer being used and can safely be released by the caller.</p>
+      </div>
+      <div class="api-item"><a name="signalEndOfInput--"></a><a name="signalendofinput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="signalEndOfInput()" data-text="signalEndOfInput" tabindex="-1">signalEndOfInput</h3>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/media3/common/VideoFrameProcessor#signalEndOfInput()">signalEndOfInput</a>()</pre></devsite-code>
+        <p>Informs the <code translate="no" dir="ltr">VideoFrameProcessor</code> that no further input frames should be accepted.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalStateException.html">java.lang.IllegalStateException</a></code></td>
+                <td>
+                  <p>If called more than once.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

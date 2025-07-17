@@ -1,1 +1,1049 @@
-<html><head><title>Class Documentation</title></head><body>ActivityEmbeddingController Artifact: androidx.window:window View Source Added in 1.1.0 Kotlin | Java public final class ActivityEmbeddingController The controller that allows checking the current Activity embedding status. Summary Public methods final @ NonNull Flow &lt;@ NonNull EmbeddedActivityWindowInfo &gt; @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;6) embeddedActivityWindowInfo (@ NonNull Activity &nbsp;activity) A Flow of EmbeddedActivityWindowInfo that reports the change to the embedded window related info of the activity . final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) finishActivityStacks (@ NonNull Set &lt;@ NonNull ActivityStack &gt;&nbsp;activityStacks) Finishes a set of activityStacks from the lowest to the highest z-order regardless of the order of activityStack passed in the input parameter. final ActivityStack getActivityStack (@ NonNull Activity &nbsp;activity) Returns the ActivityStack that this activity is part of when it is being organized in the embedding container and associated with a SplitInfo . static&nbsp;final @ NonNull ActivityEmbeddingController getInstance (@ NonNull Context &nbsp;context) Obtains an instance of ActivityEmbeddingController . final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;3) invalidateVisibleActivityStacks () Triggers calculator functions set through SplitController.setSplitAttributesCalculator and OverlayController.setOverlayAttributesCalculator to update attributes for visible activityStacks . final boolean isActivityEmbedded (@ NonNull Activity &nbsp;activity) Checks if the activity is embedded and its presentation may be customized by the host process of the task this activity is associated with. final void @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) setEmbeddingConfiguration ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EmbeddingConfiguration &nbsp;embeddingConfiguration ) Sets the EmbeddingConfiguration of the Activity Embedding environment that defines how the embedded Activities behaves. Public methods embeddedActivityWindowInfo Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;6) public&nbsp;final&nbsp;@ NonNull Flow &lt;@ NonNull EmbeddedActivityWindowInfo &gt;&nbsp; embeddedActivityWindowInfo (@ NonNull Activity &nbsp;activity) A Flow of EmbeddedActivityWindowInfo that reports the change to the embedded window related info of the activity . The Flow will immediately be invoked with the latest value upon registration if the activity is currently embedded as EmbeddedActivityWindowInfo.isEmbedded is true . When the activity is embedded, the Flow will be invoked when EmbeddedActivityWindowInfo is changed. When the activity is not embedded, the Flow will not be triggered unless the activity is becoming non-embedded from embedded. Note that this API is only supported on the device with WindowSdkExtensions.extensionVersion equal to or larger than 6. If WindowSdkExtensions.extensionVersion is less than 6, this Flow will not be invoked. Parameters @ NonNull Activity &nbsp;activity the Activity that is interested in getting the embedded window info. Returns @ NonNull Flow &lt;@ NonNull EmbeddedActivityWindowInfo &gt; a Flow of EmbeddedActivityWindowInfo of the activity . finishActivityStacks Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) public&nbsp;final&nbsp;void&nbsp; finishActivityStacks (@ NonNull Set &lt;@ NonNull ActivityStack &gt;&nbsp;activityStacks) Finishes a set of activityStacks from the lowest to the highest z-order regardless of the order of activityStack passed in the input parameter. If a remaining activityStack from a split participates in other splits with other activityStacks, the remaining activityStack might split with other activityStacks. For example, if activityStack A splits with activityStack B and C, and activityStack C covers activityStack B, finishing activityStack C might make the split of activityStack A and B show. If all split-associated activityStacks are finished, the remaining activityStack will be expanded to fill the parent task container. This is useful to expand the primary container as the sample linked below shows. Note that it's caller's responsibility to check whether this API is supported by checking WindowSdkExtensions.extensionVersion is greater than or equal to 5. If not, an alternative approach to finishing all containers above a particular activity can be to launch it again with flag android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP . import androidx.window.embedding.ActivityEmbeddingController import androidx.window.embedding.SplitController SplitController . getInstance ( primaryActivity ). splitInfoList ( primaryActivity ). collect { splitInfoList - &gt; // Find all associated secondary ActivityStacks val associatedSecondaryActivityStacks = splitInfoList . mapTo ( mutableSetOf ()) { splitInfo - &gt; splitInfo . secondaryActivityStack } // Finish them all. ActivityEmbeddingController . getInstance ( primaryActivity ) . finishActivityStacks ( associatedSecondaryActivityStacks ) } Parameters @ NonNull Set &lt;@ NonNull ActivityStack &gt;&nbsp;activityStacks The set of ActivityStack to be finished. Throws kotlin.UnsupportedOperationException if extension version is less than 5. getActivityStack Added in 1.2.0 public&nbsp;final&nbsp; ActivityStack &nbsp; getActivityStack (@ NonNull Activity &nbsp;activity) Returns the ActivityStack that this activity is part of when it is being organized in the embedding container and associated with a SplitInfo . Returns null if there is no such ActivityStack . Started from WindowSdkExtensions.extensionVersion 5, this method can also obtain standalone ActivityStack , which is not associated with any SplitInfo . For example, an ActivityStack launched with ActivityRule.alwaysExpand , or an overlay ActivityStack launched by setLaunchingActivityStack with OverlayCreateParams . Parameters @ NonNull Activity &nbsp;activity The Activity to check. Returns ActivityStack the ActivityStack that this activity is part of, or null if there is no such ActivityStack . getInstance Added in 1.1.0 public&nbsp;static&nbsp;final&nbsp;@ NonNull ActivityEmbeddingController &nbsp; getInstance (@ NonNull Context &nbsp;context) Obtains an instance of ActivityEmbeddingController . Parameters @ NonNull Context &nbsp;context the Context to initialize the controller with invalidateVisibleActivityStacks Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;3) public&nbsp;final&nbsp;void&nbsp; invalidateVisibleActivityStacks () Triggers calculator functions set through SplitController.setSplitAttributesCalculator and OverlayController.setOverlayAttributesCalculator to update attributes for visible activityStacks . This method can be used when the application wants to update the embedding presentation based on the application state. This method is not needed for changes that are driven by window and device state changes or new activity starts, because those will invoke the calculator functions automatically. Visible activityStacks are usually the last element of SplitInfo list which was received from the callback registered in SplitController.splitInfoList and an active overlay ActivityStack if exists. The call will be no-op if there is no visible activityStacks or there's no calculator set. Throws kotlin.UnsupportedOperationException if WindowSdkExtensions.extensionVersion is less than 3. See also setOverlayAttributesCalculator setSplitAttributesCalculator isActivityEmbedded Added in 1.1.0 public&nbsp;final&nbsp;boolean&nbsp; isActivityEmbedded (@ NonNull Activity &nbsp;activity) Checks if the activity is embedded and its presentation may be customized by the host process of the task this activity is associated with. Parameters @ NonNull Activity &nbsp;activity the Activity to check. setEmbeddingConfiguration Added in 1.4.0 @ RequiresWindowSdkExtension (version&nbsp;=&nbsp;5) public&nbsp;final&nbsp;void&nbsp; setEmbeddingConfiguration ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull EmbeddingConfiguration &nbsp;embeddingConfiguration ) Sets the EmbeddingConfiguration of the Activity Embedding environment that defines how the embedded Activities behaves. The EmbeddingConfiguration can be supported only if the vendor API level of the target device is equals or higher than required API level. Otherwise, it would be no-op when setting the EmbeddingConfiguration on a target device that has lower API level. In addition, the existing configuration in the library won't be overwritten if the properties of the given embeddingConfiguration are undefined. Only the configuration properties that are explicitly set will be updated. Note that it is recommended to be configured in the androidx.startup.Initializer or android.app.Application.onCreate , so that the EmbeddingConfiguration is applied early in the application startup, before any activities complete initialization. The EmbeddingConfiguration updates afterward may or may not apply to already running activities. Parameters @ NonNull EmbeddingConfiguration &nbsp;embeddingConfiguration The EmbeddingConfiguration</body></html>
+<html><head><title>ActivityEmbeddingController</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ActivityEmbeddingController">
+      <meta itemprop="path" content="androidx.window.embedding">
+      <meta itemprop="property" content="embeddedActivityWindowInfo(android.app.Activity)">
+      <meta itemprop="property" content="finishActivityStacks(kotlin.collections.Set)">
+      <meta itemprop="property" content="getActivityStack(android.app.Activity)">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="property" content="invalidateVisibleActivityStacks()">
+      <meta itemprop="property" content="isActivityEmbedded(android.app.Activity)">
+      <meta itemprop="property" content="setEmbeddingConfiguration(androidx.window.embedding.EmbeddingConfiguration)">
+      <meta itemprop="property" content="getInstance(android.content.Context)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="activityembeddingcontroller" data-text="ActivityEmbeddingController" tabindex="-1">ActivityEmbeddingController</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/window">androidx.window:window</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/window/embedding/ActivityEmbeddingController.kt+class:androidx.window.embedding.ActivityEmbeddingController" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/window/embedding/ActivityEmbeddingController" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/window/embedding/ActivityEmbeddingController">ActivityEmbeddingController</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>The controller that allows checking the current <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a></code> embedding status.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;6)<br><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">embeddedActivityWindowInfo</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</code></div>
+              <p>A <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a></code> that reports the change to the embedded window related info of the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#finishActivityStacks(kotlin.collections.Set)">finishActivityStacks</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a>&gt;&nbsp;activityStacks)</code></div>
+              <p>Finishes a set of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code> from the lowest to the highest z-order regardless of the order of <code translate="no" dir="ltr">activityStack</code> passed in the input parameter.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getActivityStack(android.app.Activity)">getActivityStack</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> that this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getActivityStack(android.app.Activity)">activity</a></code> is part of when it is being organized in the embedding container and associated with a <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static&nbsp;final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/ActivityEmbeddingController">ActivityEmbeddingController</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</code></div>
+              <p>Obtains an instance of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController">ActivityEmbeddingController</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;3)<br><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#invalidateVisibleActivityStacks()">invalidateVisibleActivityStacks</a>()</code></div>
+              <p>Triggers calculator functions set through <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">SplitController.setSplitAttributesCalculator</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/OverlayController#setOverlayAttributesCalculator(kotlin.Function1)">OverlayController.setOverlayAttributesCalculator</a></code> to update attributes for visible <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">isActivityEmbedded</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</code></div>
+              <p>Checks if the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">activity</a></code> is embedded and its presentation may be customized by the host process of the task this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">activity</a></code> is associated with.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#setEmbeddingConfiguration(androidx.window.embedding.EmbeddingConfiguration)">setEmbeddingConfiguration</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a>&nbsp;embeddingConfiguration<br>)</code></div>
+              <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> of the Activity Embedding environment that defines how the embedded Activities behaves.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="embeddedActivityWindowInfo-android.app.Activity-"></a><a name="embeddedactivitywindowinfo"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="embeddedActivityWindowInfo(android.app.Activity)" data-text="embeddedActivityWindowInfo" tabindex="-1">embeddedActivityWindowInfo</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;6)<br>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a>&gt;&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">embeddedActivityWindowInfo</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</pre></devsite-code>
+        <p>A <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a></code> that reports the change to the embedded window related info of the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code>.</p>
+        <p>The <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> will immediately be invoked with the latest value upon registration if the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code> is currently embedded as <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo#isEmbedded()">EmbeddedActivityWindowInfo.isEmbedded</a></code> is <code translate="no" dir="ltr">true</code>.</p>
+        <p>When the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code> is embedded, the <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> will be invoked when <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a></code> is changed. When the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code> is not embedded, the <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> will not be triggered unless the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code> is becoming non-embedded from embedded.</p>
+        <p>Note that this API is only supported on the device with <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> equal to or larger than 6. If <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 6, this <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> will not be invoked.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a></code> that is interested in getting the embedded window info.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-flow/index.html">Flow</a></code> of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddedActivityWindowInfo">EmbeddedActivityWindowInfo</a></code> of the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#embeddedActivityWindowInfo(android.app.Activity)">activity</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="finishActivityStacks-kotlin.collections.Set-"></a><a name="finishactivitystacks"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="finishActivityStacks(kotlin.collections.Set)" data-text="finishActivityStacks" tabindex="-1">finishActivityStacks</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#finishActivityStacks(kotlin.collections.Set)">finishActivityStacks</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a>&gt;&nbsp;activityStacks)</pre></devsite-code>
+        <p>Finishes a set of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code> from the lowest to the highest z-order regardless of the order of <code translate="no" dir="ltr">activityStack</code> passed in the input parameter.</p>
+        <p>If a remaining activityStack from a split participates in other splits with other activityStacks, the remaining activityStack might split with other activityStacks. For example, if activityStack A splits with activityStack B and C, and activityStack C covers activityStack B, finishing activityStack C might make the split of activityStack A and B show.</p>
+        <p>If all split-associated activityStacks are finished, the remaining activityStack will be expanded to fill the parent task container. This is useful to expand the primary container as the sample linked below shows.</p>
+        <p><b>Note</b> that it's caller's responsibility to check whether this API is supported by checking <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is greater than or equal to 5. If not, an alternative approach to finishing all containers above a particular activity can be to launch it again with flag <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html#FLAG_ACTIVITY_CLEAR_TOP()">android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP</a></code>.</p>
+        <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.ActivityEmbeddingController</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.window.embedding.SplitController</span>
+
+<span class="devsite-syntax-n">SplitController</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">primaryActivity</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">splitInfoList</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">primaryActivity</span><span class="devsite-syntax-p">).</span><span class="devsite-syntax-na">collect</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">splitInfoList</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Find all associated secondary ActivityStacks</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">associatedSecondaryActivityStacks</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-n">splitInfoList</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">mapTo</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">mutableSetOf</span><span class="devsite-syntax-p">())</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">splitInfo</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">splitInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">secondaryActivityStack</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-c1">// Finish them all.</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">ActivityEmbeddingController</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">getInstance</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">primaryActivity</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">finishActivityStacks</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">associatedSecondaryActivityStacks</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-p">}</span></pre></devsite-code>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a>&gt;&nbsp;activityStacks</code></td>
+                <td>
+                  <p>The set of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> to be finished.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if extension version is less than 5.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getActivityStack-android.app.Activity-"></a><a name="getactivitystack"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getActivityStack(android.app.Activity)" data-text="getActivityStack" tabindex="-1">getActivityStack</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.2.0">1.2.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a>&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getActivityStack(android.app.Activity)">getActivityStack</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> that this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getActivityStack(android.app.Activity)">activity</a></code> is part of when it is being organized in the embedding container and associated with a <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code>. Returns <code translate="no" dir="ltr">null</code> if there is no such <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+        <p>Started from <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> 5, this method can also obtain standalone <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>, which is not associated with any <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code>. For example, an <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> launched with <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityRule#alwaysExpand()">ActivityRule.alwaysExpand</a></code>, or an overlay <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> launched by <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#setLaunchingActivityStack(android.os.Bundle,androidx.window.embedding.ActivityStack)">setLaunchingActivityStack</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/OverlayCreateParams">OverlayCreateParams</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a></code> to check.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> that this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getActivityStack(android.app.Activity)">activity</a></code> is part of, or <code translate="no" dir="ltr">null</code> if there is no such <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getInstance-android.content.Context-"></a><a name="getinstance"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInstance(android.content.Context)" data-text="getInstance" tabindex="-1">getInstance</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/ActivityEmbeddingController">ActivityEmbeddingController</a>&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#getInstance(android.content.Context)">getInstance</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context)</pre></devsite-code>
+        <p>Obtains an instance of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController">ActivityEmbeddingController</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Context.html">Context</a></code> to initialize the controller with</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="invalidateVisibleActivityStacks--"></a><a name="invalidatevisibleactivitystacks"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="invalidateVisibleActivityStacks()" data-text="invalidateVisibleActivityStacks" tabindex="-1">invalidateVisibleActivityStacks</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;3)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#invalidateVisibleActivityStacks()">invalidateVisibleActivityStacks</a>()</pre></devsite-code>
+        <p>Triggers calculator functions set through <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">SplitController.setSplitAttributesCalculator</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/OverlayController#setOverlayAttributesCalculator(kotlin.Function1)">OverlayController.setOverlayAttributesCalculator</a></code> to update attributes for visible <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code>.</p>
+        <p>This method can be used when the application wants to update the embedding presentation based on the application state.</p>
+        <p>This method is not needed for changes that are driven by window and device state changes or new activity starts, because those will invoke the calculator functions automatically.</p>
+        <p>Visible <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code> are usually the last element of <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitInfo">SplitInfo</a></code> list which was received from the callback registered in <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#splitInfoList(android.app.Activity)">SplitController.splitInfoList</a></code> and an active overlay <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">ActivityStack</a></code> if exists.</p>
+        <p>The call will be no-op if there is no visible <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityStack">activityStacks</a></code> or there's no calculator set.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-unsupported-operation-exception/index.html">kotlin.UnsupportedOperationException</a></code></td>
+                <td>
+                  <p>if <code translate="no" dir="ltr"><a href="/reference/androidx/window/WindowSdkExtensions#extensionVersion()">WindowSdkExtensions.extensionVersion</a></code> is less than 3.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/OverlayController#setOverlayAttributesCalculator(kotlin.Function1)">setOverlayAttributesCalculator</a></code></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/SplitController#setSplitAttributesCalculator(kotlin.Function1)">setSplitAttributesCalculator</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="isActivityEmbedded-android.app.Activity-"></a><a name="isactivityembedded"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isActivityEmbedded(android.app.Activity)" data-text="isActivityEmbedded" tabindex="-1">isActivityEmbedded</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">isActivityEmbedded</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity)</pre></devsite-code>
+        <p>Checks if the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">activity</a></code> is embedded and its presentation may be customized by the host process of the task this <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#isActivityEmbedded(android.app.Activity)">activity</a></code> is associated with.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a>&nbsp;activity</code></td>
+                <td>
+                  <p>the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Activity.html">Activity</a></code> to check.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setEmbeddingConfiguration-androidx.window.embedding.EmbeddingConfiguration-"></a><a name="setembeddingconfiguration"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setEmbeddingConfiguration(androidx.window.embedding.EmbeddingConfiguration)" data-text="setEmbeddingConfiguration" tabindex="-1">setEmbeddingConfiguration</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/window#1.4.0">1.4.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/window/RequiresWindowSdkExtension">RequiresWindowSdkExtension</a>(version&nbsp;=&nbsp;5)<br>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/window/embedding/ActivityEmbeddingController#setEmbeddingConfiguration(androidx.window.embedding.EmbeddingConfiguration)">setEmbeddingConfiguration</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a>&nbsp;embeddingConfiguration<br>)</pre></devsite-code>
+        <p>Sets the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> of the Activity Embedding environment that defines how the embedded Activities behaves.</p>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> can be supported only if the vendor API level of the target device is equals or higher than required API level. Otherwise, it would be no-op when setting the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> on a target device that has lower API level.</p>
+        <p>In addition, the existing configuration in the library won't be overwritten if the properties of the given <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/ActivityEmbeddingController#setEmbeddingConfiguration(androidx.window.embedding.EmbeddingConfiguration)">embeddingConfiguration</a></code> are undefined. Only the configuration properties that are explicitly set will be updated.</p>
+        <p><b>Note</b> that it is recommended to be configured in the <code translate="no" dir="ltr"><a href="/reference/androidx/startup/Initializer">androidx.startup.Initializer</a></code> or <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/app/Application.html#onCreate()">android.app.Application.onCreate</a></code>, so that the <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> is applied early in the application startup, before any activities complete initialization. The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code> updates afterward may or may not apply to already running activities.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a>&nbsp;embeddingConfiguration</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/window/embedding/EmbeddingConfiguration">EmbeddingConfiguration</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

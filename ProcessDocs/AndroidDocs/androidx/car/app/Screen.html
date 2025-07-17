@@ -1,1 +1,1005 @@
-<html><head><title>Class Documentation</title></head><body>Screen Artifact: androidx.car.app:app View Source Added in 1.0.0 Kotlin | Java public abstract class Screen implements LifecycleOwner A Screen has a Lifecycle and provides the mechanism for the app to send Template s to display when the Screen is visible. Screen instances can also be pushed and popped to and from a Screen stack, which ensures they adhere to the template flow restrictions (see onGetTemplate for more details on template flow). The Screen class can be used to manage individual units of business logic within a car app. A Screen is closely tied to the CarAppService it is a part of, and cannot be used without it. Though Screen defines its own lifecycle (see getLifecycle ), that lifecycle is dependent on its CarAppService : if the car app service is stopped, no screens inside of it can be started; when the car app service is destroyed, all screens will be destroyed. Screen objects are not thread safe and all calls should be made from the same thread. Summary Protected constructors Screen (@ NonNull CarContext &nbsp;carContext) Public methods final void finish () Removes this screen from the stack, which will move its lifecycle state down to DESTROYED . final @ NonNull CarContext getCarContext () Returns the CarContext of the CarAppService . final @ NonNull Lifecycle getLifecycle () Returns this screen's lifecycle. @ Nullable String getMarker () Retrieves the marker that has been set for this screen, or null if one has not been set. final @ NonNull ScreenManager getScreenManager () Returns the ScreenManager to use for pushing/removing screens. final void invalidate () Requests the current template to be invalidated, which eventually triggers a call to onGetTemplate to get the new template to display. abstract @ NonNull Template onGetTemplate () Returns the Template to present in the car screen. void setMarker (@ Nullable String &nbsp;marker) Updates the marker for this screen. void setResult (@ Nullable Object &nbsp;result) Sets the result that will be sent to the OnScreenResultListener that was given when pushing this screen onto the stack using pushForResult . Protected constructors Screen Added in 1.0.0 protected&nbsp; Screen (@ NonNull CarContext &nbsp;carContext) Public methods finish Added in 1.0.0 public&nbsp;final&nbsp;void&nbsp; finish () Removes this screen from the stack, which will move its lifecycle state down to DESTROYED . Call when your screen is done and should be removed from the stack. If this screen is the only one in the stack, it will not be finished. getCarContext Added in 1.0.0 public&nbsp;final&nbsp;@ NonNull CarContext &nbsp; getCarContext () Returns the CarContext of the CarAppService . getLifecycle Added in 1.0.0 public&nbsp;final&nbsp;@ NonNull Lifecycle &nbsp; getLifecycle () Returns this screen's lifecycle. Here are some ways you can use a Screen's Lifecycle : Observe its Lifecycle by calling addObserver . You can use the androidx.lifecycle.LifecycleObserver to take specific actions whenever the screen receives different Event s. Use this Screen to observe androidx.lifecycle.LiveData s that may drive the backing data for your templates. What each Event means for a screen: ON_CREATE The screen is in the process of being pushed to the screen stack, it is valid, but contents from it are not yet visible in the car screen. You should get a callback to onGetTemplate at a point after this call. This is where you can make decision on whether this Screen is still relevant, and if you choose to not return a Template from this Screen call finish . ON_START The template returned from this screen is visible in the car screen. ON_RESUME The user can now interact with the template returned from this screen. ON_PAUSE The user can no longer interact with this screen's template. ON_STOP The template returned from this screen is no longer visible. ON_DESTROY This screen is no longer valid and is removed from the screen stack. Listeners that are added in ON_START , should be removed in ON_STOP . Similarly, listeners that are added in ON_CREATE should be removed in ON_DESTROY . See also LifecycleObserver getMarker Added in 1.0.0 public&nbsp;@ Nullable String &nbsp; getMarker () Retrieves the marker that has been set for this screen, or null if one has not been set. See also setMarker getScreenManager Added in 1.0.0 public&nbsp;final&nbsp;@ NonNull ScreenManager &nbsp; getScreenManager () Returns the ScreenManager to use for pushing/removing screens. invalidate Added in 1.0.0 public&nbsp;final&nbsp;void&nbsp; invalidate () Requests the current template to be invalidated, which eventually triggers a call to onGetTemplate to get the new template to display. If the current State of this screen is not at least STARTED , then a call to this method will have no effect. After the call to invalidate is made, subsequent calls have no effect until the new template is returned by onGetTemplate . To avoid race conditions with calls to onGetTemplate you should call this method with the main thread. Throws androidx.car.app.HostException if the remote call fails onGetTemplate Added in 1.0.0 public&nbsp;abstract&nbsp;@ NonNull Template &nbsp; onGetTemplate () Returns the Template to present in the car screen. This method is invoked whenever a new template is needed, for example, the first time the screen is created, or when the UI is invalidated through a call to invalidate . Throttling of UI updates To minimize user distraction while driving, the host will throttle template updates to the car screen. When the app invalidates multiple times in a short period, the host will call this method for each call, but it may not update the actual car screen right away. This will ensure there are not excessive UI changes in a short period of time. For example, if the app sends the host two or more templates within a period of time shorter than the throttle period, only the last template will be displayed on the car screen. Template Restrictions The host limits the number of templates to display for a given task to a maximum of 5, of which the last template of the 5 must be one of the following types: androidx.car.app.navigation.model.NavigationTemplate androidx.car.app.model.PaneTemplate androidx.car.app.model.MessageTemplate If the 5 template quota is exhausted and the app attempts to send a new template, the host will display an error message to the user before closing the app. Note that this limit applies to the number of templates, and not the number of screen instances in the stack. For example, if while in screen A an app sends 2 templates, and then pushes screen B, it can now send 3 more templates. Alternatively, if each screen is structured to send a single template, then the app can push 5 Screen instances onto the ScreenManager stack. There are special cases to these restrictions: template refreshes, back and reset operations. Template Refreshes Certain content updates are not counted towards the template limit. In general, as long as an app returns a template that is of the same type and contains the same main content as the previous template, the new template will not be counted against the quota. For example, updating the toggle state of a row in a androidx.car.app.model.ListTemplate does not count against the quota. See the documentation of individual Template classes to learn more about what types of content updates can be considered a refresh. Back Operations To enable sub-flows within a task, the host detects when an app is popping a Screen from the ScreenManager 's stack, and updates the remaining quota based on the number of templates that the app is going backwards by. For example, if while in screen A, the app sends 2 templates and then pushes screen B and sends 2 more templates, then the app has 1 quota remaining. If the app now pops back to screen A, the host will reset the quota to 3, because the app has gone backwards by 2 templates. Note that when popping back to a Screen , an app must send a Template that is of the same type as the one last sent by that screen. Sending any other template types would cause an error. However, as long as the type remains the same during a back operation, an app can freely modify the contents of the template without affecting the quota. Reset Operations Certain Template classes have special semantics that signify the end of a task. For example, the androidx.car.app.navigation.model.NavigationTemplate is a template that is expected to stay on the screen and be refreshed with new turn-by-turn instructions for the user's consumption. Upon reaching one of these templates, the host will reset the template quota, treating that template as if it is the first step of a new task, thus allowing the app to begin a new task. See the documentation of individual Template classes to see which ones trigger a reset on the host. If the host receives an android.content.Intent to start the car app from a notification action or from the launcher, the quota will also be reset. This mechanism allows an app to begin a new task flow from notifications, and it holds true even if an app is already bound and in the foreground. See androidx.car.app.notification.CarAppExtender for details on notifications. setMarker Added in 1.0.0 public&nbsp;void&nbsp; setMarker (@ Nullable String &nbsp;marker) Updates the marker for this screen. Set the marker to null to clear it. This is used for setting a marker to where you can jump back to by calling popTo . setResult Added in 1.0.0 public&nbsp;void&nbsp; setResult (@ Nullable Object &nbsp;result) Sets the result that will be sent to the OnScreenResultListener that was given when pushing this screen onto the stack using pushForResult . Only the final result set will be sent. The result will be propagated when this screen is being destroyed. This can be due to being removed from the stack or explicitly calling finish . Parameters @ Nullable Object &nbsp;result the value to send to the OnScreenResultListener that was given when pushing this screen onto the stack using pushForResult</body></html>
+<html><head><title>Screen</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="Screen">
+      <meta itemprop="path" content="androidx.car.app">
+      <meta itemprop="property" content="finish()">
+      <meta itemprop="property" content="getCarContext()">
+      <meta itemprop="property" content="getLifecycle()">
+      <meta itemprop="property" content="getMarker()">
+      <meta itemprop="property" content="getScreenManager()">
+      <meta itemprop="property" content="invalidate()">
+      <meta itemprop="property" content="onGetTemplate()">
+      <meta itemprop="property" content="setMarker(java.lang.String)">
+      <meta itemprop="property" content="setResult(java.lang.Object)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="screen" data-text="Screen" tabindex="-1">Screen</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/car-app">androidx.car.app:app</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/car/app/Screen.java+class:androidx.car.app.Screen" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/car/app/Screen" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public abstract class <a href="/reference/androidx/car/app/Screen">Screen</a> implements <a href="/reference/androidx/lifecycle/LifecycleOwner">LifecycleOwner</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>A Screen has a <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> and provides the mechanism for the app to send <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code>s to display when the Screen is visible. Screen instances can also be pushed and popped to and from a Screen stack, which ensures they adhere to the template flow restrictions (see <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code> for more details on template flow). </p>
+    <p>The Screen class can be used to manage individual units of business logic within a car app. A Screen is closely tied to the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarAppService">CarAppService</a></code> it is a part of, and cannot be used without it. Though Screen defines its own lifecycle (see <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#getLifecycle()">getLifecycle</a></code>), that lifecycle is dependent on its <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarAppService">CarAppService</a></code>: if the car app service is stopped, no screens inside of it can be started; when the car app service is destroyed, all screens will be destroyed. </p>
+    <p>Screen objects are not thread safe and all calls should be made from the same thread.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="protected-constructors" data-text="Protected constructors" tabindex="-1">Protected constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#Screen(androidx.car.app.CarContext)">Screen</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/CarContext">CarContext</a>&nbsp;carContext)</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#finish()">finish</a>()</code></div>
+              <p>Removes this screen from the stack, which will move its lifecycle state down to <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#DESTROYED">DESTROYED</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/CarContext">CarContext</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#getCarContext()">getCarContext</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarContext">CarContext</a></code> of the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarAppService">CarAppService</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#getLifecycle()">getLifecycle</a>()</code></div>
+              <p>Returns this screen's lifecycle.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#getMarker()">getMarker</a>()</code></div>
+              <p>Retrieves the <code translate="no" dir="ltr">marker</code> that has been set for this screen, or <code translate="no" dir="ltr">null</code> if one has not been set.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#getScreenManager()">getScreenManager</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a></code> to use for pushing/removing screens.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#invalidate()">invalidate</a>()</code></div>
+              <p>Requests the current template to be invalidated, which eventually triggers a call to <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code> to get the new template to display.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/model/Template">Template</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> to present in the car screen.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#setMarker(java.lang.String)">setMarker</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;marker)</code></div>
+              <p>Updates the marker for this screen.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#setResult(java.lang.Object)">setResult</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;result)</code></div>
+              <p>Sets the <code translate="no" dir="ltr">result</code> that will be sent to the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/OnScreenResultListener">OnScreenResultListener</a></code> that was given when pushing this screen onto the stack using <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager#pushForResult(androidx.car.app.Screen,androidx.car.app.OnScreenResultListener)">pushForResult</a></code>.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="protected-constructors_1" data-text="Protected constructors" tabindex="-1">Protected constructors</h2>
+      <div class="api-item"><a name="Screen-androidx.car.app.CarContext-"></a><a name="screen"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="Screen(androidx.car.app.CarContext)" data-text="Screen" tabindex="-1">Screen</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>protected&nbsp;<a href="/reference/androidx/car/app/Screen#Screen(androidx.car.app.CarContext)">Screen</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/CarContext">CarContext</a>&nbsp;carContext)</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="finish--"></a><a name="finish"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="finish()" data-text="finish" tabindex="-1">finish</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/car/app/Screen#finish()">finish</a>()</pre></devsite-code>
+        <p>Removes this screen from the stack, which will move its lifecycle state down to <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#DESTROYED">DESTROYED</a></code>. </p>
+        <p>Call when your screen is done and should be removed from the stack. </p>
+        <p>If this screen is the only one in the stack, it will not be finished.</p>
+      </div>
+      <div class="api-item"><a name="getCarContext--"></a><a name="getcarcontext"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getCarContext()" data-text="getCarContext" tabindex="-1">getCarContext</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/CarContext">CarContext</a>&nbsp;<a href="/reference/androidx/car/app/Screen#getCarContext()">getCarContext</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarContext">CarContext</a></code> of the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/CarAppService">CarAppService</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getLifecycle--"></a><a name="getlifecycle"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getLifecycle()" data-text="getLifecycle" tabindex="-1">getLifecycle</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a>&nbsp;<a href="/reference/androidx/car/app/Screen#getLifecycle()">getLifecycle</a>()</pre></devsite-code>
+        <p>Returns this screen's lifecycle. </p>
+        <p>Here are some ways you can use a Screen's <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code>: </p>
+        <ul>
+          <li>Observe its <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle">Lifecycle</a></code> by calling <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle#addObserver(androidx.lifecycle.LifecycleObserver)">addObserver</a></code>. You can use the <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleObserver">androidx.lifecycle.LifecycleObserver</a></code> to take specific actions whenever the screen receives different <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event">Event</a></code>s. </li>
+          <li>Use this Screen to observe <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LiveData">androidx.lifecycle.LiveData</a></code>s that may drive the backing data for your templates. </li>
+        </ul>
+        <p>What each <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event">Event</a></code> means for a screen: </p>
+        <dl>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_CREATE">ON_CREATE</a></code></p>
+</dt>
+          <dd>The screen is in the process of being pushed to the screen stack, it is valid, but contents from it are not yet visible in the car screen. You should get a callback to <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code> at a point after this call. This is where you can make decision on whether this <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen">Screen</a></code> is still relevant, and if you choose to not return a <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> from this <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen">Screen</a></code> call <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#finish()">finish</a></code>. </dd>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_START">ON_START</a></code></p>
+</dt>
+          <dd>The template returned from this screen is visible in the car screen. </dd>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_RESUME">ON_RESUME</a></code></p>
+</dt>
+          <dd>The user can now interact with the template returned from this screen. </dd>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_PAUSE">ON_PAUSE</a></code></p>
+</dt>
+          <dd>The user can no longer interact with this screen's template. </dd>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_STOP">ON_STOP</a></code></p>
+</dt>
+          <dd>The template returned from this screen is no longer visible. </dd>
+          <dt><p><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_DESTROY">ON_DESTROY</a></code></p>
+</dt>
+          <dd>This screen is no longer valid and is removed from the screen stack. </dd>
+        </dl>
+        <p>Listeners that are added in <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_START">ON_START</a></code>, should be removed in <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_STOP">ON_STOP</a></code>. </p>
+        <p>Similarly, listeners that are added in <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_CREATE">ON_CREATE</a></code> should be removed in <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.Event#ON_DESTROY">ON_DESTROY</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/LifecycleObserver">LifecycleObserver</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getMarker--"></a><a name="getmarker"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getMarker()" data-text="getMarker" tabindex="-1">getMarker</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;<a href="/reference/androidx/car/app/Screen#getMarker()">getMarker</a>()</pre></devsite-code>
+        <p>Retrieves the <code translate="no" dir="ltr">marker</code> that has been set for this screen, or <code translate="no" dir="ltr">null</code> if one has not been set.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#setMarker(java.lang.String)">setMarker</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getScreenManager--"></a><a name="getscreenmanager"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getScreenManager()" data-text="getScreenManager" tabindex="-1">getScreenManager</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a>&nbsp;<a href="/reference/androidx/car/app/Screen#getScreenManager()">getScreenManager</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a></code> to use for pushing/removing screens.</p>
+      </div>
+      <div class="api-item"><a name="invalidate--"></a><a name="invalidate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="invalidate()" data-text="invalidate" tabindex="-1">invalidate</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/car/app/Screen#invalidate()">invalidate</a>()</pre></devsite-code>
+        <p>Requests the current template to be invalidated, which eventually triggers a call to <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code> to get the new template to display. </p>
+        <p>If the current <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State">State</a></code> of this screen is not at least <code translate="no" dir="ltr"><a href="/reference/androidx/lifecycle/Lifecycle.State#STARTED">STARTED</a></code>, then a call to this method will have no effect. </p>
+        <p>After the call to invalidate is made, subsequent calls have no effect until the new template is returned by <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code>. </p>
+        <p>To avoid race conditions with calls to <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a></code> you should call this method with the main thread.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/HostException">androidx.car.app.HostException</a></code></td>
+                <td>
+                  <p>if the remote call fails</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="onGetTemplate--"></a><a name="ongettemplate"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onGetTemplate()" data-text="onGetTemplate" tabindex="-1">onGetTemplate</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/car/app/model/Template">Template</a>&nbsp;<a href="/reference/androidx/car/app/Screen#onGetTemplate()">onGetTemplate</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> to present in the car screen. </p>
+        <p>This method is invoked whenever a new template is needed, for example, the first time the screen is created, or when the UI is invalidated through a call to <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#invalidate()">invalidate</a></code>. </p>
+Throttling of UI updates To minimize user distraction while driving, the host will throttle template updates to the car screen. When the app invalidates multiple times in a short period, the host will call this method for each call, but it may not update the actual car screen right away. This will ensure there are not excessive UI changes in a short period of time. 
+        <p>For example, if the app sends the host two or more templates within a period of time shorter than the throttle period, only the last template will be displayed on the car screen. </p>
+Template Restrictions The host limits the number of templates to display for a given task to a maximum of 5, of which the last template of the 5 must be one of the following types: 
+        <ul>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/navigation/model/NavigationTemplate">androidx.car.app.navigation.model.NavigationTemplate</a></code></li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/PaneTemplate">androidx.car.app.model.PaneTemplate</a></code></li>
+          <li><code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/MessageTemplate">androidx.car.app.model.MessageTemplate</a></code></li>
+        </ul>
+        <p><b>If the 5 template quota is exhausted and the app attempts to send a new template, the host will display an error message to the user before closing the app.</b> Note that this limit applies to the number of templates, and not the number of screen instances in the stack. For example, if while in screen A an app sends 2 templates, and then pushes screen B, it can now send 3 more templates. Alternatively, if each screen is structured to send a single template, then the app can push 5 <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen">Screen</a></code> instances onto the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a></code> stack. </p>
+        <p>There are special cases to these restrictions: template refreshes, back and reset operations. </p>
+Template Refreshes Certain content updates are not counted towards the template limit. In general, as long as an app returns a template that is of the same type and contains the same main content as the previous template, the new template will not be counted against the quota. For example, updating the toggle state of a row in a <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/ListTemplate">androidx.car.app.model.ListTemplate</a></code> does not count against the quota. See the documentation of individual <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> classes to learn more about what types of content updates can be considered a refresh. Back Operations To enable sub-flows within a task, the host detects when an app is popping a <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen">Screen</a></code> from the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager">ScreenManager</a></code>'s stack, and updates the remaining quota based on the number of templates that the app is going backwards by. 
+        <p>For example, if while in screen A, the app sends 2 templates and then pushes screen B and sends 2 more templates, then the app has 1 quota remaining. If the app now pops back to screen A, the host will reset the quota to 3, because the app has gone backwards by 2 templates. </p>
+        <p>Note that when popping back to a <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen">Screen</a></code>, an app must send a <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> that is of the same type as the one last sent by that screen. Sending any other template types would cause an error. However, as long as the type remains the same during a back operation, an app can freely modify the contents of the template without affecting the quota. </p>
+Reset Operations Certain <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> classes have special semantics that signify the end of a task. For example, the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/navigation/model/NavigationTemplate">androidx.car.app.navigation.model.NavigationTemplate</a></code> is a template that is expected to stay on the screen and be refreshed with new turn-by-turn instructions for the user's consumption. Upon reaching one of these templates, the host will reset the template quota, treating that template as if it is the first step of a new task, thus allowing the app to begin a new task. See the documentation of individual <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/model/Template">Template</a></code> classes to see which ones trigger a reset on the host. 
+        <p>If the host receives an <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/content/Intent.html">android.content.Intent</a></code> to start the car app from a notification action or from the launcher, the quota will also be reset. This mechanism allows an app to begin a new task flow from notifications, and it holds true even if an app is already bound and in the foreground. </p>
+        <p>See <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/notification/CarAppExtender">androidx.car.app.notification.CarAppExtender</a></code> for details on notifications.</p>
+      </div>
+      <div class="api-item"><a name="setMarker-java.lang.String-"></a><a name="setmarker"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setMarker(java.lang.String)" data-text="setMarker" tabindex="-1">setMarker</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/car/app/Screen#setMarker(java.lang.String)">setMarker</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;marker)</pre></devsite-code>
+        <p>Updates the marker for this screen. </p>
+        <p>Set the <code translate="no" dir="ltr">marker</code> to <code translate="no" dir="ltr">null</code> to clear it. </p>
+        <p>This is used for setting a marker to where you can jump back to by calling <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager#popTo(java.lang.String)">popTo</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="setResult-java.lang.Object-"></a><a name="setresult"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setResult(java.lang.Object)" data-text="setResult" tabindex="-1">setResult</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/car-app#1.0.0">1.0.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;void&nbsp;<a href="/reference/androidx/car/app/Screen#setResult(java.lang.Object)">setResult</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;result)</pre></devsite-code>
+        <p>Sets the <code translate="no" dir="ltr">result</code> that will be sent to the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/OnScreenResultListener">OnScreenResultListener</a></code> that was given when pushing this screen onto the stack using <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager#pushForResult(androidx.car.app.Screen,androidx.car.app.OnScreenResultListener)">pushForResult</a></code>. </p>
+        <p>Only the final <code translate="no" dir="ltr">result</code> set will be sent. </p>
+        <p>The <code translate="no" dir="ltr">result</code> will be propagated when this screen is being destroyed. This can be due to being removed from the stack or explicitly calling <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/Screen#finish()">finish</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/Nullable.html">Nullable</a> <a href="https://developer.android.com/reference/java/lang/Object.html">Object</a>&nbsp;result</code></td>
+                <td>
+                  <p>the value to send to the <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/OnScreenResultListener">OnScreenResultListener</a></code> that was given when pushing this screen onto the stack using <code translate="no" dir="ltr"><a href="/reference/androidx/car/app/ScreenManager#pushForResult(androidx.car.app.Screen,androidx.car.app.OnScreenResultListener)">pushForResult</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

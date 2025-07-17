@@ -1,1 +1,1495 @@
-<html><head><title>Class Documentation</title></head><body>InProgressStroke Artifact: androidx.ink:ink-strokes View Source Added in 1.0.0-alpha05 Kotlin | Java public final class InProgressStroke Use an InProgressStroke to efficiently build a stroke over multiple rendering frames with incremental inputs. To use an InProgressStroke , you would typically: Begin a stroke by calling start with a chosen Brush . Repeatedly update the stroke: Call enqueueInputs with any new real and predicted stroke inputs. Call updateShape when isUpdateNeeded is true and new geometry is needed for rendering. Render the current stroke mesh or outlines, either via a provided renderer that accepts an InProgressStroke or by using the various getters on this type with a custom renderer. Call finishInput once there are no more inputs for this stroke (e.g. the user lifts the stylus from the screen). Continue to call updateShape and render after finishInput until isUpdateNeeded returns false (to allow any lingering brush shape animations to complete). Extract the completed stroke by calling toImmutable . For best performance, reuse this object and go back to step 1 rather than allocating a new instance. Summary Public constructors InProgressStroke () Public methods final void enqueueInputs ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;realInputs, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;predictedInputs ) Enqueues the incremental realInputs and sets the prediction to predictedInputs , overwriting any previous prediction. final void finishInput () Indicates that the inputs for the current stroke are finished. final Brush getBrush () The Brush currently being used to generate the stroke content. final @ IntRange (from&nbsp;=&nbsp;0) int getBrushCoatCount () Returns the number of BrushCoats for the current brush, or zero if start has not been called. final @ IntRange (from&nbsp;=&nbsp;0) int getInputCount () Returns the number of StrokeInput s in the stroke so far. final @ IntRange (from&nbsp;=&nbsp;0) int getOutlineCount (@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex) Returns the number of outlines for the specified brush coat. final @ IntRange (from&nbsp;=&nbsp;0) int getOutlineVertexCount ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex ) Returns the number of outline points for the specified outline and brush coat. final @ IntRange (from&nbsp;=&nbsp;0) int getPredictedInputCount () Returns the number of inputs in the current stroke prediction. final @ IntRange (from&nbsp;=&nbsp;0) int getRealInputCount () final boolean isInputFinished () Returns true if finishInput has been called since the last call to start , or if start hasn't been called yet. final boolean isUpdateNeeded () Returns true if calling updateShape would have any effect on the stroke (and should thus be called before the next render), or false if no calls to updateShape are currently needed. final @ NonNull StrokeInput populateInput (@ NonNull StrokeInput &nbsp;out,&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;index) Gets the value of the i-th input and overwrites out . final @ NonNull MutableStrokeInputBatch populateInputs ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull MutableStrokeInputBatch &nbsp;out, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;from, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;to ) Replace the contents of the MutableStrokeInputBatch with the specified range of inputs from the this InProgressStroke . final @ NonNull BoxAccumulator populateMeshBounds ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull BoxAccumulator &nbsp;outMeshBounds ) Writes to outBoxAccumulator the bounding box of the vertex positions of the mesh for brush coat coatIndex . final @ NonNull MutableVec populateOutlinePosition ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull MutableVec &nbsp;outPosition ) Fills outPosition with the x and y coordinates of the specified outline vertex. final @ NonNull BoxAccumulator populateUpdatedRegion (@ NonNull BoxAccumulator &nbsp;outUpdatedRegion) Returns the bounding rectangle of mesh positions added, modified, or removed by calls to updateShape since the most recent call to start or resetUpdatedRegion . final void resetUpdatedRegion () Call after making use of a value from populateUpdatedRegion to reset the accumulation. final void start (@ NonNull Brush &nbsp;brush) Clears and starts a new stroke with the given brush . final @ NonNull Stroke toImmutable () Copies the current input, brush, and geometry as of the last call to start or updateShape to a new Stroke . final void updateShape (long&nbsp;currentElapsedTimeMillis) Updates the stroke geometry up to the given duration since the start of the stroke. Protected methods final void finalize () Public constructors InProgressStroke Added in 1.0.0-alpha05 public&nbsp; InProgressStroke () Public methods enqueueInputs Added in 1.0.0-alpha05 public&nbsp;final&nbsp;void&nbsp; enqueueInputs ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;realInputs, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull StrokeInputBatch &nbsp;predictedInputs ) Enqueues the incremental realInputs and sets the prediction to predictedInputs , overwriting any previous prediction. Queued inputs will be processed on the next call to updateShape . This method requires that: start has been previously called to set the current Brush . finishInput has not been called since the last call to start . realInputs and predictedInputs must form a valid stroke input sequence together with previously added real input. In particular, this means that the first input in realInputs must be valid following the last input in previously added real inputs, and the first input in predictedInputs must be valid following the last input in realInputs : They must have the same InputToolType , their StrokeInput.elapsedTimeMillis values must be monotonically non-decreasing, and they can not duplicate the previous input. Either one or both of realInputs and predictedInputs may be empty. Throws kotlin.IllegalStateException If start has not been called since construction or the last call to finishInput . kotlin.IllegalArgumentException If the input is not valid. Note that this can be a common occurrence with real user input on certain devices, in particular due to duplicate or out-of-order inputs. Therefore, users should either catch and handle this exception or sanitize the input to avoid ensure validity before passing it to this function. finishInput Added in 1.0.0-alpha05 public&nbsp;final&nbsp;void&nbsp; finishInput () Indicates that the inputs for the current stroke are finished. After calling this, it is an error to call enqueueInputs until start is called again to start a new stroke. This method is idempotent; it has no effect if start was never called, or if this method has already been called since the last call to start . This method is synchronous, but the stroke may not be fully finished changing shape due to brush shape animations until isUpdateNeeded returns false. Until that condition is met, keep calling updateShape periodically and rendering the result. getBrush Added in 1.0.0-alpha05 public&nbsp;final&nbsp; Brush &nbsp; getBrush () The Brush currently being used to generate the stroke content. To set this, call start . getBrushCoatCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getBrushCoatCount () Returns the number of BrushCoats for the current brush, or zero if start has not been called. getInputCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getInputCount () Returns the number of StrokeInput s in the stroke so far. This counts all of the real inputs and the most-recently-processed sequence of predicted inputs. getOutlineCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getOutlineCount (@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex) Returns the number of outlines for the specified brush coat. Calls to functions that accept an outlineIndex must treat the result of this function as an upper bound. Coats with discontinuous geometry will always have multiple outlines, but even continuous geometry may be drawn with multiple overlapping outlines when this improves rendering quality or performance. Parameters @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex Must be between 0 (inclusive) and the result of getBrushCoatCount (exclusive). getOutlineVertexCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getOutlineVertexCount ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex ) Returns the number of outline points for the specified outline and brush coat. populateOutlinePosition must treat the result of this as the upper bound of its outlineVertexIndex parameter. Parameters @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex Must be between 0 (inclusive) and the result of getBrushCoatCount (exclusive). @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex Must be between 0 (inclusive) and the result of getOutlineCount for the same coatIndex (exclusive). getPredictedInputCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getPredictedInputCount () Returns the number of inputs in the current stroke prediction. getRealInputCount Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp; getRealInputCount () isInputFinished Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; isInputFinished () Returns true if finishInput has been called since the last call to start , or if start hasn't been called yet. If this returns true , it is an error to call enqueueInputs . isUpdateNeeded Added in 1.0.0-alpha05 public&nbsp;final&nbsp;boolean&nbsp; isUpdateNeeded () Returns true if calling updateShape would have any effect on the stroke (and should thus be called before the next render), or false if no calls to updateShape are currently needed. Specifically: If the brush has one or more timed shape animation behavior that are still active (which can be true even after inputs are finished), returns true . If there are no active shape animation behaviors, but there are pending inputs from an enqueueInputs call that have not yet been consumed by a call to updateShape , returns true . Otherwise, returns false . Once isInputFinished returns true and this method returns false , the stroke is considered &quot;dry&quot;, and will not change any further until the next call to start . populateInput Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull StrokeInput &nbsp; populateInput (@ NonNull StrokeInput &nbsp;out,&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;index) Gets the value of the i-th input and overwrites out . Requires that index is positive and less than getInputCount . Returns the passed-in StrokeInput to make it easier to chain calls. Returns @ NonNull StrokeInput out populateInputs Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull MutableStrokeInputBatch &nbsp; populateInputs ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull MutableStrokeInputBatch &nbsp;out, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;from, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;to ) Replace the contents of the MutableStrokeInputBatch with the specified range of inputs from the this InProgressStroke . By default, all inputs are copied. Returns the passed-in MutableStrokeInputBatch to make it easier to chain calls. Returns @ NonNull MutableStrokeInputBatch out populateMeshBounds Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull BoxAccumulator &nbsp; populateMeshBounds ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull BoxAccumulator &nbsp;outMeshBounds ) Writes to outBoxAccumulator the bounding box of the vertex positions of the mesh for brush coat coatIndex . Returns the passed in BoxAccumulator to make it easier to chain calls. Parameters @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex The index of the coat to obtain the bounding box from. @ NonNull BoxAccumulator &nbsp;outMeshBounds The pre-allocated BoxAccumulator to be filled with the result. Returns @ NonNull BoxAccumulator outMeshBounds populateOutlinePosition Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull MutableVec &nbsp; populateOutlinePosition ( &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull MutableVec &nbsp;outPosition ) Fills outPosition with the x and y coordinates of the specified outline vertex. Returns the passed-in MutableVec to make it easier to chain calls. Parameters @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;coatIndex Must be between 0 (inclusive) and the result of getBrushCoatCount (exclusive). @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineIndex Must be between 0 (inclusive) and the result of getOutlineCount (exclusive) for the same coatIndex . @ IntRange (from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex Must be between 0 (inclusive) and the result of getOutlineVertexCount (exclusive) for the same coatIndex and outlineIndex . @ NonNull MutableVec &nbsp;outPosition the pre-allocated MutableVec to be filled with the result. populateUpdatedRegion Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull BoxAccumulator &nbsp; populateUpdatedRegion (@ NonNull BoxAccumulator &nbsp;outUpdatedRegion) Returns the bounding rectangle of mesh positions added, modified, or removed by calls to updateShape since the most recent call to start or resetUpdatedRegion . Returns the passed in BoxAccumulator to make it easier to chain calls. Parameters @ NonNull BoxAccumulator &nbsp;outUpdatedRegion The pre-allocated BoxAccumulator to be filled with the result. Returns @ NonNull BoxAccumulator outUpdatedRegion resetUpdatedRegion Added in 1.0.0-alpha05 public&nbsp;final&nbsp;void&nbsp; resetUpdatedRegion () Call after making use of a value from populateUpdatedRegion to reset the accumulation. start Added in 1.0.0-alpha05 public&nbsp;final&nbsp;void&nbsp; start (@ NonNull Brush &nbsp;brush) Clears and starts a new stroke with the given brush . This includes clearing or resetting any existing inputs, mesh data, and updated region. This method must be called at least once after construction before making any calls to enqueueInputs or updateShape . toImmutable Added in 1.0.0-alpha05 public&nbsp;final&nbsp;@ NonNull Stroke &nbsp; toImmutable () Copies the current input, brush, and geometry as of the last call to start or updateShape to a new Stroke . The resulting Stroke will not be modified if further inputs are added to this InProgressStroke , and a Stroke created by another call to this method will not modify or be connected in any way to the prior Stroke . updateShape Added in 1.0.0-alpha05 public&nbsp;final&nbsp;void&nbsp; updateShape (long&nbsp;currentElapsedTimeMillis) Updates the stroke geometry up to the given duration since the start of the stroke. This will consume any inputs queued up by calls to enqueueInputs , and cause brush shape animations (if any) to progress up to the specified time. Any stroke geometry resulting from previously-predicted input from before the previous call to this method will be cleared. This method requires that: start has been previously called to set the current brush . If passed, the value of currentElapsedTimeMillis passed into this method over the course of a single stroke must be non-decreasing and non-negative. To have shape animations progress at their intended rate, pass in values for this field that are in the same time base as the StrokeInput.elapsedTimeMillis values being passed to enqueueInputs , repeatedly until isInputFinished returns true . Clients that do not use brushes with shape animation behaviors can omit currentElapsedTimeMillis . Doing so when using brushes with shape animation beaviors will cause the animation to be completed immediately. Throws kotlin.IllegalStateException If start has not been called. kotlin.IllegalArgumentException If currentElapsedTimeMillis is negative or decreased from a previous call to this method for the same in-progress stroke. Protected methods finalize Added in 1.0.0-alpha05 protected&nbsp;final&nbsp;void&nbsp; finalize ()</body></html>
+<html><head><title>InProgressStroke</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="InProgressStroke">
+      <meta itemprop="path" content="androidx.ink.strokes">
+      <meta itemprop="property" content="enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">
+      <meta itemprop="property" content="finalize()">
+      <meta itemprop="property" content="finishInput()">
+      <meta itemprop="property" content="getBrush()">
+      <meta itemprop="property" content="getBrushCoatCount()">
+      <meta itemprop="property" content="getInputCount()">
+      <meta itemprop="property" content="getOutlineCount(kotlin.Int)">
+      <meta itemprop="property" content="getOutlineVertexCount(kotlin.Int,kotlin.Int)">
+      <meta itemprop="property" content="getPredictedInputCount()">
+      <meta itemprop="property" content="getRealInputCount()">
+      <meta itemprop="property" content="isInputFinished()">
+      <meta itemprop="property" content="isUpdateNeeded()">
+      <meta itemprop="property" content="populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">
+      <meta itemprop="property" content="populateInputs(androidx.ink.strokes.MutableStrokeInputBatch,kotlin.Int,kotlin.Int)">
+      <meta itemprop="property" content="populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">
+      <meta itemprop="property" content="populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">
+      <meta itemprop="property" content="populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">
+      <meta itemprop="property" content="resetUpdatedRegion()">
+      <meta itemprop="property" content="start(androidx.ink.brush.Brush)">
+      <meta itemprop="property" content="toImmutable()">
+      <meta itemprop="property" content="updateShape(kotlin.Long)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="inprogressstroke" data-text="InProgressStroke" tabindex="-1">InProgressStroke</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/ink">androidx.ink:ink-strokes</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/ink/strokes/InProgressStroke.kt+class:androidx.ink.strokes.InProgressStroke" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/ink/strokes/InProgressStroke" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Use an <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code> to efficiently build a stroke over multiple rendering frames with incremental inputs.</p>
+    <p>To use an <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code>, you would typically:</p>
+    <ol>
+      <li>
+        <p>Begin a stroke by calling <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> with a chosen <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/Brush">Brush</a></code>.</p>
+      </li>
+      <li>
+        <p>Repeatedly update the stroke:</p>
+      </li>
+      <ol>
+        <li>
+          <p>Call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code> with any new real and predicted stroke inputs.</p>
+        </li>
+        <li>
+          <p>Call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> when <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isUpdateNeeded()">isUpdateNeeded</a></code> is <code translate="no" dir="ltr">true</code> and new geometry is needed for        rendering.</p>
+        </li>
+        <li>
+          <p>Render the current stroke mesh or outlines, either via a provided renderer that accepts an        <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code> or by using the various getters on this type with a custom renderer.</p>
+        </li>
+      </ol>
+      <li>
+        <p>Call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code> once there are no more inputs for this stroke (e.g. the user lifts the     stylus from the screen).</p>
+      </li>
+      <li>
+        <p>Continue to call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> and render after <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code> until <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isUpdateNeeded()">isUpdateNeeded</a></code> returns     false (to allow any lingering brush shape animations to complete).</p>
+      </li>
+      <li>
+        <p>Extract the completed stroke by calling <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#toImmutable()">toImmutable</a></code>.</p>
+      </li>
+      <li>
+        <p>For best performance, reuse this object and go back to step 1 rather than allocating a new     instance.</p>
+      </li>
+    </ol>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#InProgressStroke()">InProgressStroke</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;realInputs,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;predictedInputs<br>)</code></div>
+              <p>Enqueues the incremental <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code> and sets the prediction to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">predictedInputs</a></code>, overwriting any previous prediction.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a>()</code></div>
+              <p>Indicates that the inputs for the current stroke are finished.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final <a href="/reference/androidx/ink/brush/Brush">Brush</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getBrush()">getBrush</a>()</code></div>
+              <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/Brush">Brush</a></code> currently being used to generate the stroke content.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getBrushCoatCount()">getBrushCoatCount</a>()</code></div>
+              <p>Returns the number of <code translate="no" dir="ltr">BrushCoats</code> for the current brush, or zero if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has not been called.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getInputCount()">getInputCount</a>()</code></div>
+              <p>Returns the number of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code>s in the stroke so far.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineCount(kotlin.Int)">getOutlineCount</a>(@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex)</code></div>
+              <p>Returns the number of outlines for the specified brush coat.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineVertexCount(kotlin.Int,kotlin.Int)">getOutlineVertexCount</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex<br>)</code></div>
+              <p>Returns the number of outline points for the specified outline and brush coat.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getPredictedInputCount()">getPredictedInputCount</a>()</code></div>
+              <p>Returns the number of inputs in the current stroke prediction.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getRealInputCount()">getRealInputCount</a>()</code></div>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isInputFinished()">isInputFinished</a>()</code></div>
+              <p>Returns <code translate="no" dir="ltr">true</code> if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code> has been called since the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>, or if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> hasn't been called yet.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isUpdateNeeded()">isUpdateNeeded</a>()</code></div>
+              <p>Returns <code translate="no" dir="ltr">true</code> if calling <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> would have any effect on the stroke (and should thus be called before the next render), or <code translate="no" dir="ltr">false</code> if no calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> are currently needed.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">populateInput</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;out,&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;index)</code></div>
+              <p>Gets the value of the i-th input and overwrites <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">out</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInputs(androidx.ink.strokes.MutableStrokeInputBatch,kotlin.Int,kotlin.Int)">populateInputs</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a>&nbsp;out,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;from,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;to<br>)</code></div>
+              <p>Replace the contents of the <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code> with the specified range of inputs from the this <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">populateMeshBounds</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outMeshBounds<br>)</code></div>
+              <p>Writes to outBoxAccumulator the bounding box of the vertex positions of the mesh for brush coat <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">coatIndex</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">populateOutlinePosition</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a>&nbsp;outPosition<br>)</code></div>
+              <p>Fills <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">outPosition</a></code> with the x and y coordinates of the specified outline vertex.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">populateUpdatedRegion</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outUpdatedRegion)</code></div>
+              <p>Returns the bounding rectangle of mesh positions added, modified, or removed by calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> since the most recent call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#resetUpdatedRegion()">resetUpdatedRegion</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#resetUpdatedRegion()">resetUpdatedRegion</a>()</code></div>
+              <p>Call after making use of a value from <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">populateUpdatedRegion</a></code> to reset the accumulation.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/brush/Brush">Brush</a>&nbsp;brush)</code></div>
+              <p>Clears and starts a new stroke with the given <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">brush</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final @<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#toImmutable()">toImmutable</a>()</code></div>
+              <p>Copies the current input, brush, and geometry as of the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> to a new <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a>(long&nbsp;currentElapsedTimeMillis)</code></div>
+              <p>Updates the stroke geometry up to the given duration since the start of the stroke.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="protected-methods" data-text="Protected methods" tabindex="-1">Protected methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finalize()">finalize</a>()</code></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="InProgressStroke--"></a><a name="inprogressstroke"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="InProgressStroke()" data-text="InProgressStroke" tabindex="-1">InProgressStroke</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#InProgressStroke()">InProgressStroke</a>()</pre></devsite-code>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="enqueueInputs(androidx.ink.strokes.StrokeInputBatch, androidx.ink.strokes.StrokeInputBatch)"></a><a name="enqueueInputs-androidx.ink.strokes.StrokeInputBatch-androidx.ink.strokes.StrokeInputBatch-"></a><a name="enqueueinputs"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)" data-text="enqueueInputs" tabindex="-1">enqueueInputs</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;realInputs,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInputBatch">StrokeInputBatch</a>&nbsp;predictedInputs<br>)</pre></devsite-code>
+        <p>Enqueues the incremental <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code> and sets the prediction to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">predictedInputs</a></code>, overwriting any previous prediction. Queued inputs will be processed on the next call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code>.</p>
+        <p>This method requires that:</p>
+        <ul>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has been previously called to set the current <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/Brush">Brush</a></code>.</p>
+          </li>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code> has not been called since the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>.</p>
+          </li>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">predictedInputs</a></code> must form a valid stroke input sequence together with previously added real input. In particular, this means that the first input in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code> must be valid following the last input in previously added real inputs, and the first input in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">predictedInputs</a></code> must be valid following the last input in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code>: They must have the same <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/InputToolType">InputToolType</a></code>, their <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#elapsedTimeMillis()">StrokeInput.elapsedTimeMillis</a></code> values must be monotonically non-decreasing, and they can not duplicate the previous input.</p>
+          </li>
+        </ul>
+        <p>Either one or both of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">realInputs</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">predictedInputs</a></code> may be empty.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has not been called since construction or the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">kotlin.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If the input is not valid. Note that this can be a common occurrence with real user input on certain devices, in particular due to duplicate or out-of-order inputs. Therefore, users should either catch and handle this exception or sanitize the input to avoid ensure validity before passing it to this function.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="finishInput--"></a><a name="finishinput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="finishInput()" data-text="finishInput" tabindex="-1">finishInput</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a>()</pre></devsite-code>
+        <p>Indicates that the inputs for the current stroke are finished. After calling this, it is an error to call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code> until <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> is called again to start a new stroke. This method is idempotent; it has no effect if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> was never called, or if this method has already been called since the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>. This method is synchronous, but the stroke may not be fully finished changing shape due to brush shape animations until <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isUpdateNeeded()">isUpdateNeeded</a></code> returns false. Until that condition is met, keep calling <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> periodically and rendering the result.</p>
+      </div>
+      <div class="api-item"><a name="getBrush--"></a><a name="getbrush"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getBrush()" data-text="getBrush" tabindex="-1">getBrush</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;<a href="/reference/androidx/ink/brush/Brush">Brush</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getBrush()">getBrush</a>()</pre></devsite-code>
+        <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/ink/brush/Brush">Brush</a></code> currently being used to generate the stroke content. To set this, call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="getBrushCoatCount--"></a><a name="getbrushcoatcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getBrushCoatCount()" data-text="getBrushCoatCount" tabindex="-1">getBrushCoatCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getBrushCoatCount()">getBrushCoatCount</a>()</pre></devsite-code>
+        <p>Returns the number of <code translate="no" dir="ltr">BrushCoats</code> for the current brush, or zero if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has not been called.</p>
+      </div>
+      <div class="api-item"><a name="getInputCount--"></a><a name="getinputcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getInputCount()" data-text="getInputCount" tabindex="-1">getInputCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getInputCount()">getInputCount</a>()</pre></devsite-code>
+        <p>Returns the number of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code>s in the stroke so far. This counts all of the real inputs and the most-recently-processed sequence of predicted inputs.</p>
+      </div>
+      <div class="api-item"><a name="getOutlineCount-kotlin.Int-"></a><a name="getoutlinecount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOutlineCount(kotlin.Int)" data-text="getOutlineCount" tabindex="-1">getOutlineCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineCount(kotlin.Int)">getOutlineCount</a>(@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex)</pre></devsite-code>
+        <p>Returns the number of outlines for the specified brush coat.</p>
+        <p>Calls to functions that accept an outlineIndex must treat the result of this function as an upper bound. Coats with discontinuous geometry will always have multiple outlines, but even continuous geometry may be drawn with multiple overlapping outlines when this improves rendering quality or performance.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getBrushCoatCount()">getBrushCoatCount</a></code> (exclusive).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getOutlineVertexCount(kotlin.Int, kotlin.Int)"></a><a name="getOutlineVertexCount-kotlin.Int-kotlin.Int-"></a><a name="getoutlinevertexcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getOutlineVertexCount(kotlin.Int,kotlin.Int)" data-text="getOutlineVertexCount" tabindex="-1">getOutlineVertexCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineVertexCount(kotlin.Int,kotlin.Int)">getOutlineVertexCount</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex<br>)</pre></devsite-code>
+        <p>Returns the number of outline points for the specified outline and brush coat. <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">populateOutlinePosition</a></code> must treat the result of this as the upper bound of its outlineVertexIndex parameter.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getBrushCoatCount()">getBrushCoatCount</a></code> (exclusive).</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineCount(kotlin.Int)">getOutlineCount</a></code> for the same <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineVertexCount(kotlin.Int,kotlin.Int)">coatIndex</a></code> (exclusive).</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getPredictedInputCount--"></a><a name="getpredictedinputcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getPredictedInputCount()" data-text="getPredictedInputCount" tabindex="-1">getPredictedInputCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getPredictedInputCount()">getPredictedInputCount</a>()</pre></devsite-code>
+        <p>Returns the number of inputs in the current stroke prediction.</p>
+      </div>
+      <div class="api-item"><a name="getRealInputCount--"></a><a name="getrealinputcount"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getRealInputCount()" data-text="getRealInputCount" tabindex="-1">getRealInputCount</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#getRealInputCount()">getRealInputCount</a>()</pre></devsite-code>
+      </div>
+      <div class="api-item"><a name="isInputFinished--"></a><a name="isinputfinished"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isInputFinished()" data-text="isInputFinished" tabindex="-1">isInputFinished</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#isInputFinished()">isInputFinished</a>()</pre></devsite-code>
+        <p>Returns <code translate="no" dir="ltr">true</code> if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#finishInput()">finishInput</a></code> has been called since the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>, or if <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> hasn't been called yet. If this returns <code translate="no" dir="ltr">true</code>, it is an error to call <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="isUpdateNeeded--"></a><a name="isupdateneeded"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isUpdateNeeded()" data-text="isUpdateNeeded" tabindex="-1">isUpdateNeeded</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#isUpdateNeeded()">isUpdateNeeded</a>()</pre></devsite-code>
+        <p>Returns <code translate="no" dir="ltr">true</code> if calling <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> would have any effect on the stroke (and should thus be called before the next render), or <code translate="no" dir="ltr">false</code> if no calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> are currently needed. Specifically:</p>
+        <ul>
+          <li>
+            <p>If the brush has one or more timed shape animation behavior that are still active (which can be true even after inputs are finished), returns <code translate="no" dir="ltr">true</code>.</p>
+          </li>
+          <li>
+            <p>If there are no active shape animation behaviors, but there are pending inputs from an <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code> call that have not yet been consumed by a call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code>, returns <code translate="no" dir="ltr">true</code>.</p>
+          </li>
+          <li>
+            <p>Otherwise, returns <code translate="no" dir="ltr">false</code>.</p>
+          </li>
+        </ul>
+        <p>Once <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isInputFinished()">isInputFinished</a></code> returns <code translate="no" dir="ltr">true</code> and this method returns <code translate="no" dir="ltr">false</code>, the stroke is considered &quot;dry&quot;, and will not change any further until the next call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="populateInput(androidx.ink.strokes.StrokeInput, kotlin.Int)"></a><a name="populateInput-androidx.ink.strokes.StrokeInput-kotlin.Int-"></a><a name="populateinput"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)" data-text="populateInput" tabindex="-1">populateInput</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">populateInput</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a>&nbsp;out,&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;index)</pre></devsite-code>
+        <p>Gets the value of the i-th input and overwrites <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">out</a></code>. Requires that <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">index</a></code> is positive and less than <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getInputCount()">getInputCount</a></code>.</p>
+        <p>Returns the passed-in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code> to make it easier to chain calls.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/StrokeInput">StrokeInput</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInput(androidx.ink.strokes.StrokeInput,kotlin.Int)">out</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="populateInputs(androidx.ink.strokes.MutableStrokeInputBatch, kotlin.Int, kotlin.Int)"></a><a name="populateInputs-androidx.ink.strokes.MutableStrokeInputBatch-kotlin.Int-kotlin.Int-"></a><a name="populateinputs"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populateInputs(androidx.ink.strokes.MutableStrokeInputBatch,kotlin.Int,kotlin.Int)" data-text="populateInputs" tabindex="-1">populateInputs</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#populateInputs(androidx.ink.strokes.MutableStrokeInputBatch,kotlin.Int,kotlin.Int)">populateInputs</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a>&nbsp;out,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;from,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;to<br>)</pre></devsite-code>
+        <p>Replace the contents of the <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code> with the specified range of inputs from the this <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code>. By default, all inputs are copied.</p>
+        <p>Returns the passed-in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code> to make it easier to chain calls.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/MutableStrokeInputBatch">MutableStrokeInputBatch</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateInputs(androidx.ink.strokes.MutableStrokeInputBatch,kotlin.Int,kotlin.Int)">out</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="populateMeshBounds(kotlin.Int, androidx.ink.geometry.BoxAccumulator)"></a><a name="populateMeshBounds-kotlin.Int-androidx.ink.geometry.BoxAccumulator-"></a><a name="populatemeshbounds"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)" data-text="populateMeshBounds" tabindex="-1">populateMeshBounds</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">populateMeshBounds</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outMeshBounds<br>)</pre></devsite-code>
+        <p>Writes to outBoxAccumulator the bounding box of the vertex positions of the mesh for brush coat <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">coatIndex</a></code>.</p>
+        <p>Returns the passed in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code> to make it easier to chain calls.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex</code></td>
+                <td>
+                  <p>The index of the coat to obtain the bounding box from.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outMeshBounds</code></td>
+                <td>
+                  <p>The pre-allocated <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code> to be filled with the result.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateMeshBounds(kotlin.Int,androidx.ink.geometry.BoxAccumulator)">outMeshBounds</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="populateOutlinePosition(kotlin.Int, kotlin.Int, kotlin.Int, androidx.ink.geometry.MutableVec)"></a><a name="populateOutlinePosition-kotlin.Int-kotlin.Int-kotlin.Int-androidx.ink.geometry.MutableVec-"></a><a name="populateoutlineposition"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)" data-text="populateOutlinePosition" tabindex="-1">populateOutlinePosition</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">populateOutlinePosition</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a>&nbsp;outPosition<br>)</pre></devsite-code>
+        <p>Fills <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">outPosition</a></code> with the x and y coordinates of the specified outline vertex.</p>
+        <p>Returns the passed-in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a></code> to make it easier to chain calls.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;coatIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getBrushCoatCount()">getBrushCoatCount</a></code> (exclusive).</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineCount(kotlin.Int)">getOutlineCount</a></code> (exclusive) for the same <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">coatIndex</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/IntRange">IntRange</a>(from&nbsp;=&nbsp;0) int&nbsp;outlineVertexIndex</code></td>
+                <td>
+                  <p>Must be between 0 (inclusive) and the result of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#getOutlineVertexCount(kotlin.Int,kotlin.Int)">getOutlineVertexCount</a></code> (exclusive) for the same <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">coatIndex</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateOutlinePosition(kotlin.Int,kotlin.Int,kotlin.Int,androidx.ink.geometry.MutableVec)">outlineIndex</a></code>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a>&nbsp;outPosition</code></td>
+                <td>
+                  <p>the pre-allocated <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/MutableVec">MutableVec</a></code> to be filled with the result.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="populateUpdatedRegion-androidx.ink.geometry.BoxAccumulator-"></a><a name="populateupdatedregion"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)" data-text="populateUpdatedRegion" tabindex="-1">populateUpdatedRegion</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">populateUpdatedRegion</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outUpdatedRegion)</pre></devsite-code>
+        <p>Returns the bounding rectangle of mesh positions added, modified, or removed by calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> since the most recent call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#resetUpdatedRegion()">resetUpdatedRegion</a></code>.</p>
+        <p>Returns the passed in <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code> to make it easier to chain calls.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a>&nbsp;outUpdatedRegion</code></td>
+                <td>
+                  <p>The pre-allocated <code translate="no" dir="ltr"><a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code> to be filled with the result.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/geometry/BoxAccumulator">BoxAccumulator</a></code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">outUpdatedRegion</a></code></p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="resetUpdatedRegion--"></a><a name="resetupdatedregion"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="resetUpdatedRegion()" data-text="resetUpdatedRegion" tabindex="-1">resetUpdatedRegion</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#resetUpdatedRegion()">resetUpdatedRegion</a>()</pre></devsite-code>
+        <p>Call after making use of a value from <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#populateUpdatedRegion(androidx.ink.geometry.BoxAccumulator)">populateUpdatedRegion</a></code> to reset the accumulation.</p>
+      </div>
+      <div class="api-item"><a name="start-androidx.ink.brush.Brush-"></a><a name="start"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="start(androidx.ink.brush.Brush)" data-text="start" tabindex="-1">start</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/brush/Brush">Brush</a>&nbsp;brush)</pre></devsite-code>
+        <p>Clears and starts a new stroke with the given <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">brush</a></code>.</p>
+        <p>This includes clearing or resetting any existing inputs, mesh data, and updated region. This method must be called at least once after construction before making any calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="toImmutable--"></a><a name="toimmutable"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="toImmutable()" data-text="toImmutable" tabindex="-1">toImmutable</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/ink/strokes/Stroke">Stroke</a>&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#toImmutable()">toImmutable</a>()</pre></devsite-code>
+        <p>Copies the current input, brush, and geometry as of the last call to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a></code> to a new <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code>.</p>
+        <p>The resulting <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code> will not be modified if further inputs are added to this <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke">InProgressStroke</a></code>, and a <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code> created by another call to this method will not modify or be connected in any way to the prior <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/Stroke">Stroke</a></code>.</p>
+      </div>
+      <div class="api-item"><a name="updateShape-kotlin.Long-"></a><a name="updateshape"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="updateShape(kotlin.Long)" data-text="updateShape" tabindex="-1">updateShape</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">updateShape</a>(long&nbsp;currentElapsedTimeMillis)</pre></devsite-code>
+        <p>Updates the stroke geometry up to the given duration since the start of the stroke. This will consume any inputs queued up by calls to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code>, and cause brush shape animations (if any) to progress up to the specified time. Any stroke geometry resulting from previously-predicted input from before the previous call to this method will be cleared.</p>
+        <p>This method requires that:</p>
+        <ul>
+          <li>
+            <p><code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has been previously called to set the current <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#brush()">brush</a></code>.</p>
+          </li>
+          <li>
+            <p>If passed, the value of <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">currentElapsedTimeMillis</a></code> passed into this method over the course of a single stroke must be non-decreasing and non-negative. To have shape animations progress at their intended rate, pass in values for this field that are in the same time base as the <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/StrokeInput#elapsedTimeMillis()">StrokeInput.elapsedTimeMillis</a></code> values being passed to <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#enqueueInputs(androidx.ink.strokes.StrokeInputBatch,androidx.ink.strokes.StrokeInputBatch)">enqueueInputs</a></code>, repeatedly until <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#isInputFinished()">isInputFinished</a></code> returns <code translate="no" dir="ltr">true</code>.</p>
+          </li>
+        </ul>
+        <p>Clients that do not use brushes with shape animation behaviors can omit <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">currentElapsedTimeMillis</a></code>. Doing so when using brushes with shape animation beaviors will cause the animation to be completed immediately.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-state-exception/index.html">kotlin.IllegalStateException</a></code></td>
+                <td>
+                  <p>If <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#start(androidx.ink.brush.Brush)">start</a></code> has not been called.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-illegal-argument-exception/index.html">kotlin.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>If <code translate="no" dir="ltr"><a href="/reference/androidx/ink/strokes/InProgressStroke#updateShape(kotlin.Long)">currentElapsedTimeMillis</a></code> is negative or decreased from a previous call to this method for the same in-progress stroke.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="protected-methods_1" data-text="Protected methods" tabindex="-1">Protected methods</h2>
+      <div class="api-item"><a name="finalize--"></a><a name="finalize"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="finalize()" data-text="finalize" tabindex="-1">finalize</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/ink#1.0.0-alpha05">1.0.0-alpha05</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>protected&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/ink/strokes/InProgressStroke#finalize()">finalize</a>()</pre></devsite-code>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

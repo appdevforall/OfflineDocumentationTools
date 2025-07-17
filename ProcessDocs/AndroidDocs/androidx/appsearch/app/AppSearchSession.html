@@ -1,1 +1,1966 @@
-<html><head><title>Class Documentation</title></head><body>AppSearchSession Artifact: androidx.appsearch:appsearch View Source Added in 1.1.0 Kotlin | Java public interface AppSearchSession extends Closeable Provides a connection to a single AppSearch database. An AppSearchSession instance provides access to database operations such as setting a schema, adding documents, and searching. Instances of this interface are usually obtained from a storage implementation, e.g. LocalStorage.createSearchSessionAsync() or PlatformStorage.createSearchSessionAsync() . All implementations of this interface must be thread safe. See also GlobalSearchSession Summary Public methods abstract void close () Closes the AppSearchSession to persist all schema and document updates, additions, and deletes to disk. default @ NonNull ListenableFuture &lt; CommitBlobResponse &gt; @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi commitBlobAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Commits the blobs to make it retrievable and immutable. abstract @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; GenericDocument &gt;&gt; getByDocumentIdAsync (@ NonNull GetByDocumentIdRequest &nbsp;request) Gets GenericDocument objects by document IDs in a namespace from the AppSearchSession database. abstract @ NonNull Features getFeatures () Returns the Features to check for the availability of certain features for this session. abstract @ NonNull ListenableFuture &lt; Set &lt; String &gt;&gt; getNamespacesAsync () Retrieves the set of all namespaces in the current database with at least one document. abstract @ NonNull ListenableFuture &lt; GetSchemaResponse &gt; getSchemaAsync () Retrieves the schema most recently successfully provided to setSchemaAsync . abstract @ NonNull ListenableFuture &lt; StorageInfo &gt; getStorageInfoAsync () Gets the storage info for this AppSearchSession database. default @ NonNull ListenableFuture &lt; OpenBlobForReadResponse &gt; @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi openBlobForReadAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Opens a batch of AppSearch Blobs for reading. default @ NonNull ListenableFuture &lt; OpenBlobForWriteResponse &gt; @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi openBlobForWriteAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Opens a batch of AppSearch Blobs for writing. abstract @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt; putAsync (@ NonNull PutDocumentsRequest &nbsp;request) Indexes documents into the AppSearchSession database. abstract @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt; removeAsync (@ NonNull RemoveByDocumentIdRequest &nbsp;request) Removes GenericDocument objects by document IDs in a namespace from the AppSearchSession database. abstract @ NonNull ListenableFuture &lt; Void &gt; removeAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull String &nbsp;queryExpression, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SearchSpec &nbsp;searchSpec ) Removes GenericDocument s from the index by Query. default @ NonNull ListenableFuture &lt; RemoveBlobResponse &gt; @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi removeBlobAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Removes the blob data from AppSearch. abstract @ NonNull ListenableFuture &lt; Void &gt; reportUsageAsync (@ NonNull ReportUsageRequest &nbsp;request) Reports usage of a particular document by namespace and ID. abstract @ NonNull ListenableFuture &lt; Void &gt; requestFlushAsync () Flush all schema and document updates, additions, and deletes to disk if possible. abstract @ NonNull SearchResults search (@ NonNull String &nbsp;queryExpression,&nbsp;@ NonNull SearchSpec &nbsp;searchSpec) Retrieves documents from the open AppSearchSession that match a given query string and type of search provided. abstract @ NonNull ListenableFuture &lt; List &lt; SearchSuggestionResult &gt;&gt; searchSuggestionAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull String &nbsp;suggestionQueryExpression, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SearchSuggestionSpec &nbsp;searchSuggestionSpec ) Retrieves suggested Strings that could be used as queryExpression in search API. default @ NonNull ListenableFuture &lt; Void &gt; @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi setBlobVisibilityAsync (@ NonNull SetBlobVisibilityRequest &nbsp;request) Sets the visibility configuration for all blob namespaces within an appsearch database. abstract @ NonNull ListenableFuture &lt; SetSchemaResponse &gt; setSchemaAsync (@ NonNull SetSchemaRequest &nbsp;request) Sets the schema that represents the organizational structure of data within the AppSearch database. Public methods close Added in 1.1.0 abstract&nbsp;void&nbsp; close () Closes the AppSearchSession to persist all schema and document updates, additions, and deletes to disk. commitBlobAsync Added in 1.1.0 @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi default&nbsp;@ NonNull ListenableFuture &lt; CommitBlobResponse &gt;&nbsp; commitBlobAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Commits the blobs to make it retrievable and immutable. After this call, the blob is readable via openBlobForReadAsync . Any change to the content or rewrite via openBlobForWriteAsync of this blob won't be allowed. If the blob is already stored in AppSearch and committed. A failed AppSearchResult with error code RESULT_ALREADY_EXISTS will be associated with the AppSearchBlobHandle . If the blob content doesn't match the digest in AppSearchBlobHandle , a failed AppSearchResult with error code RESULT_INVALID_ARGUMENT will be associated with the AppSearchBlobHandle . The pending Blob file will be removed from AppSearch. Pending blobs won't be lost or auto-commit if AppSearchSession closed. Pending blobs will store in disk rather than memory. You can re-open AppSearchSession and re-write the pending blobs. The default time to recycle pending and orphan blobs is 1 week. A blob will be considered as an orphan if no GenericDocument references it. Both pending blob files and committed blob files can be manually removed via removeBlobAsync . Parameters @ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles The AppSearchBlobHandle s that identifies the blobs. Returns @ NonNull ListenableFuture &lt; CommitBlobResponse &gt; a response containing the commit results. See also setPropertyBlobHandle getByDocumentIdAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; GenericDocument &gt;&gt;&nbsp; getByDocumentIdAsync (@ NonNull GetByDocumentIdRequest &nbsp;request) Gets GenericDocument objects by document IDs in a namespace from the AppSearchSession database. Parameters @ NonNull GetByDocumentIdRequest &nbsp;request a request containing a namespace and IDs to get documents for. Returns @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; GenericDocument &gt;&gt; A ListenableFuture which resolves to an AppSearchBatchResult . The keys of the AppSearchBatchResult represent the input document IDs from the GetByDocumentIdRequest object. The values are either the corresponding GenericDocument object for the ID on success, or an AppSearchResult object on failure. For example, if an ID is not found, the value for that ID will be set to an AppSearchResult object with result code: RESULT_NOT_FOUND . getFeatures Added in 1.1.0 abstract&nbsp;@ NonNull Features &nbsp; getFeatures () Returns the Features to check for the availability of certain features for this session. getNamespacesAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; Set &lt; String &gt;&gt;&nbsp; getNamespacesAsync () Retrieves the set of all namespaces in the current database with at least one document. Returns @ NonNull ListenableFuture &lt; Set &lt; String &gt;&gt; The pending result of performing this operation. getSchemaAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; GetSchemaResponse &gt;&nbsp; getSchemaAsync () Retrieves the schema most recently successfully provided to setSchemaAsync . Returns @ NonNull ListenableFuture &lt; GetSchemaResponse &gt; The pending GetSchemaResponse of performing this operation. getStorageInfoAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; StorageInfo &gt;&nbsp; getStorageInfoAsync () Gets the storage info for this AppSearchSession database. This may take time proportional to the number of documents and may be inefficient to call repeatedly. Returns @ NonNull ListenableFuture &lt; StorageInfo &gt; a ListenableFuture which resolves to a StorageInfo object. openBlobForReadAsync Added in 1.1.0 @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi default&nbsp;@ NonNull ListenableFuture &lt; OpenBlobForReadResponse &gt;&nbsp; openBlobForReadAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Opens a batch of AppSearch Blobs for reading. Only blobs committed via commitBlobAsync are available for reading. The returned OpenBlobForReadResponse must be closed after use to avoid resource leaks. Failing to close it will result in system file descriptor exhaustion. Parameters @ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles The AppSearchBlobHandle s that identifies the blobs. Returns @ NonNull ListenableFuture &lt; OpenBlobForReadResponse &gt; a response containing the readable file descriptors. See also setPropertyBlobHandle openBlobForWriteAsync Added in 1.1.0 @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi default&nbsp;@ NonNull ListenableFuture &lt; OpenBlobForWriteResponse &gt;&nbsp; openBlobForWriteAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Opens a batch of AppSearch Blobs for writing. A &quot;blob&quot; is a large binary object. It is used to store a significant amount of data that is not searchable, such as images, videos, audio files, or other binary data. Unlike other fields in AppSearch, blobs are stored as blob files on disk rather than in memory, and use android.os.ParcelFileDescriptor to read and write. This allows for efficient handling of large, non-searchable content. Once done writing, call commitBlobAsync to commit blob files. This call will create a empty blob file for each given AppSearchBlobHandle , and a android.os.ParcelFileDescriptor of that blob file will be returned in the OpenBlobForWriteResponse . If the blob file is already stored in AppSearch and committed. A failed AppSearchResult with error code RESULT_ALREADY_EXISTS will be associated with the AppSearchBlobHandle . If the blob file is already stored in AppSearch but not committed. A android.os.ParcelFileDescriptor of that blob file will be returned for continue writing. For given duplicate AppSearchBlobHandle , the same android.os.ParcelFileDescriptor pointing to the same blob file will be returned. Pending blob files won't be lost or auto-commit if AppSearchSession closed. Pending blob files will be stored in disk rather than memory. You can re-open AppSearchSession and re-write the pending blob files. A committed blob file will be considered as an orphan if no GenericDocument references it. Uncommitted pending blob files and orphan blobs files will be cleaned up if they has been created for an extended period (default is 1 week). Both pending blob files and committed blob files can be manually removed via removeBlobAsync . The returned OpenBlobForWriteResponse must be closed after use to avoid resource leaks. Failing to close it will result in system file descriptor exhaustion. Parameters @ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles The AppSearchBlobHandle s that identifies the blobs. Returns @ NonNull ListenableFuture &lt; OpenBlobForWriteResponse &gt; a response containing the writeable file descriptors. See also setPropertyBlobHandle putAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt;&nbsp; putAsync (@ NonNull PutDocumentsRequest &nbsp;request) Indexes documents into the AppSearchSession database. Each GenericDocument object must have a schemaType field set to an AppSearchSchema type that has been previously registered by calling the setSchemaAsync method. Parameters @ NonNull PutDocumentsRequest &nbsp;request containing documents to be indexed. Returns @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt; a ListenableFuture which resolves to an AppSearchBatchResult . The keys of the returned AppSearchBatchResult are the IDs of the input documents. The values are either null if the corresponding document was successfully indexed, or a failed AppSearchResult otherwise. removeAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt;&nbsp; removeAsync (@ NonNull RemoveByDocumentIdRequest &nbsp;request) Removes GenericDocument objects by document IDs in a namespace from the AppSearchSession database. Removed documents will no longer be surfaced by search or getByDocumentIdAsync calls. Once the database crosses the document count or byte usage threshold, removed documents will be deleted from disk. Parameters @ NonNull RemoveByDocumentIdRequest &nbsp;request RemoveByDocumentIdRequest with IDs in a namespace to remove from the index. Returns @ NonNull ListenableFuture &lt; AppSearchBatchResult &lt; String ,&nbsp; Void &gt;&gt; a ListenableFuture which resolves to an AppSearchBatchResult . The keys of the AppSearchBatchResult represent the input IDs from the RemoveByDocumentIdRequest object. The values are either null on success, or a failed AppSearchResult otherwise. IDs that are not found will return a failed AppSearchResult with a result code of RESULT_NOT_FOUND . removeAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; Void &gt;&nbsp; removeAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull String &nbsp;queryExpression, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SearchSpec &nbsp;searchSpec ) Removes GenericDocument s from the index by Query. Documents will be removed if they match the queryExpression in given namespaces and schemaTypes which is set via addFilterNamespaces and addFilterSchemas. An empty queryExpression matches all documents. An empty set of namespaces or schemaTypes matches all namespaces or schemaTypes in the current database. Parameters @ NonNull String &nbsp;queryExpression Query String to search. @ NonNull SearchSpec &nbsp;searchSpec Spec containing schemaTypes, namespaces and query expression indicates how document will be removed. All specific about how to scoring, ordering, snippeting and resulting will be ignored. Returns @ NonNull ListenableFuture &lt; Void &gt; The pending result of performing this operation. Throws java.lang.IllegalArgumentException if the SearchSpec contains a JoinSpec . JoinSpec lets you join docs that are not owned by the caller, so the semantics of failures from this method would be complex. removeBlobAsync Added in 1.1.0 @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi default&nbsp;@ NonNull ListenableFuture &lt; RemoveBlobResponse &gt;&nbsp; removeBlobAsync (@ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles) Removes the blob data from AppSearch. After this call, the blob data is removed immediately and cannot be recovered. It will not accessible via openBlobForReadAsync . openBlobForWriteAsync could reopen and rewrite it. This API can be used to remove pending blob data and committed blob data. Removing a committed blob data that is still referenced by documents will leave those documents with no readable blob content. It is highly recommended to let AppSearch control the blob data's life cycle. AppSearch automatically recycles orphaned and pending blob data. The default time to recycle pending and orphan blob file is 1 week. A blob file will be considered as an orphan if no GenericDocument references it. If you want to remove a committed blob data, you should remove the reference documents first. Parameters @ NonNull Set &lt; AppSearchBlobHandle &gt;&nbsp;handles The AppSearchBlobHandle s that identifies the blob data. Returns @ NonNull ListenableFuture &lt; RemoveBlobResponse &gt; a response containing the remove results. reportUsageAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; Void &gt;&nbsp; reportUsageAsync (@ NonNull ReportUsageRequest &nbsp;request) Reports usage of a particular document by namespace and ID. A usage report represents an event in which a user interacted with or viewed a document. For each call to reportUsageAsync , AppSearch updates usage count and usage recency * metrics for that particular document. These metrics are used for ordering search results by the RANKING_STRATEGY_USAGE_COUNT and RANKING_STRATEGY_USAGE_LAST_USED_TIMESTAMP ranking strategies. Reporting usage of a document is optional. Parameters @ NonNull ReportUsageRequest &nbsp;request The usage reporting request. Returns @ NonNull ListenableFuture &lt; Void &gt; The pending result of performing this operation which resolves to null on success. requestFlushAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; Void &gt;&nbsp; requestFlushAsync () Flush all schema and document updates, additions, and deletes to disk if possible. The request is not guaranteed to be handled and may be ignored by some implementations of AppSearchSession. Returns @ NonNull ListenableFuture &lt; Void &gt; The pending result of performing this operation. androidx.appsearch.exceptions.AppSearchException with RESULT_INTERNAL_ERROR will be set to the future if we hit error when save to disk. search Added in 1.1.0 abstract&nbsp;@ NonNull SearchResults &nbsp; search (@ NonNull String &nbsp;queryExpression,&nbsp;@ NonNull SearchSpec &nbsp;searchSpec) Retrieves documents from the open AppSearchSession that match a given query string and type of search provided. Query strings can be empty, contain one term with no operators, or contain multiple terms and operators. For query strings that are empty, all documents that match the SearchSpec will be returned. For query strings with a single term and no operators, documents that match the provided query string and SearchSpec will be returned. The following operators are supported: AND (implicit) AND is an operator that matches documents that contain all provided terms. NOTE: A space between terms is treated as an &quot;AND&quot; operator. Explicitly including &quot;AND&quot; in a query string will treat &quot;AND&quot; as a term, returning documents that also contain &quot;AND&quot;. Example: &quot;apple AND banana&quot; matches documents that contain the terms &quot;apple&quot;, &quot;and&quot;, &quot;banana&quot;. Example: &quot;apple banana&quot; matches documents that contain both &quot;apple&quot; and &quot;banana&quot;. Example: &quot;apple banana cherry&quot; matches documents that contain &quot;apple&quot;, &quot;banana&quot;, and &quot;cherry&quot;. OR OR is an operator that matches documents that contain any provided term. Example: &quot;apple OR banana&quot; matches documents that contain either &quot;apple&quot; or &quot;banana&quot;. Example: &quot;apple OR banana OR cherry&quot; matches documents that contain any of &quot;apple&quot;, &quot;banana&quot;, or &quot;cherry&quot;. Exclusion (-) Exclusion (-) is an operator that matches documents that do not contain the provided term. Example: &quot;-apple&quot; matches documents that do not contain &quot;apple&quot;. Grouped Terms For queries that require multiple operators and terms, terms can be grouped into subqueries. Subqueries are contained within an open &quot;(&quot; and close &quot;)&quot; parenthesis. Example: &quot;(donut OR bagel) (coffee OR tea)&quot; matches documents that contain either &quot;donut&quot; or &quot;bagel&quot; and either &quot;coffee&quot; or &quot;tea&quot;. Property Restricts For queries that require a term to match a specific AppSearchSchema property of a document, a &quot;:&quot; must be included between the property name and the term. Example: &quot;subject:important&quot; matches documents that contain the term &quot;important&quot; in the &quot;subject&quot; property. The above description covers the query operators that are supported on all versions of AppSearch. Additional operators and their required features are described below. LIST_FILTER_QUERY_LANGUAGE : This feature covers the expansion of the query language to conform to the definition of the list filters language (https://aip .dev/160). This includes: addition of explicit 'AND' and 'NOT' operators property restricts are allowed with groupings (ex. &quot;prop:(a OR b)&quot;) addition of custom functions to control matching The newly added custom functions covered by this feature are: createList(String...) search(String, List&lt;String&gt; ) propertyDefined(String) createList takes a variable number of strings and returns a list of strings. It is for use with search. search takes a query string that will be parsed according to the supported query language and an optional list of strings that specify the properties to be restricted to. This exists as a convenience for multiple property restricts. So, for example, the query `(subject:foo OR body:foo) (subject:bar OR body:bar)` could be rewritten as `search(&quot;foo bar&quot;, createList(&quot;subject&quot;, &quot;body&quot;))`. propertyDefined takes a string specifying the property of interest and matches all documents of any type that defines the specified property (ex. `propertyDefined(&quot;sender.name&quot;)`). Note that propertyDefined will match so long as the document's type defines the specified property. Unlike the &quot;hasProperty&quot; function below, this function does NOT require that the document actually hold any values for this property. NUMERIC_SEARCH : This feature covers numeric search expressions. In the query language, the values of properties that have INDEXING_TYPE_RANGE set can be matched with a numeric search expression (the property, a supported comparator and an integer value). Supported comparators are = and >. Ex. `price VERBATIM_SEARCH : This feature covers the verbatim string operator (quotation marks). Ex. `&quot;foo/bar&quot; OR baz` will ensure that 'foo/bar' is treated as a single 'verbatim' token. LIST_FILTER_HAS_PROPERTY_FUNCTION : This feature covers the &quot;hasProperty&quot; function in query expressions, which takes a string specifying the property of interest and matches all documents that hold values for this property. Not to be confused with the &quot;propertyDefined&quot; function, which checks whether a document's schema has defined the property, instead of whether a document itself has this property. Ex. `foo hasProperty(&quot;sender.name&quot;)` will return all documents that have the term &quot;foo&quot; AND have values in the property &quot;sender.name&quot;. Consider two documents, documentA and documentB, of the same schema with an optional property &quot;sender.name&quot;. If documentA sets &quot;foo&quot; in this property but documentB does not, then `hasProperty(&quot;sender.name&quot;)` will only match documentA. However, `propertyDefined(&quot;sender.name&quot;)` will match both documentA and documentB, regardless of whether a value is actually set. LIST_FILTER_MATCH_SCORE_EXPRESSION_FUNCTION : This feature covers the &quot;matchScoreExpression&quot; function in query expressions. Usage: matchScoreExpression({score_expression}, {low}, {high}) matchScoreExpression matches all documents with scores falling within the specified range. These scores are calculated using the provided score expression, which adheres to the syntax defined in setRankingStrategy . &quot;score_expression&quot; is a string value that specifies the score expression. &quot;low&quot; and &quot;high&quot; are floating point numbers that specify the score range. The &quot;high&quot; parameter is optional; if not provided, it defaults to positive infinity. Ex. `matchScoreExpression(&quot;this.documentScore()&quot;, 3, 4)` will return all documents that have document scores from 3 to 4. SCHEMA_EMBEDDING_PROPERTY_CONFIG : This feature covers the &quot;semanticSearch&quot; and &quot;getEmbeddingParameter&quot; functions in query expressions, which are used for semantic search. Usage: semanticSearch(getEmbeddingParameter({embedding_index}), {low}, {high}, {metric}) semanticSearch matches all documents that have at least one embedding vector with a matching model signature (see getModelSignature ) and a similarity score within the range specified based on the provided metric. getEmbeddingParameter({embedding_index}) retrieves the embedding search passed in addEmbeddingParameters based on the index specified, which starts from 0. &quot;low&quot; and &quot;high&quot; are floating point numbers that specify the similarity score range. If omitted, they default to negative and positive infinity, respectively. &quot;metric&quot; is a string value that specifies how embedding similarities should be calculated. If omitted, it defaults to the metric specified in setDefaultEmbeddingSearchMetricType . Possible values: &quot;COSINE&quot; &quot;DOT_PRODUCT&quot; &quot;EUCLIDEAN&quot; Examples: Basic: semanticSearch(getEmbeddingParameter(0), 0.5, 1, &quot;COSINE&quot;) With a property restriction: property1:semanticSearch(getEmbeddingParameter(0), 0.5, 1) Hybrid: foo OR semanticSearch(getEmbeddingParameter(0), 0.5, 1) Complex: (foo OR semanticSearch(getEmbeddingParameter(0), 0.5, 1)) AND bar SEARCH_SPEC_SEARCH_STRING_PARAMETERS : This feature covers the &quot;getSearchStringParameter&quot; function in query expressions, which substitutes the string provided at the same index in addSearchStringParameters into the query as plain text. This string is then segmented, normalized and stripped of punctuation-only segments. The remaining tokens are then AND'd together. This function is useful for callers who wish to provide user input, but want to ensure that that user input does not invoke any query operators. Usage: getSearchStringParameter({search_parameter_strings_index}) Ex. `foo OR getSearchStringParameter(0)` with getSearchStringParameters returning {&quot;bar OR baz.&quot;}. The string &quot;bar OR baz.&quot; will be segmented into &quot;bar&quot;, &quot;OR&quot;, &quot;baz&quot;, &quot;.&quot;. Punctuation is removed and the segments are normalized to &quot;bar&quot;, &quot;or&quot;, &quot;baz&quot;. This query will be equivalent to `foo OR (bar AND or AND baz)`. The availability of each of these features can be checked by calling isFeatureSupported with the desired feature. Additional search specifications, such as filtering by AppSearchSchema type or adding projection, can be set by calling the corresponding SearchSpec.Builder setter. This method is lightweight. The heavy work will be done in getNextPageAsync . Parameters @ NonNull String &nbsp;queryExpression query string to search. @ NonNull SearchSpec &nbsp;searchSpec spec for setting document filters, adding projection, setting term match type, etc. Returns @ NonNull SearchResults a SearchResults object for retrieved matched documents. searchSuggestionAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; List &lt; SearchSuggestionResult &gt;&gt;&nbsp; searchSuggestionAsync ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull String &nbsp;suggestionQueryExpression, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull SearchSuggestionSpec &nbsp;searchSuggestionSpec ) Retrieves suggested Strings that could be used as queryExpression in search API. The suggestionQueryExpression can contain one term with no operators, or contain multiple terms and operators. Operators will be considered as a normal term. Please see the operator examples below. The suggestionQueryExpression must end with a valid term, the suggestions are generated based on the last term. If the input suggestionQueryExpression doesn't have a valid token, AppSearch will return an empty result list. Please see the invalid examples below. Example: if there are following documents with content stored in AppSearch. document1: &quot;term1&quot; document2: &quot;term1 term2&quot; document3: &quot;term1 term2 term3&quot; document4: &quot;org&quot; Search suggestions with the single term suggestionQueryExpression &quot;t&quot;, the suggested results are: &quot;term1&quot; - Use it to be queryExpression in search could get 3 SearchResult s, which contains document 1, 2 and 3. &quot;term2&quot; - Use it to be queryExpression in search could get 2 SearchResult s, which contains document 2 and 3. &quot;term3&quot; - Use it to be queryExpression in search could get 1 SearchResult , which contains document 3. Search suggestions with the multiple term suggestionQueryExpression &quot;org t&quot;, the suggested result will be &quot;org term1&quot; - The last token is completed by the suggested String. Operators in search are supported. NOTE: Exclusion and Grouped Terms in the last term is not supported. example: &quot;apple -f&quot;: This Api will throw an androidx.appsearch.exceptions.AppSearchException with RESULT_INVALID_ARGUMENT . example: &quot;apple (f)&quot;: This Api will return an empty results. Invalid example: All these input suggestionQueryExpression don't have a valid last token, AppSearch will return an empty result list. &quot;&quot; - Empty suggestionQueryExpression . &quot;(f)&quot; - Ending in a closed brackets. &quot;f:&quot; - Ending in an operator. &quot;f &quot; - Ending in trailing space. Parameters @ NonNull String &nbsp;suggestionQueryExpression the non empty query string to search suggestions @ NonNull SearchSuggestionSpec &nbsp;searchSuggestionSpec spec for setting document filters Returns @ NonNull ListenableFuture &lt; List &lt; SearchSuggestionResult &gt;&gt; The pending result of performing this operation which resolves to a List of SearchSuggestionResult on success. The returned suggestion Strings are ordered by the number of SearchResult you could get by using that suggestion in search . See also search setBlobVisibilityAsync Added in 1.1.0 @ RequiresFeature (enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE) @ ExperimentalAppSearchApi default&nbsp;@ NonNull ListenableFuture &lt; Void &gt;&nbsp; setBlobVisibilityAsync (@ NonNull SetBlobVisibilityRequest &nbsp;request) Sets the visibility configuration for all blob namespaces within an appsearch database. Blobs under the same namespace will share same visibility settings. The default setting is blobs will be only visible to the owner package and System. To configure other kinds of sharing, set SchemaVisibilityConfig via SetBlobVisibilityRequest . Parameters @ NonNull SetBlobVisibilityRequest &nbsp;request The request holds visibility settings for all blob namespaces Returns @ NonNull ListenableFuture &lt; Void &gt; The pending result of performing this operation which resolves to null on success. setSchemaAsync Added in 1.1.0 abstract&nbsp;@ NonNull ListenableFuture &lt; SetSchemaResponse &gt;&nbsp; setSchemaAsync (@ NonNull SetSchemaRequest &nbsp;request) Sets the schema that represents the organizational structure of data within the AppSearch database. Upon creating an AppSearchSession , setSchemaAsync should be called. If the schema needs to be updated, or it has not been previously set, then the provided schema will be saved and persisted to disk. Otherwise, setSchemaAsync is handled efficiently as a no-op call. Parameters @ NonNull SetSchemaRequest &nbsp;request the schema to set or update the AppSearch database to. Returns @ NonNull ListenableFuture &lt; SetSchemaResponse &gt; a ListenableFuture which resolves to a SetSchemaResponse object.</body></html>
+<html><head><title>AppSearchSession</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="AppSearchSession">
+      <meta itemprop="path" content="androidx.appsearch.app">
+      <meta itemprop="property" content="close()">
+      <meta itemprop="property" content="commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">
+      <meta itemprop="property" content="getByDocumentIdAsync(androidx.appsearch.app.GetByDocumentIdRequest)">
+      <meta itemprop="property" content="getFeatures()">
+      <meta itemprop="property" content="getNamespacesAsync()">
+      <meta itemprop="property" content="getSchemaAsync()">
+      <meta itemprop="property" content="getStorageInfoAsync()">
+      <meta itemprop="property" content="openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">
+      <meta itemprop="property" content="openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">
+      <meta itemprop="property" content="putAsync(androidx.appsearch.app.PutDocumentsRequest)">
+      <meta itemprop="property" content="removeAsync(androidx.appsearch.app.RemoveByDocumentIdRequest)">
+      <meta itemprop="property" content="removeAsync(java.lang.String,androidx.appsearch.app.SearchSpec)">
+      <meta itemprop="property" content="removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">
+      <meta itemprop="property" content="reportUsageAsync(androidx.appsearch.app.ReportUsageRequest)">
+      <meta itemprop="property" content="requestFlushAsync()">
+      <meta itemprop="property" content="search(java.lang.String,androidx.appsearch.app.SearchSpec)">
+      <meta itemprop="property" content="searchSuggestionAsync(java.lang.String,androidx.appsearch.app.SearchSuggestionSpec)">
+      <meta itemprop="property" content="setBlobVisibilityAsync(androidx.appsearch.app.SetBlobVisibilityRequest)">
+      <meta itemprop="property" content="setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="appsearchsession" data-text="AppSearchSession" tabindex="-1">AppSearchSession</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/appsearch">androidx.appsearch:appsearch</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/appsearch/app/AppSearchSession.java+class:androidx.appsearch.app.AppSearchSession" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/appsearch/app/AppSearchSession" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public interface <a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a> extends <a href="https://developer.android.com/reference/java/io/Closeable.html">Closeable</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Provides a connection to a single AppSearch database. </p>
+    <p>An <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> instance provides access to database operations such as setting a schema, adding documents, and searching. </p>
+    <p>Instances of this interface are usually obtained from a storage implementation, e.g. <code translate="no" dir="ltr">LocalStorage.createSearchSessionAsync()</code> or <code translate="no" dir="ltr">PlatformStorage.createSearchSessionAsync()</code>. </p>
+    <p>All implementations of this interface must be thread safe.</p>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%">See also</th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GlobalSearchSession">GlobalSearchSession</a></code></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">abstract void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#close()">close</a>()</code></div>
+              <p>Closes the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> to persist all schema and document updates, additions, and deletes to disk.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/CommitBlobResponse">CommitBlobResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br><a href="/reference/androidx/appsearch/app/AppSearchSession#commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">commitBlobAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</code></div>
+              <p>Commits the blobs to make it retrievable and immutable.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getByDocumentIdAsync(androidx.appsearch.app.GetByDocumentIdRequest)">getByDocumentIdAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/GetByDocumentIdRequest">GetByDocumentIdRequest</a>&nbsp;request)</code></div>
+              <p>Gets <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> objects by document IDs in a namespace from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/Features">Features</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getFeatures()">getFeatures</a>()</code></div>
+              <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features">Features</a></code> to check for the availability of certain features for this session.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getNamespacesAsync()">getNamespacesAsync</a>()</code></div>
+              <p>Retrieves the set of all namespaces in the current database with at least one document.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/GetSchemaResponse">GetSchemaResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getSchemaAsync()">getSchemaAsync</a>()</code></div>
+              <p>Retrieves the schema most recently successfully provided to <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a></code>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/StorageInfo">StorageInfo</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getStorageInfoAsync()">getStorageInfoAsync</a>()</code></div>
+              <p>Gets the storage info for this <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForReadResponse">OpenBlobForReadResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForReadAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</code></div>
+              <p>Opens a batch of AppSearch Blobs for reading.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForWriteResponse">OpenBlobForWriteResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForWriteAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</code></div>
+              <p>Opens a batch of AppSearch Blobs for writing.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#putAsync(androidx.appsearch.app.PutDocumentsRequest)">putAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/PutDocumentsRequest">PutDocumentsRequest</a>&nbsp;request)</code></div>
+              <p>Indexes documents into the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#removeAsync(androidx.appsearch.app.RemoveByDocumentIdRequest)">removeAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/RemoveByDocumentIdRequest">RemoveByDocumentIdRequest</a>&nbsp;request)</code></div>
+              <p>Removes <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> objects by document IDs in a namespace from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#removeAsync(java.lang.String,androidx.appsearch.app.SearchSpec)">removeAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec<br>)</code></div>
+              <p>Removes <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code>s from the index by Query.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/RemoveBlobResponse">RemoveBlobResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br><a href="/reference/androidx/appsearch/app/AppSearchSession#removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">removeBlobAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</code></div>
+              <p>Removes the blob data from AppSearch.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#reportUsageAsync(androidx.appsearch.app.ReportUsageRequest)">reportUsageAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/ReportUsageRequest">ReportUsageRequest</a>&nbsp;request)</code></div>
+              <p>Reports usage of a particular document by namespace and ID.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#requestFlushAsync()">requestFlushAsync</a>()</code></div>
+              <p>Flush all schema and document updates, additions, and deletes to disk if possible.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchResults">SearchResults</a></code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression,&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec)</code></div>
+              <p>Retrieves documents from the open <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> that match a given query string and type of search provided.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/appsearch/app/SearchSuggestionResult">SearchSuggestionResult</a>&gt;&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#searchSuggestionAsync(java.lang.String,androidx.appsearch.app.SearchSuggestionSpec)">searchSuggestionAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;suggestionQueryExpression,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSuggestionSpec">SearchSuggestionSpec</a>&nbsp;searchSuggestionSpec<br>)</code></div>
+              <p>Retrieves suggested Strings that could be used as <code translate="no" dir="ltr">queryExpression</code> in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> API.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">default @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br><a href="/reference/androidx/appsearch/app/AppSearchSession#setBlobVisibilityAsync(androidx.appsearch.app.SetBlobVisibilityRequest)">setBlobVisibilityAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetBlobVisibilityRequest">SetBlobVisibilityRequest</a>&nbsp;request)</code></div>
+              <p>Sets the visibility configuration for all blob namespaces within an appsearch database.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">abstract @<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/SetSchemaResponse">SetSchemaResponse</a>&gt;</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetSchemaRequest">SetSchemaRequest</a>&nbsp;request)</code></div>
+              <p>Sets the schema that represents the organizational structure of data within the AppSearch database.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="close--"></a><a name="close"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="close()" data-text="close" tabindex="-1">close</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;void&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#close()">close</a>()</pre></devsite-code>
+        <p>Closes the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> to persist all schema and document updates, additions, and deletes to disk.</p>
+      </div>
+      <div class="api-item"><a name="commitBlobAsync-java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;-"></a><a name="commitblobasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)" data-text="commitBlobAsync" tabindex="-1">commitBlobAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br>default&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/CommitBlobResponse">CommitBlobResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">commitBlobAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</pre></devsite-code>
+        <p>Commits the blobs to make it retrievable and immutable. </p>
+        <p>After this call, the blob is readable via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForReadAsync</a></code>. Any change to the content or rewrite via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForWriteAsync</a></code> of this blob won't be allowed. </p>
+        <p> If the blob is already stored in AppSearch and committed. A failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> with error code <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_ALREADY_EXISTS()">RESULT_ALREADY_EXISTS</a></code> will be associated with the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>. </p>
+        <p>If the blob content doesn't match the digest in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>, a failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> with error code <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_INVALID_ARGUMENT()">RESULT_INVALID_ARGUMENT</a></code> will be associated with the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>. The pending Blob file will be removed from AppSearch. </p>
+        <p> Pending blobs won't be lost or auto-commit if <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> closed. Pending blobs will store in disk rather than memory. You can re-open <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> and re-write the pending blobs. </p>
+        <p> The default time to recycle pending and orphan blobs is 1 week. A blob will be considered as an orphan if no <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> references it. </p>
+        <p> Both pending blob files and committed blob files can be manually removed via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">removeBlobAsync</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>s that identifies the blobs.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/CommitBlobResponse">CommitBlobResponse</a>&gt;</code></td>
+                <td>
+                  <p>a response containing the commit results.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument.Builder#setPropertyBlobHandle(java.lang.String,androidx.appsearch.app.AppSearchBlobHandle...)">setPropertyBlobHandle</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getByDocumentIdAsync-androidx.appsearch.app.GetByDocumentIdRequest-"></a><a name="getbydocumentidasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getByDocumentIdAsync(androidx.appsearch.app.GetByDocumentIdRequest)" data-text="getByDocumentIdAsync" tabindex="-1">getByDocumentIdAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a>&gt;&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#getByDocumentIdAsync(androidx.appsearch.app.GetByDocumentIdRequest)">getByDocumentIdAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/GetByDocumentIdRequest">GetByDocumentIdRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Gets <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> objects by document IDs in a namespace from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/GetByDocumentIdRequest">GetByDocumentIdRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p>a request containing a namespace and IDs to get documents for.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a>&gt;&gt;</code></td>
+                <td>
+                  <p>A <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> which resolves to an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code>. The keys of the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code> represent the input document IDs from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GetByDocumentIdRequest">GetByDocumentIdRequest</a></code> object. The values are either the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> object for the ID on success, or an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> object on failure. For example, if an ID is not found, the value for that ID will be set to an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> object with result code: <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_NOT_FOUND()">RESULT_NOT_FOUND</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getFeatures--"></a><a name="getfeatures"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getFeatures()" data-text="getFeatures" tabindex="-1">getFeatures</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/Features">Features</a>&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#getFeatures()">getFeatures</a>()</pre></devsite-code>
+        <p>Returns the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features">Features</a></code> to check for the availability of certain features for this session.</p>
+      </div>
+      <div class="api-item"><a name="getNamespacesAsync--"></a><a name="getnamespacesasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getNamespacesAsync()" data-text="getNamespacesAsync" tabindex="-1">getNamespacesAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#getNamespacesAsync()">getNamespacesAsync</a>()</pre></devsite-code>
+        <p>Retrieves the set of all namespaces in the current database with at least one document.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>&gt;&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getSchemaAsync--"></a><a name="getschemaasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getSchemaAsync()" data-text="getSchemaAsync" tabindex="-1">getSchemaAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/GetSchemaResponse">GetSchemaResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#getSchemaAsync()">getSchemaAsync</a>()</pre></devsite-code>
+        <p>Retrieves the schema most recently successfully provided to <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/GetSchemaResponse">GetSchemaResponse</a>&gt;</code></td>
+                <td>
+                  <p>The pending <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GetSchemaResponse">GetSchemaResponse</a></code> of performing this operation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getStorageInfoAsync--"></a><a name="getstorageinfoasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getStorageInfoAsync()" data-text="getStorageInfoAsync" tabindex="-1">getStorageInfoAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/StorageInfo">StorageInfo</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#getStorageInfoAsync()">getStorageInfoAsync</a>()</pre></devsite-code>
+        <p>Gets the storage info for this <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database. </p>
+        <p>This may take time proportional to the number of documents and may be inefficient to call repeatedly.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/StorageInfo">StorageInfo</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> which resolves to a <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/StorageInfo">StorageInfo</a></code> object.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="openBlobForReadAsync-java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;-"></a><a name="openblobforreadasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)" data-text="openBlobForReadAsync" tabindex="-1">openBlobForReadAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br>default&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForReadResponse">OpenBlobForReadResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForReadAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</pre></devsite-code>
+        <p>Opens a batch of AppSearch Blobs for reading. </p>
+        <p> Only blobs committed via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">commitBlobAsync</a></code> are available for reading. </p>
+        <p> The returned <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/OpenBlobForReadResponse">OpenBlobForReadResponse</a></code> must be closed after use to avoid resource leaks. Failing to close it will result in system file descriptor exhaustion. </p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>s that identifies the blobs.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForReadResponse">OpenBlobForReadResponse</a>&gt;</code></td>
+                <td>
+                  <p>a response containing the readable file descriptors.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument.Builder#setPropertyBlobHandle(java.lang.String,androidx.appsearch.app.AppSearchBlobHandle...)">setPropertyBlobHandle</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="openBlobForWriteAsync-java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;-"></a><a name="openblobforwriteasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)" data-text="openBlobForWriteAsync" tabindex="-1">openBlobForWriteAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br>default&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForWriteResponse">OpenBlobForWriteResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForWriteAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</pre></devsite-code>
+        <p>Opens a batch of AppSearch Blobs for writing. </p>
+        <p>A &quot;blob&quot; is a large binary object. It is used to store a significant amount of data that is not searchable, such as images, videos, audio files, or other binary data. Unlike other fields in AppSearch, blobs are stored as blob files on disk rather than in memory, and use <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/ParcelFileDescriptor.html">android.os.ParcelFileDescriptor</a></code> to read and write. This allows for efficient handling of large, non-searchable content. </p>
+        <p> Once done writing, call <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#commitBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">commitBlobAsync</a></code> to commit blob files. </p>
+        <p> This call will create a empty blob file for each given <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>, and a <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/ParcelFileDescriptor.html">android.os.ParcelFileDescriptor</a></code> of that blob file will be returned in the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/OpenBlobForWriteResponse">OpenBlobForWriteResponse</a></code>. </p>
+        <p> If the blob file is already stored in AppSearch and committed. A failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> with error code <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_ALREADY_EXISTS()">RESULT_ALREADY_EXISTS</a></code> will be associated with the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>. </p>
+        <p> If the blob file is already stored in AppSearch but not committed. A <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/ParcelFileDescriptor.html">android.os.ParcelFileDescriptor</a></code> of that blob file will be returned for continue writing. </p>
+        <p> For given duplicate <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>, the same <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/os/ParcelFileDescriptor.html">android.os.ParcelFileDescriptor</a></code> pointing to the same blob file will be returned. </p>
+        <p> Pending blob files won't be lost or auto-commit if <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> closed. Pending blob files will be stored in disk rather than memory. You can re-open <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> and re-write the pending blob files. </p>
+        <p> A committed blob file will be considered as an orphan if no <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> references it. Uncommitted pending blob files and orphan blobs files will be cleaned up if they has been created for an extended period (default is 1 week). </p>
+        <p> Both pending blob files and committed blob files can be manually removed via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">removeBlobAsync</a></code>. </p>
+        <p> The returned <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/OpenBlobForWriteResponse">OpenBlobForWriteResponse</a></code> must be closed after use to avoid resource leaks. Failing to close it will result in system file descriptor exhaustion. </p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>s that identifies the blobs.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/OpenBlobForWriteResponse">OpenBlobForWriteResponse</a>&gt;</code></td>
+                <td>
+                  <p>a response containing the writeable file descriptors.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument.Builder#setPropertyBlobHandle(java.lang.String,androidx.appsearch.app.AppSearchBlobHandle...)">setPropertyBlobHandle</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="putAsync-androidx.appsearch.app.PutDocumentsRequest-"></a><a name="putasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="putAsync(androidx.appsearch.app.PutDocumentsRequest)" data-text="putAsync" tabindex="-1">putAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#putAsync(androidx.appsearch.app.PutDocumentsRequest)">putAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/PutDocumentsRequest">PutDocumentsRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Indexes documents into the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database. </p>
+        <p>Each <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> object must have a <code translate="no" dir="ltr">schemaType</code> field set to an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSchema">AppSearchSchema</a></code> type that has been previously registered by calling the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a></code> method.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/PutDocumentsRequest">PutDocumentsRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p>containing documents to be indexed.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> which resolves to an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code>. The keys of the returned <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code> are the IDs of the input documents. The values are either <code translate="no" dir="ltr">null</code> if the corresponding document was successfully indexed, or a failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> otherwise.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeAsync-androidx.appsearch.app.RemoveByDocumentIdRequest-"></a><a name="removeasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeAsync(androidx.appsearch.app.RemoveByDocumentIdRequest)" data-text="removeAsync" tabindex="-1">removeAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#removeAsync(androidx.appsearch.app.RemoveByDocumentIdRequest)">removeAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/RemoveByDocumentIdRequest">RemoveByDocumentIdRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Removes <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> objects by document IDs in a namespace from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> database. </p>
+        <p>Removed documents will no longer be surfaced by <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> or <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#getByDocumentIdAsync(androidx.appsearch.app.GetByDocumentIdRequest)">getByDocumentIdAsync</a></code> calls. </p>
+        <p>Once the database crosses the document count or byte usage threshold, removed documents will be deleted from disk.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/RemoveByDocumentIdRequest">RemoveByDocumentIdRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/RemoveByDocumentIdRequest">RemoveByDocumentIdRequest</a></code> with IDs in a namespace to remove from the index.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a>&lt;<a href="https://developer.android.com/reference/java/lang/String.html">String</a>,&nbsp;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> which resolves to an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code>. The keys of the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBatchResult">AppSearchBatchResult</a></code> represent the input IDs from the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/RemoveByDocumentIdRequest">RemoveByDocumentIdRequest</a></code> object. The values are either <code translate="no" dir="ltr">null</code> on success, or a failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> otherwise. IDs that are not found will return a failed <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult">AppSearchResult</a></code> with a result code of <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_NOT_FOUND()">RESULT_NOT_FOUND</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeAsync(java.lang.String, androidx.appsearch.app.SearchSpec)"></a><a name="removeAsync-java.lang.String-androidx.appsearch.app.SearchSpec-"></a><a name="removeasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeAsync(java.lang.String,androidx.appsearch.app.SearchSpec)" data-text="removeAsync" tabindex="-1">removeAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#removeAsync(java.lang.String,androidx.appsearch.app.SearchSpec)">removeAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec<br>)</pre></devsite-code>
+        <p>Removes <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code>s from the index by Query. Documents will be removed if they match the <code translate="no" dir="ltr">queryExpression</code> in given namespaces and schemaTypes which is set via addFilterNamespaces and addFilterSchemas. </p>
+        <p> An empty <code translate="no" dir="ltr">queryExpression</code> matches all documents. </p>
+        <p> An empty set of namespaces or schemaTypes matches all namespaces or schemaTypes in the current database.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression</code></td>
+                <td>
+                  <p>Query String to search.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec</code></td>
+                <td>
+                  <p>Spec containing schemaTypes, namespaces and query expression indicates how document will be removed. All specific about how to scoring, ordering, snippeting and resulting will be ignored.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Throws</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="https://developer.android.com/reference/java/lang/IllegalArgumentException.html">java.lang.IllegalArgumentException</a></code></td>
+                <td>
+                  <p>if the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a></code> contains a <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/JoinSpec">JoinSpec</a></code>. <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/JoinSpec">JoinSpec</a></code> lets you join docs that are not owned by the caller, so the semantics of failures from this method would be complex.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="removeBlobAsync-java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;-"></a><a name="removeblobasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)" data-text="removeBlobAsync" tabindex="-1">removeBlobAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br>default&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/RemoveBlobResponse">RemoveBlobResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#removeBlobAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">removeBlobAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles)</pre></devsite-code>
+        <p>Removes the blob data from AppSearch. </p>
+        <p> After this call, the blob data is removed immediately and cannot be recovered. It will not accessible via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForReadAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForReadAsync</a></code>. <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#openBlobForWriteAsync(java.util.Set&lt;androidx.appsearch.app.AppSearchBlobHandle&gt;)">openBlobForWriteAsync</a></code> could reopen and rewrite it. </p>
+        <p> This API can be used to remove pending blob data and committed blob data. </p>
+        <p> Removing a committed blob data that is still referenced by documents will leave those documents with no readable blob content. It is highly recommended to let AppSearch control the blob data's life cycle. AppSearch automatically recycles orphaned and pending blob data. The default time to recycle pending and orphan blob file is 1 week. A blob file will be considered as an orphan if no <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/GenericDocument">GenericDocument</a></code> references it. If you want to remove a committed blob data, you should remove the reference documents first. </p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/util/Set.html">Set</a>&lt;<a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a>&gt;&nbsp;handles</code></td>
+                <td>
+                  <p>The <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchBlobHandle">AppSearchBlobHandle</a></code>s that identifies the blob data.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/RemoveBlobResponse">RemoveBlobResponse</a>&gt;</code></td>
+                <td>
+                  <p>a response containing the remove results.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="reportUsageAsync-androidx.appsearch.app.ReportUsageRequest-"></a><a name="reportusageasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="reportUsageAsync(androidx.appsearch.app.ReportUsageRequest)" data-text="reportUsageAsync" tabindex="-1">reportUsageAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#reportUsageAsync(androidx.appsearch.app.ReportUsageRequest)">reportUsageAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/ReportUsageRequest">ReportUsageRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Reports usage of a particular document by namespace and ID. </p>
+        <p>A usage report represents an event in which a user interacted with or viewed a document. </p>
+        <p>For each call to <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#reportUsageAsync(androidx.appsearch.app.ReportUsageRequest)">reportUsageAsync</a></code>, AppSearch updates usage count and usage recency * metrics for that particular document. These metrics are used for ordering <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> results by the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec#RANKING_STRATEGY_USAGE_COUNT()">RANKING_STRATEGY_USAGE_COUNT</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec#RANKING_STRATEGY_USAGE_LAST_USED_TIMESTAMP()">RANKING_STRATEGY_USAGE_LAST_USED_TIMESTAMP</a></code> ranking strategies. </p>
+        <p>Reporting usage of a document is optional.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/ReportUsageRequest">ReportUsageRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p>The usage reporting request.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation which resolves to <code translate="no" dir="ltr">null</code> on success.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="requestFlushAsync--"></a><a name="requestflushasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="requestFlushAsync()" data-text="requestFlushAsync" tabindex="-1">requestFlushAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#requestFlushAsync()">requestFlushAsync</a>()</pre></devsite-code>
+        <p>Flush all schema and document updates, additions, and deletes to disk if possible. </p>
+        <p>The request is not guaranteed to be handled and may be ignored by some implementations of AppSearchSession.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation. <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/exceptions/AppSearchException">androidx.appsearch.exceptions.AppSearchException</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_INTERNAL_ERROR()">RESULT_INTERNAL_ERROR</a></code> will be set to the future if we hit error when save to disk.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="search(java.lang.String, androidx.appsearch.app.SearchSpec)"></a><a name="search-java.lang.String-androidx.appsearch.app.SearchSpec-"></a><a name="search"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="search(java.lang.String,androidx.appsearch.app.SearchSpec)" data-text="search" tabindex="-1">search</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchResults">SearchResults</a>&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression,&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec)</pre></devsite-code>
+        <p>Retrieves documents from the open <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code> that match a given query string and type of search provided. </p>
+        <p>Query strings can be empty, contain one term with no operators, or contain multiple terms and operators. </p>
+        <p>For query strings that are empty, all documents that match the <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a></code> will be returned. </p>
+        <p>For query strings with a single term and no operators, documents that match the provided query string and <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a></code> will be returned. </p>
+        <p>The following operators are supported: </p>
+        <ul>
+          <li>AND (implicit) 
+            <p>AND is an operator that matches documents that contain <em>all</em> provided terms. </p>
+            <p><b>NOTE:</b> A space between terms is treated as an &quot;AND&quot; operator. Explicitly including &quot;AND&quot; in a query string will treat &quot;AND&quot; as a term, returning documents that also contain &quot;AND&quot;. </p>
+            <p>Example: &quot;apple AND banana&quot; matches documents that contain the terms &quot;apple&quot;, &quot;and&quot;, &quot;banana&quot;. </p>
+            <p>Example: &quot;apple banana&quot; matches documents that contain both &quot;apple&quot; and &quot;banana&quot;. </p>
+            <p>Example: &quot;apple banana cherry&quot; matches documents that contain &quot;apple&quot;, &quot;banana&quot;, and &quot;cherry&quot;. </p>
+          </li>
+          <li>OR 
+            <p>OR is an operator that matches documents that contain <em>any</em> provided term. </p>
+            <p>Example: &quot;apple OR banana&quot; matches documents that contain either &quot;apple&quot; or &quot;banana&quot;. </p>
+            <p>Example: &quot;apple OR banana OR cherry&quot; matches documents that contain any of &quot;apple&quot;, &quot;banana&quot;, or &quot;cherry&quot;. </p>
+          </li>
+          <li>Exclusion (-) 
+            <p>Exclusion (-) is an operator that matches documents that <em>do not</em> contain the provided term. </p>
+            <p>Example: &quot;-apple&quot; matches documents that do not contain &quot;apple&quot;. </p>
+          </li>
+          <li>Grouped Terms 
+            <p>For queries that require multiple operators and terms, terms can be grouped into subqueries. Subqueries are contained within an open &quot;(&quot; and close &quot;)&quot; parenthesis. </p>
+            <p>Example: &quot;(donut OR bagel) (coffee OR tea)&quot; matches documents that contain either &quot;donut&quot; or &quot;bagel&quot; and either &quot;coffee&quot; or &quot;tea&quot;. </p>
+          </li>
+          <li>Property Restricts 
+            <p>For queries that require a term to match a specific <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSchema">AppSearchSchema</a></code> property of a document, a &quot;:&quot; must be included between the property name and the term. </p>
+            <p>Example: &quot;subject:important&quot; matches documents that contain the term &quot;important&quot; in the &quot;subject&quot; property. </p>
+          </li>
+        </ul>
+        <p>The above description covers the query operators that are supported on all versions of AppSearch. Additional operators and their required features are described below. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#LIST_FILTER_QUERY_LANGUAGE()">LIST_FILTER_QUERY_LANGUAGE</a></code>: This feature covers the expansion of the query language to conform to the definition of the list filters language (https://aip .dev/160). This includes: </p>
+        <ul>
+          <li>addition of explicit 'AND' and 'NOT' operators</li>
+          <li>property restricts are allowed with groupings (ex. &quot;prop:(a OR b)&quot;)</li>
+          <li>addition of custom functions to control matching</li>
+        </ul>
+        <p>The newly added custom functions covered by this feature are: </p>
+        <ul>
+          <li>createList(String...)</li>
+          <li>search(String, <code translate="no" dir="ltr">List&lt;String&gt;</code>)</li>
+          <li>propertyDefined(String)</li>
+        </ul>
+        <p>createList takes a variable number of strings and returns a list of strings. It is for use with search. </p>
+        <p>search takes a query string that will be parsed according to the supported query language and an optional list of strings that specify the properties to be restricted to. This exists as a convenience for multiple property restricts. So, for example, the query `(subject:foo OR body:foo) (subject:bar OR body:bar)` could be rewritten as `search(&quot;foo bar&quot;, createList(&quot;subject&quot;, &quot;body&quot;))`. </p>
+        <p>propertyDefined takes a string specifying the property of interest and matches all documents of any type that defines the specified property (ex. `propertyDefined(&quot;sender.name&quot;)`). Note that propertyDefined will match so long as the document's type defines the specified property. Unlike the &quot;hasProperty&quot; function below, this function does NOT require that the document actually hold any values for this property. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#NUMERIC_SEARCH()">NUMERIC_SEARCH</a></code>: This feature covers numeric search expressions. In the query language, the values of properties that have <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSchema.LongPropertyConfig#INDEXING_TYPE_RANGE()">INDEXING_TYPE_RANGE</a></code> set can be matched with a numeric search expression (the property, a supported comparator and an integer value). Supported comparators are <, <=, ==, >= and >. </p>
+        <p>Ex. `price <10` will match all documents that has a numeric value in its price property that is less than 10. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#VERBATIM_SEARCH()">VERBATIM_SEARCH</a></code>: This feature covers the verbatim string operator (quotation marks). </p>
+        <p>Ex. `&quot;foo/bar&quot; OR baz` will ensure that 'foo/bar' is treated as a single 'verbatim' token. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#LIST_FILTER_HAS_PROPERTY_FUNCTION()">LIST_FILTER_HAS_PROPERTY_FUNCTION</a></code>: This feature covers the &quot;hasProperty&quot; function in query expressions, which takes a string specifying the property of interest and matches all documents that hold values for this property. Not to be confused with the &quot;propertyDefined&quot; function, which checks whether a document's schema has defined the property, instead of whether a document itself has this property. </p>
+        <p>Ex. `foo hasProperty(&quot;sender.name&quot;)` will return all documents that have the term &quot;foo&quot; AND have values in the property &quot;sender.name&quot;. Consider two documents, documentA and documentB, of the same schema with an optional property &quot;sender.name&quot;. If documentA sets &quot;foo&quot; in this property but documentB does not, then `hasProperty(&quot;sender.name&quot;)` will only match documentA. However, `propertyDefined(&quot;sender.name&quot;)` will match both documentA and documentB, regardless of whether a value is actually set. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#LIST_FILTER_MATCH_SCORE_EXPRESSION_FUNCTION()">LIST_FILTER_MATCH_SCORE_EXPRESSION_FUNCTION</a></code>: This feature covers the &quot;matchScoreExpression&quot; function in query expressions. </p>
+        <p>Usage: matchScoreExpression({score_expression}, {low}, {high}) </p>
+        <ul>
+          <li>matchScoreExpression matches all documents with scores falling within the specified range. These scores are calculated using the provided score expression, which adheres to the syntax defined in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec.Builder#setRankingStrategy(java.lang.String)">setRankingStrategy</a></code>.</li>
+          <li>&quot;score_expression&quot; is a string value that specifies the score expression.</li>
+          <li>&quot;low&quot; and &quot;high&quot; are floating point numbers that specify the score range. The &quot;high&quot; parameter is optional; if not provided, it defaults to positive infinity.</li>
+        </ul>
+        <p>Ex. `matchScoreExpression(&quot;this.documentScore()&quot;, 3, 4)` will return all documents that have document scores from 3 to 4. </p>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#SCHEMA_EMBEDDING_PROPERTY_CONFIG()">SCHEMA_EMBEDDING_PROPERTY_CONFIG</a></code>: This feature covers the &quot;semanticSearch&quot; and &quot;getEmbeddingParameter&quot; functions in query expressions, which are used for semantic search. </p>
+        <p>Usage: semanticSearch(getEmbeddingParameter({embedding_index}), {low}, {high}, {metric}) </p>
+        <ul>
+          <li>semanticSearch matches all documents that have at least one embedding vector with a matching model signature (see <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/EmbeddingVector#getModelSignature()">getModelSignature</a></code>) and a similarity score within the range specified based on the provided metric.</li>
+          <li>getEmbeddingParameter({embedding_index}) retrieves the embedding search passed in addEmbeddingParameters based on the index specified, which starts from 0.</li>
+          <li>&quot;low&quot; and &quot;high&quot; are floating point numbers that specify the similarity score range. If omitted, they default to negative and positive infinity, respectively.</li>
+          <li>&quot;metric&quot; is a string value that specifies how embedding similarities should be calculated. If omitted, it defaults to the metric specified in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec.Builder#setDefaultEmbeddingSearchMetricType(int)">setDefaultEmbeddingSearchMetricType</a></code>. Possible values:</li>
+          <ul>
+            <li>&quot;COSINE&quot;</li>
+            <li>&quot;DOT_PRODUCT&quot;</li>
+            <li>&quot;EUCLIDEAN&quot;</li>
+          </ul>
+        </ul>
+        <p>Examples: </p>
+        <ul>
+          <li>Basic: semanticSearch(getEmbeddingParameter(0), 0.5, 1, &quot;COSINE&quot;)</li>
+          <li>With a property restriction: property1:semanticSearch(getEmbeddingParameter(0), 0.5, 1)</li>
+          <li>Hybrid: foo OR semanticSearch(getEmbeddingParameter(0), 0.5, 1)</li>
+          <li>Complex: (foo OR semanticSearch(getEmbeddingParameter(0), 0.5, 1)) AND bar</li>
+        </ul>
+        <p><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#SEARCH_SPEC_SEARCH_STRING_PARAMETERS()">SEARCH_SPEC_SEARCH_STRING_PARAMETERS</a></code>: This feature covers the &quot;getSearchStringParameter&quot; function in query expressions, which substitutes the string provided at the same index in addSearchStringParameters into the query as plain text. This string is then segmented, normalized and stripped of punctuation-only segments. The remaining tokens are then AND'd together. This function is useful for callers who wish to provide user input, but want to ensure that that user input does not invoke any query operators. </p>
+        <p>Usage: getSearchStringParameter({search_parameter_strings_index}) </p>
+        <p>Ex. `foo OR getSearchStringParameter(0)` with <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec#getSearchStringParameters()">getSearchStringParameters</a></code> returning {&quot;bar OR baz.&quot;}. The string &quot;bar OR baz.&quot; will be segmented into &quot;bar&quot;, &quot;OR&quot;, &quot;baz&quot;, &quot;.&quot;. Punctuation is removed and the segments are normalized to &quot;bar&quot;, &quot;or&quot;, &quot;baz&quot;. This query will be equivalent to `foo OR (bar AND or AND baz)`. </p>
+        <p>The availability of each of these features can be checked by calling <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/Features#isFeatureSupported(java.lang.String)">isFeatureSupported</a></code> with the desired feature. </p>
+        <p>Additional search specifications, such as filtering by <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSchema">AppSearchSchema</a></code> type or adding projection, can be set by calling the corresponding <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSpec.Builder">SearchSpec.Builder</a></code> setter. </p>
+        <p>This method is lightweight. The heavy work will be done in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResults#getNextPageAsync()">getNextPageAsync</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;queryExpression</code></td>
+                <td>
+                  <p>query string to search.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSpec">SearchSpec</a>&nbsp;searchSpec</code></td>
+                <td>
+                  <p>spec for setting document filters, adding projection, setting term match type, etc.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchResults">SearchResults</a></code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResults">SearchResults</a></code> object for retrieved matched documents.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="searchSuggestionAsync(java.lang.String, androidx.appsearch.app.SearchSuggestionSpec)"></a><a name="searchSuggestionAsync-java.lang.String-androidx.appsearch.app.SearchSuggestionSpec-"></a><a name="searchsuggestionasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="searchSuggestionAsync(java.lang.String,androidx.appsearch.app.SearchSuggestionSpec)" data-text="searchSuggestionAsync" tabindex="-1">searchSuggestionAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/appsearch/app/SearchSuggestionResult">SearchSuggestionResult</a>&gt;&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#searchSuggestionAsync(java.lang.String,androidx.appsearch.app.SearchSuggestionSpec)">searchSuggestionAsync</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;suggestionQueryExpression,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSuggestionSpec">SearchSuggestionSpec</a>&nbsp;searchSuggestionSpec<br>)</pre></devsite-code>
+        <p>Retrieves suggested Strings that could be used as <code translate="no" dir="ltr">queryExpression</code> in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> API. </p>
+        <p>The <code translate="no" dir="ltr">suggestionQueryExpression</code> can contain one term with no operators, or contain multiple terms and operators. Operators will be considered as a normal term. Please see the operator examples below. The <code translate="no" dir="ltr">suggestionQueryExpression</code> must end with a valid term, the suggestions are generated based on the last term. If the input <code translate="no" dir="ltr">suggestionQueryExpression</code> doesn't have a valid token, AppSearch will return an empty result list. Please see the invalid examples below. </p>
+        <p>Example: if there are following documents with content stored in AppSearch. </p>
+        <ul>
+          <li>document1: &quot;term1&quot; </li>
+          <li>document2: &quot;term1 term2&quot; </li>
+          <li>document3: &quot;term1 term2 term3&quot; </li>
+          <li>document4: &quot;org&quot; </li>
+        </ul>
+        <p>Search suggestions with the single term <code translate="no" dir="ltr">suggestionQueryExpression</code> &quot;t&quot;, the suggested results are: </p>
+        <ul>
+          <li>&quot;term1&quot; - Use it to be queryExpression in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> could get 3 <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResult">SearchResult</a></code>s, which contains document 1, 2 and 3. </li>
+          <li>&quot;term2&quot; - Use it to be queryExpression in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> could get 2 <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResult">SearchResult</a></code>s, which contains document 2 and 3. </li>
+          <li>&quot;term3&quot; - Use it to be queryExpression in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> could get 1 <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResult">SearchResult</a></code>, which contains document 3. </li>
+        </ul>
+        <p>Search suggestions with the multiple term <code translate="no" dir="ltr">suggestionQueryExpression</code> &quot;org t&quot;, the suggested result will be &quot;org term1&quot; - The last token is completed by the suggested String. </p>
+        <p>Operators in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code> are supported. </p>
+        <p><b>NOTE:</b> Exclusion and Grouped Terms in the last term is not supported. </p>
+        <p>example: &quot;apple -f&quot;: This Api will throw an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/exceptions/AppSearchException">androidx.appsearch.exceptions.AppSearchException</a></code> with <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchResult#RESULT_INVALID_ARGUMENT()">RESULT_INVALID_ARGUMENT</a></code>. </p>
+        <p>example: &quot;apple (f)&quot;: This Api will return an empty results. </p>
+        <p>Invalid example: All these input <code translate="no" dir="ltr">suggestionQueryExpression</code> don't have a valid last token, AppSearch will return an empty result list. </p>
+        <ul>
+          <li>&quot;&quot; - Empty <code translate="no" dir="ltr">suggestionQueryExpression</code>. </li>
+          <li>&quot;(f)&quot; - Ending in a closed brackets. </li>
+          <li>&quot;f:&quot; - Ending in an operator. </li>
+          <li>&quot;f &quot; - Ending in trailing space. </li>
+        </ul>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;suggestionQueryExpression</code></td>
+                <td>
+                  <p>the non empty query string to search suggestions</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SearchSuggestionSpec">SearchSuggestionSpec</a>&nbsp;searchSuggestionSpec</code></td>
+                <td>
+                  <p>spec for setting document filters</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/util/List.html">List</a>&lt;<a href="/reference/androidx/appsearch/app/SearchSuggestionResult">SearchSuggestionResult</a>&gt;&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation which resolves to a List of <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchSuggestionResult">SearchSuggestionResult</a></code> on success. The returned suggestion Strings are ordered by the number of <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SearchResult">SearchResult</a></code> you could get by using that suggestion in <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code>.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">See also</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#search(java.lang.String,androidx.appsearch.app.SearchSpec)">search</a></code></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setBlobVisibilityAsync-androidx.appsearch.app.SetBlobVisibilityRequest-"></a><a name="setblobvisibilityasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setBlobVisibilityAsync(androidx.appsearch.app.SetBlobVisibilityRequest)" data-text="setBlobVisibilityAsync" tabindex="-1">setBlobVisibilityAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/RequiresFeature">RequiresFeature</a>(enforcement&nbsp;=&nbsp;&quot;androidx.appsearch.app.Features#isFeatureSupported&quot;,&nbsp;name&nbsp;=&nbsp;Features.BLOB_STORAGE)<br>@<a href="/reference/androidx/appsearch/app/ExperimentalAppSearchApi">ExperimentalAppSearchApi</a><br>default&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#setBlobVisibilityAsync(androidx.appsearch.app.SetBlobVisibilityRequest)">setBlobVisibilityAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetBlobVisibilityRequest">SetBlobVisibilityRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Sets the visibility configuration for all blob namespaces within an appsearch database. </p>
+        <p> Blobs under the same namespace will share same visibility settings. </p>
+        <p> The default setting is blobs will be only visible to the owner package and System. To configure other kinds of sharing, set <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SchemaVisibilityConfig">SchemaVisibilityConfig</a></code> via <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SetBlobVisibilityRequest">SetBlobVisibilityRequest</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetBlobVisibilityRequest">SetBlobVisibilityRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p>The request holds visibility settings for all blob namespaces</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="https://developer.android.com/reference/java/lang/Void.html">Void</a>&gt;</code></td>
+                <td>
+                  <p>The pending result of performing this operation which resolves to <code translate="no" dir="ltr">null</code> on success.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setSchemaAsync-androidx.appsearch.app.SetSchemaRequest-"></a><a name="setschemaasync"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)" data-text="setSchemaAsync" tabindex="-1">setSchemaAsync</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/appsearch#1.1.0">1.1.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>abstract&nbsp;@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/SetSchemaResponse">SetSchemaResponse</a>&gt;&nbsp;<a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetSchemaRequest">SetSchemaRequest</a>&nbsp;request)</pre></devsite-code>
+        <p>Sets the schema that represents the organizational structure of data within the AppSearch database. </p>
+        <p>Upon creating an <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession">AppSearchSession</a></code>, <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a></code> should be called. If the schema needs to be updated, or it has not been previously set, then the provided schema will be saved and persisted to disk. Otherwise, <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/AppSearchSession#setSchemaAsync(androidx.appsearch.app.SetSchemaRequest)">setSchemaAsync</a></code> is handled efficiently as a no-op call.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="/reference/androidx/appsearch/app/SetSchemaRequest">SetSchemaRequest</a>&nbsp;request</code></td>
+                <td>
+                  <p>the schema to set or update the AppSearch database to.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a>&lt;<a href="/reference/androidx/appsearch/app/SetSchemaResponse">SetSchemaResponse</a>&gt;</code></td>
+                <td>
+                  <p>a <code translate="no" dir="ltr"><a href="https://guava.dev/releases/18.0/api/docs/com/google/common/util/concurrent/ListenableFuture.html">ListenableFuture</a></code> which resolves to a <code translate="no" dir="ltr"><a href="/reference/androidx/appsearch/app/SetSchemaResponse">SetSchemaResponse</a></code> object.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

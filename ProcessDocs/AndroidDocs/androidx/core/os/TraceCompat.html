@@ -1,1 +1,903 @@
-<html><head><title>Class Documentation</title></head><body>TraceCompat Artifact: androidx.core:core View Source Added in 1.1.0 Deprecated in 1.5.0 Kotlin | Java public final class TraceCompat This class is deprecated. TraceCompat is deprecated in favor of androidx.tracing.Trace. Please use that instead. Writes trace events to the system trace buffer. These trace events can be collected and visualized using the Systrace tool. This tracing mechanism is independent of the method tracing mechanism offered by startMethodTracing. In particular, it enables tracing of events that occur across multiple processes. For information about using the Systrace tool, read Overview of system tracing . Summary Public methods static void beginAsyncSection (@ NonNull String &nbsp;methodName,&nbsp;int&nbsp;cookie) Writes a trace message to indicate that a given section of code has begun. static void beginSection (@ NonNull String &nbsp;sectionName) Writes a trace message to indicate that a given section of code has begun. static void endAsyncSection (@ NonNull String &nbsp;methodName,&nbsp;int&nbsp;cookie) Writes a trace message to indicate that the current method has ended. static void endSection () Writes a trace message to indicate that a given section of code has ended. static boolean isEnabled () Checks whether or not tracing is currently enabled. static void setCounter (@ NonNull String &nbsp;counterName,&nbsp;int&nbsp;counterValue) Writes trace message to indicate the value of a given counter. Public methods beginAsyncSection Added in 1.2.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;void&nbsp; beginAsyncSection (@ NonNull String &nbsp;methodName,&nbsp;int&nbsp;cookie) Writes a trace message to indicate that a given section of code has begun. Must be followed by a call to endAsyncSection with the same methodName and cookie. Unlike beginSection and endSection , asynchronous events do not need to be nested. The name and cookie used to begin an event must be used to end it. Parameters @ NonNull String &nbsp;methodName The method name to appear in the trace. int&nbsp;cookie Unique identifier for distinguishing simultaneous events beginSection Added in 1.1.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;void&nbsp; beginSection (@ NonNull String &nbsp;sectionName) Writes a trace message to indicate that a given section of code has begun. This call must be followed by a corresponding call to endSection on the same thread. At this time the vertical bar character '|', newline character '\n', and null character '\0' are used internally by the tracing mechanism. If sectionName contains these characters they will be replaced with a space character in the trace. Parameters @ NonNull String &nbsp;sectionName The name of the code section to appear in the trace. This may be at most 127 Unicode code units long. endAsyncSection Added in 1.2.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;void&nbsp; endAsyncSection (@ NonNull String &nbsp;methodName,&nbsp;int&nbsp;cookie) Writes a trace message to indicate that the current method has ended. Must be called exactly once for each call to beginAsyncSection using the same name and cookie. Parameters @ NonNull String &nbsp;methodName The method name to appear in the trace. int&nbsp;cookie Unique identifier for distinguishing simultaneous events endSection Added in 1.1.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;void&nbsp; endSection () Writes a trace message to indicate that a given section of code has ended. This call must be preceeded by a corresponding call to beginSection . Calling this method will mark the end of the most recently begun section of code, so care must be taken to ensure that beginSection / endSection pairs are properly nested and called from the same thread. isEnabled Added in 1.2.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;boolean&nbsp; isEnabled () Checks whether or not tracing is currently enabled. This is useful to avoid intermediate string creation for trace sections that require formatting. It is not necessary to guard all Trace method calls as they internally already check this. However it is recommended to use this to prevent creating any temporary objects that would then be passed to those methods to reduce runtime cost when tracing isn't enabled. Returns boolean true if tracing is currently enabled, false otherwise setCounter Added in 1.2.0 Deprecated in 1.5.0 public&nbsp;static&nbsp;void&nbsp; setCounter (@ NonNull String &nbsp;counterName,&nbsp;int&nbsp;counterValue) Writes trace message to indicate the value of a given counter. Parameters @ NonNull String &nbsp;counterName The counter name to appear in the trace. int&nbsp;counterValue The counter value.</body></html>
+<html><head><title>TraceCompat</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="TraceCompat">
+      <meta itemprop="path" content="androidx.core.os">
+      <meta itemprop="property" content="beginAsyncSection(java.lang.String,int)">
+      <meta itemprop="property" content="beginSection(java.lang.String)">
+      <meta itemprop="property" content="endAsyncSection(java.lang.String,int)">
+      <meta itemprop="property" content="endSection()">
+      <meta itemprop="property" content="isEnabled()">
+      <meta itemprop="property" content="setCounter(java.lang.String,int)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="tracecompat" data-text="TraceCompat" tabindex="-1">TraceCompat</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/core">androidx.core:core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/core/os/TraceCompat.java+class:androidx.core.os.TraceCompat" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.1.0">1.1.0</a></div>
+          <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/core/os/TraceCompat" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/core/os/TraceCompat">TraceCompat</a></pre></devsite-code>
+    </p>
+    <hr>
+    <aside class="caution"><strong>This class is deprecated.</strong><br>
+      <p>TraceCompat is deprecated in favor of androidx.tracing.Trace. Please use that instead.</p>
+    </aside>
+    <p>Writes trace events to the system trace buffer. These trace events can be collected and visualized using the Systrace tool. </p>
+    <p>This tracing mechanism is independent of the method tracing mechanism offered by startMethodTracing. In particular, it enables tracing of events that occur across multiple processes. </p>
+    <p>For information about using the Systrace tool, read <a href="/studio/profile/systrace">Overview of system tracing</a>.</p>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">static void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#beginAsyncSection(java.lang.String,int)">beginAsyncSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName,&nbsp;int&nbsp;cookie)</code></div>
+              <p>Writes a trace message to indicate that a given section of code has begun.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#beginSection(java.lang.String)">beginSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;sectionName)</code></div>
+              <p>Writes a trace message to indicate that a given section of code has begun.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#endAsyncSection(java.lang.String,int)">endAsyncSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName,&nbsp;int&nbsp;cookie)</code></div>
+              <p>Writes a trace message to indicate that the current method has ended.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#endSection()">endSection</a></del></span>()</code></div>
+              <p>Writes a trace message to indicate that a given section of code has ended.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#isEnabled()">isEnabled</a></del></span>()</code></div>
+              <p>Checks whether or not tracing is currently enabled.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">static void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><span><del><a href="/reference/androidx/core/os/TraceCompat#setCounter(java.lang.String,int)">setCounter</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;counterName,&nbsp;int&nbsp;counterValue)</code></div>
+              <p>Writes trace message to indicate the value of a given counter.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="beginAsyncSection(java.lang.String, int)"></a><a name="beginAsyncSection-java.lang.String-int-"></a><a name="beginasyncsection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="beginAsyncSection(java.lang.String,int)" data-text="beginAsyncSection" tabindex="-1">beginAsyncSection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.2.0">1.2.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;void&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#beginAsyncSection(java.lang.String,int)">beginAsyncSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName,&nbsp;int&nbsp;cookie)</pre></devsite-code>
+        <p>Writes a trace message to indicate that a given section of code has begun. Must be followed by a call to <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#endAsyncSection(java.lang.String,int)">endAsyncSection</a></code> with the same methodName and cookie. Unlike <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#beginSection(java.lang.String)">beginSection</a></code> and <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#endSection()">endSection</a></code>, asynchronous events do not need to be nested. The name and cookie used to begin an event must be used to end it.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName</code></td>
+                <td>
+                  <p>The method name to appear in the trace.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;cookie</code></td>
+                <td>
+                  <p>Unique identifier for distinguishing simultaneous events</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="beginSection-java.lang.String-"></a><a name="beginsection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="beginSection(java.lang.String)" data-text="beginSection" tabindex="-1">beginSection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.1.0">1.1.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;void&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#beginSection(java.lang.String)">beginSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;sectionName)</pre></devsite-code>
+        <p>Writes a trace message to indicate that a given section of code has begun. This call must be followed by a corresponding call to <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#endSection()">endSection</a></code> on the same thread. </p>
+        <p> At this time the vertical bar character '|', newline character '\n', and null character '\0' are used internally by the tracing mechanism. If sectionName contains these characters they will be replaced with a space character in the trace.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;sectionName</code></td>
+                <td>
+                  <p>The name of the code section to appear in the trace. This may be at most 127 Unicode code units long.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="endAsyncSection(java.lang.String, int)"></a><a name="endAsyncSection-java.lang.String-int-"></a><a name="endasyncsection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="endAsyncSection(java.lang.String,int)" data-text="endAsyncSection" tabindex="-1">endAsyncSection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.2.0">1.2.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;void&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#endAsyncSection(java.lang.String,int)">endAsyncSection</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName,&nbsp;int&nbsp;cookie)</pre></devsite-code>
+        <p>Writes a trace message to indicate that the current method has ended. Must be called exactly once for each call to <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#beginAsyncSection(java.lang.String,int)">beginAsyncSection</a></code> using the same name and cookie.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;methodName</code></td>
+                <td>
+                  <p>The method name to appear in the trace.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;cookie</code></td>
+                <td>
+                  <p>Unique identifier for distinguishing simultaneous events</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="endSection--"></a><a name="endsection"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="endSection()" data-text="endSection" tabindex="-1">endSection</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.1.0">1.1.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;void&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#endSection()">endSection</a></del></span>()</pre></devsite-code>
+        <p>Writes a trace message to indicate that a given section of code has ended. This call must be preceeded by a corresponding call to <code translate="no" dir="ltr"><a href="/reference/androidx/core/os/TraceCompat#beginSection(java.lang.String)">beginSection</a></code>. Calling this method will mark the end of the most recently begun section of code, so care must be taken to ensure that beginSection / endSection pairs are properly nested and called from the same thread.</p>
+      </div>
+      <div class="api-item"><a name="isEnabled--"></a><a name="isenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="isEnabled()" data-text="isEnabled" tabindex="-1">isEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.2.0">1.2.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;boolean&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#isEnabled()">isEnabled</a></del></span>()</pre></devsite-code>
+        <p>Checks whether or not tracing is currently enabled. This is useful to avoid intermediate string creation for trace sections that require formatting. It is not necessary to guard all Trace method calls as they internally already check this. However it is recommended to use this to prevent creating any temporary objects that would then be passed to those methods to reduce runtime cost when tracing isn't enabled.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p>true if tracing is currently enabled, false otherwise</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setCounter(java.lang.String, int)"></a><a name="setCounter-java.lang.String-int-"></a><a name="setcounter"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setCounter(java.lang.String,int)" data-text="setCounter" tabindex="-1">setCounter</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/core#1.2.0">1.2.0</a></div>
+              <div id="deprecated-in">Deprecated in <a href="/jetpack/androidx/releases/core#1.5.0">1.5.0</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;static&nbsp;void&nbsp;<span><del><a href="/reference/androidx/core/os/TraceCompat#setCounter(java.lang.String,int)">setCounter</a></del></span>(@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;counterName,&nbsp;int&nbsp;counterValue)</pre></devsite-code>
+        <p>Writes trace message to indicate the value of a given counter.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="https://jspecify.dev/docs/api/org/jspecify/annotations/NonNull.html">NonNull</a> <a href="https://developer.android.com/reference/java/lang/String.html">String</a>&nbsp;counterName</code></td>
+                <td>
+                  <p>The counter name to appear in the trace.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">int&nbsp;counterValue</code></td>
+                <td>
+                  <p>The counter value.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>

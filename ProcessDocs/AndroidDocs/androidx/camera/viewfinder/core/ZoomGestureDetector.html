@@ -1,1 +1,993 @@
-<html><head><title>Class Documentation</title></head><body>ZoomGestureDetector Artifact: androidx.camera.viewfinder:viewfinder-core View Source Added in 1.5.0-beta02 Kotlin | Java public final class ZoomGestureDetector Detector that interprets MotionEvent s and notify users when a zooming gesture has occurred. To use this class to do pinch-to-zoom on the viewfinder: In the OnZoomGestureListener.onZoomEvent , when receiving ZoomEvent.Move , get the ZoomEvent.Move.incrementalScaleFactor and use the value with CameraControl.setZoomRatio if the factor is in the range of ZoomState.getMinZoomRatio and ZoomState.getMaxZoomRatio . Then create an instance of the ZoomGestureDetector with the OnZoomGestureListener . In the View.onTouchEvent , call onTouchEvent and pass the MotionEvent s to the ZoomGestureDetector . import androidx.camera.viewfinder.core.ZoomGestureDetector import androidx.camera.viewfinder.core.ZoomGestureDetector.ZoomEvent val zoomGestureDetector = ZoomGestureDetector ( context ) { zoomEvent - &gt; when ( zoomEvent ) { is ZoomEvent . Move - &gt; { val zoomState = camera . cameraInfo . zoomState . value !! val ratio = zoomState . zoomRatio * zoomEvent . incrementalScaleFactor val minRatio = zoomState . minZoomRatio val maxRatio = zoomState . maxZoomRatio val clampedRatio = min ( max ( ratio , minRatio ), maxRatio ) camera . cameraControl . setZoomRatio ( clampedRatio ) } is ZoomEvent . Begin - &gt; { // Handle the begin event. For example, determine whether this gesture // should be processed further. } is ZoomEvent . End - &gt; { // Handle the end event. For example, show a UI indicator. } } true } return zoomGestureDetector . onTouchEvent ( event ) Summary Nested types public fun interface ZoomGestureDetector.OnZoomGestureListener The listener for receiving notifications when gestures occur. public abstract class ZoomGestureDetector.ZoomEvent The zoom event that contains extended info about event state. public final class ZoomGestureDetector.ZoomEvent.Begin extends ZoomGestureDetector.ZoomEvent The beginning of a zoom gesture. public final class ZoomGestureDetector.ZoomEvent.End extends ZoomGestureDetector.ZoomEvent The end of a zoom gesture. public final class ZoomGestureDetector.ZoomEvent.Move extends ZoomGestureDetector.ZoomEvent The moving events of a gesture in progress. Public constructors ZoomGestureDetector ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ Px int&nbsp;spanSlop, &nbsp;&nbsp;&nbsp;&nbsp;@ Px int&nbsp;minSpan, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull ZoomGestureDetector.OnZoomGestureListener &nbsp;listener ) Creates a ZoomGestureDetector for detecting zooming gesture. Public methods final long getTimeDelta () Returns the time difference in milliseconds between the previous accepted zooming event and the current zooming event. final boolean isQuickZoomEnabled () Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming. final boolean isStylusZoomEnabled () Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming. final boolean @ UiThread onTouchEvent (@ NonNull MotionEvent &nbsp;event) Accepts MotionEvent s and dispatches events to a OnZoomGestureListener when appropriate. final void setQuickZoomEnabled (boolean&nbsp;isQuickZoomEnabled) Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming. final void setStylusZoomEnabled (boolean&nbsp;isStylusZoomEnabled) Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming. Public constructors ZoomGestureDetector Added in 1.5.0-beta02 public&nbsp; ZoomGestureDetector ( &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull Context &nbsp;context, &nbsp;&nbsp;&nbsp;&nbsp;@ Px int&nbsp;spanSlop, &nbsp;&nbsp;&nbsp;&nbsp;@ Px int&nbsp;minSpan, &nbsp;&nbsp;&nbsp;&nbsp;@ NonNull ZoomGestureDetector.OnZoomGestureListener &nbsp;listener ) Creates a ZoomGestureDetector for detecting zooming gesture. Parameters @ NonNull Context &nbsp;context The application context. @ Px int&nbsp;spanSlop The distance in pixels touches can wander before a gesture to be interpreted as zooming. @ Px int&nbsp;minSpan The distance in pixels between touches that must be reached for a gesture to be interpreted as zooming. @ NonNull ZoomGestureDetector.OnZoomGestureListener &nbsp;listener The listener to receive the callback. Public methods getTimeDelta Added in 1.5.0-beta02 public&nbsp;final&nbsp;long&nbsp; getTimeDelta () Returns the time difference in milliseconds between the previous accepted zooming event and the current zooming event. Returns long Time difference since the last zooming event in milliseconds. isQuickZoomEnabled Added in 1.5.0-beta02 public&nbsp;final&nbsp;boolean&nbsp; isQuickZoomEnabled () Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming. If not set, this is enabled by default. isStylusZoomEnabled Added in 1.5.0-beta02 public&nbsp;final&nbsp;boolean&nbsp; isStylusZoomEnabled () Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming. If not set, this is enabled by default. onTouchEvent Added in 1.5.0-beta02 @ UiThread public&nbsp;final&nbsp;boolean&nbsp; onTouchEvent (@ NonNull MotionEvent &nbsp;event) Accepts MotionEvent s and dispatches events to a OnZoomGestureListener when appropriate. Applications should pass a complete and consistent event stream to this method. A complete and consistent event stream involves all MotionEvent s from the initial MotionEvent.ACTION_DOWN to the final MotionEvent.ACTION_UP or MotionEvent.ACTION_CANCEL . Parameters @ NonNull MotionEvent &nbsp;event The event to process. Returns boolean true if the event was processed and the detector wants to receive the rest of the MotionEvent s in this event stream. Return it in the View.onTouchEvent for a normal use case. setQuickZoomEnabled Added in 1.5.0-beta02 public&nbsp;final&nbsp;void&nbsp; setQuickZoomEnabled (boolean&nbsp;isQuickZoomEnabled) Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming. If not set, this is enabled by default. setStylusZoomEnabled Added in 1.5.0-beta02 public&nbsp;final&nbsp;void&nbsp; setStylusZoomEnabled (boolean&nbsp;isStylusZoomEnabled) Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming. If not set, this is enabled by default.</body></html>
+<html><head><title>ZoomGestureDetector</title></head><body><article class="devsite-article"><style>
+      /* Styles inlined from /assets/css/reference-docs.css */
+:root {
+  --primary-font-family: Google Sans Text, Noto Sans, Noto Sans JP,
+    Noto Sans KR, Noto Naskh Arabic, Noto Sans Thai, Noto Sans Hebrew,
+    Noto Sans Bengali, sans-serif;
+}
+
+/* the "added in" info on all APIs */
+.api-level {
+  float: right;
+  font-size: smaller;
+  margin-top: -40px;
+}
+
+/* the "added in" block at the top of the page */
+#api-info-block .api-level {
+  margin-top: 0;
+}
+
+/* The metadata block displayed at the top of the page and on
+   methods/functions. Used by Dackka */
+#metadata-info-block {
+  font-size: smaller;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-grow: 1;
+}
+
+#header-block {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+/* The version metadata block contains "Added in" and "Deprecated in" lines,
+   which should both be right-aligned. Used by Dackka. */
+#version-metadata > div {
+  text-align: end;
+}
+
+/* The block containing a method name and its associated metadata. Used by
+   Dackka */
+.api-name-block {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* These margins reflect the margins set for non-Dackka generated refdocs */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+/* The block next to a method / function name in the details section that
+   displays the platform icons and the metadata block. Used by Dackka */
+.api-name-platform-and-metadata {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+/* The platform icons that are displayed next to a method / function name in the
+   details section. Used by Dackka */
+.api-name-platform-icons {
+  display: flex;
+}
+
+/* Zero out the top and bottom margins of the h3 contained in api-name-block;
+   these margins are set in [the parent] .api-name-block div, since that also
+   contains additional information that needs to be aligned with the h3. */
+.api-name-block h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 1000px) {
+  .api-level {
+    float: none;
+    margin-top: 0;
+  }
+  #api-info-block .api-level {
+    margin-bottom: 20px;
+  }
+}
+
+/* This element is obsolete now that devsite provides TOC */
+#api-info-block .sum-details-links {
+  display: none;
+}
+
+
+/* The table that shows this class's inheritance tree */
+
+.jd-inheritance-table tr,
+.jd-inheritance-table tr td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jd-inheritance-table .jd-inheritance-space {
+  width: 2em;
+}
+
+/* The devsite expandable widget */
+
+.expand-control:not(button):not(.button) {
+  color: inherit;
+  cursor: pointer;
+  padding-left: 24px;
+  position: relative;
+}
+
+.expand-control::before {
+  background: url(/images/styles/disclosure_down.png) no-repeat center center;
+  background-size: 34px 34px;
+  color: transparent;
+  content: '';
+  display: block;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.expand-control.exw-expanded::before {
+  background: url(/images/styles/disclosure_up.png) no-repeat center center;
+}
+
+/* Known subclasses list */
+
+.jd-sumtable-subclasses #subclasses-direct,
+.jd-sumtable-subclasses #subclasses-indirect {
+  /* left margin matches width of the toggle image,
+     so this section aligns with the text above */
+  margin: 0 0 0 24px;
+}
+
+.jd-sumtable-subclasses .expand-control.exw-expanded + .showalways {
+  /* Hide the comma list when expanded to show the table */
+  display: none;
+}
+
+.jd-sumtable-subclasses tr,
+.jd-sumtable-subclasses td {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+#subclasses-direct-summary,
+#subclasses-indirect-summary {
+  padding-left: 24px;
+}
+
+.jd-sumtable-expando td {
+  border: solid 1px #ddd;
+  padding: 4px;
+}
+
+.jd-inherited-apis .exw-expanded-content {
+  /* Force override for some lengthy devsite style selectors */
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+
+/* Styles for legacy doclava HTML that uses custom expando.
+ * The list of direct/indirect subclasses does not expand at all,
+ * and the list of inherited members/methods is expanded by default. */
+
+.jd-sumtable-subclasses #subclasses-direct-list,
+.jd-sumtable-subclasses #subclasses-indirect-list {
+  /* Force line-wraps for CSVs with no spaces */
+  word-break: break-word;
+}
+
+:not(devsite-expandable) > #subclasses-direct-summary,
+:not(devsite-expandable) > #subclasses-indirect-summary {
+  display: none !important;
+}
+
+.jd-sumtable #subclasses-direct.jd-expando-trigger,
+.jd-sumtable #subclasses-indirect.jd-expando-trigger{
+  margin: 0;
+}
+
+
+/* Force the broken legacy expandos into something that looks WAI */
+
+.jd-expando-trigger {
+  display: inline-block;
+  height: 0;
+  margin: 0;
+  padding-top: 10px;
+  width: 24px;
+}
+
+.jd-expando-trigger img {
+  /* display: none; */
+  height: inherit;
+}
+
+.jd-expando-trigger ~ div > div {
+  display: block !important; /* Force all inline-hidden divs to appear */
+}
+
+table.responsive td td:first-child,
+table.responsive td tr:last-child td,
+table.responsive td tr:first-child td{
+  padding: 7px 8px 8px;
+}
+
+.data-reference-resources-wrapper {
+  display: none;
+}
+
+#lattrs td:first-child,
+.inhtable td:first-child {
+  white-space: nowrap;
+}
+
+#lattrs td+td,
+.inhtable td+td {
+  white-space: normal;
+}
+
+
+/* Styles to highlight the preview APIs.
+
+   These must be updated with each letter-appropriate preview. */
+
+/* Style headings to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) h3,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) h3,
+[data-version-added="Baklava"] .api-title,
+.apilevel-Baklava h3 {
+  color: #f5ba15;
+}
+
+/* Style "Added in ___" links to gold preview color */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) .api-level a,
+body.apilevel-Baklava #api-info-block .api-level a,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) .api-level a,
+#api-info-block .api-level a[data-version-added="Baklava"],
+.api-level a[data-version-added="Baklava"],
+.apilevel-Baklava .api-level a {
+  color: #f5ba15 !important;
+  font-size: 14px;
+  font-weight:900;
+}
+
+/* Clear backgrounds for table rows */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr.apilevel-Baklava:not(.devsite-future-version),
+body.apilevel-Baklava #jd-content table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) tr,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr[data-version-added="Baklava"]:not(.devsite-future-version),
+#jd-content[data-version-added="Baklava"] table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr {
+  background: none;
+}
+
+/* Add gold preview background color to table headings and cells */
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) .apilevel-Baklava:not(.devsite-future-version) th,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+body.apilevel-Baklava #jd-content:not(.devsite-future-version) th,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) [data-version-added="Baklava"]:not(.devsite-future-version) th,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) tr:not(.devsite-future-version) td,
+#jd-content[data-version-added="Baklava"]:not(.devsite-future-version) th {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* Add gold preview background color to additional table cells */
+#jd-content:not(.devsite-future-version) tr.apilevel-Baklava:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) .apilevel-Baklava:not(.devsite-future-version) td,
+#jd-content:not(.devsite-future-version) tr[data-version-added="Baklava"]:not(.devsite-future-version) td,
+table:not(.jd-inheritance-table):not(.jd-sumtable-subclasses) [data-version-added="Baklava"]:not(.devsite-future-version) td {
+  background: rgba(245, 185, 16, .2);
+}
+
+/* End of styles to highlight the preview APIs */
+
+
+/* Misc styles used in the reference */
+
+h1.api-title {
+  margin-bottom: 0;
+}
+
+h2.api-section:not(#summary) {
+  margin-top: 60px;
+  margin-bottom: -20px;
+}
+
+h3.api-name {
+  margin-top: 60px;
+}
+
+.nolist, .nolist ul, .nolist ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td {
+  padding-left: 0;
+}
+
+table.inhtable>tbody>tr>td div:first-of-type {
+  padding-left: 12px;
+}
+
+.api-item {
+  position: relative;
+}
+
+.api-item > .api-name {
+  padding-right: 80px;
+}
+
+.api-item > .kotlin-platform {
+  inset-inline-end: 0;
+  position: absolute;
+  top: 0;
+}
+
+.kotlin-platform {
+  background: #ebf7fe;
+  border-radius: 16px;
+  color: #1769e0;
+  display: inline-block;
+  font: 500 12px / 32px var(--primary-font-family);
+  height: 32px;
+  text-align: center;
+  width: 32px;
+}
+
+      </style>
+  
+  
+  
+  
+  
+
+  <div class="devsite-article-meta nocontent" role="navigation">
+    
+    
+    <ul class="devsite-breadcrumb-list"
+  
+    aria-label="Breadcrumb">
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+    
+    
+      
+  <a href="https://developer.android.com/"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="1"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="1"
+      
+        track-metadata-eventdetail="Android Developers"
+      
+    >
+    
+        Android Developers
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/develop"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="2"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="2"
+      
+        track-metadata-eventdetail=""
+      
+    >
+    
+        Develop
+      
+  </a>
+  
+    
+  </li>
+  
+  <li class="devsite-breadcrumb-item
+             ">
+    
+      
+      <div class="devsite-breadcrumb-guillemet material-icons" aria-hidden="true"></div>
+    
+    
+    
+      
+  <a href="https://developer.android.com/reference"
+      
+        class="devsite-breadcrumb-link gc-analytics-event"
+      
+        data-category="Site-Wide Custom Events"
+      
+        data-label="Breadcrumbs"
+      
+        data-value="3"
+      
+        track-type="globalNav"
+      
+        track-name="breadcrumb"
+      
+        track-metadata-position="3"
+      
+        track-metadata-eventdetail="API reference"
+      
+    >
+    
+        API reference
+      
+  </a>
+  
+    
+  </li>
+  
+</ul>
+    
+      
+    <devsite-thumb-rating position="header">
+    </devsite-thumb-rating>
+  
+    
+  </div>
+  <div class="devsite-actions" hidden data-nosnippet><devsite-feature-tooltip
+      ack-key="AckCollectionsBookmarkTooltipDismiss"
+      analytics-category="Site-Wide Custom Events"
+      analytics-action-show="Callout Profile displayed"
+      analytics-action-close="Callout Profile dismissed"
+      analytics-label="Create Collection Callout"
+      class="devsite-page-bookmark-tooltip nocontent"
+      dismiss-button="true"
+      id="devsite-collections-dropdown"
+      
+      dismiss-button-text="Dismiss"
+
+      
+      close-button-text="Got it">
+
+    
+    
+      <devsite-bookmark></devsite-bookmark>
+    
+
+    <span slot="popout-heading">
+      
+      Stay organized with collections
+    </span>
+    <span slot="popout-contents">
+      
+      Save and categorize content based on your preferences.
+    </span>
+  </devsite-feature-tooltip></div>
+  
+    
+  
+
+  <devsite-toc class="devsite-nav"
+    depth="2"
+    devsite-toc-embedded
+    >
+  </devsite-toc>
+  
+    
+    <devsite-recommendations-dropdown class="nocontent"></devsite-recommendations-dropdown>
+    
+  <div class="devsite-article-body clearfix
+  devsite-no-page-title">
+
+  
+    
+    
+    <div itemscope="" itemtype="http://developers.google.com/ReferenceObject">
+      <meta itemprop="name" content="ZoomGestureDetector">
+      <meta itemprop="path" content="androidx.camera.viewfinder.core">
+      <meta itemprop="property" content="getTimeDelta()">
+      <meta itemprop="property" content="getIsQuickZoomEnabled()">
+      <meta itemprop="property" content="getIsStylusZoomEnabled()">
+      <meta itemprop="property" content="onTouchEvent(android.view.MotionEvent)">
+      <meta itemprop="property" content="setIsQuickZoomEnabled(kotlin.Boolean)">
+      <meta itemprop="property" content="setIsStylusZoomEnabled(kotlin.Boolean)">
+      <meta itemprop="language" content="JAVA">
+    </div>
+    <div id="header-block">
+      <div>
+        <h1 id="zoomgesturedetector" data-text="ZoomGestureDetector" tabindex="-1">ZoomGestureDetector</h1>
+      </div>
+      <div id="metadata-info-block">
+        <div id="maven-coordinates">Artifact: <a href="/jetpack/androidx/releases/camera-viewfinder">androidx.camera.viewfinder:viewfinder-core</a></div>
+        <div id="source-link"><a href="https://cs.android.com/search?q=file:androidx/camera/viewfinder/core/ZoomGestureDetector.kt+class:androidx.camera.viewfinder.core.ZoomGestureDetector" class="external">View Source</a></div>
+        <div id="version-metadata">
+          <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+        </div>
+      </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<hr style="margin: 0">
+<div style="display:flex; font-size:medium; justify-content:flex-end;
+     margin-bottom:40px;"
+     class="nocontent">
+<div>
+
+
+
+<a href="/reference/kotlin/androidx/camera/viewfinder/core/ZoomGestureDetector" title="View this page in Kotlin" >Kotlin</a>
+<span style="padding: 0em .5em;">|</span><span style="font-weight:bold">Java</span>
+
+
+</div>
+</div>
+
+
+
+
+    <p>
+      <div></div><devsite-code><pre translate="no" dir="ltr" is-upgraded>public final class <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector">ZoomGestureDetector</a></pre></devsite-code>
+    </p>
+    <hr>
+    <p>Detector that interprets <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s and notify users when a zooming gesture has occurred.</p>
+    <p>To use this class to do pinch-to-zoom on the viewfinder:</p>
+    <ul>
+      <li>
+        <p>In the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener#onZoomEvent(androidx.camera.viewfinder.core.ZoomGestureDetector.ZoomEvent)">OnZoomGestureListener.onZoomEvent</a></code>, when receiving <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent.Move">ZoomEvent.Move</a></code>, get the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent.Move#incrementalScaleFactor()">ZoomEvent.Move.incrementalScaleFactor</a></code> and use the value with <code translate="no" dir="ltr">CameraControl.setZoomRatio</code> if the factor is in the range of <code translate="no" dir="ltr">ZoomState.getMinZoomRatio</code> and <code translate="no" dir="ltr">ZoomState.getMaxZoomRatio</code>. Then create an instance of the <code translate="no" dir="ltr">ZoomGestureDetector</code> with the <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">OnZoomGestureListener</a></code>.</p>
+      </li>
+      <li>
+        <p>In the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onTouchEvent(android.view.MotionEvent)">View.onTouchEvent</a></code>, call <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#onTouchEvent(android.view.MotionEvent)">onTouchEvent</a></code> and pass the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s to the <code translate="no" dir="ltr">ZoomGestureDetector</code>.</p>
+      </li>
+    </ul>
+    <div></div><devsite-code><pre class="devsite-click-to-copy" translate="no" dir="ltr" is-upgraded syntax="Kotlin"><span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.viewfinder.core.ZoomGestureDetector</span>
+<span class="devsite-syntax-k">import</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nn">androidx.camera.viewfinder.core.ZoomGestureDetector.ZoomEvent</span>
+
+<span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">zoomGestureDetector</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-n">ZoomGestureDetector</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">context</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomEvent</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-k">when</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">zoomEvent</span><span class="devsite-syntax-p">)</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-k">is</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ZoomEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Move</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">zoomState</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">camera</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">cameraInfo</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">zoomState</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">value</span><span class="devsite-syntax-o">!!</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">ratio</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomState</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">zoomRatio</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">*</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">incrementalScaleFactor</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">minRatio</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomState</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">minZoomRatio</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">maxRatio</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomState</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">maxZoomRatio</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-kd">val</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-nv">clampedRatio</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">=</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">min</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">max</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">ratio</span><span class="devsite-syntax-p">,</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">minRatio</span><span class="devsite-syntax-p">),</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">maxRatio</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-n">camera</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">cameraControl</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">setZoomRatio</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">clampedRatio</span><span class="devsite-syntax-p">)</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-k">is</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ZoomEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">Begin</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Handle the begin event. For example, determine whether this gesture</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// should be processed further.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-k">is</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">ZoomEvent</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">End</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-o">-</span>&gt;<span class="devsite-syntax-w"> </span><span class="devsite-syntax-p">{</span>
+<span class="devsite-syntax-w">                </span><span class="devsite-syntax-c1">// Handle the end event. For example, show a UI indicator.</span>
+<span class="devsite-syntax-w">            </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-p">}</span>
+<span class="devsite-syntax-w">        </span><span class="devsite-syntax-kc">true</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-p">}</span>
+
+<span class="devsite-syntax-k">return</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-n">zoomGestureDetector</span><span class="devsite-syntax-p">.</span><span class="devsite-syntax-na">onTouchEvent</span><span class="devsite-syntax-p">(</span><span class="devsite-syntax-n">event</span><span class="devsite-syntax-p">)</span></pre></devsite-code>
+    <h2 id="summary" data-text="Summary" tabindex="-1">Summary</h2>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="nested-types" data-text="Nested types" tabindex="-1">Nested types</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public fun interface <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">ZoomGestureDetector.OnZoomGestureListener</a></code></div>
+              <p>The listener for receiving notifications when gestures occur.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public abstract class <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent">ZoomGestureDetector.ZoomEvent</a></code></div>
+              <p>The zoom event that contains extended info about event state.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent.Begin">ZoomGestureDetector.ZoomEvent.Begin</a> extends <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent">ZoomGestureDetector.ZoomEvent</a></code></div>
+              <p>The beginning of a zoom gesture.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent.End">ZoomGestureDetector.ZoomEvent.End</a> extends <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent">ZoomGestureDetector.ZoomEvent</a></code></div>
+              <p>The end of a zoom gesture.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr">public final class <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent.Move">ZoomGestureDetector.ZoomEvent.Move</a> extends <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.ZoomEvent">ZoomGestureDetector.ZoomEvent</a></code></div>
+              <p>The moving events of a gesture in progress.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-constructors" data-text="Public constructors" tabindex="-1">Public constructors</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#ZoomGestureDetector(android.content.Context,kotlin.Int,kotlin.Int,androidx.camera.viewfinder.core.ZoomGestureDetector.OnZoomGestureListener)">ZoomGestureDetector</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;spanSlop,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;minSpan,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">ZoomGestureDetector.OnZoomGestureListener</a>&nbsp;listener<br>)</code></div>
+              <p>Creates a ZoomGestureDetector for detecting zooming gesture.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="devsite-table-wrapper">
+      <table class="responsive">
+        <colgroup>
+          <col width="40%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th colspan="100%"><h3 id="public-methods" data-text="Public methods" tabindex="-1">Public methods</h3></th>
+          </tr>
+        </thead>
+        <tbody class="list">
+          <tr>
+            <td><code translate="no" dir="ltr">final long</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getTimeDelta()">getTimeDelta</a>()</code></div>
+              <p>Returns the time difference in milliseconds between the previous accepted zooming event and the current zooming event.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getIsQuickZoomEnabled()">isQuickZoomEnabled</a>()</code></div>
+              <p>Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getIsStylusZoomEnabled()">isStylusZoomEnabled</a>()</code></div>
+              <p>Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final boolean</code></td>
+            <td>
+              <div><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/UiThread">UiThread</a><br><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#onTouchEvent(android.view.MotionEvent)">onTouchEvent</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a>&nbsp;event)</code></div>
+              <p>Accepts <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s and dispatches events to a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">OnZoomGestureListener</a></code> when appropriate.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#setIsQuickZoomEnabled(kotlin.Boolean)">setQuickZoomEnabled</a>(boolean&nbsp;isQuickZoomEnabled)</code></div>
+              <p>Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><code translate="no" dir="ltr">final void</code></td>
+            <td>
+              <div><code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#setIsStylusZoomEnabled(kotlin.Boolean)">setStylusZoomEnabled</a>(boolean&nbsp;isStylusZoomEnabled)</code></div>
+              <p>Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="list">
+      <h2 id="public-constructors_1" data-text="Public constructors" tabindex="-1">Public constructors</h2>
+      <div class="api-item"><a name="ZoomGestureDetector(android.content.Context, kotlin.Int, kotlin.Int, androidx.camera.viewfinder.core.ZoomGestureDetector.OnZoomGestureListener)"></a><a name="ZoomGestureDetector-android.content.Context-kotlin.Int-kotlin.Int-androidx.camera.viewfinder.core.ZoomGestureDetector.OnZoomGestureListener-"></a><a name="zoomgesturedetector"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="ZoomGestureDetector(android.content.Context,kotlin.Int,kotlin.Int,androidx.camera.viewfinder.core.ZoomGestureDetector.OnZoomGestureListener)" data-text="ZoomGestureDetector" tabindex="-1">ZoomGestureDetector</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#ZoomGestureDetector(android.content.Context,kotlin.Int,kotlin.Int,androidx.camera.viewfinder.core.ZoomGestureDetector.OnZoomGestureListener)">ZoomGestureDetector</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;spanSlop,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;minSpan,<br>&nbsp;&nbsp;&nbsp;&nbsp;@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">ZoomGestureDetector.OnZoomGestureListener</a>&nbsp;listener<br>)</pre></devsite-code>
+        <p>Creates a ZoomGestureDetector for detecting zooming gesture.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/content/Context.html">Context</a>&nbsp;context</code></td>
+                <td>
+                  <p>The application context.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;spanSlop</code></td>
+                <td>
+                  <p>The distance in pixels touches can wander before a gesture to be interpreted as zooming.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/Px">Px</a> int&nbsp;minSpan</code></td>
+                <td>
+                  <p>The distance in pixels between touches that must be reached for a gesture to be interpreted as zooming.</p>
+                </td>
+              </tr>
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">ZoomGestureDetector.OnZoomGestureListener</a>&nbsp;listener</code></td>
+                <td>
+                  <p>The listener to receive the callback.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="list">
+      <h2 id="public-methods_1" data-text="Public methods" tabindex="-1">Public methods</h2>
+      <div class="api-item"><a name="getTimeDelta--"></a><a name="gettimedelta"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getTimeDelta()" data-text="getTimeDelta" tabindex="-1">getTimeDelta</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;long&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getTimeDelta()">getTimeDelta</a>()</pre></devsite-code>
+        <p>Returns the time difference in milliseconds between the previous accepted zooming event and the current zooming event.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">long</code></td>
+                <td>
+                  <p>Time difference since the last zooming event in milliseconds.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="getIsQuickZoomEnabled--"></a><a name="getisquickzoomenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getIsQuickZoomEnabled()" data-text="isQuickZoomEnabled" tabindex="-1">isQuickZoomEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getIsQuickZoomEnabled()">isQuickZoomEnabled</a>()</pre></devsite-code>
+        <p>Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming.</p>
+        <p>If not set, this is enabled by default.</p>
+      </div>
+      <div class="api-item"><a name="getIsStylusZoomEnabled--"></a><a name="getisstyluszoomenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="getIsStylusZoomEnabled()" data-text="isStylusZoomEnabled" tabindex="-1">isStylusZoomEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#getIsStylusZoomEnabled()">isStylusZoomEnabled</a>()</pre></devsite-code>
+        <p>Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming.</p>
+        <p>If not set, this is enabled by default.</p>
+      </div>
+      <div class="api-item"><a name="onTouchEvent-android.view.MotionEvent-"></a><a name="ontouchevent"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="onTouchEvent(android.view.MotionEvent)" data-text="onTouchEvent" tabindex="-1">onTouchEvent</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>@<a href="/reference/androidx/annotation/UiThread">UiThread</a><br>public&nbsp;final&nbsp;boolean&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#onTouchEvent(android.view.MotionEvent)">onTouchEvent</a>(@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a>&nbsp;event)</pre></devsite-code>
+        <p>Accepts <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s and dispatches events to a <code translate="no" dir="ltr"><a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector.OnZoomGestureListener">OnZoomGestureListener</a></code> when appropriate.</p>
+        <p>Applications should pass a complete and consistent event stream to this method.</p>
+        <p>A complete and consistent event stream involves all <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s from the initial <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html#ACTION_DOWN()">MotionEvent.ACTION_DOWN</a></code> to the final <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html#ACTION_UP()">MotionEvent.ACTION_UP</a></code> or <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html#ACTION_CANCEL()">MotionEvent.ACTION_CANCEL</a></code>.</p>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Parameters</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">@<a href="/reference/androidx/annotation/NonNull">NonNull</a> <a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a>&nbsp;event</code></td>
+                <td>
+                  <p>The event to process.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="devsite-table-wrapper">
+          <table class="responsive">
+            <colgroup>
+              <col width="40%">
+              <col>
+            </colgroup>
+            <thead>
+              <tr>
+                <th colspan="100%">Returns</th>
+              </tr>
+            </thead>
+            <tbody class="list">
+              <tr>
+                <td><code translate="no" dir="ltr">boolean</code></td>
+                <td>
+                  <p><code translate="no" dir="ltr">true</code> if the event was processed and the detector wants to receive the rest of the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/MotionEvent.html">MotionEvent</a></code>s in this event stream. Return it in the <code translate="no" dir="ltr"><a href="https://developer.android.com/reference/android/view/View.html#onTouchEvent(android.view.MotionEvent)">View.onTouchEvent</a></code> for a normal use case.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="api-item"><a name="setIsQuickZoomEnabled-kotlin.Boolean-"></a><a name="setisquickzoomenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setIsQuickZoomEnabled(kotlin.Boolean)" data-text="setQuickZoomEnabled" tabindex="-1">setQuickZoomEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#setIsQuickZoomEnabled(kotlin.Boolean)">setQuickZoomEnabled</a>(boolean&nbsp;isQuickZoomEnabled)</pre></devsite-code>
+        <p>Whether the quick zoom gesture, in which the user performs a double tap followed by a swipe, should perform zooming.</p>
+        <p>If not set, this is enabled by default.</p>
+      </div>
+      <div class="api-item"><a name="setIsStylusZoomEnabled-kotlin.Boolean-"></a><a name="setisstyluszoomenabled"></a>
+        <div class="api-name-block">
+          <div>
+            <h3 id="setIsStylusZoomEnabled(kotlin.Boolean)" data-text="setStylusZoomEnabled" tabindex="-1">setStylusZoomEnabled</h3>
+          </div>
+          <div id="metadata-info-block">
+            <div id="version-metadata">
+              <div id="added-in">Added in <a href="/jetpack/androidx/releases/camera-viewfinder#1.5.0-beta02">1.5.0-beta02</a></div>
+            </div>
+          </div>
+        </div>
+        <div></div><devsite-code><pre class="api-signature no-pretty-print" translate="no" dir="ltr" is-upgraded>public&nbsp;final&nbsp;void&nbsp;<a href="/reference/androidx/camera/viewfinder/core/ZoomGestureDetector#setIsStylusZoomEnabled(kotlin.Boolean)">setStylusZoomEnabled</a>(boolean&nbsp;isStylusZoomEnabled)</pre></devsite-code>
+        <p>Whether the stylus zoom gesture, in which the user uses a stylus and presses the button, should perform zooming.</p>
+        <p>If not set, this is enabled by default.</p>
+      </div>
+    </div>
+  
+  
+
+  
+    <devsite-hats-survey class="nocontent"
+      hats-id="VxqvKSur40kxBYCLVTd0SSGykbno"
+      listnr-id="5207477"></devsite-hats-survey>
+  
+</div>
+
+  
+    
+      <devsite-recommendations display="in-page" hidden yield>
+      </devsite-recommendations>
+    
+    
+      
+    <devsite-thumb-rating position="footer">
+    </devsite-thumb-rating>
+  
+       
+    
+    
+      <devsite-recommendations id="recommendations-link" yield></devsite-recommendations>
+    
+  
+
+  <div class="devsite-floating-action-buttons"></div></article></body></html>
