@@ -69,21 +69,20 @@ def main():
     open(counts_file, "w").write(counts_txt)
     open(desc_counts_file, "w").write(desc_counts_txt)
     print("Unique symbols: " + str(uniq_count))
-    print("Unique classes/methods (description): " + str(uniq_desc_count))
+    print("Unique fully-qualified symbols: " + str(uniq_desc_count))
     print("Total API entries: " + str(keep_count))
-    print("Discarded test/reflect entries: " + str(desc_count))
-
-    print("Unique page refs: " + str(len(urls)))
+    print("Discarded kotlin.test/reflect entries: " + str(desc_count))
+    print("Unique T3 page URLs: " + str(len(urls)))
 
     all_counts = [e[1] for e in encountered_names.items()]
     all_counts_dup = [c for c in all_counts if c > 1]
     plt.hist(all_counts_dup, bins=[20 * i for i in range(9)])
-    print("Most duplicated term count: " + str(max(all_counts)))
+    print("Most duplicated symbol's entry count: " + str(max(all_counts)))
 
     all_counts = [e[1] for e in encountered_descs.items()]
     all_counts_dup = [c for c in all_counts if c > 1]
    # plt.hist(all_counts_dup, bins=[20 * i for i in range(9)])
-    print("Most duplicated desc count: " + str(max(all_counts)))
+    print("Most duplicated fully-qualified symbol's entry count: " + str(max(all_counts)))
     #plt.savefig('dup_counts_hist.png')
 
 if __name__ == '__main__':
