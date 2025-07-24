@@ -43,7 +43,6 @@ def extract_fully_qualified_name(url, fallback):
             if element.name == "span" and "delimiter" in element.get("class"):
                 continue
             text = element.get_text(strip=True)
-            print(text)
             # Skip the initial "kotlin-stdlib"
             if text == "kotlin-stdlib":
                 continue
@@ -83,7 +82,7 @@ def generate_html_page(selected_symbol, entries, output_dir):
         f.write("</body>\n")
         f.write("</html>\n")
 
-    return f"Created disambiguation page: {output_file}\n"
+    return f"Disambiguation\t{selected_symbol}\t{output_file}\n"
 
 def main(tsv_path, output_dir):
     log_file = "log.txt"
@@ -108,7 +107,7 @@ def main(tsv_path, output_dir):
         if len(entries) > 1:
             log_content += generate_html_page(symbol, entries, output_dir)
         else:
-            log_content += f"One meaning for symbol {symbol}:\n{entries[0][0]} \t {entries[0][1]}\n"
+            log_content += f"One meaning for symbol\t{symbol}\t{entries[0][0]}\t{entries[0][1]}\n"
 
     with open(log_file, "w", encoding="utf-8") as log_f:
         log_f.write(log_content)
