@@ -72,7 +72,7 @@ def main():
         help="The name of the database to be updated."
     )
 
-    # Add the "-d" or "--database" argument. This is also required.
+    # Disambiguation file directory
     parser.add_argument(
         "-p", "--disambiguation-dir",
         type=str,
@@ -109,12 +109,16 @@ def main():
     tooltips_json = []
 
     # Holding constant for now
-    tooltip_category = "kotlin"
+    tooltip_categoryId = 1
     tooltip_summary = PLACEHOLDER_T1_MESSAGE
     tooltip_detail = PLACEHOLDER_T2_MESSAGE
 
     conn = sqlite3.connect(database_name)
     cursor = conn.cursor()
+
+    """
+    ALEX: Actual database queries are commented out while disambiguation page processing is being debugged.
+    """
 
     for symbol, entries in list(groups.items()):
         if len(entries) > 1:
