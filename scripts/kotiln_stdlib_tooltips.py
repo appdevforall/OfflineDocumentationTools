@@ -5,8 +5,14 @@ import sqlite3
 import csv
 import os
 import html
+import brotli
 import sys
 from collections import defaultdict
+
+
+"""
+TODO @Alex: update to work with current schema
+"""
 
 PLACEHOLDER_T1_MESSAGE = "Placeholder T1 tooltip"
 PLACEHOLDER_T2_MESSAGE = "Placeholder T2 tooltip"
@@ -92,7 +98,7 @@ def main():
     for api_entry in json_data:
             symbol_basename = api_entry["searchKeys"][0]
             full_symbol = api_entry["name"]
-            url = "http://localhost:6174/KotlinStdLibDocs/" + api_entry["location"]
+            url = "ks/" + api_entry["location"]
             if symbol_basename in groups:
                 groups[symbol_basename].append((full_symbol, url))
             else:
@@ -113,8 +119,14 @@ def main():
     for symbol, entries in list(groups.items()):
         if len(entries) > 1:
             disamb_page = generate_html_page(symbol, entries, disambiguation_dir)
-            tooltip_url =  "http://localhost:6174/KotlinStdLibDocs/" + disamb_page
+            disamb_content = brotli.compress(open(disamb_page, "rb").read())
+            tooltip_url =  "ks/" + disamb_page
             log_handle.write("Made page for ambiguous symbol " + symbol + "\n")
+            #print(disamb_page)
+            #cursor.execute(
+            #   "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
+            #    (disamb_page, "en-US", disamb_content, 12))
+
         else:
             tooltip_url = entries[0][1]
             log_handle.write(f"One meaning for symbol {symbol}:\n{entries[0][0]} \t {tooltip_url}\n")
@@ -122,19 +134,18 @@ def main():
         tooltip_tag = symbol
         tooltip_buttons = json.dumps([{"first": "See documentation for " + symbol + " in the Kotlin standard library.", "second": tooltip_url}])
 
-        command = f"""INSERT OR REPLACE INTO ide_tooltip_table 
-                        (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons) 
-                        VALUES ({tooltip_category}, {tooltip_tag}, {tooltip_summary}, {tooltip_detail}, {tooltip_buttons})"""
+        # command = f"""INSERT OR REPLACE INTO ide_tooltip_table
+        #                (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons)
+        #                VALUES ({tooltip_category}, {tooltip_tag}, {tooltip_summary}, {tooltip_detail}, {tooltip_buttons})"""
 
         #print(command)
-
-        cursor.execute("""
-            INSERT OR REPLACE INTO ide_tooltip_table 
-            (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons) 
-            VALUES (?, ?, ?, ?, ?)
-        """, (tooltip_category, tooltip_tag, tooltip_summary, tooltip_detail, tooltip_buttons))
+        #cursor.execute("""
+        #    INSERT OR REPLACE INTO ide_tooltip_table
+        #    (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons)
+        #    VALUES (?, ?, ?, ?, ?)
+        #""", (tooltip_category, tooltip_tag, tooltip_summary, tooltip_detail, tooltip_buttons))
         # cursor.execute(command)
-        conn.commit()
+        #conn.commit()
 
     conn.close()
 
