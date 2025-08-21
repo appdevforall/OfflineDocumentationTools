@@ -17,6 +17,14 @@ TODO @Alex: update to work with current schema
 PLACEHOLDER_T1_MESSAGE = "Placeholder T1 tooltip"
 PLACEHOLDER_T2_MESSAGE = "Placeholder T2 tooltip"
 
+EXCLUDE_DIRECTORIES = ["kotlin-test/","kotlin-reflect/", "kotlinx.cinterop", "org.wc3.dom", "kotlin.reflect"]
+
+def is_excluded(file_path):
+    for exclude_dir in EXCLUDE_DIRECTORIES:
+        if exclude_dir in file_path:
+            return True
+    return False
+
 def generate_html_page(selected_symbol, entries, output_dir):
     # Create a safe filename for the selected symbol.
     # (Here we just replace spaces with underscores; you might need further sanitizing.)
@@ -36,7 +44,7 @@ def generate_html_page(selected_symbol, entries, output_dir):
             selected_symbol))
         f.write("  <ul>\n")
         for full_symbol, url in entries:
-            f.write(f"    <li><a href=\"]{url}\">{full_symbol}</a> at {url}</li>\n")
+            f.write(f"    <li><a href=\"/{url}\">{full_symbol}</a> at {url}</li>\n")
         f.write("  </ul>\n")
         f.write("</body>\n")
         f.write("</html>\n")
@@ -51,6 +59,8 @@ def main():
     logfile = "log.txt"
     open(logfile, "w").write(" ")
     log_handle = open(logfile, "a")
+
+    os.system("./clean.sh")
 
     parser = argparse.ArgumentParser(
         description="A script to process an input file and update a database."
@@ -98,7 +108,11 @@ def main():
     for api_entry in json_data:
             symbol_basename = api_entry["searchKeys"][0]
             full_symbol = api_entry["name"]
-            url = "ks/" + api_entry["location"]
+            url = "k/" + api_entry["location"]
+
+            if is_excluded(url):
+                continue
+
             if symbol_basename in groups:
                 groups[symbol_basename].append((full_symbol, url))
             else:
@@ -116,27 +130,52 @@ def main():
     conn = sqlite3.connect(database_name)
     cursor = conn.cursor()
 
+    cursor.execute("delete from content where path like \"%/disam%\";")
+
     """
     ALEX: Actual database queries are commented out while disambiguation page processing is being debugged.
     """
 
+    tooltip_id = 32739
+    kotlin_cat_id = 4
+    button_number_id = 1
+
     for symbol, entries in list(groups.items()):
         if len(entries) > 1:
-            disamb_page = generate_html_page(symbol, entries, disambiguation_dir)
+            disamb_page = generate_html_page(symbol, entries, "disambiguation")
             disamb_content = brotli.compress(open(disamb_page, "rb").read())
-            tooltip_url =  "ks/" + disamb_page
+            tooltip_url =  "k/disambiguation/" + symbol + ".html"
             log_handle.write("Made page for ambiguous symbol " + symbol + "\n")
             #print(disamb_page)
-            #cursor.execute(
-            #   "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
-            #    (disamb_page, "en-US", disamb_content, 12))
-
+            cursor.execute(
+               "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
+                (tooltip_url, 1, disamb_content, 12))
         else:
             tooltip_url = entries[0][1]
             log_handle.write(f"One meaning for symbol {symbol}:\n{entries[0][0]} \t {tooltip_url}\n")
 
         tooltip_tag = symbol
-        tooltip_buttons = json.dumps([{"first": "See documentation for " + symbol + " in the Kotlin standard library.", "second": tooltip_url}])
+        # tooltip_buttons = json.dumps([{"first": "See documentation for " + symbol + " in the Kotlin standard library.", "second": tooltip_url}])
+        button_str, button_uri = ("See documentation for " + symbol + " in the Kotlin standard library.", tooltip_url)
+        #button_str, button_uri = tooltip_buttons
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO Tooltips
+            (id, categoryId, tag, summary, detail)
+            VALUES (?, ?, ?, ?, ?)
+            """, (tooltip_id, kotlin_cat_id, tooltip_tag, tooltip_summary, tooltip_detail))
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO TooltipButtons
+            (tooltipId, buttonNumberId, description, uri)
+            VALUES (?, ?, ?, ?)
+        """, (tooltip_id, 1, button_str, button_uri))
+
+        conn.commit()
+
+        tooltip_id += 1
+
+    conn.close()
 
         # command = f"""INSERT OR REPLACE INTO ide_tooltip_table
         #                (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons)
