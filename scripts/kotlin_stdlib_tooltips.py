@@ -119,9 +119,6 @@ def main():
                 groups[symbol_basename] = [(full_symbol, url)]
 
 
-    # tooltipCategory,tooltipTag,tooltipSummary,tooltipDetail,tooltipButtons
-    tooltips_json = []
-
     # Holding constant for now
     tooltip_categoryId = 1
     tooltip_summary = PLACEHOLDER_T1_MESSAGE
@@ -130,15 +127,19 @@ def main():
     conn = sqlite3.connect(database_name)
     cursor = conn.cursor()
 
+    """
+    HARD-CODED LINES FROM WORK ON AUG 21 2025 --Alex
+    """
+
+    # Delete old disambiguation pages as of David Aug 21
     cursor.execute("delete from content where path like \"%/disam%\";")
 
-    """
-    ALEX: Actual database queries are commented out while disambiguation page processing is being debugged.
-    """
-
+    # New tooltip IDs start at this integer to avoid collisions with
+    # other tooltips from David Aug 21
     tooltip_id = 32739
+
+    # Kotlin category ID as of David Aug 21
     kotlin_cat_id = 4
-    button_number_id = 1
 
     for symbol, entries in list(groups.items()):
         if len(entries) > 1:
@@ -146,7 +147,6 @@ def main():
             disamb_content = brotli.compress(open(disamb_page, "rb").read())
             tooltip_url =  "k/disambiguation/" + symbol + ".html"
             log_handle.write("Made page for ambiguous symbol " + symbol + "\n")
-            #print(disamb_page)
             cursor.execute(
                "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
                 (tooltip_url, 1, disamb_content, 12))
@@ -155,9 +155,7 @@ def main():
             log_handle.write(f"One meaning for symbol {symbol}:\n{entries[0][0]} \t {tooltip_url}\n")
 
         tooltip_tag = symbol
-        # tooltip_buttons = json.dumps([{"first": "See documentation for " + symbol + " in the Kotlin standard library.", "second": tooltip_url}])
         button_str, button_uri = ("See documentation for " + symbol + " in the Kotlin standard library.", tooltip_url)
-        #button_str, button_uri = tooltip_buttons
 
         cursor.execute("""
             INSERT OR REPLACE INTO Tooltips
@@ -173,28 +171,10 @@ def main():
 
         conn.commit()
 
+        # Increment tooltip ID for next tooltip
         tooltip_id += 1
 
     conn.close()
-
-        # command = f"""INSERT OR REPLACE INTO ide_tooltip_table
-        #                (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons)
-        #                VALUES ({tooltip_category}, {tooltip_tag}, {tooltip_summary}, {tooltip_detail}, {tooltip_buttons})"""
-
-        #print(command)
-        #cursor.execute("""
-        #    INSERT OR REPLACE INTO ide_tooltip_table
-        #    (tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons)
-        #    VALUES (?, ?, ?, ?, ?)
-        #""", (tooltip_category, tooltip_tag, tooltip_summary, tooltip_detail, tooltip_buttons))
-        # cursor.execute(command)
-        #conn.commit()
-
-    conn.close()
-
-    # group entries by the selected symbol name
-    # groups = defaultdict(list)
-
 
 if __name__ == "__main__":
     main()
