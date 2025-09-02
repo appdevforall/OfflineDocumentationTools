@@ -28,6 +28,14 @@ def generate_tooltip_tag(class_name, class_url):
             package_path = package_path[1:]
         package_dots = package_path.replace('/', '.')
         return f"android.{package_dots}"
+    elif class_url.startswith('/reference/androidx/'):
+        # For android classes, add 'android.' prefix
+        # Remove '/reference/android/' prefix and convert path to package notation
+        package_path = class_url[19:]  # Remove '/reference/android/'
+        if package_path.startswith('/'):
+            package_path = package_path[1:]
+        package_dots = package_path.replace('/', '.')
+        return f"androidx.{package_dots}"
     else:
         # For androidx and other classes, just use the class name
         return class_name
@@ -126,7 +134,9 @@ def analyze_androidx_classes(directory_path):
             link = link_cell.find('a')
             if link and 'href' in link.attrs:
                 class_url = link['href']
-                class_name = link.get_text(strip=True)
+                # class_name = link.get_text(strip=True)
+                base_class_name= link.get_text(strip=True)
+                class_name = generate_tooltip_tag(base_class_name, class_url)
                 
                 # Filter: only include classes from /reference/androidx
                 if not class_url.startswith('/reference/androidx/'):
@@ -408,7 +418,7 @@ def traverse(directory_path, output_path, output_root=None, debug_mode=False):
         debug_mode (bool): If True, only process the first 10 items
     """
     # First, analyze the android classes.html to get class mappings
-    android_class_map = analyze_classes(directory_path)
+    android_class_map = {}
     
     # Then, analyze the androidx classes.html to get class mappings
     androidx_class_map = analyze_androidx_classes(directory_path)
@@ -437,6 +447,9 @@ def traverse(directory_path, output_path, output_root=None, debug_mode=False):
 
     # Process Android classes
     for class_name, (description, class_url) in tqdm(android_class_map.items(), desc="Processing Android classes"):
+        print(class_name)
+        print(class_url)
+        exit(1)
         try:
             # Construct the full file path
             if class_url.startswith('/reference/'):
@@ -475,7 +488,7 @@ def traverse(directory_path, output_path, output_root=None, debug_mode=False):
             
             # Generate tooltipTag
             tooltip_tag = generate_tooltip_tag(class_name, class_url)
-            
+
             # Add to tooltip records dictionary
             tooltip_records[tooltip_tag] = {
                 'tooltipSummary': description,
@@ -616,7 +629,7 @@ def main():
     print(f"Processing Android documentation from {args.input}")
     print(f"Output pickle file: {args.output}")
     print(f"HTML output directory: {args.html_output}")
-    if args.debug:
+    if args.debug
         print("DEBUG MODE ENABLED: Processing only first 10 items")
     
     traverse(args.input, args.output, output_root=args.html_output, debug_mode=args.debug)
