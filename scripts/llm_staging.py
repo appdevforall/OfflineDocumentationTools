@@ -67,7 +67,8 @@ def dump_tooltips_to_csv(db_file, table_name):
 
                 # print(",".join(button_row))
             # lim += 1
-            outtext += str("\t".join(button_row)) + "\n"
+            line_out = ["\"" + i + "\"" for i in button_row if i not in ["id, categ"]]
+            outtext += str("|".join(button_row)) + "\n"
             c += 1
         open("tooltips_sep8.tsv", "w").write(outtext)
 
