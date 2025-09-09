@@ -175,10 +175,10 @@ def populate_databases(db_file, csv_file):
 
 def main():
     os.system("./clean.sh")
-    #conn = sqlite3.connect("documentation.db")
-    #cursor = conn.cursor()
-    #db_tooltips_to_csv(cursor, "newtest.csv")
-    populate_databases("documentation.db", "test.csv")
+    conn = sqlite3.connect("documentation.db")
+    cursor = conn.cursor()
+    db_tooltips_to_csv(cursor, "full.csv")
+    #populate_databases("documentation.db", "test.csv")
     #db_tooltips_to_csv(cursor)
 
     exit(1)
