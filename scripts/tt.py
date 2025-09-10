@@ -3,9 +3,33 @@ import csv
 import sys
 import os
 import io
+import time
 
-def db_tooltips_to_csv(cursor, csv_file_out):
-    print("Populating 'NormalizedTooltips' table...")
+SCHEMA_TOOLTIPS = """
+CREATE TABLE IF NOT EXISTS "Tooltips" (
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT, 
+  'categoryId' INTEGER NOT NULL, 
+  'tag' TEXT NOT NULL, 
+  'summary' TEXT NOT NULL, 
+  'detail' TEXT NOT NULL, 
+  UNIQUE ('categoryId', 'tag'),
+  FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id)
+);
+"""
+
+SCHEMA_TOOLTIP_BUTTONS = """
+CREATE TABLE IF NOT EXISTS TooltipButtons (
+  'tooltipId' INTEGER,
+  'buttonNumberId' INTEGER,
+  'description' TEXT,
+  'uri' TEXT,
+  FOREIGN KEY(tooltipId) REFERENCES Tooltips(id),
+  FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)
+);
+"""
+
+def db_tooltips_to_csv(conn, csv_file_out):
+    cursor = conn.cursor()
 
     # Get all entries from the main Tooltips table
     cursor.execute("SELECT id, categoryId, tag, summary, detail FROM Tooltips")
@@ -27,6 +51,7 @@ def db_tooltips_to_csv(cursor, csv_file_out):
             print(idx)
         idx += 1
 
+
         # Fetch all buttons for the current tooltip
         cursor.execute('''
                    SELECT buttonNumberId, description, uri
@@ -36,6 +61,7 @@ def db_tooltips_to_csv(cursor, csv_file_out):
                ''', (tooltip_id,))
         buttons = cursor.fetchall()
 
+
         # Prepare the button data for the new table
         button_data = {}
         for button in buttons:
@@ -44,7 +70,6 @@ def db_tooltips_to_csv(cursor, csv_file_out):
             uri = button[2]
             button_data[f'description{button_num}'] = desc
             button_data[f'uri{button_num}'] = uri
-
 
         data_array += [[category_id,
                         tag,summary,
@@ -56,128 +81,72 @@ def db_tooltips_to_csv(cursor, csv_file_out):
                         button_data.get('description3'),
                         button_data.get('uri3')]]
 
-        with open(csv_file_out, 'w', newline='', encoding='utf-8') as csvfile:
-            # Create a writer object.
-            writer = csv.writer(csvfile)
+    with open(csv_file_out, 'w', newline='', encoding='utf-8') as csvfile:
+        # Create a writer object.
+        writer = csv.writer(csvfile)
 
-            # Write the header row.
-            writer.writerow(headers)
+        # Write the header row.
+        writer.writerow(headers)
 
-            # Write the data rows.
-            writer.writerows(data_array)
+        # Write the data rows.
+        writer.writerows(data_array)
 
-def populate_databases(db_file, csv_file):
-    """
-    Populates the Tooltips and TooltipButtons tables from a CSV file.
 
-    Args:
-        db_file (str): The path to the SQLite database file.
-        csv_file (str): The path to the CSV file.
-    """
-    conn = None
+def csv_to_tooltips(conn, csv_file):
     try:
-        conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
+        # Drop tables if they exist to ensure a clean slate.
+        print("Dropping existing tables...")
+        cursor.execute("DROP TABLE IF EXISTS TooltipButtons")
+        cursor.execute("DROP TABLE IF EXISTS Tooltips")
 
-        # Create Tooltips table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS "Tooltips" (
-                'id'         INTEGER PRIMARY KEY AUTOINCREMENT,
-                'categoryId' INTEGER NOT NULL,  
-                'tag'        TEXT NOT NULL,  
-                'summary'    TEXT NOT NULL,  
-                'detail'     TEXT NOT NULL,  
-                UNIQUE ('categoryId', 'tag')
-            );
-        ''')
+        # Create the tables based on the schemas.
+        print("Creating database tables...")
+        cursor.execute(SCHEMA_TOOLTIPS)
+        cursor.execute(SCHEMA_TOOLTIP_BUTTONS)
 
-        # Create TooltipButtons table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS TooltipButtons (
-                'tooltipId'      INTEGER,
-                'buttonNumberId' INTEGER,
-                'description'    TEXT,
-                'uri'            TEXT
-            );
-        ''')
-
-        # Read and insert data from the CSV file
-        with open(csv_file, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
+        # Read data from the CSV file and populate the tables.
+        print(f"Reading data from {csv_file}...")
+        with open(csv_file, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
             for row in reader:
-                # Check if a row with the same unique key exists
+                # Insert data into the 'Tooltips' table first.
                 cursor.execute(
-                    'SELECT id FROM Tooltips WHERE categoryId = ? AND tag = ?',
-                    (row['categoryId'], row['tag'])
+                    "INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (?, ?, ?, ?)",
+                    (row['categoryId'], row['tag'], row['summary'], row['detail'])
                 )
-                existing_row = cursor.fetchone()
 
-                tooltip_id = None
-                if existing_row:
-                    # If it exists, get the original id and update the row
-                    tooltip_id = existing_row[0]
-                    cursor.execute(
-                        '''UPDATE Tooltips 
-                           SET summary = ?, detail = ?
-                           WHERE id = ?''',
-                        (row['summary'], row['detail'], tooltip_id)
-                    )
-                else:
-                    # If it doesn't exist, insert a new row
-                    cursor.execute(
-                        'INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (?, ?, ?, ?)',
-                        (row['categoryId'], row['tag'], row['summary'], row['detail'])
-                    )
-                    tooltip_id = cursor.lastrowid
+                # Get the ID of the newly created tooltip using lastrowid.
+                tooltip_id = cursor.lastrowid
 
-                # Insert or replace into TooltipButtons table for each button
-
-                # Update or insert into TooltipButtons for each button
+                # Insert data into the 'TooltipButtons' table for each of the three buttons.
                 for i in range(1, 4):
                     description_key = f'description{i}'
                     uri_key = f'uri{i}'
 
-                    description = row.get(description_key)
-                    uri = row.get(uri_key)
-
-                    if description and uri:
-                        # Check if the button record already exists
+                    # Check if the description and URI values exist before inserting.
+                    if row.get(description_key) and row.get(uri_key):
                         cursor.execute(
-                            'SELECT 1 FROM TooltipButtons WHERE tooltipId = ? AND buttonNumberId = ?',
-                            (tooltip_id, i)
+                            "INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES (?, ?, ?, ?)",
+                            (tooltip_id, i, row[description_key], row[uri_key])
                         )
-                        button_exists = cursor.fetchone()
 
-                        if button_exists:
-                            # If it exists, update the description and uri
-                            cursor.execute(
-                                '''UPDATE TooltipButtons 
-                                   SET description = ?, uri = ?
-                                   WHERE tooltipId = ? AND buttonNumberId = ?''',
-                                (description, uri, tooltip_id, i)
-                            )
-                        else:
-                            # If it doesn't exist, insert a new record
-                            cursor.execute(
-                                '''INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
-                                   VALUES (?, ?, ?, ?)''',
-                                (tooltip_id, i, description, uri)
-                            )
-
+        # Commit the changes to the database.
         conn.commit()
-        print("Database populated successfully!")
-
+        print("Database population complete!")
     except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
+        print(f"SQLite error: {e}")
+    except FileNotFoundError:
+        print(f"Error: The file '{csv_file}' was not found.")
     finally:
-        if conn:
-            conn.close()
+        conn.close()
+
 
 def main():
     os.system("./clean.sh")
     conn = sqlite3.connect("documentation.db")
-    cursor = conn.cursor()
-    db_tooltips_to_csv(cursor, "full.csv")
+    db_tooltips_to_csv(conn, "test.csv")
+    #csv_to_tooltips(conn, "full.csv")
     #populate_databases("documentation.db", "test.csv")
     #db_tooltips_to_csv(cursor)
 
