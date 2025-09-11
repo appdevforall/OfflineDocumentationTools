@@ -47,6 +47,8 @@ def db_tooltips_to_csv(conn, csv_file_out):
     cursor.execute("SELECT id, categoryId, tag, summary, detail FROM Tooltips")
     all_tooltips = cursor.fetchall()
 
+    num_tooltips = len(all_tooltips)
+
     # Iterate over each tooltip and populate the new table
     data_array = []
 
@@ -57,7 +59,7 @@ def db_tooltips_to_csv(conn, csv_file_out):
     idx = 0
     for tooltip_id, category_id, tag, summary, detail in all_tooltips:
         if idx % 100 == 0:
-            print(f"Processing row {idx}")
+            print(f"Processing row {idx} out of {num_tooltips}")
         idx += 1
 
         # Fetch all buttons for the current tooltip
