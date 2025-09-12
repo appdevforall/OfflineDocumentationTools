@@ -7,6 +7,7 @@ import time
 import argparse
 import shutil
 
+# Schema for the Tooltips table that we're going to drop and recreate from CSV data
 SCHEMA_TOOLTIPS = """
 CREATE TABLE IF NOT EXISTS "Tooltips" (
   'id' INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -19,6 +20,8 @@ CREATE TABLE IF NOT EXISTS "Tooltips" (
 );
 """
 
+# Schema for the TooltipButtons table that we're going to drop and recreate from CSV data tied directly
+# to entries in Tooltips by 'id" key
 SCHEMA_TOOLTIP_BUTTONS = """
 CREATE TABLE IF NOT EXISTS TooltipButtons (
   'tooltipId' INTEGER,
@@ -30,15 +33,17 @@ CREATE TABLE IF NOT EXISTS TooltipButtons (
 );
 """
 
+"""
+db_tooltips_to_csv(conn, csv_file_out)
 
+Dumps the contents of the 'Tooltips' and 'TooltipButtons' tables in CoGo's documentation data to a CSV file in the format
+that documentation writers are using for their work on tooltips.
+
+Args:
+    conn: A SQLite database connection object to the documentation database being dumped.
+    csv_file_out: The path to the output CSV file.
+"""
 def db_tooltips_to_csv(conn, csv_file_out):
-    """
-    Dumps the contents of the 'Tooltips' and 'TooltipButtons' tables to a CSV file.
-
-    Args:
-        conn: A SQLite database connection object.
-        csv_file_out: The path to the output CSV file.
-    """
     cursor = conn.cursor()
 
     print(f"Dumping database to CSV file: {csv_file_out}")
@@ -99,16 +104,15 @@ def db_tooltips_to_csv(conn, csv_file_out):
 
     print("Database dump to CSV complete!")
 
+"""
+Reconstructs the database from a CSV file.
 
+Args:
+    conn: A SQLite database connection object.
+    csv_file: The path to the input CSV file.
+    name: The name of the person performing the build.
+"""
 def csv_to_tooltips(conn, csv_file, name):
-    """
-    Reconstructs the database from a CSV file.
-
-    Args:
-        conn: A SQLite database connection object.
-        csv_file: The path to the input CSV file.
-        name: The name of the person performing the build.
-    """
     try:
         cursor = conn.cursor()
         # Drop tables if they exist to ensure a clean slate.
@@ -148,6 +152,7 @@ def csv_to_tooltips(conn, csv_file, name):
                             (tooltip_id, i, row[description_key], row[uri_key])
                         )
 
+        # Update LastChange timestamp with author's name and current time
         cursor.execute("""
         CREATE TABLE LastChange (
             now TIMESTAMP,
