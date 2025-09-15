@@ -1,0 +1,203 @@
+# Import the argparse library, which is the standard way to handle command-line arguments in Python.
+import argparse
+import json
+import sqlite3
+import csv
+import os
+import html
+import brotli
+import sys
+
+from collections import defaultdict
+
+
+"""
+TODO @Alex: update to work with current schema
+"""
+
+PLACEHOLDER_T1_MESSAGE = "Placeholder T1 tooltip"
+PLACEHOLDER_T2_MESSAGE = "Placeholder T2 tooltip"
+
+EXCLUDE_DIRECTORIES = ["kotlin-test/","kotlin-reflect/", "kotlinx.cinterop", "org.wc3.dom"]
+
+def is_excluded(file_path):
+    for exclude_dir in EXCLUDE_DIRECTORIES:
+        if exclude_dir in file_path:
+            return True
+    return False
+
+def generate_html_page(selected_symbol, entries, output_dir):
+    # Create a safe filename for the selected symbol.
+    # (Here we just replace spaces with underscores; you might need further sanitizing.)
+    safe_name = selected_symbol.replace(" ", "_")
+    output_file = os.path.join(output_dir, f"{safe_name}.html")
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("<!DOCTYPE html>\n")
+        f.write("<html lang='en'>\n")
+        f.write("<head>\n")
+        f.write("  <meta charset='utf-8'>\n")
+        f.write(f"  <title>{selected_symbol} – Disambiguation</title>\n")
+        f.write("</head>\n")
+        f.write("<body>\n")
+        f.write(f"  <h1>{selected_symbol}</h1>\n")
+        f.write("  <p>The symbol <strong>{}</strong> may represent one of the following definitions:</p>\n".format(
+            selected_symbol))
+        f.write("  <ul>\n")
+        for full_symbol, url in entries:
+            f.write(f"    <li><a href=\"/{url}\">{full_symbol}</a> at {url}</li>\n")
+        f.write("  </ul>\n")
+        f.write("</body>\n")
+        f.write("</html>\n")
+
+    return output_file
+
+def generate_tooltips(pages_json_file):
+    json_data = json.load(open(pages_json_file, "r"))
+
+
+def main():
+    logfile = "log.txt"
+    open(logfile, "w").write(" ")
+    log_handle = open(logfile, "a")
+
+    os.system("./clean.sh")
+
+    parser = argparse.ArgumentParser(
+        description="A script to process an input file and update a database."
+    )
+
+    # input file
+    parser.add_argument(
+        "-i", "--input",
+        type=str,
+        required=True,
+        help="The path to the input file to be processed."
+    )
+
+    # Add the "-d" or "--database" argument. This is also required.
+    parser.add_argument(
+        "-d", "--database",
+        type=str,
+        required=True,
+        help="The name of the database to be updated."
+    )
+
+    # Disambiguation file directory
+    parser.add_argument(
+        "-p", "--disambiguation-dir",
+        type=str,
+        required=True,
+        help="The name of the database to be updated."
+    )
+
+    args = parser.parse_args()
+
+    input_file = args.input
+    database_name = args.database
+    disambiguation_dir = args.disambiguation_dir
+
+    if not os.path.exists(disambiguation_dir):
+        os.makedirs(disambiguation_dir)
+
+    print(f"Input file path: {input_file}")
+    print(f"Database name: {database_name}")
+    json_data = json.load(open(input_file, "r"))
+
+    groups = {}
+
+    for api_entry in json_data:
+            symbol_basename = api_entry["description"]
+            # full_symbol = api_entry["name"]
+            url = "k/" + api_entry["location"]
+
+            if is_excluded(url):
+                continue
+
+            if symbol_basename in groups:
+                groups[symbol_basename].add((symbol_basename, url))
+            else:
+                groups[symbol_basename] = set([(symbol_basename, url)])
+
+    # Holding constant for now
+    tooltip_categoryId = 1
+    tooltip_summary = PLACEHOLDER_T1_MESSAGE
+    tooltip_detail = PLACEHOLDER_T2_MESSAGE
+
+    conn = sqlite3.connect(database_name)
+    cursor = conn.cursor()
+
+    """
+    HARD-CODED LINES FROM WORK ON AUG 21 2025 --Alex
+    """
+
+    # Delete old disambiguation pages as of David Aug 21
+    cursor.execute("delete from content where path like '%k/disam%'")
+    cursor.execute("""DELETE FROM Tooltips
+        WHERE id IN (
+            SELECT tooltipId FROM TooltipButtons
+            WHERE uri LIKE '%kotlin.%'
+        )""")
+    cursor.execute("""DELETE FROM Tooltips
+        WHERE id IN (
+            SELECT tooltipId FROM TooltipButtons
+            WHERE uri LIKE '%k/disam%'
+        )""")
+
+    cursor.execute("""
+    DELETE FROM TooltipButtons
+        WHERE tooltipId NOT IN (
+        SELECT id FROM Tooltips
+    )""")
+
+    conn.commit()
+
+
+    # Kotlin category ID as of David Aug 21
+    kotlin_cat_id = 4
+
+    for symbol, entries in list(groups.items()):
+        entries = list(entries)
+        print(entries)
+        if len(entries) > 1:
+            disamb_page = generate_html_page(symbol, entries, "disambiguation")
+            disamb_content = brotli.compress(open(disamb_page, "rb").read())
+            tooltip_url =  "k/disambiguation/" + symbol + ".html"
+            log_handle.write("Made page for ambiguous symbol " + symbol + "\n")
+            cursor.execute(
+               "INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, ?, ?, ?)",
+                (tooltip_url, 1, disamb_content, 12))
+        else:
+
+            tooltip_url = entries[0][1]
+            log_handle.write(f"One meaning for symbol {symbol}:\n{entries[0][0]} \t {tooltip_url}\n")
+
+        tooltip_tag = symbol
+        button_str, button_uri = ("See documentation for " + symbol + " in the Kotlin standard library.", tooltip_url)
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO Tooltips
+            (categoryId, tag, summary, detail)
+            VALUES (?, ?, ?, ?)
+            """, (kotlin_cat_id, tooltip_tag, tooltip_summary, tooltip_detail))
+
+        #cursor.execute("""
+        #    INSERT OR REPLACE INTO TooltipButtons
+        #    (tooltipId, buttonNumberId, description, uri)
+        #    VALUES (?, ?, ?, ?)
+        #""", (tooltip_id, 1, button_str, button_uri))
+
+        cursor.execute("""INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
+            VALUES (
+            (SELECT id FROM Tooltips WHERE tag = ?),
+            ?,
+            ?,
+            ?
+        )""", (tooltip_tag, kotlin_cat_id, button_str, button_uri))
+
+        conn.commit()
+
+    conn.close()
+
+if __name__ == "__main__":
+    main()
