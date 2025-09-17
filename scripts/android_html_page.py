@@ -1,107 +1,70 @@
 from bs4 import BeautifulSoup
 import os
-import re
-import sys
+
 
 class AndroidHtmlPage:
     """
     A class to represent an Android HTML documentation page.
-    
+
     Args:
         file_path (str): Path to the HTML file
     """
-    
+
     def __init__(self, file_path):
         self.file_path = file_path
-    
-    def get_article_text(self):
+
+    def get_article_html(self):
         """
-        Extract text from content between the specific HTML comment sentinels.
-        
+        Extracts the relevant article HTML content from the page.
+
         Returns:
-            str: The text content between the sentinels, or empty string if not found
+            str: The HTML content of the article, or empty string if not found
         """
         if not os.path.exists(self.file_path):
             return ""
-        
+
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-                # Find content between the sentinel comments
-                start_sentinel = "<!-- ======== START OF CLASS DATA ======== -->"
-                end_sentinel = "<!-- ========= END OF CLASS DATA ========= -->"
-                
-                start_index = content.find(start_sentinel)
-                end_index = content.find(end_sentinel)
-                
-                if start_index == -1 or end_index == -1:
-                    return ""
-                
-                if start_index >= end_index:
-                    return ""
-                
-                # Extract the content between sentinels
-                start_content = start_index + len(start_sentinel)
-                content_between = content[start_content:end_index]
-                
-                # Parse the HTML content between sentinels
-                soup = BeautifulSoup(content_between, 'html.parser')
-                
-                # Extract text content, converting HTML to plain text
-                return soup.get_text(separator=' ', strip=True)
-                    
-        except Exception as e:
+                soup = BeautifulSoup(f, 'html.parser')
+
+                # Check for the AndroidX structure first
+                header_block = soup.find(id='header-block')
+                hats_survey = soup.find('devsite-hats-survey')
+
+                if header_block and hats_survey:
+                    # Found AndroidX structure, extract content between them
+                    content = ""
+                    current_node = header_block
+                    while current_node and current_node != hats_survey:
+                        content += str(current_node)
+                        current_node = current_node.next_sibling
+                    return content
+                else:
+                    # Fallback to the classic Android structure
+                    start_comment = soup.find(string=lambda text: "START OF CLASS DATA" in text)
+                    end_comment = soup.find(string=lambda text: "END OF CLASS DATA" in text)
+
+                    if start_comment and end_comment:
+                        content = ""
+                        current_node = start_comment.next_sibling
+                        while current_node and current_node != end_comment:
+                            content += str(current_node)
+                            current_node = current_node.next_sibling
+                        return content
+
+        except Exception:
             # Return empty string on any error
             return ""
-    
+
     def get_html_page(self):
         """
-        Wraps the output of get_article_text() in <html><head><title>Class Documentation</title></head><body>...</body></html>
+        Wraps the extracted article HTML in <html><head><title>Class Documentation</title></head><body>...</body></html>
         """
-        body = self.get_article_text()
-        if not body:
-            return ""
-        return f"<html><head><title>Class Documentation</title></head><body>{body}</body></html>" 
-
-    def get_androidx_article_text(self):
-        """
-        Extract plain text from AndroidX HTML content after <div id="header-block"> up to devsite-hats-survey, stripping HTML tags (no BeautifulSoup).
-        Returns:
-            str: The plain text content, or empty string if not found
-        """
-        import re
-        if not os.path.exists(self.file_path):
-            return ""
-        try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                start_marker = '<div id="header-block">'
-                end_marker = '<devsite-hats-survey'
-                start_index = content.find(start_marker)
-                if start_index == -1:
-                    return ""
-                # Don't skip past the header-block div, include it
-                end_index = content.find(end_marker, start_index)
-                if end_index == -1:
-                    return ""
-                content_between = content[start_index:end_index]
-                # Remove all HTML tags
-                text = re.sub(r'<[^>]+>', ' ', content_between)
-                # Collapse whitespace
-                text = re.sub(r'\s+', ' ', text).strip()
-                return text
-        except Exception:
-            return ""
-    
-    def get_androidx_html_page(self):
-        """
-        Wraps the output of get_androidx_article_text() in <html><head><title>Class Documentation</title></head><body>...</body></html>
-        """
-        body = self.get_androidx_article_text()
+        body = self.get_article_html()
         if not body:
             return ""
         return f"<html><head><title>Class Documentation</title></head><body>{body}</body></html>"
+
 
 def main():
     import argparse
@@ -112,5 +75,6 @@ def main():
     page = AndroidHtmlPage(args.file)
     print(page.get_html_page())
 
+
 if __name__ == "__main__":
-    main() 
+    main()
