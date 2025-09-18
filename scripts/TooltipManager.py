@@ -97,7 +97,7 @@ def db_tooltips_to_csv(conn, csv_file_out):
             button_data.get('uri3')
         ])
 
-    with open(csv_file_out, 'w', newline='', encoding='utf-8-sig') as csvfile:
+    with open(csv_file_out, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(headers)
         writer.writerows(data_array)
