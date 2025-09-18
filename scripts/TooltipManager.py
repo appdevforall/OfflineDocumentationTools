@@ -97,7 +97,7 @@ def db_tooltips_to_csv(conn, csv_file_out):
             button_data.get('uri3')
         ])
 
-    with open(csv_file_out, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(csv_file_out, 'w', newline='', encoding='utf-8-sig') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(headers)
         writer.writerows(data_array)
@@ -128,7 +128,7 @@ def csv_to_tooltips(conn, csv_file, name):
 
         # Read data from the CSV file and populate the tables.
         print(f"Reading data from {csv_file}...")
-        with open(csv_file, 'r', encoding='utf-8') as csvfile:
+        with open(csv_file, 'r', encoding='utf-8-sig') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 # Insert data into the 'Tooltips' table first.
