@@ -7,15 +7,20 @@ import shutil
 import sys
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("content_manager.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+# Module-level logger
+content_manager_logger = logging.getLogger(__name__)
+
+
+def setup_logging():
+    """Configures logging for the ContentManager application."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("content_manager.log"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
 
 
 class ContentManager:
@@ -49,7 +54,7 @@ class ContentManager:
         while also creating a file of their hashes.
         """
         if not self.output_dir or not self.hashes_file_path:
-            logging.error("Output directory and hashes file must be specified for 'dump' mode.")
+            content_manager_logger.error("Output directory and hashes file must be specified for 'dump' mode.")
             return
 
         conn = None
@@ -81,7 +86,7 @@ class ContentManager:
                         decompressed_content = brotli.decompress(content_blob)
                         decompressed = True
                     except brotli.error as e:
-                        logging.error("Error decompressing %s: %s", path, e)
+                        content_manager_logger.error("Error decompressing %s: %s", path, e)
                         continue
                     content_to_write = decompressed_content
                 else:
@@ -95,17 +100,17 @@ class ContentManager:
                 hashes_to_write.append(f"{path}\t{file_hash}\n")
 
                 if decompressed:
-                    logging.info("Extracted and decompressed: %s", path)
+                    content_manager_logger.info("Extracted and decompressed: %s", path)
                 else:
-                    logging.info("Extracted: %s", path)
+                    content_manager_logger.info("Extracted: %s", path)
 
             # Write hashes to the file
             with open(self.hashes_file_path, 'w', encoding='utf-8') as f:
                 f.writelines(hashes_to_write)
-            logging.info("Hashes written to: %s", self.hashes_file_path)
+            content_manager_logger.info("Hashes written to: %s", self.hashes_file_path)
 
         except sqlite3.Error as e:
-            logging.error("Database error: %s", e)
+            content_manager_logger.error("Database error: %s", e)
         finally:
             if conn:
                 conn.close()
@@ -115,16 +120,16 @@ class ContentManager:
         Updates the Content table in the output database based on changes in the input directory.
         """
         if not self.input_dir or not self.input_db_path or not self.output_db_path or not self.hashes_file_path:
-            logging.error(
+            content_manager_logger.error(
                 "Input directory, input database, output database, and hashes file must be specified for 'build' mode.")
             return
 
         # 1. Make a copy of the input database to the output location
-        logging.info("Creating a copy of '%s' at '%s'...", self.input_db_path, self.output_db_path)
+        content_manager_logger.info("Creating a copy of '%s' at '%s'...", self.input_db_path, self.output_db_path)
         try:
             shutil.copy2(self.input_db_path, self.output_db_path)
         except IOError as e:
-            logging.error("Error copying database file: %s", e)
+            content_manager_logger.error("Error copying database file: %s", e)
             return
 
         # 2. Read old hashes from the hashes file
@@ -132,15 +137,17 @@ class ContentManager:
         if os.path.exists(self.hashes_file_path):
             with open(self.hashes_file_path, 'r', encoding='utf-8') as f:
                 for line in f:
-                    path, file_hash = line.strip().split('\t')
-                    old_hashes[path] = file_hash
+                    try:
+                        path, file_hash = line.strip().split('\t')
+                        old_hashes[path] = file_hash
+                    except ValueError:
+                        content_manager_logger.warning("Skipping malformed line in hashes file: %s", line.strip())
 
         # 3. Get current files and their hashes
         current_hashes = {}
         for root, _, files in os.walk(self.input_dir):
             for filename in files:
                 full_path = os.path.join(root, filename)
-                # Create the database path with forward slashes
                 db_path = os.path.relpath(full_path, self.input_dir).replace(os.sep, '/')
 
                 try:
@@ -149,7 +156,7 @@ class ContentManager:
                         file_hash = hashlib.sha256(file_content).hexdigest()
                         current_hashes[db_path] = file_hash
                 except IOError as e:
-                    logging.error("Error reading file %s: %s", full_path, e)
+                    content_manager_logger.error("Error reading file %s: %s", full_path, e)
                     continue
 
         # 4. Identify new, modified, and deleted files
@@ -157,73 +164,122 @@ class ContentManager:
         modified_files = [path for path, h in current_hashes.items() if path in old_hashes and h != old_hashes[path]]
         deleted_files = [path for path in old_hashes if path not in current_hashes]
 
-        logging.info("Identified %d new files, %d modified files, and %d deleted files.", len(new_files),
-                     len(modified_files), len(deleted_files))
+        content_manager_logger.info("Identified %d new files, %d modified files, and %d deleted files.", len(new_files),
+                                    len(modified_files), len(deleted_files))
 
         conn = None
         try:
-            # Connect to the new, copied database
             conn = sqlite3.connect(self.output_db_path)
             cursor = conn.cursor()
 
-            # Get content type IDs for compression
             cursor.execute("SELECT id FROM ContentTypes WHERE compression = 'brotli'")
             brotli_type_id = cursor.fetchone()[0]
             cursor.execute("SELECT id FROM ContentTypes WHERE compression = 'none'")
             none_type_id = cursor.fetchone()[0]
 
             # 5. Process changes
-            # Deleted files
-            for path in deleted_files:
-                cursor.execute("DELETE FROM Content WHERE path = ?", (path,))
-                logging.info("Successfully deleted: %s", path)
+            # Deleted files (single query)
+            if deleted_files:
+                placeholders = ','.join(['?'] * len(deleted_files))
+                query = f"DELETE FROM Content WHERE path IN ({placeholders})"
+                cursor.execute(query, deleted_files)
+                content_manager_logger.info("Successfully deleted %d files.", len(deleted_files))
 
-            # New and modified files
+            # New and modified files (prepare data)
+            new_files_data = []
+            modified_files_data = []
+            modified_paths = []
+
             for path in new_files + modified_files:
                 full_path = os.path.join(self.input_dir, *path.split('/'))
                 try:
                     with open(full_path, 'rb') as f:
                         file_content = f.read()
                 except IOError as e:
-                    logging.error("Error reading file to update %s: %s", full_path, e)
+                    content_manager_logger.error("Error reading file to update %s: %s", full_path, e)
                     continue
 
                 _, ext = os.path.splitext(full_path)
 
+                content_to_store = None
+                content_type_id = None
                 compressed_status = "uncompressed"
+
                 if ext.lower() in self.compressible_extensions:
                     try:
                         content_to_store = brotli.compress(file_content, quality=11)
                         content_type_id = brotli_type_id
                         compressed_status = "compressed"
                     except brotli.error as e:
-                        logging.error("Error compressing file %s: %s", path, e)
+                        content_manager_logger.error("Error compressing file %s: %s", path, e)
                         continue
                 else:
                     content_to_store = file_content
                     content_type_id = none_type_id
 
                 if path in new_files:
-                    cursor.execute("""
-                        INSERT INTO Content (path, languageID, content, contentTypeID)
-                        VALUES (?, 1, ?, ?)
-                    """, (path, content_to_store, content_type_id))
-                    logging.info("Successfully added new file %s (%s)", path, compressed_status)
+                    new_files_data.append((path, content_to_store, content_type_id))
+                    content_manager_logger.info("Prepared to add new file %s (%s)", path, compressed_status)
                 else:  # modified_files
-                    cursor.execute("""
-                        UPDATE Content
-                        SET content = ?, contentTypeID = ?
-                        WHERE path = ?
-                    """, (content_to_store, content_type_id, path))
-                    logging.info("Successfully updated modified file %s (%s)", path, compressed_status)
+                    modified_files_data.append(content_to_store)
+                    modified_files_data.append(content_type_id)
+                    modified_paths.append(path)
+                    content_manager_logger.info("Prepared to update modified file %s (%s)", path, compressed_status)
+
+            # Batch inserts (single query)
+            if new_files_data:
+                placeholders = ','.join(['(?, 1, ?, ?)'] * len(new_files_data))
+                flat_data = [item for sublist in new_files_data for item in sublist]
+                query = f"INSERT INTO Content (path, languageID, content, contentTypeID) VALUES {placeholders}"
+                content_manager_logger.info("Executing INSERT for %d files.", len(new_files_data))
+                cursor.execute(query, flat_data)
+                content_manager_logger.info("Successfully inserted %d new files.", len(new_files_data))
+
+            # Batch updates (single query with CASE)
+            if modified_files_data:
+
+                # Build the dynamic query parts
+                set_content_case = "CASE path"
+                set_content_type_case = "CASE path"
+
+                for i, path in enumerate(modified_paths):
+                    set_content_case += f" WHEN ? THEN ?"
+                    set_content_type_case += f" WHEN ? THEN ?"
+
+                set_content_case += " END"
+                set_content_type_case += " END"
+
+                placeholders_str = ', '.join(['?'] * len(modified_paths))
+                where_clause = f"WHERE path IN ({placeholders_str})"
+
+                # Combine query parts
+                query_parts = []
+                query_parts.append("UPDATE Content SET")
+                query_parts.append(f"content = {set_content_case},")
+                query_parts.append(f"contentTypeID = {set_content_type_case}")
+                query_parts.append(where_clause)
+
+                final_query = ' '.join(query_parts)
+
+                # Prepare parameters: [paths, content, content_type_ids, paths, paths]
+                update_params = []
+                update_params.extend(modified_paths)
+                update_params.extend(modified_files_data[0::2])  # content BLOBs
+                update_params.extend(modified_paths)
+                update_params.extend(modified_files_data[1::2])  # contentTypeIDs
+                update_params.extend(modified_paths)
+
+                content_manager_logger.info("Executing UPDATE for %d files.", len(modified_paths))
+                cursor.execute(final_query, update_params)
+                content_manager_logger.info("Successfully updated %d modified files.", len(modified_paths))
 
             conn.commit()
-            logging.info("Database update complete.")
+            content_manager_logger.info("Database update complete.")
 
         except sqlite3.Error as e:
             if conn:
                 conn.rollback()
-            logging.error("Database error during build: %s", e)
+            content_manager_logger.error("Database error during build: %s", e)
         finally:
             if conn:
                 conn.close()
@@ -233,7 +289,7 @@ class ContentManager:
         Extracts a single file from the Content table based on its path.
         """
         if not self.output_dir or not self.input_db_path:
-            logging.error("Output directory and input database must be specified for 'dump_one'.")
+            content_manager_logger.error("Output directory and input database must be specified for 'dump_one'.")
             return
 
         conn = None
@@ -255,7 +311,7 @@ class ContentManager:
 
             result = cursor.fetchone()
             if result is None:
-                logging.warning("File not found in database: %s", file_path)
+                content_manager_logger.warning("File not found in database: %s", file_path)
                 return
 
             content_blob, compression = result
@@ -266,7 +322,7 @@ class ContentManager:
                     content_to_write = brotli.decompress(content_blob)
                     decompressed = True
                 except brotli.error as e:
-                    logging.error("Error decompressing %s: %s", file_path, e)
+                    content_manager_logger.error("Error decompressing %s: %s", file_path, e)
                     return
             else:
                 content_to_write = content_blob
@@ -278,12 +334,12 @@ class ContentManager:
                 f.write(content_to_write)
 
             if decompressed:
-                logging.info("Successfully extracted and decompressed: %s", file_path)
+                content_manager_logger.info("Successfully extracted and decompressed: %s", file_path)
             else:
-                logging.info("Successfully extracted: %s", file_path)
+                content_manager_logger.info("Successfully extracted: %s", file_path)
 
         except sqlite3.Error as e:
-            logging.error("Database error: %s", e)
+            content_manager_logger.error("Database error: %s", e)
         finally:
             if conn:
                 conn.close()
@@ -314,7 +370,7 @@ def main():
                         help="[build] The file name of the updated database.")
 
     # Arguments for dump_one mode
-    parser.add_argument("--file-path", dest="file_path",
+    parser.add_argument("--single-file-path", dest="single_file_path",
                         help="[dump_one] The path of the single file to extract.")
 
     args = parser.parse_args()
@@ -340,4 +396,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()
