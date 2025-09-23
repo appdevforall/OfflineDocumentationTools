@@ -247,7 +247,7 @@ class TestContentManager(unittest.TestCase):
         # Verify modification
         cursor.execute("SELECT content FROM Content WHERE path = ?", (self.file2_path,))
         fetched_content = cursor.fetchone()[0]
-        self.assertEqual(fetched_content, modified_md_content)
+        self.assertEqual(fetched_content, brotli.compress(modified_md_content))
 
         # Verify insertion
         cursor.execute("SELECT content, contentTypeID FROM Content WHERE path = ?", (new_file_path,))
@@ -258,7 +258,7 @@ class TestContentManager(unittest.TestCase):
         self.assertEqual(fetched_content, expected_compressed_content)
 
         # Also verify content type (html is ID 1 in our setup)
-        self.assertEqual(fetched_type_id, 1)
+        self.assertEqual(fetched_type_id, 12)
 
         conn.close()
         logging.info("Build test with single changes passed.")
@@ -369,18 +369,18 @@ class TestContentManager(unittest.TestCase):
 
         cursor.execute("SELECT content FROM Content WHERE path = ?", (file2_path,))
         fetched_content = cursor.fetchone()[0]
-        self.assertEqual(fetched_content, modified_md_content)
+        self.assertEqual(fetched_content, brotli.compress(modified_md_content, quality=11))
 
         # Verify insertions
         cursor.execute("SELECT content, contentTypeID FROM Content WHERE path = ?", (new_file_1_path,))
         fetched_content_1, fetched_type_id_1 = cursor.fetchone()
         self.assertEqual(fetched_content_1, brotli.compress(new_file_1_content, quality=11))
-        self.assertEqual(fetched_type_id_1, 1)
+        self.assertEqual(fetched_type_id_1, 12)
 
         cursor.execute("SELECT content, contentTypeID FROM Content WHERE path = ?", (new_file_2_path,))
         fetched_content_2, fetched_type_id_2 = cursor.fetchone()
         self.assertEqual(fetched_content_2, brotli.compress(new_file_2_content, quality=11))
-        self.assertEqual(fetched_type_id_2, 1)
+        self.assertEqual(fetched_type_id_2, 6)
 
         conn.close()
         logging.info("Build test with multiple changes passed.")

@@ -28,6 +28,35 @@ class ContentManager:
     Manages the extraction and updating of content in the Code on the Go documentation database.
     """
 
+    # Map file extensions to (contentTypeID, compression) tuples based on the provided schema.
+    # The default is text/plain, which is compressible.
+    EXT_TO_CONTENT_TYPE = {
+        'css': (1, 'brotli'),
+        'svg': (2, 'brotli'),
+        'png': (3, 'none'),
+        'md': (4, 'brotli'),
+        'txt': (5, 'brotli'),
+        'js': (6, 'brotli'),
+        'jpeg': (7, 'none'),
+        'jpg': (7, 'none'),
+        'json': (8, 'brotli'),
+        'xml': (10, 'brotli'),
+        'gif': (11, 'none'),
+        'html': (12, 'brotli'),
+        'text': (13, 'none'),
+        'pdf': (14, 'brotli'),
+        'otf': (15, 'brotli'),
+        'woff2': (16, 'none'),
+        'woff': (17, 'none'),
+        'pfa': (18, 'none'),
+        'pfb': (18, 'none'),
+        'wasm': (19, 'brotli'),
+        'ttf': (20, 'brotli'),
+        'ts': (22, 'brotli'),  # Using application/x-typescript for .ts
+        'ico': (23, 'none'),
+        'icc': (24, 'brotli'),
+    }
+
     def __init__(self, input_db_path=None, output_db_path=None, input_dir=None, output_dir=None, hashes_file_path=None,
                  name=None):
         """
@@ -120,6 +149,17 @@ class ContentManager:
             if conn:
                 conn.close()
 
+    def _get_content_type(self, file_path):
+        """
+        Determines content type and compression based on file extension.
+        Returns a tuple of (contentTypeID, compression_type).
+        """
+        _, ext = os.path.splitext(file_path)
+        ext = ext.lstrip('.').lower()
+
+        # Default to text/plain (ID 5, brotli) if extension is unknown
+        return self.EXT_TO_CONTENT_TYPE.get(ext, (5, 'brotli'))
+
     def build_database(self):
         """
         Updates the Content table in the output database based on changes in the input directory.
@@ -177,11 +217,6 @@ class ContentManager:
             conn = sqlite3.connect(self.output_db_path)
             cursor = conn.cursor()
 
-            cursor.execute("SELECT id FROM ContentTypes WHERE compression = 'brotli'")
-            brotli_type_id = cursor.fetchone()[0]
-            cursor.execute("SELECT id FROM ContentTypes WHERE compression = 'none'")
-            none_type_id = cursor.fetchone()[0]
-
             # 5. Process changes
             # Deleted files (single query)
             if deleted_files:
@@ -190,9 +225,8 @@ class ContentManager:
                 cursor.execute(query, deleted_files)
                 content_manager_logger.info("Successfully deleted %d files.", len(deleted_files))
 
-            # New and modified files (prepare data)
+            # New files (prepare data)
             new_files_data = []
-
             for path in new_files:
                 full_path = os.path.join(self.input_dir, *path.split('/'))
                 try:
@@ -202,23 +236,16 @@ class ContentManager:
                     content_manager_logger.error("Error reading new file %s: %s", full_path, e)
                     continue
 
-                _, ext = os.path.splitext(full_path)
-
-                content_to_store = None
-                content_type_id = None
+                content_type_id, compression = self._get_content_type(full_path)
                 compressed_status = "uncompressed"
-
-                if ext.lower() in self.compressible_extensions:
+                content_to_store = file_content
+                if compression == 'brotli':
                     try:
                         content_to_store = brotli.compress(file_content, quality=11)
-                        content_type_id = brotli_type_id
                         compressed_status = "compressed"
                     except brotli.error as e:
                         content_manager_logger.error("Error compressing file %s: %s", path, e)
                         continue
-                else:
-                    content_to_store = file_content
-                    content_type_id = none_type_id
 
                 new_files_data.append((path, content_to_store, content_type_id))
                 content_manager_logger.info("Prepared to add new file %s (%s)", path, compressed_status)
@@ -233,7 +260,7 @@ class ContentManager:
                 cursor.execute(query, flat_data)
                 content_manager_logger.info("Successfully inserted %d new files.", len(new_files_data))
 
-            # --- Reverting to single UPDATE queries ---
+            # Modified files (single queries)
             for path in modified_files:
                 full_path = os.path.join(self.input_dir, *path.split('/'))
                 try:
@@ -243,23 +270,16 @@ class ContentManager:
                     content_manager_logger.error("Error reading modified file %s: %s", full_path, e)
                     continue
 
-                _, ext = os.path.splitext(full_path)
-
-                content_to_store = None
-                content_type_id = None
+                content_type_id, compression = self._get_content_type(full_path)
                 compressed_status = "uncompressed"
-
-                if ext.lower() in self.compressible_extensions:
+                content_to_store = file_content
+                if compression == 'brotli':
                     try:
                         content_to_store = brotli.compress(file_content, quality=11)
-                        content_type_id = brotli_type_id
                         compressed_status = "compressed"
                     except brotli.error as e:
                         content_manager_logger.error("Error compressing file %s: %s", path, e)
                         continue
-                else:
-                    content_to_store = file_content
-                    content_type_id = none_type_id
 
                 # Execute single UPDATE query
                 query = "UPDATE Content SET content = ?, contentTypeID = ? WHERE path = ?"
@@ -373,7 +393,7 @@ def main():
                         help="[build] The file name of the updated database.")
     parser.add_argument("--name", dest="name",
                         help="[build] The name of the author of the update.",
-                        required=False)  # This is a new required argument.
+                        required=False)
 
     # Arguments for dump_one mode
     parser.add_argument("--single-file-path", dest="single_file_path",
