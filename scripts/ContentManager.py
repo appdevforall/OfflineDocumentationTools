@@ -187,16 +187,14 @@ class ContentManager:
 
             # New and modified files (prepare data)
             new_files_data = []
-            modified_files_data = []
-            modified_paths = []
 
-            for path in new_files + modified_files:
+            for path in new_files:
                 full_path = os.path.join(self.input_dir, *path.split('/'))
                 try:
                     with open(full_path, 'rb') as f:
                         file_content = f.read()
                 except IOError as e:
-                    content_manager_logger.error("Error reading file to update %s: %s", full_path, e)
+                    content_manager_logger.error("Error reading new file %s: %s", full_path, e)
                     continue
 
                 _, ext = os.path.splitext(full_path)
@@ -217,14 +215,8 @@ class ContentManager:
                     content_to_store = file_content
                     content_type_id = none_type_id
 
-                if path in new_files:
-                    new_files_data.append((path, content_to_store, content_type_id))
-                    content_manager_logger.info("Prepared to add new file %s (%s)", path, compressed_status)
-                else:  # modified_files
-                    modified_files_data.append(content_to_store)
-                    modified_files_data.append(content_type_id)
-                    modified_paths.append(path)
-                    content_manager_logger.info("Prepared to update modified file %s (%s)", path, compressed_status)
+                new_files_data.append((path, content_to_store, content_type_id))
+                content_manager_logger.info("Prepared to add new file %s (%s)", path, compressed_status)
 
             # Batch inserts (single query)
             if new_files_data:
@@ -235,43 +227,38 @@ class ContentManager:
                 cursor.execute(query, flat_data)
                 content_manager_logger.info("Successfully inserted %d new files.", len(new_files_data))
 
-            # Batch updates (single query with CASE)
-            if modified_files_data:
+            # --- Reverting to single UPDATE queries ---
+            for path in modified_files:
+                full_path = os.path.join(self.input_dir, *path.split('/'))
+                try:
+                    with open(full_path, 'rb') as f:
+                        file_content = f.read()
+                except IOError as e:
+                    content_manager_logger.error("Error reading modified file %s: %s", full_path, e)
+                    continue
 
-                # Build the dynamic query parts
-                set_content_case = "CASE path"
-                set_content_type_case = "CASE path"
+                _, ext = os.path.splitext(full_path)
 
-                for i, path in enumerate(modified_paths):
-                    set_content_case += f" WHEN ? THEN ?"
-                    set_content_type_case += f" WHEN ? THEN ?"
+                content_to_store = None
+                content_type_id = None
+                compressed_status = "uncompressed"
 
-                set_content_case += " END"
-                set_content_type_case += " END"
+                if ext.lower() in self.compressible_extensions:
+                    try:
+                        content_to_store = brotli.compress(file_content, quality=11)
+                        content_type_id = brotli_type_id
+                        compressed_status = "compressed"
+                    except brotli.error as e:
+                        content_manager_logger.error("Error compressing file %s: %s", path, e)
+                        continue
+                else:
+                    content_to_store = file_content
+                    content_type_id = none_type_id
 
-                placeholders_str = ', '.join(['?'] * len(modified_paths))
-                where_clause = f"WHERE path IN ({placeholders_str})"
-
-                # Combine query parts
-                query_parts = []
-                query_parts.append("UPDATE Content SET")
-                query_parts.append(f"content = {set_content_case},")
-                query_parts.append(f"contentTypeID = {set_content_type_case}")
-                query_parts.append(where_clause)
-
-                final_query = ' '.join(query_parts)
-
-                # Prepare parameters: [paths, content, content_type_ids, paths, paths]
-                update_params = []
-                update_params.extend(modified_paths)
-                update_params.extend(modified_files_data[0::2])  # content BLOBs
-                update_params.extend(modified_paths)
-                update_params.extend(modified_files_data[1::2])  # contentTypeIDs
-                update_params.extend(modified_paths)
-
-                content_manager_logger.info("Executing UPDATE for %d files.", len(modified_paths))
-                cursor.execute(final_query, update_params)
-                content_manager_logger.info("Successfully updated %d modified files.", len(modified_paths))
+                # Execute single UPDATE query
+                query = "UPDATE Content SET content = ?, contentTypeID = ? WHERE path = ?"
+                cursor.execute(query, (content_to_store, content_type_id, path))
+                content_manager_logger.info("Successfully updated modified file %s (%s)", path, compressed_status)
 
             conn.commit()
             content_manager_logger.info("Database update complete.")
@@ -385,14 +372,14 @@ def main():
         if not args.input_db or not args.input_dir or not args.hashes_file or not args.output_db:
             parser.error(
                 "--input-database, --input-directory, --hashes-file, and --output-database are all required for 'build' mode.")
-        manager = ContentManager(input_db_path=args.input_db, input_dir=args.input_dir, output_db_path=args.output_db,
-                                 hashes_file_path=args.hashes_file)
+        manager = ContentManager(input_db_path=args.input_db, input_dir=args.input_dir,
+                                 output_db_path=args.output_db, hashes_file_path=args.hashes_file)
         manager.build_database()
     elif args.operation == 'dump_one':
-        if not args.input_db or not args.output_dir or not args.file_path:
+        if not args.input_db or not args.output_dir or not args.single_file_path:
             parser.error("--input-database, --output-dir, and --file-path are required for 'dump_one' mode.")
         manager = ContentManager(input_db_path=args.input_db, output_dir=args.output_dir)
-        manager.dump_one(args.file_path)
+        manager.dump_one(args.single_file_path)
 
 
 if __name__ == "__main__":
