@@ -28,7 +28,8 @@ class ContentManager:
     Manages the extraction and updating of content in the Code on the Go documentation database.
     """
 
-    def __init__(self, input_db_path=None, output_db_path=None, input_dir=None, output_dir=None, hashes_file_path=None):
+    def __init__(self, input_db_path=None, output_db_path=None, input_dir=None, output_dir=None, hashes_file_path=None,
+                 name=None):
         """
         Initializes the ContentManager.
 
@@ -38,12 +39,14 @@ class ContentManager:
             input_dir (str, optional): The path to the input directory for 'build' mode.
             output_dir (str, optional): The path to the output directory for 'dump' mode.
             hashes_file_path (str, optional): The path to the hashes file.
+            name (str, optional): The name of the person modifying the database.
         """
         self.input_db_path = input_db_path
         self.output_db_path = output_db_path
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.hashes_file_path = hashes_file_path
+        self.name = name
 
         # A simple mapping to determine compression
         self.compressible_extensions = ['.html', '.css', '.js', '.json']
@@ -81,28 +84,30 @@ class ContentManager:
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
                 decompressed = False
+                content_to_write = content_blob  # Default to the original blob
+
                 if compression == 'brotli':
                     try:
                         decompressed_content = brotli.decompress(content_blob)
+                        content_to_write = decompressed_content
                         decompressed = True
                     except brotli.error as e:
-                        content_manager_logger.error("Error decompressing %s: %s", path, e)
-                        continue
-                    content_to_write = decompressed_content
-                else:
-                    content_to_write = content_blob
+                        # Log a warning but continue with the original (compressed) content
+                        content_manager_logger.warning("Decompression failed for %s: %s. Saving original file.", path,
+                                                       e)
 
+                # Write the (possibly compressed) content to the file
                 with open(full_path, 'wb') as f:
                     f.write(content_to_write)
 
-                # Compute SHA-256 hash of the uncompressed content
+                # Compute SHA-256 hash of the content that was written to the file
                 file_hash = hashlib.sha256(content_to_write).hexdigest()
                 hashes_to_write.append(f"{path}\t{file_hash}\n")
 
                 if decompressed:
                     content_manager_logger.info("Extracted and decompressed: %s", path)
                 else:
-                    content_manager_logger.info("Extracted: %s", path)
+                    content_manager_logger.info("Extracted: %s (saved in original compressed form)", path)
 
             # Write hashes to the file
             with open(self.hashes_file_path, 'w', encoding='utf-8') as f:
@@ -119,9 +124,9 @@ class ContentManager:
         """
         Updates the Content table in the output database based on changes in the input directory.
         """
-        if not self.input_dir or not self.input_db_path or not self.output_db_path or not self.hashes_file_path:
+        if not self.input_dir or not self.input_db_path or not self.output_db_path or not self.hashes_file_path or not self.name:
             content_manager_logger.error(
-                "Input directory, input database, output database, and hashes file must be specified for 'build' mode.")
+                "Input directory, input database, output database, hashes file, and name must be specified for 'build' mode.")
             return
 
         # 1. Make a copy of the input database to the output location
@@ -221,7 +226,8 @@ class ContentManager:
             # Batch inserts (single query)
             if new_files_data:
                 placeholders = ','.join(['(?, 1, ?, ?)'] * len(new_files_data))
-                flat_data = [item for sublist in new_files_data for item in sublist]
+                flat_data = [item for path, content, contentTypeID in new_files_data for item in
+                             (path, content, contentTypeID)]
                 query = f"INSERT INTO Content (path, languageID, content, contentTypeID) VALUES {placeholders}"
                 content_manager_logger.info("Executing INSERT for %d files.", len(new_files_data))
                 cursor.execute(query, flat_data)
@@ -259,6 +265,16 @@ class ContentManager:
                 query = "UPDATE Content SET content = ?, contentTypeID = ? WHERE path = ?"
                 cursor.execute(query, (content_to_store, content_type_id, path))
                 content_manager_logger.info("Successfully updated modified file %s (%s)", path, compressed_status)
+
+            # Update LastChange table
+            cursor.execute("DROP TABLE IF EXISTS LastChange;")
+            cursor.execute("""
+                CREATE TABLE LastChange (
+                    now TIMESTAMP,
+                    who TEXT
+                );
+            """)
+            cursor.execute("INSERT INTO LastChange VALUES (CURRENT_TIMESTAMP, ?);", (self.name,))
 
             conn.commit()
             content_manager_logger.info("Database update complete.")
@@ -355,12 +371,19 @@ def main():
                         help="[build] The directory with content used to update the database.")
     parser.add_argument("--output-database", dest="output_db",
                         help="[build] The file name of the updated database.")
+    parser.add_argument("--name", dest="name",
+                        help="[build] The name of the author of the update.",
+                        required=False)  # This is a new required argument.
 
     # Arguments for dump_one mode
     parser.add_argument("--single-file-path", dest="single_file_path",
                         help="[dump_one] The path of the single file to extract.")
 
     args = parser.parse_args()
+
+    # Add conditional logic for the required --name argument
+    if args.operation == 'build' and not args.name:
+        parser.error("--name is required for 'build' mode.")
 
     if args.operation == 'dump':
         if not args.input_db or not args.output_dir or not args.hashes_file:
@@ -373,7 +396,7 @@ def main():
             parser.error(
                 "--input-database, --input-directory, --hashes-file, and --output-database are all required for 'build' mode.")
         manager = ContentManager(input_db_path=args.input_db, input_dir=args.input_dir,
-                                 output_db_path=args.output_db, hashes_file_path=args.hashes_file)
+                                 output_db_path=args.output_db, hashes_file_path=args.hashes_file, name=args.name)
         manager.build_database()
     elif args.operation == 'dump_one':
         if not args.input_db or not args.output_dir or not args.single_file_path:

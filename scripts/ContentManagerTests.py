@@ -230,7 +230,8 @@ class TestContentManager(unittest.TestCase):
             input_db_path=initial_db_path,
             output_db_path=output_db_path,
             input_dir=build_dir,
-            hashes_file_path=initial_hashes_path
+            hashes_file_path=initial_hashes_path,
+            name="Tester"
         )
         build_manager.build_database()
 
@@ -346,7 +347,8 @@ class TestContentManager(unittest.TestCase):
             input_db_path=temp_db_path,
             output_db_path=output_db_path,
             input_dir=build_dir,
-            hashes_file_path=initial_hashes_path_multi
+            hashes_file_path=initial_hashes_path_multi,
+            name="Tester"
         )
         build_manager.build_database()
 
