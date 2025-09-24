@@ -6,6 +6,7 @@ import sqlite3
 import shutil
 import sys
 import logging
+import re
 
 # Module-level logger
 content_manager_logger = logging.getLogger(__name__)
@@ -59,6 +60,9 @@ class ContentManager:
         'icc': (24, 'brotli'),
     }
 
+    # Android cursor limit is 2MB, but let's use a safe threshold of 1MB for splitting.
+    CHUNK_SIZE = 1 * 1024 * 1024
+
     def __init__(self, input_db_path=None, output_db_path=None, input_dir=None, output_dir=None, hashes_file_path=None,
                  name=None):
         """
@@ -79,13 +83,10 @@ class ContentManager:
         self.hashes_file_path = hashes_file_path
         self.name = name
 
-        # A simple mapping to determine compression
-        self.compressible_extensions = ['.html', '.css', '.js', '.json']
-
     def dump_content(self):
         """
         Extracts all files from the Content table and saves them to the output directory,
-        while also creating a file of their hashes.
+        while also creating a file of their hashes. Handles multipart files by reassembly.
         """
         if not self.output_dir or not self.hashes_file_path:
             content_manager_logger.error("Output directory and hashes file must be specified for 'dump' mode.")
@@ -110,35 +111,62 @@ class ContentManager:
                     ContentTypes ON Content.contentTypeID = ContentTypes.id
             """)
 
+            # Group file parts by their base filename
+            grouped_files = {}
             for path, content_blob, compression in cursor.fetchall():
-                full_path = os.path.join(self.output_dir, *path.split('/'))
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                # Check for multipart filename
+                match = re.search(r'^(.*)-(\d+)$', path)
+                if match:
+                    base_path = match.group(1)
+                    part_num = int(match.group(2))
+                    if base_path not in grouped_files:
+                        grouped_files[base_path] = []
+                    grouped_files[base_path].append(
+                        {'part': part_num, 'content': content_blob, 'compression': compression})
+                else:
+                    # Treat single-part files as part 0
+                    if path not in grouped_files:
+                        grouped_files[path] = []
+                    grouped_files[path].append({'part': 0, 'content': content_blob, 'compression': compression})
 
+            for base_path, parts in grouped_files.items():
+                parts.sort(key=lambda p: p['part'])
+
+                # Combine content from all parts
+                combined_content = b''.join([p['content'] for p in parts])
                 decompressed = False
-                content_to_write = content_blob  # Default to the original blob
+                compression = parts[0]['compression']  # Assume all parts have the same compression type
+                content_to_write = combined_content
 
                 if compression == 'brotli':
                     try:
-                        decompressed_content = brotli.decompress(content_blob)
-                        content_to_write = decompressed_content
+                        content_to_write = brotli.decompress(combined_content)
                         decompressed = True
                     except brotli.error as e:
-                        # Log a warning but continue with the original (compressed) content
-                        content_manager_logger.warning("Decompression failed for %s: %s. Saving original file.", path,
-                                                       e)
+                        content_manager_logger.warning("Decompression failed for %s: %s. Saving original file.",
+                                                       base_path, e)
 
-                # Write the (possibly compressed) content to the file
+                full_path = os.path.join(self.output_dir, *base_path.split('/'))
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
                 with open(full_path, 'wb') as f:
                     f.write(content_to_write)
 
                 # Compute SHA-256 hash of the content that was written to the file
                 file_hash = hashlib.sha256(content_to_write).hexdigest()
-                hashes_to_write.append(f"{path}\t{file_hash}\n")
+                hashes_to_write.append(f"{base_path}\t{file_hash}\n")
 
-                if decompressed:
-                    content_manager_logger.info("Extracted and decompressed: %s", path)
+                if len(parts) > 1:
+                    logging_message = f"Extracted and reassembled multipart file: {base_path}"
+                    if decompressed:
+                        logging_message += " (decompressed)"
+                    logging_message += " from %d parts." % len(parts)
+                    content_manager_logger.info(logging_message)
                 else:
-                    content_manager_logger.info("Extracted: %s (saved in original compressed form)", path)
+                    if decompressed:
+                        content_manager_logger.info("Extracted and decompressed: %s", base_path)
+                    else:
+                        content_manager_logger.info("Extracted: %s (saved in original compressed form)", base_path)
 
             # Write hashes to the file
             with open(self.hashes_file_path, 'w', encoding='utf-8') as f:
@@ -158,6 +186,11 @@ class ContentManager:
         """
         _, ext = os.path.splitext(file_path)
         ext = ext.lstrip('.').lower()
+
+        # Check for multi-part file path, e.g., "file.html-1"
+        ext_match = re.search(r'\.(.*)-?\d*$', file_path)
+        if ext_match:
+            ext = ext_match.group(1).lower()
 
         # Default to text/plain (ID 5, brotli) if extension is unknown
         return self.EXT_TO_CONTENT_TYPE.get(ext, (5, 'brotli'))
@@ -227,66 +260,61 @@ class ContentManager:
                 cursor.execute(query, deleted_files)
                 content_manager_logger.info("Successfully deleted %d files.", len(deleted_files))
 
-            # New files (prepare data)
-            new_files_data = []
-            for path in new_files:
+            # New and modified files (prepare data for single INSERT/UPDATE)
+            inserts_to_execute = []
+            updates_to_execute = []
+
+            for path in new_files + modified_files:
                 full_path = os.path.join(self.input_dir, *path.split('/'))
                 try:
                     with open(full_path, 'rb') as f:
                         file_content = f.read()
                 except IOError as e:
-                    content_manager_logger.error("Error reading new file %s: %s", full_path, e)
+                    content_manager_logger.error("Error reading file to process %s: %s", full_path, e)
                     continue
 
-                content_type_id, compression = self._get_content_type(full_path)
-                compressed_status = "uncompressed"
+                content_type_id, compression_type = self._get_content_type(full_path)
+
                 content_to_store = file_content
-                if compression == 'brotli':
+                if compression_type == 'brotli':
                     try:
                         content_to_store = brotli.compress(file_content, quality=11)
-                        compressed_status = "compressed"
                     except brotli.error as e:
                         content_manager_logger.error("Error compressing file %s: %s", path, e)
                         continue
 
-                new_files_data.append((path, content_to_store, content_type_id))
-                content_manager_logger.info("Prepared to add new file %s (%s)", path, compressed_status)
+                # Handle oversized files
+                if len(content_to_store) > self.CHUNK_SIZE:
+                    num_chunks = (len(content_to_store) + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+                    content_manager_logger.info("File %s is oversized. Splitting into %d chunks.", path, num_chunks)
+                    for i in range(num_chunks):
+                        chunk = content_to_store[i * self.CHUNK_SIZE: (i + 1) * self.CHUNK_SIZE]
+                        chunk_path = f"{path}-{i + 1}" if i > 0 else path
+                        if path in new_files:
+                            inserts_to_execute.append((chunk_path, 1, chunk, content_type_id))
+                        else:
+                            updates_to_execute.append((chunk, content_type_id, chunk_path))
+                else:
+                    # Normal sized files
+                    if path in new_files:
+                        inserts_to_execute.append((path, 1, content_to_store, content_type_id))
+                    else:
+                        updates_to_execute.append((content_to_store, content_type_id, path))
 
-            # Batch inserts (single query)
-            if new_files_data:
-                placeholders = ','.join(['(?, 1, ?, ?)'] * len(new_files_data))
-                flat_data = [item for path, content, contentTypeID in new_files_data for item in
-                             (path, content, contentTypeID)]
+            # Execute batch inserts
+            if inserts_to_execute:
+                placeholders = ','.join(['(?, ?, ?, ?)'] * len(inserts_to_execute))
+                flat_data = [item for sublist in inserts_to_execute for item in sublist]
                 query = f"INSERT INTO Content (path, languageID, content, contentTypeID) VALUES {placeholders}"
-                content_manager_logger.info("Executing INSERT for %d files.", len(new_files_data))
+                content_manager_logger.info("Executing INSERT for %d files.", len(inserts_to_execute))
                 cursor.execute(query, flat_data)
-                content_manager_logger.info("Successfully inserted %d new files.", len(new_files_data))
+                content_manager_logger.info("Successfully inserted %d files.", len(inserts_to_execute))
 
-            # Modified files (single queries)
-            for path in modified_files:
-                full_path = os.path.join(self.input_dir, *path.split('/'))
-                try:
-                    with open(full_path, 'rb') as f:
-                        file_content = f.read()
-                except IOError as e:
-                    content_manager_logger.error("Error reading modified file %s: %s", full_path, e)
-                    continue
-
-                content_type_id, compression = self._get_content_type(full_path)
-                compressed_status = "uncompressed"
-                content_to_store = file_content
-                if compression == 'brotli':
-                    try:
-                        content_to_store = brotli.compress(file_content, quality=11)
-                        compressed_status = "compressed"
-                    except brotli.error as e:
-                        content_manager_logger.error("Error compressing file %s: %s", path, e)
-                        continue
-
-                # Execute single UPDATE query
+            # Execute batch updates
+            for update_data in updates_to_execute:
                 query = "UPDATE Content SET content = ?, contentTypeID = ? WHERE path = ?"
-                cursor.execute(query, (content_to_store, content_type_id, path))
-                content_manager_logger.info("Successfully updated modified file %s (%s)", path, compressed_status)
+                cursor.execute(query, update_data)
+                content_manager_logger.info("Successfully updated modified file %s", update_data[2])
 
             # Update LastChange table
             cursor.execute("DROP TABLE IF EXISTS LastChange;")
@@ -322,8 +350,10 @@ class ContentManager:
             conn = sqlite3.connect(self.input_db_path)
             cursor = conn.cursor()
 
+            # Find all parts of the specified file
             cursor.execute("""
                 SELECT
+                    Content.path,
                     Content.content,
                     ContentTypes.compression
                 FROM
@@ -331,26 +361,35 @@ class ContentManager:
                 JOIN
                     ContentTypes ON Content.contentTypeID = ContentTypes.id
                 WHERE
-                    Content.path = ?
-            """, (file_path,))
+                    Content.path = ? OR Content.path LIKE ?
+            """, (file_path, f"{file_path}-%"))
 
-            result = cursor.fetchone()
-            if result is None:
+            parts = cursor.fetchall()
+            if not parts:
                 content_manager_logger.warning("File not found in database: %s", file_path)
                 return
 
-            content_blob, compression = result
+            # Reassemble and decompress
+            parts_dict = {}
+            for part_path, part_content, compression in parts:
+                match = re.search(r'^(.*)-(\d+)$', part_path)
+                if match:
+                    parts_dict[int(match.group(2))] = {'content': part_content, 'compression': compression}
+                else:
+                    parts_dict[0] = {'content': part_content, 'compression': compression}
 
+            combined_content = b''.join([parts_dict[i]['content'] for i in sorted(parts_dict.keys())])
             decompressed = False
+            compression = parts_dict[0]['compression'] if 0 in parts_dict else parts_dict[1]['compression']
+            content_to_write = combined_content
+
             if compression == 'brotli':
                 try:
-                    content_to_write = brotli.decompress(content_blob)
+                    content_to_write = brotli.decompress(combined_content)
                     decompressed = True
                 except brotli.error as e:
                     content_manager_logger.error("Error decompressing %s: %s", file_path, e)
                     return
-            else:
-                content_to_write = content_blob
 
             full_path = os.path.join(self.output_dir, *file_path.split('/'))
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
@@ -358,10 +397,17 @@ class ContentManager:
             with open(full_path, 'wb') as f:
                 f.write(content_to_write)
 
-            if decompressed:
-                content_manager_logger.info("Successfully extracted and decompressed: %s", file_path)
+            if len(parts) > 1:
+                logging_message = f"Extracted and reassembled multipart file: {file_path}"
+                if decompressed:
+                    logging_message += " (decompressed)"
+                logging_message += " from %d parts." % len(parts)
+                content_manager_logger.info(logging_message)
             else:
-                content_manager_logger.info("Successfully extracted: %s", file_path)
+                if decompressed:
+                    content_manager_logger.info("Successfully extracted and decompressed: %s", file_path)
+                else:
+                    content_manager_logger.info("Successfully extracted: %s", file_path)
 
         except sqlite3.Error as e:
             content_manager_logger.error("Database error: %s", e)
