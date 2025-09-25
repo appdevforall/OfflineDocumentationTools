@@ -64,7 +64,7 @@ class ContentManager:
     CHUNK_SIZE = 1 * 1024 * 1024
 
     def __init__(self, input_db_path=None, output_db_path=None, input_dir=None, output_dir=None, hashes_file_path=None,
-                 name=None):
+                 name=None, updated_sets=None):
         """
         Initializes the ContentManager.
 
@@ -75,6 +75,7 @@ class ContentManager:
             output_dir (str, optional): The path to the output directory for 'dump' mode.
             hashes_file_path (str, optional): The path to the hashes file.
             name (str, optional): The name of the person modifying the database.
+            updated_sets (list, optional): Comma-separated list of documentation sets to update.
         """
         self.input_db_path = input_db_path
         self.output_db_path = output_db_path
@@ -82,6 +83,7 @@ class ContentManager:
         self.output_dir = output_dir
         self.hashes_file_path = hashes_file_path
         self.name = name
+        self.updated_sets = updated_sets
 
     def dump_content(self):
         """
@@ -143,9 +145,11 @@ class ContentManager:
                         content_to_write = brotli.decompress(combined_content)
                         decompressed = True
                     except brotli.error as e:
+                        # Log a warning but continue with the original (compressed) content
                         content_manager_logger.warning("Decompression failed for %s: %s. Saving original file.",
                                                        base_path, e)
 
+                # Write the (possibly compressed) content to the file
                 full_path = os.path.join(self.output_dir, *base_path.split('/'))
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
@@ -316,15 +320,27 @@ class ContentManager:
                 cursor.execute(query, update_data)
                 content_manager_logger.info("Successfully updated modified file %s", update_data[2])
 
-            # Update LastChange table
-            cursor.execute("DROP TABLE IF EXISTS LastChange;")
-            cursor.execute("""
-                CREATE TABLE LastChange (
-                    now TIMESTAMP,
-                    who TEXT
-                );
-            """)
-            cursor.execute("INSERT INTO LastChange VALUES (CURRENT_TIMESTAMP, ?);", (self.name,))
+            # --- LastChange Table Update Logic ---
+
+            # 2. Insert/Update the mandatory "wholedb" record
+            cursor.execute("UPDATE LastChange SET changeTime=CURRENT_TIMESTAMP, who=? where documentationSet='wholedb';", (self.name,))
+
+            # 3. Update all specified documentation subsets
+            if self.updated_sets:
+                sets_list = self.updated_sets.split(',')
+                for doc_set in sets_list:
+                    doc_set = doc_set.strip()
+                    # The requirement is to UPDATE TABLE LastChange SET now=CURRENT_TIMESTAMP where documentationSet="{name}"
+                    # Since the table is dropped/created on every build, we INSERT/REPLACE.
+                    # To mimic the intent of UPDATE on an existing database, we can perform an INSERT OR REPLACE.
+                    # But since the table is fresh, we'll just insert.
+
+                    cursor.execute(
+                        "UPDATE LastChange SET changeTime=CURRENT_TIMESTAMP , who=? where documentationSet=?;", (self.name, doc_set))
+                    #cursor.execute("""
+                    #    INSERT INTO LastChange (documentationSet, changeTime, who) VALUES (?, CURRENT_TIMESTAMP, ?)
+                    #""", (doc_set, self.name))
+                    content_manager_logger.info("Updated LastChange for documentation set: %s", doc_set)
 
             conn.commit()
             content_manager_logger.info("Database update complete.")
@@ -442,6 +458,9 @@ def main():
     parser.add_argument("--name", dest="name",
                         help="[build] The name of the author of the update.",
                         required=False)
+    parser.add_argument("--updated-sets", dest="updated_sets",
+                        help="[build] Comma-separated list of documentation subsets that were updated (e.g., 'java,kotlin').",
+                        required=False)
 
     # Arguments for dump_one mode
     parser.add_argument("--single-file-path", dest="single_file_path",
@@ -464,7 +483,8 @@ def main():
             parser.error(
                 "--input-database, --input-directory, --hashes-file, and --output-database are all required for 'build' mode.")
         manager = ContentManager(input_db_path=args.input_db, input_dir=args.input_dir,
-                                 output_db_path=args.output_db, hashes_file_path=args.hashes_file, name=args.name)
+                                 output_db_path=args.output_db, hashes_file_path=args.hashes_file, name=args.name,
+                                 updated_sets=args.updated_sets)
         manager.build_database()
     elif args.operation == 'dump_one':
         if not args.input_db or not args.output_dir or not args.single_file_path:

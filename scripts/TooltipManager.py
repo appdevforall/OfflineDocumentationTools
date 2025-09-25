@@ -10,13 +10,13 @@ import shutil
 # Schema for the Tooltips table that we're going to drop and recreate from CSV data
 SCHEMA_TOOLTIPS = """
 CREATE TABLE IF NOT EXISTS "Tooltips" (
-  'id' INTEGER PRIMARY KEY AUTOINCREMENT, 
-  'categoryId' INTEGER NOT NULL, 
-  'tag' TEXT NOT NULL, 
-  'summary' TEXT NOT NULL, 
-  'detail' TEXT NOT NULL, 
-  UNIQUE ('categoryId', 'tag'),
-  FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id)
+ 'id' INTEGER PRIMARY KEY AUTOINCREMENT,
+'categoryId' INTEGER NOT NULL,
+ 'tag' TEXT NOT NULL,
+ 'summary' TEXT NOT NULL,
+ 'detail' TEXT NOT NULL,
+ UNIQUE ('categoryId', 'tag'),
+ FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id)
 );
 """
 
@@ -24,12 +24,12 @@ CREATE TABLE IF NOT EXISTS "Tooltips" (
 # to entries in Tooltips by 'id" key
 SCHEMA_TOOLTIP_BUTTONS = """
 CREATE TABLE IF NOT EXISTS TooltipButtons (
-  'tooltipId' INTEGER,
-  'buttonNumberId' INTEGER,
-  'description' TEXT,
-  'uri' TEXT,
-  FOREIGN KEY(tooltipId) REFERENCES Tooltips(id),
-  FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)
+ 'tooltipId' INTEGER,
+ 'buttonNumberId' INTEGER,
+ 'description' TEXT,
+ 'uri' TEXT,
+ FOREIGN KEY(tooltipId) REFERENCES Tooltips(id),
+ FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)
 );
 """
 
@@ -40,9 +40,11 @@ Dumps the contents of the 'Tooltips' and 'TooltipButtons' tables in CoGo's docum
 that documentation writers are using for their work on tooltips.
 
 Args:
-    conn: A SQLite database connection object to the documentation database being dumped.
-    csv_file_out: The path to the output CSV file.
+ conn: A SQLite database connection object to the documentation database being dumped.
+ csv_file_out: The path to the output CSV file.
 """
+
+
 def db_tooltips_to_csv(conn, csv_file_out):
     cursor = conn.cursor()
 
@@ -68,12 +70,11 @@ def db_tooltips_to_csv(conn, csv_file_out):
         idx += 1
 
         # Fetch all buttons for the current tooltip
-        cursor.execute('''
-                   SELECT buttonNumberId, description, uri
-                   FROM TooltipButtons
-                   WHERE tooltipId = ?
-                   ORDER BY buttonNumberId ASC
-               ''', (tooltip_id,))
+        cursor.execute('''SELECT buttonNumberId, description, uri
+FROM TooltipButtons
+WHERE tooltipId = ?
+ORDER BY buttonNumberId ASC
+''', (tooltip_id,))
         buttons = cursor.fetchall()
 
         # Prepare the button data for the new table
@@ -97,30 +98,32 @@ def db_tooltips_to_csv(conn, csv_file_out):
             button_data.get('uri3')
         ])
 
-    with open(csv_file_out, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(csv_file_out, 'w', newline='', encoding='utf-8-sig') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(headers)
         writer.writerows(data_array)
 
     print("Database dump to CSV complete!")
 
+
 """
 Reconstructs the database from a CSV file.
 
 Args:
-    conn: A SQLite database connection object.
-    csv_file: The path to the input CSV file.
-    name: The name of the person performing the build.
+conn: A SQLite database connection object.
+csv_file: The path to the input CSV file.
+name: The name of the person performing the build.
+updated_sets: Comma-separated list of documentation sets to update.
 """
-def csv_to_tooltips(conn, csv_file, name):
+
+
+def csv_to_tooltips(conn, csv_file, name, updated_sets):
     try:
         cursor = conn.cursor()
         # Drop tables if they exist to ensure a clean slate.
         print("Dropping existing tables...")
         cursor.execute("DROP TABLE IF EXISTS TooltipButtons")
         cursor.execute("DROP TABLE IF EXISTS Tooltips")
-        cursor.execute("DROP TABLE IF EXISTS LastChange")
-
         # Create the tables based on the schemas.
         print("Creating database tables...")
         cursor.execute(SCHEMA_TOOLTIPS)
@@ -128,7 +131,7 @@ def csv_to_tooltips(conn, csv_file, name):
 
         # Read data from the CSV file and populate the tables.
         print(f"Reading data from {csv_file}...")
-        with open(csv_file, 'r', encoding='utf-8') as csvfile:
+        with open(csv_file, 'r', encoding='utf-8-sig') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 # Insert data into the 'Tooltips' table first.
@@ -152,15 +155,27 @@ def csv_to_tooltips(conn, csv_file, name):
                             (tooltip_id, i, row[description_key], row[uri_key])
                         )
 
-        # Update LastChange timestamp with author's name and current time
-        cursor.execute("""
-        CREATE TABLE LastChange (
-            now TIMESTAMP,
-            who TEXT
-        )""")
+            # --- LastChange Table Update Logic ---
+            cursor.execute("UPDATE LastChange SET changeTime=CURRENT_TIMESTAMP, who=? where documentationSet='wholedb'", (name,))
 
-        cursor.execute("""
-        INSERT INTO LastChange VALUES (CURRENT_TIMESTAMP, ?)""", (name,))
+            # 3. Update all specified documentation subsets
+            if updated_sets:
+                sets_list = updated_sets.split(',')
+                for doc_set in sets_list:
+                    doc_set = doc_set.strip()
+                    # The requirement is to UPDATE TABLE LastChange SET now=CURRENT_TIMESTAMP where documentationSet="{name}"
+                    # Since the table is dropped/created on every build, we INSERT/REPLACE.
+                    # To mimic the intent of UPDATE on an existing database, we can perform an INSERT OR REPLACE.
+                    # But since the table is fresh, we'll just insert.
+
+                    cursor.execute(
+                        "UPDATE LastChange SET changeTime=CURRENT_TIMESTAMP , who=? where documentationSet=?",
+                        (name, doc_set))
+                    # cursor.execute("""
+                    #    INSERT INTO LastChange (documentationSet, changeTime, who) VALUES (?, CURRENT_TIMESTAMP, ?)
+                    # """, (doc_set, self.name))
+                    print("Updated LastChange for documentation set: %s", doc_set)
+
 
         # Commit the changes to the database.
         conn.commit()
@@ -172,7 +187,8 @@ def csv_to_tooltips(conn, csv_file, name):
         print(f"Error: The file '{csv_file}' was not found.")
         sys.exit(1)
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def main():
@@ -193,6 +209,9 @@ def main():
                         help='The path to the input CSV file for the build operation.')
     parser.add_argument('--output-db',
                         help='The path to the built database output file for the build operation.')
+    parser.add_argument("--updated-sets", dest="updated_sets",
+                        help="[build] Comma-separated list of documentation subsets that were updated (e.g., 'java,kotlin').",
+                        required=False)
 
     args = parser.parse_args()
 
@@ -224,7 +243,7 @@ def main():
 
             # Connect to the newly created database file
             conn = sqlite3.connect(args.output_db)
-            csv_to_tooltips(conn, args.input_csv, args.name)
+            csv_to_tooltips(conn, args.input_csv, args.name, args.updated_sets)
 
     except sqlite3.Error as e:
         print(f"A database error occurred: {e}")
