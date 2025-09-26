@@ -351,6 +351,7 @@ class ContentManager:
             content_manager_logger.error("Database error during build: %s", e)
         finally:
             if conn:
+                cursor.execute("vacuum")
                 conn.close()
 
     def dump_one(self, file_path):
