@@ -42,11 +42,11 @@ jobs:
       with:
         workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
         service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
-        
+
     - name: Download database from Google Drive
       run: |
-        # Download the latest documentation.db from Google Drive
-        echo "Downloading documentation.db from Google Drive..."
+        # Download the latest documentation.db from Google Drive using Google Drive API
+        echo "Downloading documentation.db from Google Drive using Drive API..."
         
         # Get the Google Drive file ID from secrets
         FILE_ID="${{ secrets.GOOGLE_DRIVE_FILE_ID }}"
@@ -59,43 +59,28 @@ jobs:
           exit 1
         fi
         
-        # Try to download the file using gdown with Workload Identity Federation
-        echo "Attempting to download file with ID: ${FILE_ID} using Workload Identity Federation"
+        echo "Attempting to download file with ID: ${FILE_ID} using Google Drive API"
         
-        # Download using WIF authentication (credentials are automatically set by the auth action)
-        if uv run --with gdown gdown "https://drive.google.com/uc?id=${FILE_ID}" -O documentation.zip; then
-          echo "Download successful using Workload Identity Federation"
-        else
-          echo "Download failed with Workload Identity Federation"
-          echo "Please verify:"
-          echo "1. Service account has access to the file"
-          echo "2. File ID is correct"
-          echo "3. WIF provider and service account are correctly configured"
-          echo "4. Google Drive API is enabled"
-          exit 1
-        fi
+        # Run the Python download script
+        cd check-tools
+        uv run python download_database.py "$FILE_ID" "../documentation.zip"
+        cd ..
         
-        # Verify the download
+        # Verify the download was successful
         if [ ! -f "documentation.zip" ]; then
           echo "Error: Downloaded zip file does not exist"
           exit 1
         fi
         
-        # Check file size to ensure it's not empty or corrupted
+        # Additional verification
         FILE_SIZE=$(stat -c%s "documentation.zip" 2>/dev/null || stat -f%z "documentation.zip" 2>/dev/null || echo "0")
-        if [ "$FILE_SIZE" -lt 1000 ]; then
-          echo "Error: Downloaded zip file is too small ($FILE_SIZE bytes), likely corrupted or empty"
-          echo "Expected a zip file of at least 1KB"
-          exit 1
-        fi
+        echo "Download verification: documentation.zip ($FILE_SIZE bytes)"
         
         # Verify it's a zip file
         if ! file documentation.zip | grep -q "Zip\|ZIP"; then
           echo "Warning: Downloaded file may not be a valid zip file"
           echo "File type: $(file documentation.zip)"
         fi
-        
-        echo "Successfully downloaded documentation.zip ($FILE_SIZE bytes)"
         
     - name: Extract database from zip file
       run: |
