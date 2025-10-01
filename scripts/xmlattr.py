@@ -1,231 +1,245 @@
-import csv
 import argparse
+import csv
 import os
-import sys
-from bs4 import BeautifulSoup, Comment, Tag
+from bs4 import BeautifulSoup, Comment
+from collections import defaultdict
+import shutil
 
-# Define the category ID for XML layout attributes
+# --- Configuration Constants ---
 CATEGORY_ID = 2
-# Hard-coded detail text
 DETAIL_PLACEHOLDER = "Placeholder detail"
-# Hard-coded URI for the single 'Learn more' button
-DEFAULT_URI = "a/layout/placeholder.html"
+URI_PLACEHOLDER = "a/layout/placeholder.html"
+DISAMBIGUATION_URI_BASE = "a/layout/disambiguation/"
+TOOLTIP_HEADERS = [
+    'categoryId', 'tag', 'summary', 'detail',
+    'description1', 'uri1',
+    'description2', 'uri2',
+    'description3', 'uri3'
+]
 
-# CSV Headers matching the format required by TooltipManager.py
-CSV_HEADERS = ['categoryId', 'tag', 'summary', 'detail', 'description1', 'uri1', 'description2', 'uri2', 'description3',
-               'uri3']
 
+# --- Core Functions ---
 
-def extract_comments_and_attrs_bs(xml_file_path):
+def extract_comments_before_attr(attr_tag):
     """
-    Parses the XML file using BeautifulSoup and extracts comments and attribute data.
-
-    Returns a list of dictionaries, where each dictionary represents an <attr>
-    tag and its preceding comments.
+    Extracts and combines all preceding XML comments for an <attr> tag.
+    Returns the cleaned, combined comment text.
     """
-    print(f"Parsing XML file with BeautifulSoup: {xml_file_path}...")
-    try:
-        with open(xml_file_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'xml')  # Use 'xml' parser
-    except FileNotFoundError:
-        print(f"Error: XML file not found at {xml_file_path}")
-        sys.exit(1)
+    comments = []
+    # Loop backward through the tag's previous siblings
+    for sibling in attr_tag.previous_siblings:
+        # Check if the sibling is a BeautifulSoup Comment object
+        if isinstance(sibling, Comment):
+            # Clean up the comment text: strip XML comment delimiters and leading/trailing whitespace
+            clean_comment = sibling.strip()
+            if clean_comment:
+                # Insert at the beginning to maintain original document order
+                comments.insert(0, clean_comment)
+        # Stop at the first non-comment, non-whitespace sibling
+        elif sibling.name or str(sibling).strip():
+            break
 
-    extracted_data = []
+    # Combine all comments with a newline separator, then remove all internal newlines
+    # and collapse excessive whitespace for a clean string.
+    combined_summary = '\n'.join(comments)
+    # Remove newlines and excess whitespace, then strip leading/trailing space
+    combined_summary = ' '.join(combined_summary.split()).strip()
 
-    # Iterate through all <attr> tags
+    return combined_summary
+
+
+def get_enum_or_flag_summary(attr_tag):
+    """
+    Generates the 'Possible values' or 'Optional values' string for <enum> or <flag> children.
+    """
+    # Check for <enum> children
+    enums = attr_tag.find_all('enum', recursive=False)
+    if enums:
+        names = [e.get('name') for e in enums if e.get('name')]
+        if names:
+            names_quoted = [f"'{n}'" for n in names]
+            return f" Possible values are: {', '.join(names_quoted)}"
+
+    # Check for <flag> children
+    flags = attr_tag.find_all('flag', recursive=False)
+    if flags:
+        names = [f.get('name') for f in flags if f.get('name')]
+        if names:
+            names_quoted = [f"'{n}'" for n in names]
+            return f" Optional values are: {', '.join(names_quoted)}"
+
+    return ""
+
+
+def generate_disambiguation_page(attr_name, summaries, disambiguation_dir):
+    """
+    Generates a simple HTML file for an attribute with multiple conflicting summaries.
+    """
+    filename = f"{attr_name}.html"
+    filepath = os.path.join(disambiguation_dir, filename)
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Disambiguation for '{attr_name}'</title>
+</head>
+<body>
+    <h1>Possible Meanings for Android Attribute: <code>{attr_name}</code></h1>
+    <p>This attribute has different meanings depending on the specific Android view or context it's applied to. Below are the possible definitions found in the documentation:</p>
+    <ul>
+"""
+    for summary in summaries:
+        html_content += f"        <li>{summary}</li>\n"
+
+    html_content += """
+    </ul>
+    <p>Please refer to the full Android documentation for context-specific details.</p>
+</body>
+</html>
+"""
+    os.makedirs(disambiguation_dir, exist_ok=True)
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(html_content.strip())
+
+    return f"{DISAMBIGUATION_URI_BASE}{filename}"
+
+
+def process_xml_to_tooltip_data(xml_file_path, disambiguation_dir):
+    """
+    The main processing logic. Groups attributes by name and resolves conflicts.
+    Returns a list of final tooltip rows and a list of disambiguation files to create.
+    """
+    print(f"Reading XML file: {xml_file_path}")
+    with open(xml_file_path, 'r', encoding='utf-8') as f:
+        # The XML is likely not well-formed for a standard parser, so we use 'html.parser'
+        # which is more forgiving, especially with leading comments and fragments.
+        soup = BeautifulSoup(f, 'html.parser')
+
+    # Group all <attr> tags by their 'name' attribute
+    # { 'attr_name': [ (tag, summary_text), ... ], ... }
+    attr_groups = defaultdict(list)
     for attr_tag in soup.find_all('attr'):
         attr_name = attr_tag.get('name')
         if not attr_name:
             continue
 
-        # Find all preceding sibling comments
-        comments = []
-        raw_comments = []
+        # 1. Extract and clean the preceding comments
+        raw_summary = extract_comments_before_attr(attr_tag)
 
-        # Look backwards through preceding siblings
-        for sibling in attr_tag.previous_siblings:
-            if isinstance(sibling, Comment):
-                # Clean up the comment text
-                comment_text = sibling.string.strip()
-                if comment_text:
-                    comments.append(comment_text)
-                    raw_comments.append(f"")
-            elif isinstance(sibling, Tag):
-                # Stop if we hit a non-comment tag (e.g., <declare-styleable>)
-                break
-            elif sibling.string and sibling.string.strip():
-                # Stop if we hit significant text/whitespace that isn't a comment
-                pass  # Continue searching for comments
+        # 2. Append enum/flag details to the summary
+        enum_flag_summary = get_enum_or_flag_summary(attr_tag)
+        final_summary = raw_summary + enum_flag_summary
 
-        # Comments are gathered in reverse order, so reverse them to be in document order
-        comments.reverse()
-        raw_comments.reverse()
+        # Only consider entries with *some* documentation for grouping
+        if final_summary:
+            attr_groups[attr_name].append((attr_tag, final_summary))
+        else:
+            # If no comments but tag exists, we still process it to create a barebones entry
+            # only if no other entries exist for this name. This case is handled in the
+            # final generation loop below.
+            pass
 
-        # Combine comments into the summary string
-        comment_summary = '\n\n'.join(comments)
+    final_tooltip_data = []
 
-        extracted_data.append({
-            'name': attr_name,
-            'summary': comment_summary,
-            'element': attr_tag,  # Store the BS tag object
-            'raw_comments': '\n'.join(raw_comments)  # Keep original comments for disambiguation HTML
-        })
+    # Process each attribute group to resolve conflicts (disambiguation)
+    for attr_name, entries in attr_groups.items():
+        # Tags for the same attribute name, grouped by unique summary text
+        unique_summaries = {}
+        for _, summary in entries:
+            unique_summaries[summary] = unique_summaries.get(summary, 0) + 1
 
-    return extracted_data
+        num_unique_summaries = len(unique_summaries)
 
-
-def generate_attr_tooltips(data, disambiguation_dir):
-    """
-    Processes the extracted attribute data, handles conflicts, generates tooltips,
-    and writes disambiguation files.
-
-    Returns a list of rows for the output CSV file.
-    """
-    tooltip_data = []
-
-    # 1. Group by attribute name to find conflicts
-    attrs_by_name = {}
-    for item in data:
-        name = item['name']
-        if name not in attrs_by_name:
-            attrs_by_name[name] = []
-        attrs_by_name[name].append(item)
-
-    # 2. Process each attribute name group
-    for attr_name, items in attrs_by_name.items():
+        # --- Default Tooltip Values ---
         tag = f"xml.attr.{attr_name}"
-        num_items = len(items)
+        detail = DETAIL_PLACEHOLDER
+        # Buttons default to standard 'Learn more' link
+        desc1 = f"Learn more about {attr_name}"
+        uri1 = URI_PLACEHOLDER
+        desc2, uri2, desc3, uri3 = "", "", "", ""
 
-        # Initialize default button data
-        button_desc = f"Learn more about {tag}"
-        button_uri = DEFAULT_URI
-        final_summary = ""
+        # --- CONFLICT RESOLUTION LOGIC ---
+        if num_unique_summaries == 1:
+            # Case 1: Multiple tags, but only one unique summary string.
+            # Use that single, unique summary.
+            summary = list(unique_summaries.keys())[0]
 
-        if num_items == 1:
-            # Case 1: Single <attr> element
-            item = items[0]
-            final_summary = item['summary']
+        elif num_unique_summaries > 1:
+            # Case 2: Multiple tags with multiple unique summaries (CONFLICT!)
+            # 1. Set the main summary to the conflict placeholder
+            summary = "This attribute may have different meanings in different contexts"
+
+            # 2. Generate the disambiguation HTML page
+            unique_summary_list = list(unique_summaries.keys())
+            disambiguation_uri = generate_disambiguation_page(
+                attr_name, unique_summary_list, disambiguation_dir
+            )
+
+            # 3. Overwrite the first button with the disambiguation link
+            desc1 = f"See possible meanings for {attr_name}"
+            uri1 = disambiguation_uri
 
         else:
-            # Case 2: Multiple <attr> elements with the same name
-            # A summary is considered non-empty if it contains text after stripping whitespace
-            comments_count = sum(1 for item in items if item['summary'].strip())
-
-            if comments_count <= 1:
-                # Subcase 2a: Only one or zero instances have comments
-                non_empty_summaries = [item['summary'] for item in items if item['summary'].strip()]
-                final_summary = non_empty_summaries[0] if non_empty_summaries else ""
-                # The button remains the default one
+            # Case 3: Tags exist, but none of them had comments (highly unlikely for the first entry)
+            # Fallback to a barebones entry if no other entries exist.
+            if not entries:
+                summary = f"Documentation for '{attr_name}' is not currently available."
             else:
-                # Subcase 2b: Multiple instances have comments (Disambiguation required)
-                final_summary = "This attribute may have different meanings in different contexts"
+                # Should not be reached if attr_groups is built correctly, but safety first
+                continue
 
-                # Generate Disambiguation HTML file
-                html_filename = f"{attr_name}.html"
-                html_path = os.path.join(disambiguation_dir, html_filename)
+        # Append the final row data
+        final_tooltip_data.append([
+            CATEGORY_ID, tag, summary, detail,
+            desc1, uri1, desc2, uri2, desc3, uri3
+        ])
 
-                html_content = f"<html><head><title>{attr_name} Meanings</title></head><body>"
-                html_content += f"<h1>Possible Meanings for `android:{attr_name}`</h1>"
-
-                for i, item in enumerate(items, 1):
-                    # Clean up the raw comments for display in HTML (remove )
-                    clean_comments = item['raw_comments'].replace('', '').strip()
-                    html_content += f"<h2>Context {i}</h2>"
-                    html_content += f"<p>{clean_comments.replace('\n', '<br>')}</p>"
-
-                html_content += "</body></html>"
-
-                # Ensure disambiguation directory exists
-                os.makedirs(disambiguation_dir, exist_ok=True)
-                with open(html_path, 'w', encoding='utf-8') as f:
-                    f.write(html_content)
-
-                # Update button for the disambiguation link
-                button_desc = f"See possible meanings for {attr_name}"
-                button_uri = f"a/layout/disambiguation/{html_filename}"
-
-        # 3. Handle <enum> and <flag> children for the final summary
-        # Use the first element's children (as in the original script)
-        attr_element = items[0]['element']
-
-        enum_names = [e.get('name') for e in attr_element.find_all('enum')]
-        flag_names = [f.get('name') for f in attr_element.find_all('flag')]
-
-        if enum_names:
-            names_str = "', '".join(enum_names)
-            enum_part = f" Possible values are: '{names_str}'"
-            # Add to the summary, ensuring a space before it
-            final_summary = final_summary.strip() + enum_part
-
-        if flag_names:
-            names_str = "', '".join(flag_names)
-            flag_part = f" Optional values are: '{names_str}'"
-            # Add to the summary, ensuring a space before it
-            final_summary = final_summary.strip() + flag_part
-
-        # 4. Create the CSV row
-        csv_row = [
-            CATEGORY_ID,
-            tag,
-            final_summary.strip(),
-            DETAIL_PLACEHOLDER,
-            button_desc,
-            button_uri,
-            None,  # description2
-            None,  # uri2
-            None,  # description3
-            None  # uri3
-        ]
-
-        tooltip_data.append(csv_row)
-
-    return tooltip_data
+    print(f"Processed {len(final_tooltip_data)} unique attribute tooltips.")
+    return final_tooltip_data
 
 
-def write_csv(csv_file_path, data):
-    """Writes the list of data rows to the specified CSV file."""
-    print(f"Writing data to CSV file: {csv_file_path}")
-    with open(csv_file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
+def write_csv(data, output_csv_file):
+    """
+    Writes the list of tooltip data to the output CSV file.
+    """
+    print(f"Writing data to CSV file: {output_csv_file}")
+    # Use 'utf-8-sig' to ensure compatibility with Excel/TooltipManager.py's reading
+    with open(output_csv_file, 'w', newline='', encoding='utf-8-sig') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(CSV_HEADERS)
+        writer.writerow(TOOLTIP_HEADERS)
         writer.writerows(data)
-    print("CSV generation complete!")
+    print("CSV file generation complete!")
 
+
+# --- Main Execution ---
 
 def main():
-    # Check for BeautifulSoup dependency
-    try:
-        from bs4 import BeautifulSoup
-    except ImportError:
-        print("Error: BeautifulSoup is not installed. Please install it with 'pip install beautifulsoup4'.")
-        sys.exit(1)
-
     parser = argparse.ArgumentParser(
-        description='Generate tooltip CSV and disambiguation HTML for Android layout attributes using BeautifulSoup.')
+        description='Parses Android layout attribute XML to generate a CSV file for tooltips.',
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+
     parser.add_argument('--input-xml-file', required=True,
-                        help='The path to the input layout attributes XML file.')
+                        help='The path to the input layout attributes XML file to process.')
     parser.add_argument('--output-csv-file', required=True,
                         help='The path to the output CSV file for this script.')
     parser.add_argument('--disambiguation-dir', required=True,
-                        help='The path to the directory where generated disambiguation pages will be placed.')
+                        help='The path to the directory where this script will be placing the generated disambiguation pages.')
 
     args = parser.parse_args()
 
-    try:
-        # 1. Extract comments and attributes using BeautifulSoup
-        extracted_data = extract_comments_and_attrs_bs(args.input_xml_file)
-        print(f"Extracted {len(extracted_data)} attribute definitions.")
+    # Clear and recreate the disambiguation directory to ensure a clean build
+    if os.path.exists(args.disambiguation_dir):
+        shutil.rmtree(args.disambiguation_dir)
+    os.makedirs(args.disambiguation_dir, exist_ok=True)
+    print(f"Disambiguation directory set up at: {args.disambiguation_dir}")
 
-        # 2. Generate tooltips, handle conflicts, and create disambiguation files
-        tooltip_csv_data = generate_attr_tooltips(extracted_data, args.disambiguation_dir)
+    # 1. Process the XML and get the data
+    tooltip_data = process_xml_to_tooltip_data(args.input_xml_file, args.disambiguation_dir)
 
-        # 3. Write final CSV
-        write_csv(args.output_csv_file, tooltip_csv_data)
-
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        sys.exit(1)
+    # 2. Write the CSV
+    write_csv(tooltip_data, args.output_csv_file)
 
 
 if __name__ == "__main__":
