@@ -1,11 +1,18 @@
+import sys
 from db_health_checker import DatabaseHealthChecker
 
 
 def main():
-    print("Checking documentation.db health...")
+    # Get database path from command line argument or use default
+    if len(sys.argv) > 1:
+        db_path = sys.argv[1]
+    else:
+        db_path = "documentation.db"
+    
+    print(f"Checking {db_path} health...")
     print("=" * 50)
     
-    checker = DatabaseHealthChecker("documentation.db")
+    checker = DatabaseHealthChecker(db_path)
     issues = checker.check_all()
     
     if not issues:

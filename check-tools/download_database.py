@@ -14,7 +14,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from google.auth import default
 
 
-def download_file_from_drive(file_id: str, output_filename: str) -> bool:
+def download_file_from_drive(file_id: str, output_filename: str, service_account_key_file: str = None) -> bool:
     """
     Download a file from Google Drive using the Drive API.
     
@@ -43,16 +43,36 @@ def download_file_from_drive(file_id: str, output_filename: str) -> bool:
         # 3. Debug: List accessible files first
         print("Debug: Listing accessible files (first 10)...")
         try:
+            # Try different query methods
+            print("Trying to list files with different queries...")
+            
+            # Method 1: List all files
             results = service.files().list(pageSize=10, fields="nextPageToken, files(id, name, mimeType)").execute()
             items = results.get('files', [])
             if not items:
-                print("No files found accessible to this service account")
+                print("No files found with standard query")
+                
+                # Method 2: Try listing shared files
+                print("Trying to list shared files...")
+                results = service.files().list(
+                    pageSize=10, 
+                    fields="nextPageToken, files(id, name, mimeType)",
+                    q="sharedWithMe=true"
+                ).execute()
+                items = results.get('files', [])
+                if not items:
+                    print("No shared files found either")
+                else:
+                    print("Found shared files:")
+                    for item in items:
+                        print(f"  - {item['name']} (ID: {item['id']}, Type: {item.get('mimeType', 'Unknown')})")
             else:
                 print("Accessible files:")
                 for item in items:
                     print(f"  - {item['name']} (ID: {item['id']}, Type: {item.get('mimeType', 'Unknown')})")
         except Exception as e:
             print(f"Error listing files: {e}")
+            print("This might indicate insufficient permissions or API scope issues")
         
         # 4. Get file metadata first
         print(f"Getting file metadata for ID: {file_id}")
@@ -108,17 +128,21 @@ def download_file_from_drive(file_id: str, output_filename: str) -> bool:
 
 def main():
     """Main function to handle command line arguments and download."""
-    if len(sys.argv) != 3:
-        print("Usage: python download_database.py <file_id> <output_filename>")
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        print("Usage: python download_database.py <file_id> <output_filename> [service_account_key_file]")
         print("Example: python download_database.py 1r7KSauTJdMnfthq-L2m9q4UjkREm4Byz documentation.zip")
+        print("Example: python download_database.py 1r7KSauTJdMnfthq-L2m9q4UjkREm4Byz documentation.zip service_account.json")
         sys.exit(1)
     
     file_id = sys.argv[1]
     output_filename = sys.argv[2]
+    service_account_key_file = sys.argv[3] if len(sys.argv) == 4 else None
     
     print(f"Downloading file ID: {file_id} to: {output_filename}")
+    if service_account_key_file:
+        print(f"Using service account key file: {service_account_key_file}")
     
-    success = download_file_from_drive(file_id, output_filename)
+    success = download_file_from_drive(file_id, output_filename, service_account_key_file)
     
     if success:
         print("✅ Download completed successfully")
