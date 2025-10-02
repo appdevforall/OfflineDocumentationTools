@@ -38,10 +38,12 @@ jobs:
         uv sync
         
     - name: Authenticate to Google Cloud using Workload Identity Federation
+      id: auth
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
         service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+        access_token_scopes: "https://www.googleapis.com/auth/drive.readonly"
 
     - name: Download database from Google Drive
       run: |
@@ -60,6 +62,11 @@ jobs:
         fi
         
         echo "Attempting to download file with ID: ${FILE_ID} using Google Drive API"
+        
+        # Debug: Show authentication status
+        echo "Authentication status:"
+        echo "GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-'Not set'}"
+        echo "GCP_PROJECT: ${GCP_PROJECT:-'Not set'}"
         
         # Run the Python download script
         cd check-tools
