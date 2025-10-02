@@ -40,11 +40,34 @@ def download_file_from_drive(file_id: str, output_filename: str) -> bool:
         print("Building Google Drive API client...")
         service = build('drive', 'v3', credentials=credentials)
 
-        # 3. Get file metadata first
+        # 3. Debug: List accessible files first
+        print("Debug: Listing accessible files (first 10)...")
+        try:
+            results = service.files().list(pageSize=10, fields="nextPageToken, files(id, name, mimeType)").execute()
+            items = results.get('files', [])
+            if not items:
+                print("No files found accessible to this service account")
+            else:
+                print("Accessible files:")
+                for item in items:
+                    print(f"  - {item['name']} (ID: {item['id']}, Type: {item.get('mimeType', 'Unknown')})")
+        except Exception as e:
+            print(f"Error listing files: {e}")
+        
+        # 4. Get file metadata first
         print(f"Getting file metadata for ID: {file_id}")
-        file_metadata = service.files().get(fileId=file_id).execute()
-        print(f"File name: {file_metadata.get('name', 'Unknown')}")
-        print(f"File size: {file_metadata.get('size', 'Unknown')} bytes")
+        try:
+            file_metadata = service.files().get(fileId=file_id).execute()
+            print(f"File name: {file_metadata.get('name', 'Unknown')}")
+            print(f"File size: {file_metadata.get('size', 'Unknown')} bytes")
+        except Exception as e:
+            print(f"Error getting file metadata: {e}")
+            print("This usually means:")
+            print("1. The file ID is incorrect")
+            print("2. The service account doesn't have access to the file")
+            print("3. The file has been deleted or moved")
+            print("4. The file is in a different Google account")
+            return False
         
         # 4. Request file content
         print("Starting file download...")
