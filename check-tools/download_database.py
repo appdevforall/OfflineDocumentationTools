@@ -12,6 +12,68 @@ import io
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google.auth import default
+from googleapiclient.errors import HttpError
+
+
+def test_file_accessibility(service, file_id: str) -> bool:
+    """
+    Test different methods to access a file and provide detailed diagnostics.
+    
+    Args:
+        service: Google Drive API service object
+        file_id: The file ID to test
+        
+    Returns:
+        True if file is accessible, False otherwise
+    """
+    print(f"Testing accessibility for file ID: {file_id}")
+    
+    # Method 1: Try to get file metadata
+    try:
+        print("Method 1: Getting file metadata...")
+        file_metadata = service.files().get(fileId=file_id).execute()
+        print(f"✅ File metadata accessible: {file_metadata.get('name', 'Unknown')}")
+        return True
+    except HttpError as e:
+        print(f"❌ Method 1 failed: {e}")
+        if e.resp.status == 404:
+            print("   → File not found (404)")
+        elif e.resp.status == 403:
+            print("   → Access forbidden (403)")
+        else:
+            print(f"   → HTTP {e.resp.status}")
+    
+    # Method 2: Try to list files and search for this specific ID
+    try:
+        print("Method 2: Searching for file in accessible files...")
+        results = service.files().list(
+            q=f"id='{file_id}'",
+            fields="files(id, name, mimeType, owners, permissions)"
+        ).execute()
+        files = results.get('files', [])
+        if files:
+            print(f"✅ File found in search: {files[0].get('name', 'Unknown')}")
+            return True
+        else:
+            print("❌ File not found in search results")
+    except Exception as e:
+        print(f"❌ Method 2 failed: {e}")
+    
+    # Method 3: Try to get file permissions
+    try:
+        print("Method 3: Checking file permissions...")
+        permissions = service.permissions().list(fileId=file_id).execute()
+        print(f"✅ Permissions accessible: {len(permissions.get('permissions', []))} permission(s)")
+        return True
+    except HttpError as e:
+        print(f"❌ Method 3 failed: {e}")
+        if e.resp.status == 404:
+            print("   → File not found (404)")
+        elif e.resp.status == 403:
+            print("   → Access forbidden (403)")
+    
+    print("❌ All access methods failed")
+    return False
 
 
 def download_file_from_drive(file_id: str, output_filename: str, service_account_key_file: str = None) -> bool:
@@ -74,19 +136,35 @@ def download_file_from_drive(file_id: str, output_filename: str, service_account
             print(f"Error listing files: {e}")
             print("This might indicate insufficient permissions or API scope issues")
         
-        # 4. Get file metadata first
-        print(f"Getting file metadata for ID: {file_id}")
+        # 4. Test file accessibility with detailed diagnostics
+        if not test_file_accessibility(service, file_id):
+            print("File accessibility test failed. Cannot proceed with download.")
+            return False
+        
+        # 5. Get detailed file metadata
+        print(f"Getting detailed file metadata for ID: {file_id}")
         try:
             file_metadata = service.files().get(fileId=file_id).execute()
             print(f"File name: {file_metadata.get('name', 'Unknown')}")
             print(f"File size: {file_metadata.get('size', 'Unknown')} bytes")
+            print(f"File MIME type: {file_metadata.get('mimeType', 'Unknown')}")
+            print(f"File owners: {[owner.get('emailAddress', 'Unknown') for owner in file_metadata.get('owners', [])]}")
+            print(f"File permissions: {len(file_metadata.get('permissions', []))} permission(s)")
+            
+            # Show permission details
+            permissions = file_metadata.get('permissions', [])
+            if permissions:
+                print("Permission details:")
+                for perm in permissions:
+                    role = perm.get('role', 'Unknown')
+                    email = perm.get('emailAddress', 'Unknown')
+                    perm_type = perm.get('type', 'Unknown')
+                    print(f"  - {email} ({perm_type}): {role}")
+            else:
+                print("No explicit permissions found")
+                
         except Exception as e:
             print(f"Error getting file metadata: {e}")
-            print("This usually means:")
-            print("1. The file ID is incorrect")
-            print("2. The service account doesn't have access to the file")
-            print("3. The file has been deleted or moved")
-            print("4. The file is in a different Google account")
             return False
         
         # 4. Request file content
