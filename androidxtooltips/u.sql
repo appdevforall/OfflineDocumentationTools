@@ -1,0 +1,6 @@
+DROP TABLE LastChange;
+CREATE TABLE LastChange (
+	now TIMESTAMP,
+	who TEXT
+);
+INSERT INTO LastChange VALUES (CURRENT_TIMESTAMP, 'Alex');
