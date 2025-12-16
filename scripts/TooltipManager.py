@@ -176,9 +176,9 @@ def csv_to_tooltips(conn, csv_file, name, updated_sets):
                     # """, (doc_set, self.name))
                     print("Updated LastChange for documentation set: %s", doc_set)
 
-
         # Commit the changes to the database.
         conn.commit()
+        cursor.execute("vacuum")
         print("Database population complete!")
     except sqlite3.Error as e:
         print(f"SQLite error: {e}")
