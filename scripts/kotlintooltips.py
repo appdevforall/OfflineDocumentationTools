@@ -33,7 +33,7 @@ def extract_tier_2(html_path, debug=False):
 
         # Extract text from <p> elements
         paragraphs = content_div.find_all('p', recursive=True)
-        text_content = " ".join(p.get_text(strip=True) for p in paragraphs)
+        text_content = " ".join(p.get_text() for p in paragraphs)
         
         return text_content
     except Exception as e:
