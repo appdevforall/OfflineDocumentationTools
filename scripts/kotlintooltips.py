@@ -93,7 +93,7 @@ def main():
             "summary": summary,
             "detail": detail,
             "description1": "View full documentation",
-            "uri1": location,
+            "uri1": "k/" + location,
             "description2": "",
             "uri2": "",
             "description3": "",
