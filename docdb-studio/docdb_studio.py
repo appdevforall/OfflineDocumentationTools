@@ -1358,6 +1358,7 @@ def main(
                                 content=ft.Text("URI", style=header_style),
                                 expand=True,
                             ),
+                            ft.Container(width=36),  # URI valid-status icon
                             ft.Container(width=70),  # Edit button width
                             ft.Container(width=70),  # Delete button width
                         ],
@@ -1369,6 +1370,8 @@ def main(
             for num, desc, uri in buttons_state:
                 row_desc = ft.Text(str(desc or ""), no_wrap=False, selectable=True)
                 row_uri = ft.Text(str(uri or ""), no_wrap=False, selectable=True)
+                row_status_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
+                update_uri_status_icon(row_status_icon, uri or "", valid_paths)
                 edit_btn = ft.Button(
                     "Edit",
                     style=ft.ButtonStyle(
@@ -1391,6 +1394,7 @@ def main(
                             ft.Text(str(num), width=52, selectable=True),
                             ft.Container(content=row_desc, expand=True),
                             ft.Container(content=row_uri, expand=True),
+                            ft.Container(content=row_status_icon, width=36),
                             edit_btn,
                             del_btn,
                         ],
@@ -1686,6 +1690,7 @@ def main(
                                 content=ft.Text("URI", style=header_style),
                                 expand=True,
                             ),
+                            ft.Container(width=36),
                             ft.Container(width=70),
                             ft.Container(width=70),
                         ],
@@ -1697,6 +1702,8 @@ def main(
             for num, desc, uri in buttons_state:
                 row_desc = ft.Text(str(desc or ""), no_wrap=False, selectable=True)
                 row_uri = ft.Text(str(uri or ""), no_wrap=False, selectable=True)
+                row_status_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
+                update_uri_status_icon(row_status_icon, uri or "", valid_paths)
                 edit_btn = ft.Button(
                     "Edit",
                     style=ft.ButtonStyle(
@@ -1719,6 +1726,7 @@ def main(
                             ft.Text(str(num), width=52, selectable=True),
                             ft.Container(content=row_desc, expand=True),
                             ft.Container(content=row_uri, expand=True),
+                            ft.Container(content=row_status_icon, width=36),
                             edit_btn,
                             del_btn,
                         ],
