@@ -1,6 +1,6 @@
 # docdb-studio
 
-A desktop UI for browsing and editing the IDE tooltip and content database. Built on [Flet](https://flet.dev) and SQLite; runs in your browser.
+A desktop UI for browsing and editing the IDE tooltip and content database. Built on [Flet](https://flet.dev) (Flutter for Python) and SQLite; runs as a native desktop window on macOS and Windows.
 
 ![docdb-studio screenshot](Screenshot.png)
 
@@ -75,7 +75,7 @@ uv sync
 uv run python docdb_studio.py [DATABASE] --user "YOUR NAME"
 ```
 
-The app opens automatically in your default browser.
+The app opens in a native desktop window on both macOS and Windows — no browser involved. (Flet is Flutter-based, so the window is a Flutter desktop view.)
 
 ### Arguments
 
