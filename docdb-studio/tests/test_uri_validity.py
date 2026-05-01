@@ -15,6 +15,8 @@ find_broken_button_rows = docdb_studio.find_broken_button_rows
 _uri_path_for_content_lookup = docdb_studio._uri_path_for_content_lookup
 get_content_paths_count = docdb_studio.get_content_paths_count
 get_content_paths_page = docdb_studio.get_content_paths_page
+_build_like_pattern = docdb_studio._build_like_pattern
+_search_params = docdb_studio._search_params
 
 
 def _make_db_with_content() -> Path:
@@ -243,9 +245,13 @@ def test_get_content_paths_count_no_search() -> None:
 def test_get_content_paths_count_with_search() -> None:
     db = _make_db_with_paths(["a", "b/c", "b/d", "abx/y"])
     try:
+        # Plain term is a startswith.
         assert get_content_paths_count(db, "b/") == 2
-        assert get_content_paths_count(db, "x") == 1
+        assert get_content_paths_count(db, "ab") == 1  # only abx/y starts with "ab"
+        assert get_content_paths_count(db, "x") == 0   # nothing starts with "x"
         assert get_content_paths_count(db, "missing") == 0
+        # `*` acts as a wildcard — `*x` becomes substring search.
+        assert get_content_paths_count(db, "*x") == 1  # abx/y contains x
     finally:
         db.unlink(missing_ok=True)
 
@@ -259,9 +265,61 @@ def test_get_content_paths_page_pagination_and_search() -> None:
         assert len(page2) == 25
         assert page1[0] == "docs/p000.html"
         assert page2[0] == "docs/p025.html"
-        # Search narrows the result
-        narrow = get_content_paths_page(db, 10, 0, "p01")
-        assert all("p01" in p for p in narrow)
+        # Startswith narrows the result.
+        narrow = get_content_paths_page(db, 10, 0, "docs/p01")
+        assert all(p.startswith("docs/p01") for p in narrow)
         assert len(narrow) == 10
+        # Bare "p01" no longer matches (paths start with "docs/").
+        assert get_content_paths_page(db, 10, 0, "p01") == []
+        # `*` wildcard recovers substring search.
+        narrow_substring = get_content_paths_page(db, 10, 0, "*p01")
+        assert len(narrow_substring) == 10
+        assert all("p01" in p for p in narrow_substring)
     finally:
         db.unlink(missing_ok=True)
+
+
+def test_get_content_paths_search_anchored_to_start_per_todo() -> None:
+    """The TODO example: searching `i/a` finds `i/apple` but NOT `a/tini/apple`."""
+    db = _make_db_with_paths(["i/apple", "a/tini/apple"])
+    try:
+        assert get_content_paths_count(db, "i/a") == 1
+        assert get_content_paths_page(db, 25, 0, "i/a") == ["i/apple"]
+        # `*apple` finds both via substring fallback.
+        assert get_content_paths_count(db, "*apple") == 2
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_get_content_paths_search_escapes_sql_wildcards() -> None:
+    """Literal `%` and `_` in the search term are escaped, not treated as SQL wildcards."""
+    db = _make_db_with_paths(["100%off", "1000off", "abc_def", "abcXdef"])
+    try:
+        # "100%" should match only the literal "100%off", not "1000off".
+        assert get_content_paths_count(db, "100%") == 1
+        assert get_content_paths_page(db, 10, 0, "100%") == ["100%off"]
+        # "abc_" should match only "abc_def" (literal underscore), not "abcXdef".
+        assert get_content_paths_count(db, "abc_") == 1
+        assert get_content_paths_page(db, 10, 0, "abc_") == ["abc_def"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_build_like_pattern_translates_user_wildcard_and_escapes_meta() -> None:
+    # Plain term: anchored-at-start by trailing %.
+    assert _build_like_pattern("foo") == "foo%"
+    # `*` becomes a SQL `%` wildcard inside the term.
+    assert _build_like_pattern("*foo") == "%foo%"
+    assert _build_like_pattern("foo*bar") == "foo%bar%"
+    # SQL metacharacters typed literally are escaped.
+    assert _build_like_pattern("100%") == "100\\%%"
+    assert _build_like_pattern("a_b") == "a\\_b%"
+    # Backslash is also escaped (so it doesn't accidentally escape the next char).
+    assert _build_like_pattern("a\\b") == "a\\\\b%"
+
+
+def test_search_params_uses_anchored_pattern() -> None:
+    """Pin the tooltip-browse search semantics: each of the three OR'd LIKEs
+    is anchored at the start of its column."""
+    assert _search_params("foo") == ("foo%", "foo%", "foo%")
+    assert _search_params("*foo") == ("%foo%", "%foo%", "%foo%")

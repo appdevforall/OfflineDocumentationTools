@@ -50,7 +50,11 @@ FROM Tooltips t
 JOIN TooltipCategories tc ON t.categoryId = tc.id
 """
 
-SEARCH_WHERE = " WHERE (t.tag LIKE ? OR t.summary LIKE ? OR t.detail LIKE ?)"
+SEARCH_WHERE = (
+    " WHERE (t.tag LIKE ? ESCAPE '\\'"
+    " OR t.summary LIKE ? ESCAPE '\\'"
+    " OR t.detail LIKE ? ESCAPE '\\')"
+)
 
 
 def sanitize_text(value: str, *, field: str, allow_newline: bool = False) -> str:
@@ -88,8 +92,31 @@ def category_column_width(db_path: Path) -> int:
     return n * 9 + 28
 
 
+def _build_like_pattern(term: str) -> str:
+    """Translate a user-facing search term into a SQL LIKE pattern.
+
+    Convention: search is anchored at the start of the string ("starts with")
+    by default. The character `*` is a user-facing wildcard (matches zero or
+    more characters anywhere it appears in the term). SQL LIKE metacharacters
+    `%` and `_` typed by the user are escaped, so a search for `100%` finds
+    the literal substring `100%` rather than acting as a wildcard.
+
+    Examples (all assume `LIKE ? ESCAPE '\\'`):
+      'foo'      -> 'foo%'        (starts with foo)
+      '*foo'     -> '%foo%'       (contains foo)
+      'foo*bar'  -> 'foo%bar%'    (starts with foo, contains bar later)
+      '100%'     -> '100\\%%'     (starts with literal "100%")
+    """
+    escaped = (
+        term.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+    return escaped.replace("*", "%") + "%"
+
+
 def _search_params(term: str) -> tuple[str, str, str]:
-    pattern = f"%{term}%"
+    pattern = _build_like_pattern(term)
     return (pattern, pattern, pattern)
 
 
@@ -384,8 +411,8 @@ def get_content_paths_count(db_path: Path, search: str | None = None) -> int:
     sql = 'SELECT COUNT(*) FROM "Content"'
     params: tuple = ()
     if search:
-        sql += " WHERE path LIKE ?"
-        params = (f"%{search}%",)
+        sql += " WHERE path LIKE ? ESCAPE '\\'"
+        params = (_build_like_pattern(search),)
     with sqlite3.connect(db_path) as conn:
         return conn.execute(sql, params).fetchone()[0]
 
@@ -398,11 +425,11 @@ def get_content_paths_page(
 ) -> list[str]:
     sql = 'SELECT path FROM "Content"'
     if search:
-        sql += " WHERE path LIKE ?"
+        sql += " WHERE path LIKE ? ESCAPE '\\'"
     sql += " ORDER BY path LIMIT ? OFFSET ?"
     params: tuple
     if search:
-        params = (f"%{search}%", limit, offset)
+        params = (_build_like_pattern(search), limit, offset)
     else:
         params = (limit, offset)
     with sqlite3.connect(db_path) as conn:
@@ -1242,7 +1269,11 @@ def main(
         either `path` or `path#anchor`."""
         state = {"page": 1, "search": None}
 
-        search_field = ft.TextField(label="Search path", width=400)
+        search_field = ft.TextField(
+            label="Search path",
+            hint_text="prefix; * is a wildcard",
+            width=400,
+        )
         list_column = ft.Column(
             scroll=ft.ScrollMode.AUTO, expand=True, spacing=2
         )
@@ -2947,6 +2978,7 @@ def main(
 
         search_input = ft.TextField(
             label="Search (tag, summary, detail)",
+            hint_text="prefix; * is a wildcard",
             width=220,
             value=restore_search_term or "",
             on_submit=lambda e: run_search(e),
