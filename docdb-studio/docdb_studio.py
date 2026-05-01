@@ -30,6 +30,10 @@ SQL_PARAM_BATCH = 500
 
 PAGE_SIZE = 50
 
+# Special LastChange row that bumps on every mutation, regardless of which
+# per-set row was touched. Acts as a global "database version" marker.
+WHOLEDB_KEY = "wholedb"
+
 COLUMN_LABELS = ["ID", "Category", "Actions", "Tag", "Summary", "Detail"]
 ACTIONS_COLUMN_WIDTH = 200
 
@@ -543,14 +547,16 @@ def get_category_name(db_path: Path, category_id: int) -> str | None:
 def update_last_change(
     db_path: Path, documentation_set: str, who: str | None
 ) -> None:
-    """Update or insert LastChange row for the given documentationSet."""
-    with sqlite3.connect(db_path) as conn:
+    """Stamp the LastChange row for the given documentationSet, plus the
+    global WHOLEDB_KEY row, in a single transaction."""
+
+    def _stamp(conn: sqlite3.Connection, doc_set: str) -> None:
         cur = conn.execute(
             """
             UPDATE LastChange SET changeTime = datetime('now'), who = ?
             WHERE documentationSet = ?
             """,
-            (who, documentation_set),
+            (who, doc_set),
         )
         if cur.rowcount == 0:
             conn.execute(
@@ -558,8 +564,13 @@ def update_last_change(
                 INSERT INTO LastChange (documentationSet, changeTime, who)
                 VALUES (?, datetime('now'), ?)
                 """,
-                (documentation_set, who),
+                (doc_set, who),
             )
+
+    with sqlite3.connect(db_path) as conn:
+        _stamp(conn, documentation_set)
+        if documentation_set != WHOLEDB_KEY:
+            _stamp(conn, WHOLEDB_KEY)
         conn.commit()
 
 
