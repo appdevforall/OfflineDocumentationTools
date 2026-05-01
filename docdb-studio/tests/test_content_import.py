@@ -307,6 +307,26 @@ def test_prescan_reports_symlinks_and_hidden(tmp_path: Path) -> None:
         db.unlink(missing_ok=True)
 
 
+def test_prescan_routes_filenames_with_zero_width_chars_to_skipped_bad_name(
+    tmp_path: Path,
+) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        root = tmp_path / "myroot"
+        root.mkdir()
+        (root / "good.html").write_text("<html/>")
+        # File whose name contains a zero-width space (U+200B).
+        bad_name = "evil​name.html"
+        (root / bad_name).write_text("<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        mapped_names = sorted(item.source.name for item in scan.mapped)
+        bad_names = sorted(p.name for p, _ in scan.skipped_bad_name)
+        assert mapped_names == ["good.html"]
+        assert bad_names == [bad_name]
+    finally:
+        db.unlink(missing_ok=True)
+
+
 # ---------- import_content_files ----------
 
 

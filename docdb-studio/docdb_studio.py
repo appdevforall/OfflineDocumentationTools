@@ -8,6 +8,8 @@ import mimetypes
 import os
 import sqlite3
 import tkinter as tk
+import unicodedata
+from html.parser import HTMLParser
 from pathlib import Path
 from tkinter import filedialog
 from typing import NamedTuple
@@ -43,6 +45,24 @@ JOIN TooltipCategories tc ON t.categoryId = tc.id
 """
 
 SEARCH_WHERE = " WHERE (t.tag LIKE ? OR t.summary LIKE ? OR t.detail LIKE ?)"
+
+
+def sanitize_text(value: str, *, field: str, allow_newline: bool = False) -> str:
+    """NFC-normalize value; reject any Unicode "Other" category codepoint
+    (Cc control, Cf format/zero-width/bidi, Cs surrogate, Co private-use, Cn unassigned).
+    With allow_newline=True, U+000A is permitted.
+    Raises ValueError naming `field` and the offending codepoint on first violation."""
+    normalized = unicodedata.normalize("NFC", value)
+    for offset, ch in enumerate(normalized):
+        if allow_newline and ch == "\n":
+            continue
+        if unicodedata.category(ch)[0] == "C":
+            name = unicodedata.name(ch, "unnamed")
+            raise ValueError(
+                f"{field}: disallowed character U+{ord(ch):04X} ({name}) at offset {offset}"
+            )
+    return normalized
+
 
 def get_max_category_length(db_path: Path) -> int:
     """Return the length of the longest category string in TooltipCategories."""
@@ -131,6 +151,14 @@ def _uri_path_for_content_lookup(uri: str) -> str:
     return u
 
 
+def _uri_fragment(uri: str) -> str:
+    """Return the #fragment portion of a URI (without the leading #), or '' if absent."""
+    u = uri or ""
+    if "#" not in u:
+        return ""
+    return u.split("#", 1)[1]
+
+
 def uris_exist_in_content(db_path: Path, uris: list[str]) -> set[str]:
     """Return the set of URIs that exist as Content.path. Query/fragment stripped before lookup."""
     paths = [_uri_path_for_content_lookup(u) for u in uris]
@@ -159,23 +187,143 @@ def get_all_content_paths(db_path: Path) -> set[str]:
         return set()
 
 
+class _AnchorCollector(HTMLParser):
+    """HTMLParser subclass that collects id="..." and <a name="..."> values in document order."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.anchors: list[str] = []
+        self._seen: set[str] = set()
+
+    def _consider(self, value: str | None) -> None:
+        if value and value not in self._seen:
+            self._seen.add(value)
+            self.anchors.append(value)
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        attr_dict = dict(attrs)
+        self._consider(attr_dict.get("id"))
+        if tag.lower() == "a":
+            self._consider(attr_dict.get("name"))
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        self.handle_starttag(tag, attrs)
+
+
+def extract_html_anchors(blob: bytes) -> list[str]:
+    """Parse HTML bytes and return the in-order, deduplicated list of anchor names.
+
+    Picks up `id="..."` on any element plus legacy `<a name="...">`. Returns an empty list
+    on parse failure or when the blob has no anchors."""
+    text = blob.decode("utf-8", errors="replace")
+    collector = _AnchorCollector()
+    try:
+        collector.feed(text)
+        collector.close()
+    except Exception:
+        # Malformed HTML — return what we have so far.
+        pass
+    return collector.anchors
+
+
+def _split_chunk_path(path: str) -> tuple[str, int] | None:
+    """If `path` looks like `<base>-<N>` for N>=1, return (base, N); else None."""
+    idx = path.rfind("-")
+    if idx <= 0 or idx == len(path) - 1:
+        return None
+    suffix = path[idx + 1 :]
+    if not suffix.isdigit():
+        return None
+    n = int(suffix)
+    if n < 1:
+        return None
+    return path[:idx], n
+
+
+def get_html_anchors_for_path(db_path: Path, base_path: str) -> list[str]:
+    """Fetch the row(s) for `base_path` (reassembling chunks and decompressing brotli),
+    and return the anchors found in that HTML. Returns [] if the path is missing,
+    isn't text/html, or fails to decompress."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cur = conn.execute(
+                """
+                SELECT c.content, ct.value, ct.compression
+                FROM "Content" c
+                JOIN ContentTypes ct ON c.contentTypeID = ct.id
+                WHERE c.path = ?
+                """,
+                (base_path,),
+            )
+            base_row = cur.fetchone()
+            if base_row is None or base_row[1] != "text/html":
+                return []
+            compression = base_row[2]
+            parts: list[bytes] = [base_row[0]]
+            n = 1
+            while True:
+                chunk_cur = conn.execute(
+                    'SELECT content FROM "Content" WHERE path = ?',
+                    (f"{base_path}-{n}",),
+                )
+                chunk_row = chunk_cur.fetchone()
+                if chunk_row is None:
+                    break
+                parts.append(chunk_row[0])
+                n += 1
+    except sqlite3.OperationalError:
+        return []
+    full = b"".join(parts)
+    if compression == "brotli":
+        try:
+            full = brotli.decompress(full)
+        except brotli.error:
+            return []
+    return extract_html_anchors(full)
+
+
 def update_uri_status_icon(
-    icon: ft.Icon, uri: str, valid_paths: set[str]
+    icon: ft.Icon,
+    uri: str,
+    valid_paths: set[str],
+    db_path: Path | None = None,
 ) -> None:
-    """Set icon glyph/color/tooltip based on whether the URI maps to a valid Content.path."""
+    """Set icon glyph/color/tooltip based on whether the URI maps to a valid Content.path.
+
+    With `db_path=None` (cheap on_change refresh), only the path part is checked. With
+    `db_path` provided (typically on_blur), a non-empty `#fragment` is also validated
+    against the HTML's actual anchors via `get_html_anchors_for_path`."""
     stripped = (uri or "").strip()
     if not stripped:
         icon.icon = ft.Icons.HELP_OUTLINE
         icon.color = ft.Colors.GREY
         icon.tooltip = "Enter a URI"
-    elif _uri_path_for_content_lookup(stripped) in valid_paths:
-        icon.icon = ft.Icons.CHECK
-        icon.color = ft.Colors.GREEN
-        icon.tooltip = "Path exists in Content"
-    else:
+        return
+    path_part = _uri_path_for_content_lookup(stripped)
+    if path_part not in valid_paths:
         icon.icon = ft.Icons.CLOSE
         icon.color = ft.Colors.RED
         icon.tooltip = "No matching path in Content"
+        return
+    fragment = _uri_fragment(stripped)
+    if not fragment or db_path is None:
+        icon.icon = ft.Icons.CHECK
+        icon.color = ft.Colors.GREEN
+        icon.tooltip = "Path exists in Content"
+        return
+    anchors = get_html_anchors_for_path(db_path, path_part)
+    if fragment in anchors:
+        icon.icon = ft.Icons.CHECK
+        icon.color = ft.Colors.GREEN
+        icon.tooltip = "Path and anchor both exist"
+    else:
+        icon.icon = ft.Icons.CLOSE
+        icon.color = ft.Colors.RED
+        icon.tooltip = f"Anchor '#{fragment}' not found in {path_part}"
 
 
 def find_broken_button_uris(
@@ -390,13 +538,16 @@ def insert_tooltip(
     detail: str,
 ) -> int:
     """Insert a new tooltip. Returns the new id. Raises sqlite3.IntegrityError if (categoryId, tag) is duplicate."""
+    tag = sanitize_text(tag.strip(), field="tag")
+    summary = sanitize_text(summary, field="summary")
+    detail = sanitize_text(detail, field="detail", allow_newline=True)
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
             """
             INSERT INTO Tooltips (categoryId, tag, summary, detail)
             VALUES (?, ?, ?, ?)
             """,
-            (category_id, tag.strip(), summary, detail),
+            (category_id, tag, summary, detail),
         )
         conn.commit()
         return cur.lastrowid or 0
@@ -411,6 +562,9 @@ def update_tooltip(
     detail: str,
 ) -> None:
     """Update the tooltip. Raises sqlite3.IntegrityError if (categoryId, tag) is duplicate."""
+    tag = sanitize_text(tag.strip(), field="tag")
+    summary = sanitize_text(summary, field="summary")
+    detail = sanitize_text(detail, field="detail", allow_newline=True)
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
@@ -418,7 +572,7 @@ def update_tooltip(
             SET categoryId = ?, tag = ?, summary = ?, detail = ?
             WHERE id = ?
             """,
-            (category_id, tag.strip(), summary, detail, tooltip_id),
+            (category_id, tag, summary, detail, tooltip_id),
         )
         conn.commit()
 
@@ -438,13 +592,15 @@ def add_tooltip_button(
     uri: str,
 ) -> None:
     """Insert a row into TooltipButtons."""
+    description = sanitize_text(description.strip(), field="button description")
+    uri = sanitize_text(uri.strip(), field="button uri")
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
             INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
             VALUES (?, ?, ?, ?)
             """,
-            (tooltip_id, button_number_id, description.strip(), uri.strip()),
+            (tooltip_id, button_number_id, description, uri),
         )
         conn.commit()
 
@@ -457,6 +613,8 @@ def update_tooltip_button(
     uri: str,
 ) -> None:
     """Update description and uri for one TooltipButtons row."""
+    description = sanitize_text(description.strip(), field="button description")
+    uri = sanitize_text(uri.strip(), field="button uri")
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
@@ -464,7 +622,7 @@ def update_tooltip_button(
             SET description = ?, uri = ?
             WHERE tooltipId = ? AND buttonNumberId = ?
             """,
-            (description.strip(), uri.strip(), tooltip_id, button_number_id),
+            (description, uri, tooltip_id, button_number_id),
         )
         conn.commit()
 
@@ -490,18 +648,27 @@ def replace_tooltip_buttons(
     buttons: list[tuple[int, str, str]],
 ) -> None:
     """Replace all TooltipButtons for this tooltip with the given list (order_id, description, uri)."""
+    cleaned: list[tuple[int, str, str]] = []
+    for button_number_id, description, uri in buttons:
+        cleaned.append(
+            (
+                button_number_id,
+                sanitize_text(description.strip(), field="button description"),
+                sanitize_text(uri.strip(), field="button uri"),
+            )
+        )
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "DELETE FROM TooltipButtons WHERE tooltipId = ?",
             (tooltip_id,),
         )
-        for button_number_id, description, uri in buttons:
+        for button_number_id, description, uri in cleaned:
             conn.execute(
                 """
                 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
                 VALUES (?, ?, ?, ?)
                 """,
-                (tooltip_id, button_number_id, description.strip(), uri.strip()),
+                (tooltip_id, button_number_id, description, uri),
             )
         conn.commit()
 
@@ -564,6 +731,27 @@ def validate_csv_upload(
                 f"Line {line_num}: expected {expected_columns} fields, got {len(row)}."
             )
         else:
+            cell_field_names = (
+                "category", "tag", "summary", "detail",
+                "button1 label", "button1 uri",
+                "button2 label", "button2 uri",
+                "button3 label", "button3 uri",
+            )
+            cleaned_cells: list[str] = []
+            cell_error = False
+            for cell, field_name in zip(row, cell_field_names):
+                allow_nl = field_name == "detail"
+                try:
+                    cleaned_cells.append(
+                        sanitize_text(cell.strip(), field=field_name, allow_newline=allow_nl)
+                    )
+                except ValueError as e:
+                    line_errors.append(f"Line {line_num}: {e}")
+                    cell_error = True
+                    break
+            if cell_error:
+                errors.extend(line_errors)
+                continue
             (
                 category_name,
                 tag,
@@ -575,7 +763,7 @@ def validate_csv_upload(
                 b2_uri,
                 b3_label,
                 b3_uri,
-            ) = (c.strip() for c in row)
+            ) = cleaned_cells
 
             if not category_name:
                 line_errors.append(f"Line {line_num}: category is required.")
@@ -683,6 +871,7 @@ class ScanResult(NamedTuple):
     conflicts: list[tuple[Path, str]]
     skipped_symlinks: list[Path]
     skipped_hidden: list[Path]
+    skipped_bad_name: list[tuple[Path, str]] = []
 
 
 class ImportSummary(NamedTuple):
@@ -770,9 +959,15 @@ def prescan_content_import(
     regular, symlinks, hidden = walk_content_folder(folder)
     candidates: list[ImportItem] = []
     unmapped: list[tuple[Path, str | None]] = []
+    bad_name: list[tuple[Path, str]] = []
 
     for f in regular:
         rel = f.relative_to(folder.parent).as_posix()
+        try:
+            sanitize_text(rel, field="path")
+        except ValueError as e:
+            bad_name.append((f, str(e)))
+            continue
         mime = mime_for_filename(f.name)
         if mime is None or mime not in content_types:
             unmapped.append((f, mime))
@@ -812,6 +1007,7 @@ def prescan_content_import(
         conflicts=conflicts,
         skipped_symlinks=symlinks,
         skipped_hidden=hidden,
+        skipped_bad_name=bad_name,
     )
 
 
@@ -928,7 +1124,9 @@ def main(
     PICKER_PAGE_SIZE = 50
 
     def show_content_picker(on_pick: "callable") -> None:
-        """Open a modal: searchable, paginated list of Content.path. on_pick(path) is called when a row is clicked."""
+        """Open a modal picker for a Content.path. After a path is clicked, if it's an HTML
+        page that contains anchors, a second-step picker offers them so the caller receives
+        either `path` or `path#anchor`."""
         state = {"page": 1, "search": None}
 
         search_field = ft.TextField(label="Search path", width=400)
@@ -939,10 +1137,62 @@ def main(
         prev_btn = ft.Button("Previous")
         next_btn = ft.Button("Next")
 
-        def pick(path: str) -> None:
+        def deliver(value: str) -> None:
             page.pop_dialog()
             page.update()
-            on_pick(path)
+            on_pick(value)
+
+        def show_anchor_subpicker(path: str, anchors: list[str]) -> None:
+            """Replace the path picker with a list of anchors for `path`."""
+            page.pop_dialog()
+            anchor_column = ft.Column(
+                scroll=ft.ScrollMode.AUTO, expand=True, spacing=2
+            )
+            anchor_column.controls.append(
+                ft.TextButton(
+                    "(no anchor — use path only)",
+                    on_click=lambda _: deliver(path),
+                )
+            )
+            for anchor in anchors:
+                anchor_column.controls.append(
+                    ft.TextButton(
+                        f"#{anchor}",
+                        on_click=lambda e, a=anchor: deliver(f"{path}#{a}"),
+                    )
+                )
+
+            def go_back(_: ft.ControlEvent) -> None:
+                page.pop_dialog()
+                page.update()
+                show_content_picker(on_pick)
+
+            page.show_dialog(
+                ft.AlertDialog(
+                    title=ft.Text(f"Anchors in {path}"),
+                    content=ft.Container(
+                        content=anchor_column,
+                        width=700,
+                        height=520,
+                    ),
+                    actions=[
+                        ft.TextButton("Back", on_click=go_back),
+                        ft.TextButton(
+                            "Cancel",
+                            on_click=lambda _: (page.pop_dialog(), page.update()),
+                        ),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+            )
+            page.update()
+
+        def on_path_clicked(path: str) -> None:
+            anchors = get_html_anchors_for_path(db_path, path)
+            if not anchors:
+                deliver(path)
+                return
+            show_anchor_subpicker(path, anchors)
 
         def fill_list() -> None:
             offset = (state["page"] - 1) * PICKER_PAGE_SIZE
@@ -954,7 +1204,7 @@ def main(
                 list_column.controls.append(
                     ft.TextButton(
                         path,
-                        on_click=lambda e, p=path: pick(p),
+                        on_click=lambda e, p=path: on_path_clicked(p),
                     )
                 )
             total = get_content_paths_count(db_path, state["search"])
@@ -1308,6 +1558,9 @@ def main(
                         )
                     )
                     return
+                except ValueError as ve:
+                    page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
+                    return
                 category_name = get_category_name(db_path, int(cid_val))
                 if category_name is not None:
                     update_last_change(
@@ -1371,7 +1624,9 @@ def main(
                 row_desc = ft.Text(str(desc or ""), no_wrap=False, selectable=True)
                 row_uri = ft.Text(str(uri or ""), no_wrap=False, selectable=True)
                 row_status_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
-                update_uri_status_icon(row_status_icon, uri or "", valid_paths)
+                update_uri_status_icon(
+                    row_status_icon, uri or "", valid_paths, db_path=db_path
+                )
                 edit_btn = ft.Button(
                     "Edit",
                     style=ft.ButtonStyle(
@@ -1420,11 +1675,23 @@ def main(
                 )
                 page.update()
 
-            add_uri_field.on_change = on_add_uri_change
+            def on_add_uri_blur(_: ft.ControlEvent) -> None:
+                update_uri_status_icon(
+                    add_uri_icon,
+                    add_uri_field.value or "",
+                    valid_paths,
+                    db_path=db_path,
+                )
+                page.update()
 
-            def on_add_browse_pick(path: str) -> None:
-                add_uri_field.value = path
-                update_uri_status_icon(add_uri_icon, path, valid_paths)
+            add_uri_field.on_change = on_add_uri_change
+            add_uri_field.on_blur = on_add_uri_blur
+
+            def on_add_browse_pick(value: str) -> None:
+                add_uri_field.value = value
+                update_uri_status_icon(
+                    add_uri_icon, value, valid_paths, db_path=db_path
+                )
                 page.update()
 
             add_browse_btn = ft.Button(
@@ -1497,11 +1764,23 @@ def main(
                 )
                 page.update()
 
-            edit_uri.on_change = on_edit_uri_change
+            def on_edit_uri_blur(_: ft.ControlEvent) -> None:
+                update_uri_status_icon(
+                    edit_uri_icon,
+                    edit_uri.value or "",
+                    valid_paths,
+                    db_path=db_path,
+                )
+                page.update()
 
-            def on_edit_browse_pick(path: str) -> None:
-                edit_uri.value = path
-                update_uri_status_icon(edit_uri_icon, path, valid_paths)
+            edit_uri.on_change = on_edit_uri_change
+            edit_uri.on_blur = on_edit_uri_blur
+
+            def on_edit_browse_pick(value: str) -> None:
+                edit_uri.value = value
+                update_uri_status_icon(
+                    edit_uri_icon, value, valid_paths, db_path=db_path
+                )
                 page.update()
 
             edit_browse_btn = ft.Button(
@@ -1703,7 +1982,9 @@ def main(
                 row_desc = ft.Text(str(desc or ""), no_wrap=False, selectable=True)
                 row_uri = ft.Text(str(uri or ""), no_wrap=False, selectable=True)
                 row_status_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
-                update_uri_status_icon(row_status_icon, uri or "", valid_paths)
+                update_uri_status_icon(
+                    row_status_icon, uri or "", valid_paths, db_path=db_path
+                )
                 edit_btn = ft.Button(
                     "Edit",
                     style=ft.ButtonStyle(
@@ -1752,11 +2033,23 @@ def main(
                 )
                 page.update()
 
-            add_uri_field.on_change = on_add_uri_change
+            def on_add_uri_blur(_: ft.ControlEvent) -> None:
+                update_uri_status_icon(
+                    add_uri_icon,
+                    add_uri_field.value or "",
+                    valid_paths,
+                    db_path=db_path,
+                )
+                page.update()
 
-            def on_add_browse_pick(path: str) -> None:
-                add_uri_field.value = path
-                update_uri_status_icon(add_uri_icon, path, valid_paths)
+            add_uri_field.on_change = on_add_uri_change
+            add_uri_field.on_blur = on_add_uri_blur
+
+            def on_add_browse_pick(value: str) -> None:
+                add_uri_field.value = value
+                update_uri_status_icon(
+                    add_uri_icon, value, valid_paths, db_path=db_path
+                )
                 page.update()
 
             add_browse_btn = ft.Button(
@@ -1829,11 +2122,23 @@ def main(
                 )
                 page.update()
 
-            edit_uri.on_change = on_edit_uri_change
+            def on_edit_uri_blur(_: ft.ControlEvent) -> None:
+                update_uri_status_icon(
+                    edit_uri_icon,
+                    edit_uri.value or "",
+                    valid_paths,
+                    db_path=db_path,
+                )
+                page.update()
 
-            def on_edit_browse_pick(path: str) -> None:
-                edit_uri.value = path
-                update_uri_status_icon(edit_uri_icon, path, valid_paths)
+            edit_uri.on_change = on_edit_uri_change
+            edit_uri.on_blur = on_edit_uri_blur
+
+            def on_edit_browse_pick(value: str) -> None:
+                edit_uri.value = value
+                update_uri_status_icon(
+                    edit_uri_icon, value, valid_paths, db_path=db_path
+                )
                 page.update()
 
             edit_browse_btn = ft.Button(
@@ -1918,6 +2223,9 @@ def main(
                             content=ft.Text("Tag already exists in this category.")
                         )
                     )
+                    return
+                except ValueError as ve:
+                    page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
                     return
                 category_name = get_category_name(db_path, int(cid_val))
                 if category_name is not None:
@@ -2686,14 +2994,19 @@ def main(
                 if not path:
                     return
                 try:
-                    with open(path, newline="", encoding="utf-8") as f:
+                    with open(path, newline="", encoding="utf-8", errors="strict") as f:
                         reader = csv.reader(f)
                         all_rows = list(reader)
-                except OSError as e:
+                except (OSError, UnicodeDecodeError) as e:
+                    msg = (
+                        f"File is not valid UTF-8: {e}"
+                        if isinstance(e, UnicodeDecodeError)
+                        else str(e)
+                    )
                     page.show_dialog(
                         ft.AlertDialog(
                             title=ft.Text("Upload failed"),
-                            content=ft.Text(str(e), selectable=True),
+                            content=ft.Text(msg, selectable=True),
                             actions=[ft.TextButton("OK", on_click=lambda e: (page.pop_dialog(), page.update()))],
                         )
                     )
@@ -2948,6 +3261,13 @@ def main(
                 if scan.skipped_hidden:
                     lines.append(
                         f"Hidden files skipped: {len(scan.skipped_hidden)}"
+                    )
+                if scan.skipped_bad_name:
+                    sample = ", ".join(
+                        str(p) for p, _ in scan.skipped_bad_name[:5]
+                    )
+                    lines.append(
+                        f"Disallowed filename chars (will skip): {len(scan.skipped_bad_name)} — {sample}"
                     )
 
                 preview_text = "\n".join(lines)
