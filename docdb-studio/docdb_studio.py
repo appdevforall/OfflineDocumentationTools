@@ -7,12 +7,14 @@ import io
 import mimetypes
 import os
 import sqlite3
+import threading
+import time
 import tkinter as tk
 import unicodedata
 from html.parser import HTMLParser
 from pathlib import Path
 from tkinter import filedialog
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import brotli
 import flet as ft
@@ -21,6 +23,10 @@ import flet_datatable2 as fdt
 mimetypes.add_type("text/markdown", ".md")
 
 CONTENT_CHUNK_SIZE = 1024 * 1024  # Android consumer probes for `path-N` continuations at this size.
+
+# Conservative batch size for SQL `WHERE col IN (?,...)` queries — older SQLite
+# builds cap at 999 host parameters, modern ones at 32766; we stay well under.
+SQL_PARAM_BATCH = 500
 
 PAGE_SIZE = 50
 
@@ -868,7 +874,10 @@ class ImportItem(NamedTuple):
 class ScanResult(NamedTuple):
     mapped: list[ImportItem]
     unmapped: list[tuple[Path, str | None]]
-    conflicts: list[tuple[Path, str]]
+    overwrites: list[str]
+    overwrite_row_ids_by_base: dict[str, list[int]]
+    orphans: list[str]
+    orphan_row_ids: list[int]
     skipped_symlinks: list[Path]
     skipped_hidden: list[Path]
     skipped_bad_name: list[tuple[Path, str]] = []
@@ -876,8 +885,9 @@ class ScanResult(NamedTuple):
 
 class ImportSummary(NamedTuple):
     files_imported: int
+    files_overwritten: int
+    orphans_deleted: int
     rows_inserted: int
-    files_skipped_chunk_conflict: int
     files_skipped_error: int
     errors: list[tuple[Path, str]]
     imported_by_mime: dict[str, int]
@@ -950,12 +960,47 @@ def target_paths(base_path: str, fragment_count: int) -> list[str]:
     return [base_path] + [f"{base_path}-{i}" for i in range(1, fragment_count)]
 
 
+def _chunked(seq: list, size: int):
+    """Yield successive `size`-length slices of `seq`."""
+    for i in range(0, len(seq), size):
+        yield seq[i : i + size]
+
+
+def _logical_base(path: str) -> str:
+    """Inverse of target_paths: strip a trailing -<digits> suffix iff present.
+
+    'a/big.bin-2' -> 'a/big.bin'; 'a/foo.bin-extra.txt' -> unchanged (suffix
+    isn't all digits); 'a/page.html' -> unchanged.
+    """
+    head, sep, tail = path.rpartition("-")
+    if sep and head and tail.isdigit():
+        return head
+    return path
+
+
+def _delete_content_by_ids(
+    conn: sqlite3.Connection, row_ids: list[int]
+) -> None:
+    """Bulk-delete Content rows by id, chunked under the SQL parameter ceiling."""
+    for batch in _chunked(row_ids, SQL_PARAM_BATCH):
+        placeholders = ",".join("?" * len(batch))
+        conn.execute(
+            f'DELETE FROM "Content" WHERE id IN ({placeholders})',
+            batch,
+        )
+
+
 def prescan_content_import(
     db_path: Path,
     folder: Path,
     content_types: dict[str, tuple[int, str]],
 ) -> ScanResult:
-    """Walk `folder`, classify each file, and check base-path collisions against the DB."""
+    """Walk `folder`, classify each file, and identify overwrites + orphans.
+
+    Overwrites are mapped files whose base_path already exists in the DB (will
+    be replaced). Orphans are DB rows under the chosen folder's prefix whose
+    logical base path isn't represented in the import (will be deleted to make
+    the DB match the folder)."""
     regular, symlinks, hidden = walk_content_folder(folder)
     candidates: list[ImportItem] = []
     unmapped: list[tuple[Path, str | None]] = []
@@ -983,28 +1028,41 @@ def prescan_content_import(
             )
         )
 
-    conflict_set: set[str] = set()
-    if candidates:
-        with sqlite3.connect(db_path) as conn:
-            placeholders = ",".join("?" * len(candidates))
-            cur = conn.execute(
-                f'SELECT path FROM "Content" WHERE path IN ({placeholders})',
-                [item.base_path for item in candidates],
-            )
-            conflict_set = {row[0] for row in cur.fetchall()}
+    mapped_bases = {item.base_path for item in candidates}
+    folder_prefix = folder.name + "/"
+    overwrite_set: set[str] = set()
+    orphan_set: set[str] = set()
+    overwrite_row_ids_by_base: dict[str, list[int]] = {}
+    orphan_row_ids: list[int] = []
 
-    mapped: list[ImportItem] = []
-    conflicts: list[tuple[Path, str]] = []
-    for item in candidates:
-        if item.base_path in conflict_set:
-            conflicts.append((item.source, item.base_path))
-        else:
-            mapped.append(item)
+    with sqlite3.connect(db_path) as conn:
+        # Range query rather than `LIKE 'foldername/%'` so the scan uses the
+        # UNIQUE(path) index (default LIKE is case-insensitive and does not).
+        # Successor of '/' (0x2F) is '0' (0x30); the half-open range
+        # ['foldername/', 'foldername0') is exactly the set of paths that
+        # start with 'foldername/'.
+        cur = conn.execute(
+            'SELECT id, path FROM "Content" WHERE path >= ? AND path < ?',
+            (folder_prefix, folder.name + chr(ord("/") + 1)),
+        )
+        for row_id, db_row_path in cur.fetchall():
+            if not db_row_path.startswith(folder_prefix):
+                continue
+            base = _logical_base(db_row_path)
+            if base in mapped_bases:
+                overwrite_set.add(base)
+                overwrite_row_ids_by_base.setdefault(base, []).append(row_id)
+            else:
+                orphan_set.add(base)
+                orphan_row_ids.append(row_id)
 
     return ScanResult(
-        mapped=mapped,
+        mapped=list(candidates),
         unmapped=unmapped,
-        conflicts=conflicts,
+        overwrites=sorted(overwrite_set),
+        overwrite_row_ids_by_base=overwrite_row_ids_by_base,
+        orphans=sorted(orphan_set),
+        orphan_row_ids=orphan_row_ids,
         skipped_symlinks=symlinks,
         skipped_hidden=hidden,
         skipped_bad_name=bad_name,
@@ -1017,40 +1075,86 @@ def import_content_files(
     language_id: int,
     user_name: str,
     documentation_set: str,
+    orphan_row_ids: list[int] | None = None,
+    overwrite_row_ids_by_base: dict[str, list[int]] | None = None,
+    progress_callback: Callable[[str, int, int], None] | None = None,
 ) -> ImportSummary:
-    """Read, compress, fragment, and insert the planned items. Updates LastChange at the end."""
+    """Insert plan items, deleting existing rows by id where prescan said to.
+
+    `orphan_row_ids` is the bulk list of Content rows under the chosen folder
+    that have no corresponding file in the import — they are deleted by id in
+    one chunked pass. `overwrite_row_ids_by_base` maps each plan item's
+    base_path to the list of existing row ids for that file; those rows are
+    deleted just before the new chunks are inserted, so a per-file read error
+    leaves the original content intact.
+
+    Both id structures come from `prescan_content_import` and are typed
+    `list[int]` / `dict[str, list[int]]`; deletion uses `id IN (...)` against
+    the PRIMARY KEY index, which is O(log n) per row regardless of how big the
+    Content table is.
+
+    `progress_callback(phase, current, total)` fires per-batch in the orphan
+    phase and per-item in the overwrite/add phases; the caller is responsible
+    for throttling UI updates."""
     files_imported = 0
+    files_overwritten = 0
+    orphans_deleted = 0
     rows_inserted = 0
-    files_chunk_conflict = 0
     files_error = 0
     errors: list[tuple[Path, str]] = []
     imported_by_mime: dict[str, int] = {}
 
+    orphan_ids = orphan_row_ids or []
+    overwrite_ids_map = overwrite_row_ids_by_base or {}
+    overwrite_set = set(overwrite_ids_map.keys())
+    overwrite_total = sum(1 for item in plan if item.base_path in overwrite_set)
+    add_total = len(plan) - overwrite_total
+    delete_total = len(orphan_ids)
+
+    def _report(phase: str, current: int, total: int) -> None:
+        if progress_callback is not None and total > 0:
+            progress_callback(phase, current, total)
+
     with sqlite3.connect(db_path) as conn:
+        # Phase 1: bulk-delete orphans by id. Reports progress per batch so a
+        # large orphan list still shows the bar advancing.
+        deleted_so_far = 0
+        for batch in _chunked(orphan_ids, SQL_PARAM_BATCH):
+            placeholders = ",".join("?" * len(batch))
+            conn.execute(
+                f'DELETE FROM "Content" WHERE id IN ({placeholders})',
+                batch,
+            )
+            deleted_so_far += len(batch)
+            _report("delete", deleted_so_far, delete_total)
+        orphans_deleted = delete_total
+
+        # Phases 2 + 3: per-item read, delete-old-by-id, insert.
+        adds_done = 0
+        overwrites_done = 0
         for item in plan:
+            is_overwrite = item.base_path in overwrite_set
             try:
                 data = item.source.read_bytes()
             except OSError as e:
                 files_error += 1
                 errors.append((item.source, f"read error: {e}"))
+                if is_overwrite:
+                    overwrites_done += 1
+                    _report("overwrite", overwrites_done, overwrite_total)
+                else:
+                    adds_done += 1
+                    _report("add", adds_done, add_total)
                 continue
 
             stored = compress_for_storage(data, item.compression)
             chunks = fragment_blob(stored)
             paths = target_paths(item.base_path, len(chunks))
 
-            placeholders = ",".join("?" * len(paths))
-            cur = conn.execute(
-                f'SELECT path FROM "Content" WHERE path IN ({placeholders})',
-                paths,
-            )
-            existing = [row[0] for row in cur.fetchall()]
-            if existing:
-                files_chunk_conflict += 1
-                errors.append(
-                    (item.source, f"chunk path conflict: {', '.join(existing)}")
-                )
-                continue
+            old_ids = overwrite_ids_map.get(item.base_path)
+            if old_ids:
+                _delete_content_by_ids(conn, old_ids)
+                files_overwritten += 1
 
             for chunk_path, chunk in zip(paths, chunks):
                 conn.execute(
@@ -1060,14 +1164,23 @@ def import_content_files(
                 rows_inserted += 1
             files_imported += 1
             imported_by_mime[item.mime] = imported_by_mime.get(item.mime, 0) + 1
+
+            if is_overwrite:
+                overwrites_done += 1
+                _report("overwrite", overwrites_done, overwrite_total)
+            else:
+                adds_done += 1
+                _report("add", adds_done, add_total)
+
         conn.commit()
 
     update_last_change(db_path, documentation_set, user_name)
 
     return ImportSummary(
         files_imported=files_imported,
+        files_overwritten=files_overwritten,
+        orphans_deleted=orphans_deleted,
         rows_inserted=rows_inserted,
-        files_skipped_chunk_conflict=files_chunk_conflict,
         files_skipped_error=files_error,
         errors=errors,
         imported_by_mime=imported_by_mime,
@@ -3221,13 +3334,51 @@ def main(
                 shown = ", ".join(items[:limit])
                 return f"{shown}, … (+{len(items) - limit} more)"
 
+            def show_path_list_dialog(title: str, paths: list[str]) -> None:
+                """Open a stacked dialog with a virtualized ListView of paths.
+                Used for the per-category 'View list' buttons in the preview."""
+                rows = [
+                    ft.Text(p, selectable=True, font_family="monospace", size=12)
+                    for p in paths
+                ]
+                page.show_dialog(
+                    ft.AlertDialog(
+                        title=ft.Text(f"{title} ({len(paths)})"),
+                        content=ft.Container(
+                            content=ft.ListView(controls=rows, expand=True),
+                            width=720,
+                            height=480,
+                        ),
+                        actions=[
+                            ft.TextButton(
+                                "Close",
+                                on_click=lambda e: (
+                                    page.pop_dialog(),
+                                    page.update(),
+                                ),
+                            ),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.END,
+                    )
+                )
+                page.update()
+
+            def _action_row(label: str, dialog_title: str, paths: list[str]) -> ft.Row:
+                return ft.Row(
+                    [
+                        ft.Text(label),
+                        ft.TextButton(
+                            "View list",
+                            on_click=lambda e, t=dialog_title, p=paths: show_path_list_dialog(t, p),
+                        ),
+                    ],
+                    spacing=8,
+                )
+
             def show_preview_dialog(scan: ScanResult) -> None:
                 by_type: dict[str, int] = {}
                 for item in scan.mapped:
                     by_type[item.mime] = by_type.get(item.mime, 0) + 1
-                type_lines = [
-                    f"  {mime}: {n}" for mime, n in sorted(by_type.items())
-                ]
                 unmapped_exts: dict[str, int] = {}
                 for src, _mime in scan.unmapped:
                     ext = src.suffix or "(no extension)"
@@ -3235,50 +3386,75 @@ def main(
                 unmapped_summary = _format_counter(
                     [f"{ext} ({n})" for ext, n in sorted(unmapped_exts.items())]
                 )
-                conflicts_paths = _format_counter([p for _, p in scan.conflicts])
 
-                lines: list[str] = []
-                lines.append(f"Folder: {folder}")
-                lines.append(
-                    f"Files found: "
-                    f"{len(scan.mapped) + len(scan.unmapped) + len(scan.conflicts)}"
+                overwrite_set = set(scan.overwrites)
+                adds = sorted(
+                    item.base_path
+                    for item in scan.mapped
+                    if item.base_path not in overwrite_set
                 )
-                lines.append("")
-                lines.append(f"Mapped (will import): {len(scan.mapped)}")
-                lines.extend(type_lines)
-                if scan.unmapped:
-                    lines.append(
-                        f"Unmapped (will skip): {len(scan.unmapped)} — {unmapped_summary}"
+
+                controls: list[ft.Control] = []
+                controls.append(ft.Text(f"Folder: {folder}", selectable=True))
+                controls.append(
+                    ft.Text(
+                        f"Files found: {len(scan.mapped) + len(scan.unmapped)}"
                     )
-                if scan.conflicts:
-                    lines.append(
-                        f"Path conflicts (will skip): {len(scan.conflicts)} — {conflicts_paths}"
+                )
+                controls.append(ft.Text(""))
+                controls.append(ft.Text(f"Mapped (will import): {len(scan.mapped)}"))
+                for mime, n in sorted(by_type.items()):
+                    controls.append(ft.Text(f"  {mime}: {n}"))
+                if adds:
+                    controls.append(_action_row(f"Will add: {len(adds)}", "Will add", adds))
+                if scan.overwrites:
+                    controls.append(
+                        _action_row(
+                            f"Will overwrite: {len(scan.overwrites)}",
+                            "Will overwrite",
+                            list(scan.overwrites),
+                        )
+                    )
+                if scan.orphans:
+                    controls.append(
+                        _action_row(
+                            f"Will delete (not in folder): {len(scan.orphans)}",
+                            "Will delete",
+                            list(scan.orphans),
+                        )
+                    )
+                if scan.unmapped:
+                    controls.append(
+                        ft.Text(
+                            f"Unmapped (will skip): {len(scan.unmapped)} — {unmapped_summary}"
+                        )
                     )
                 if scan.skipped_symlinks:
-                    lines.append(
-                        f"Symlinks skipped: {len(scan.skipped_symlinks)}"
+                    controls.append(
+                        ft.Text(f"Symlinks skipped: {len(scan.skipped_symlinks)}")
                     )
                 if scan.skipped_hidden:
-                    lines.append(
-                        f"Hidden files skipped: {len(scan.skipped_hidden)}"
+                    controls.append(
+                        ft.Text(f"Hidden files skipped: {len(scan.skipped_hidden)}")
                     )
                 if scan.skipped_bad_name:
                     sample = ", ".join(
                         str(p) for p, _ in scan.skipped_bad_name[:5]
                     )
-                    lines.append(
-                        f"Disallowed filename chars (will skip): {len(scan.skipped_bad_name)} — {sample}"
+                    controls.append(
+                        ft.Text(
+                            f"Disallowed filename chars (will skip): {len(scan.skipped_bad_name)} — {sample}"
+                        )
                     )
 
-                preview_text = "\n".join(lines)
-
+                has_work = bool(scan.mapped or scan.orphans)
                 actions: list[ft.Control] = [
                     ft.TextButton(
-                        "Close" if not scan.mapped else "Cancel",
+                        "Close" if not has_work else "Cancel",
                         on_click=lambda e: (page.pop_dialog(), page.update()),
                     ),
                 ]
-                if scan.mapped:
+                if has_work:
                     actions.append(
                         ft.Button(
                             "Import",
@@ -3291,12 +3467,12 @@ def main(
                         title=ft.Text("Preview"),
                         content=ft.Container(
                             content=ft.Column(
-                                [ft.Text(preview_text, selectable=True)],
+                                controls,
                                 scroll=ft.ScrollMode.AUTO,
                                 tight=True,
                             ),
-                            width=600,
-                            height=400,
+                            width=640,
+                            height=420,
                         ),
                         actions=actions,
                         actions_alignment=ft.MainAxisAlignment.END,
@@ -3311,34 +3487,139 @@ def main(
                     language_id = int(language_dd.value or languages[0][0])
                 except (ValueError, TypeError):
                     language_id = languages[0][0]
-                try:
-                    summary = import_content_files(
-                        db_path,
-                        scan.mapped,
-                        language_id=language_id,
-                        user_name=user_name,
-                        documentation_set=doc_set,
+
+                overwrite_set = set(scan.overwrites)
+                overwrite_count = sum(
+                    1 for item in scan.mapped if item.base_path in overwrite_set
+                )
+                add_count = len(scan.mapped) - overwrite_count
+                delete_count = len(scan.orphans)
+
+                delete_text = ft.Text(
+                    f"Deleting orphans: 0 / {delete_count}"
+                )
+                delete_bar = ft.ProgressBar(value=0.0, width=420)
+                overwrite_text = ft.Text(
+                    f"Overwriting files: 0 / {overwrite_count}"
+                )
+                overwrite_bar = ft.ProgressBar(value=0.0, width=420)
+                add_text = ft.Text(f"Adding files: 0 / {add_count}")
+                add_bar = ft.ProgressBar(value=0.0, width=420)
+
+                progress_controls: list[ft.Control] = []
+                if delete_count:
+                    progress_controls.extend([delete_text, delete_bar])
+                if overwrite_count:
+                    progress_controls.extend([overwrite_text, overwrite_bar])
+                if add_count:
+                    progress_controls.extend([add_text, add_bar])
+
+                page.show_dialog(
+                    ft.AlertDialog(
+                        modal=True,
+                        title=ft.Text("Importing…"),
+                        content=ft.Container(
+                            content=ft.Column(
+                                progress_controls,
+                                tight=True,
+                                spacing=8,
+                            ),
+                            width=480,
+                        ),
                     )
-                except sqlite3.Error as e:
-                    show_simple_dialog("Import failed", f"Database error: {e}")
-                    return
-                show_result_dialog(summary)
+                )
+                page.update()
+
+                last_update = [0.0]
+
+                # Flet's send queue is an asyncio.Queue, which is NOT thread-safe.
+                # Calling page.update / show_dialog / pop_dialog directly from the
+                # worker thread races with the loop-side reader and stops flushing
+                # after the first push. Instead the worker only mutates control
+                # values (a plain attribute write), and any method that touches the
+                # send queue is scheduled via page.run_task so it runs on the
+                # event loop.
+
+                async def _flush_update() -> None:
+                    page.update()
+
+                async def _finish_with_result(summary: ImportSummary) -> None:
+                    page.pop_dialog()
+                    page.update()
+                    show_result_dialog(summary)
+
+                async def _finish_with_error(message: str) -> None:
+                    page.pop_dialog()
+                    page.update()
+                    show_simple_dialog("Import failed", message)
+
+                def on_progress(phase: str, current: int, total: int) -> None:
+                    if phase == "delete":
+                        delete_text.value = f"Deleting orphans: {current} / {total}"
+                        delete_bar.value = current / total
+                    elif phase == "overwrite":
+                        overwrite_text.value = (
+                            f"Overwriting files: {current} / {total}"
+                        )
+                        overwrite_bar.value = current / total
+                    elif phase == "add":
+                        add_text.value = f"Adding files: {current} / {total}"
+                        add_bar.value = current / total
+
+                    now = time.monotonic()
+                    # Always flush the first and last tick of a phase so phase
+                    # transitions are visible; otherwise throttle to ~10 Hz so we
+                    # don't queue thousands of trivial UI updates.
+                    if (
+                        current == 1
+                        or current == total
+                        or now - last_update[0] >= 0.1
+                    ):
+                        last_update[0] = now
+                        page.run_task(_flush_update)
+
+                def run_import() -> None:
+                    try:
+                        summary = import_content_files(
+                            db_path,
+                            scan.mapped,
+                            language_id=language_id,
+                            user_name=user_name,
+                            documentation_set=doc_set,
+                            orphan_row_ids=scan.orphan_row_ids,
+                            overwrite_row_ids_by_base=scan.overwrite_row_ids_by_base,
+                            progress_callback=on_progress,
+                        )
+                    except Exception as e:
+                        import traceback
+
+                        traceback.print_exc()
+                        page.run_task(
+                            _finish_with_error, f"{type(e).__name__}: {e}"
+                        )
+                        return
+                    page.run_task(_finish_with_result, summary)
+
+                page.run_thread(run_import)
 
             def show_result_dialog(summary: ImportSummary) -> None:
                 lines = [
                     f"Imported: {summary.files_imported} files "
                     f"({summary.rows_inserted} rows including chunks)",
                 ]
+                if summary.files_overwritten:
+                    lines.append(
+                        f"Files overwritten: {summary.files_overwritten}"
+                    )
+                if summary.orphans_deleted:
+                    lines.append(
+                        f"Orphans deleted: {summary.orphans_deleted}"
+                    )
                 if summary.imported_by_mime:
                     lines.append("")
                     lines.append("By content type:")
                     for mime, count in sorted(summary.imported_by_mime.items()):
                         lines.append(f"  {mime}: {count}")
-                if summary.files_skipped_chunk_conflict:
-                    lines.append(
-                        f"Skipped (chunk path conflict): "
-                        f"{summary.files_skipped_chunk_conflict}"
-                    )
                 if summary.files_skipped_error:
                     lines.append(
                         f"Skipped (read error): {summary.files_skipped_error}"

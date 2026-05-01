@@ -19,6 +19,7 @@ target_paths = docdb_studio.target_paths
 prescan_content_import = docdb_studio.prescan_content_import
 import_content_files = docdb_studio.import_content_files
 CONTENT_CHUNK_SIZE = docdb_studio.CONTENT_CHUNK_SIZE
+SQL_PARAM_BATCH = docdb_studio.SQL_PARAM_BATCH
 ImportItem = docdb_studio.ImportItem
 
 
@@ -237,7 +238,7 @@ def test_prescan_classifies_mapped_and_unmapped(tmp_path: Path) -> None:
         assert mapped_paths == ["myroot/page.html", "myroot/style.css"]
         unmapped_names = sorted(p.name for p, _ in scan.unmapped)
         assert unmapped_names == ["data.xyzunknown"]
-        assert scan.conflicts == []
+        assert scan.overwrites == []
     finally:
         db.unlink(missing_ok=True)
 
@@ -269,7 +270,7 @@ def test_prescan_preserves_subdirectory_structure(tmp_path: Path) -> None:
         db.unlink(missing_ok=True)
 
 
-def test_prescan_detects_base_path_conflict(tmp_path: Path) -> None:
+def test_prescan_marks_base_path_collision_as_overwrite(tmp_path: Path) -> None:
     db = _make_db_with_content_schema()
     try:
         with sqlite3.connect(db) as conn:
@@ -282,9 +283,8 @@ def test_prescan_detects_base_path_conflict(tmp_path: Path) -> None:
         root.mkdir()
         (root / "page.html").write_text("<html/>")
         scan = prescan_content_import(db, root, get_content_types(db))
-        assert scan.mapped == []
-        assert len(scan.conflicts) == 1
-        assert scan.conflicts[0][1] == "myroot/page.html"
+        assert [item.base_path for item in scan.mapped] == ["myroot/page.html"]
+        assert scan.overwrites == ["myroot/page.html"]
     finally:
         db.unlink(missing_ok=True)
 
@@ -327,6 +327,141 @@ def test_prescan_routes_filenames_with_zero_width_chars_to_skipped_bad_name(
         db.unlink(missing_ok=True)
 
 
+def test_prescan_finds_orphans_under_chosen_folder(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            for path in ("a/keep.html", "a/old.html"):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                    (path, b"\x00"),
+                )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "keep.html").write_text("<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert [item.base_path for item in scan.mapped] == ["a/keep.html"]
+        assert scan.orphans == ["a/old.html"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_prescan_orphans_excludes_other_top_level_folders(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            for path in ("a/foo.html", "b/bar.html", "c/sub/deep.html"):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                    (path, b"\x00"),
+                )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "foo.html").write_text("<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        # Only a/foo.html is in scope and it's in the import — no orphans. Other
+        # top-level folders (b/, c/) are out of scope and untouched.
+        assert scan.orphans == []
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_prescan_orphans_includes_subfolder_files(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/sub/deep.html", b"\x00"),
+            )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "top.html").write_text("<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert scan.orphans == ["a/sub/deep.html"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_prescan_orphans_groups_chunks_under_logical_base(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            for suffix in ("", "-1", "-2"):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                    (f"a/big.bin{suffix}", b"\x00"),
+                )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "other.html").write_text("<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        # big.bin is reported as a single orphan, not three.
+        assert scan.orphans == ["a/big.bin"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_prescan_overwrite_check_batches_large_candidate_lists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The IN-query for the overwrite check must chunk so it doesn't blow past
+    SQLite's host-parameter ceiling on large folders."""
+    # Force a tiny batch size so the test crosses several batch boundaries
+    # without having to materialize thousands of files.
+    monkeypatch.setattr(docdb_studio, "SQL_PARAM_BATCH", 5)
+    db = _make_db_with_content_schema()
+    try:
+        # 12 candidate files: more than 2x the (patched) batch size, with a
+        # partial trailing batch. Pre-seed every other one so the overwrite set
+        # is non-trivial and crosses batch boundaries.
+        root = tmp_path / "many"
+        root.mkdir()
+        with sqlite3.connect(db) as conn:
+            for i in range(12):
+                name = f"f{i:02d}.html"
+                (root / name).write_text("<html/>")
+                if i % 2 == 0:
+                    conn.execute(
+                        'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                        (f"many/{name}", b"\x00"),
+                    )
+            conn.commit()
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert len(scan.mapped) == 12
+        assert scan.overwrites == [f"many/f{i:02d}.html" for i in range(0, 12, 2)]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_prescan_orphans_treats_non_digit_suffix_as_its_own_file(
+    tmp_path: Path,
+) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            # 'a/foo.bin-extra.txt' is its own file (suffix isn't digits), not a
+            # chunk of 'a/foo.bin'. It should be reported as an orphan in its
+            # own right.
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                ("a/foo.bin-extra.txt", b"\x00"),
+            )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "foo.bin").write_bytes(b"new")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert "a/foo.bin-extra.txt" in scan.orphans
+        assert "a/foo.bin" not in scan.orphans  # imported, not orphaned
+    finally:
+        db.unlink(missing_ok=True)
+
+
 # ---------- import_content_files ----------
 
 
@@ -336,6 +471,19 @@ def _read_content_rows(db: Path) -> list[tuple[str, int, bytes, int]]:
             'SELECT path, languageID, content, contentTypeID FROM "Content" ORDER BY path'
         )
         return cur.fetchall()
+
+
+def _ids_for_paths(db: Path, paths: list[str]) -> list[int]:
+    """Look up row ids for the given paths (test helper)."""
+    if not paths:
+        return []
+    with sqlite3.connect(db) as conn:
+        placeholders = ",".join("?" * len(paths))
+        cur = conn.execute(
+            f'SELECT id FROM "Content" WHERE path IN ({placeholders})',
+            paths,
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 def test_import_inserts_single_chunk_compressed(tmp_path: Path) -> None:
@@ -417,16 +565,21 @@ def test_import_fragments_large_files(tmp_path: Path) -> None:
         db.unlink(missing_ok=True)
 
 
-def test_import_skips_file_when_chunk_path_conflicts(tmp_path: Path) -> None:
+def test_import_overwrites_existing_chunks(tmp_path: Path) -> None:
     db = _make_db_with_content_schema()
     try:
-        # Pre-seed the chunk path so the import has a conflict on the second chunk.
+        # Pre-seed both chunks of a prior import with arbitrary bytes.
         with sqlite3.connect(db) as conn:
             conn.execute(
                 'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
-                ("big.bin-1", b"\x00"),
+                ("big.bin", b"OLD-PART-1"),
+            )
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                ("big.bin-1", b"OLD-PART-2"),
             )
             conn.commit()
+        old_ids = _ids_for_paths(db, ["big.bin", "big.bin-1"])
         src = tmp_path / "big.bin"
         body = b"X" * (CONTENT_CHUNK_SIZE + 500)
         src.write_bytes(body)
@@ -437,13 +590,115 @@ def test_import_skips_file_when_chunk_path_conflicts(tmp_path: Path) -> None:
             mime="image/png",
             compression="none",
         )
-        summary = import_content_files(db, [item], 1, "Alice", "content-test")
-        assert summary.files_imported == 0
-        assert summary.files_skipped_chunk_conflict == 1
-        # No rows inserted for big.bin or big.bin-1 (other than the pre-seeded one).
+        summary = import_content_files(
+            db,
+            [item],
+            1,
+            "Alice",
+            "content-test",
+            overwrite_row_ids_by_base={"big.bin": old_ids},
+        )
+        assert summary.files_imported == 1
+        assert summary.files_overwritten == 1
+        assert summary.errors == []
         rows = _read_content_rows(db)
-        assert len(rows) == 1
-        assert rows[0][0] == "big.bin-1"  # the pre-seeded one
+        assert sorted(r[0] for r in rows) == ["big.bin", "big.bin-1"]
+        by_path = {r[0]: r[2] for r in rows}
+        assert by_path["big.bin"] + by_path["big.bin-1"] == body
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_replacement_with_fewer_chunks_leaves_no_orphans(
+    tmp_path: Path,
+) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        # Simulate a prior 5-chunk import.
+        with sqlite3.connect(db) as conn:
+            for i, suffix in enumerate(["", "-1", "-2", "-3", "-4"]):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                    (f"set/big.bin{suffix}", f"OLD-{i}".encode()),
+                )
+            conn.commit()
+        old_ids = _ids_for_paths(
+            db,
+            [f"set/big.bin{suffix}" for suffix in ("", "-1", "-2", "-3", "-4")],
+        )
+        src = tmp_path / "big.bin"
+        # New file fits in 2 chunks under compression='none'.
+        body = b"Y" * (CONTENT_CHUNK_SIZE + 100)
+        src.write_bytes(body)
+        item = ImportItem(
+            source=src,
+            base_path="set/big.bin",
+            content_type_id=3,
+            mime="image/png",
+            compression="none",
+        )
+        summary = import_content_files(
+            db,
+            [item],
+            1,
+            "Alice",
+            "content-test",
+            overwrite_row_ids_by_base={"set/big.bin": old_ids},
+        )
+        assert summary.files_imported == 1
+        assert summary.files_overwritten == 1
+        assert summary.rows_inserted == 2
+        rows = _read_content_rows(db)
+        assert sorted(r[0] for r in rows) == ["set/big.bin", "set/big.bin-1"]
+        by_path = {r[0]: r[2] for r in rows}
+        assert by_path["set/big.bin"] + by_path["set/big.bin-1"] == body
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_overwrite_does_not_touch_unrelated_lookalike_paths(
+    tmp_path: Path,
+) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        # Pre-seed the real target plus a literal sibling that shares the prefix
+        # but isn't a numbered chunk (suffix is not all digits).
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                ("foo.bin", b"OLD-FOO"),
+            )
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                ("foo.bin-extra.txt", b"UNRELATED"),
+            )
+            conn.commit()
+        # Caller provides ONLY foo.bin's id — the lookalike isn't in the
+        # delete list, so it must survive.
+        foo_ids = _ids_for_paths(db, ["foo.bin"])
+        src = tmp_path / "foo.bin"
+        body = b"NEW-FOO-CONTENT"
+        src.write_bytes(body)
+        item = ImportItem(
+            source=src,
+            base_path="foo.bin",
+            content_type_id=3,
+            mime="image/png",
+            compression="none",
+        )
+        summary = import_content_files(
+            db,
+            [item],
+            1,
+            "Alice",
+            "content-test",
+            overwrite_row_ids_by_base={"foo.bin": foo_ids},
+        )
+        assert summary.files_overwritten == 1
+        rows = _read_content_rows(db)
+        by_path = {r[0]: r[2] for r in rows}
+        assert by_path["foo.bin"] == body
+        assert by_path["foo.bin-extra.txt"] == b"UNRELATED"
     finally:
         db.unlink(missing_ok=True)
 
@@ -496,23 +751,19 @@ def test_import_summary_breaks_down_by_mime(tmp_path: Path) -> None:
 def test_import_summary_excludes_skipped_files_from_mime_breakdown(tmp_path: Path) -> None:
     db = _make_db_with_content_schema()
     try:
-        # Pre-seed a conflict so one html file gets skipped.
-        with sqlite3.connect(db) as conn:
-            conn.execute(
-                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
-                ("a.html", b"\x00"),
-            )
-            conn.commit()
+        # One real file and one missing source — the missing source triggers a
+        # read-error skip and should not appear in the mime breakdown.
         a = tmp_path / "a.html"
         a.write_bytes(b"<html/>")
-        b = tmp_path / "b.html"
-        b.write_bytes(b"<html/>")
         plan = [
             ImportItem(a, "a.html", 1, "text/html", "brotli"),
-            ImportItem(b, "b.html", 1, "text/html", "brotli"),
+            ImportItem(
+                tmp_path / "missing.html", "missing.html", 1, "text/html", "brotli"
+            ),
         ]
         summary = import_content_files(db, plan, 1, "Alice", "content-test")
         assert summary.files_imported == 1
+        assert summary.files_skipped_error == 1
         assert summary.imported_by_mime == {"text/html": 1}
     finally:
         db.unlink(missing_ok=True)
@@ -532,5 +783,219 @@ def test_import_handles_missing_source_file(tmp_path: Path) -> None:
         assert summary.files_imported == 0
         assert summary.files_skipped_error == 1
         assert _read_content_rows(db) == []
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_deletes_orphans_with_chunks(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            for suffix in ("", "-1", "-2"):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 3)',
+                    (f"a/old.bin{suffix}", b"OLD"),
+                )
+            # An unrelated row outside the chosen folder must survive.
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("b/keep.html", b"KEEP"),
+            )
+            conn.commit()
+        orphan_ids = _ids_for_paths(
+            db, ["a/old.bin", "a/old.bin-1", "a/old.bin-2"]
+        )
+        new_src = tmp_path / "new.html"
+        new_src.write_bytes(b"<html/>")
+        item = ImportItem(new_src, "a/new.html", 1, "text/html", "brotli")
+        summary = import_content_files(
+            db,
+            [item],
+            1,
+            "Alice",
+            "content-test",
+            orphan_row_ids=orphan_ids,
+        )
+        # orphans_deleted reflects rows passed in (one logical file = three rows).
+        assert summary.orphans_deleted == 3
+        assert summary.files_imported == 1
+        rows = _read_content_rows(db)
+        assert sorted(r[0] for r in rows) == ["a/new.html", "b/keep.html"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_full_import_flow_makes_db_match_folder(tmp_path: Path) -> None:
+    """Integration: prescan + import together sync the chosen folder, leave others alone."""
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/orphan.html", b"OLD"),
+            )
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("b/keep.html", b"KEEP"),
+            )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "new.html").write_bytes(b"<html/>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert scan.orphans == ["a/orphan.html"]
+        assert len(scan.orphan_row_ids) == 1
+        summary = import_content_files(
+            db,
+            scan.mapped,
+            1,
+            "Alice",
+            "content-test",
+            orphan_row_ids=scan.orphan_row_ids,
+            overwrite_row_ids_by_base=scan.overwrite_row_ids_by_base,
+        )
+        assert summary.orphans_deleted == 1
+        assert summary.files_imported == 1
+        rows = _read_content_rows(db)
+        assert sorted(r[0] for r in rows) == ["a/new.html", "b/keep.html"]
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_full_import_flow_preserves_lookalike_paths(tmp_path: Path) -> None:
+    """End-to-end safety: prescan classifies foo.html-extra.txt as its own
+    file (suffix isn't all digits), so importing folder a/ with only foo.html
+    doesn't accidentally fold it INTO foo.html's chunks during overwrite.
+
+    Note: under the 'DB matches folder' contract, the lookalike still gets
+    deleted as an orphan. What this test pins is that the *overwrite ids* for
+    foo.html don't include the lookalike row."""
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/foo.html", b"OLD-FOO"),
+            )
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/foo.html-extra.txt", b"UNRELATED"),
+            )
+            conn.commit()
+        lookalike_id = _ids_for_paths(db, ["a/foo.html-extra.txt"])[0]
+        root = tmp_path / "a"
+        root.mkdir()
+        (root / "foo.html").write_bytes(b"<html>NEW</html>")
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert scan.overwrites == ["a/foo.html"]
+        assert scan.orphans == ["a/foo.html-extra.txt"]
+        # The crux: the overwrite delete-set for foo.html does NOT include
+        # the lookalike id. (If prescan had wrongly folded it in, the
+        # lookalike would be classified as a chunk and we'd see its id here.)
+        assert lookalike_id not in scan.overwrite_row_ids_by_base["a/foo.html"]
+        # And it's separately marked as an orphan to be deleted.
+        assert lookalike_id in scan.orphan_row_ids
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_pure_orphan_cleanup_with_no_files_to_import(tmp_path: Path) -> None:
+    """Empty folder under a prefix should still trigger orphan cleanup."""
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            for path in ("a/x.html", "a/y.html"):
+                conn.execute(
+                    'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                    (path, b"OLD"),
+                )
+            conn.commit()
+        root = tmp_path / "a"
+        root.mkdir()  # empty
+        scan = prescan_content_import(db, root, get_content_types(db))
+        assert scan.mapped == []
+        assert scan.orphans == ["a/x.html", "a/y.html"]
+        summary = import_content_files(
+            db,
+            scan.mapped,
+            1,
+            "Alice",
+            "content-test",
+            orphan_row_ids=scan.orphan_row_ids,
+        )
+        assert summary.orphans_deleted == 2
+        assert _read_content_rows(db) == []
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_progress_callback_reports_three_phases(tmp_path: Path) -> None:
+    db = _make_db_with_content_schema()
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/orphan.html", b"OLD"),
+            )
+            conn.execute(
+                'INSERT INTO "Content" (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 1)',
+                ("a/overwrite.html", b"OLD"),
+            )
+            conn.commit()
+        orphan_id = _ids_for_paths(db, ["a/orphan.html"])[0]
+        overwrite_id = _ids_for_paths(db, ["a/overwrite.html"])[0]
+        ow_src = tmp_path / "overwrite.html"
+        ow_src.write_bytes(b"<html/>")
+        new_src = tmp_path / "new.html"
+        new_src.write_bytes(b"<html/>")
+        plan = [
+            ImportItem(ow_src, "a/overwrite.html", 1, "text/html", "brotli"),
+            ImportItem(new_src, "a/new.html", 1, "text/html", "brotli"),
+        ]
+        progress_log: list[tuple[str, int, int]] = []
+        import_content_files(
+            db,
+            plan,
+            1,
+            "Alice",
+            "content-test",
+            orphan_row_ids=[orphan_id],
+            overwrite_row_ids_by_base={"a/overwrite.html": [overwrite_id]},
+            progress_callback=lambda phase, cur, tot: progress_log.append(
+                (phase, cur, tot)
+            ),
+        )
+        # Each phase emits its terminal tick.
+        assert ("delete", 1, 1) in progress_log
+        assert ("overwrite", 1, 1) in progress_log
+        assert ("add", 1, 1) in progress_log
+        # Phase order: deletes before any imports; the overwrite item is
+        # planned first so its tick precedes the add tick.
+        delete_idx = progress_log.index(("delete", 1, 1))
+        overwrite_idx = progress_log.index(("overwrite", 1, 1))
+        add_idx = progress_log.index(("add", 1, 1))
+        assert delete_idx < overwrite_idx < add_idx
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_progress_callback_skipped_when_phase_empty(tmp_path: Path) -> None:
+    """No callback fires for a phase with zero work (avoid divide-by-zero in UIs)."""
+    db = _make_db_with_content_schema()
+    try:
+        src = tmp_path / "page.html"
+        src.write_bytes(b"<html/>")
+        plan = [ImportItem(src, "a/page.html", 1, "text/html", "brotli")]
+        seen_phases: set[str] = set()
+        import_content_files(
+            db,
+            plan,
+            1,
+            "Alice",
+            "content-test",
+            progress_callback=lambda phase, cur, tot: seen_phases.add(phase),
+        )
+        # No orphans, no overwrites — only "add" should fire.
+        assert seen_phases == {"add"}
     finally:
         db.unlink(missing_ok=True)
