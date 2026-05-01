@@ -62,17 +62,63 @@ uv --version
 ## Setting up the project
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/appdevforall/OfflineDocumentationTools.git
+cd OfflineDocumentationTools
 cd docdb-studio
 uv sync
 ```
 
+Step by step:
+
+1. `git clone <repo-url>` downloads a copy of the project to your computer.
+2. After the download finishes, you need to move your terminal into that newly-created folder.
+3. `cd docdb-studio` moves you down one level to this tool.
+4. `uv sync` reads the project's list of required pieces and installs them all for you.
+
+These same commands work on macOS, Linux, and Windows (in PowerShell, Command Prompt, or Git Bash).
+
 `uv sync` creates a virtual environment in `.venv/` and installs every dependency from `uv.lock`. There is no need to activate the venv — `uv run` does that for you.
+
+## Updating to the latest version
+
+When a new version of docdb-studio is released, you can refresh your local copy without re-cloning. Open a terminal, move into the project folder, and pull down the latest changes:
+
+1. **Move your terminal into the docdb-studio folder.** Use the path on your own computer — for example:
+
+   **macOS / Linux**
+
+   ```bash
+   cd ~/docdb-studio
+   ```
+
+   **Windows (PowerShell or Command Prompt)**
+
+   ```powershell
+   cd C:\Users\YourName\OfflineDocumentationTools\docdb-studio
+   ```
+
+   (`cd` works the same way on all three operating systems; only the path style differs. If you don't remember where you cloned the project, search your computer for a folder named `docdb-studio`.)
+
+2. **Download the latest changes** with Git. The exact same command works on macOS, Linux, and Windows:
+
+   ```bash
+   git pull
+   ```
+
+   This pulls down any updates that have been published since you last refreshed and merges them into your local copy.
+
+3. **Re-install dependencies** in case anything new was added or upgraded. Again, the same on all platforms:
+
+   ```bash
+   uv sync
+   ```
+
+That's it — the next time you run the app, it will be the new version. If `git pull` reports a conflict or an error, it usually means a file on your machine was edited locally; ask whoever maintains the project for help before continuing.
 
 ## Running the main UI
 
 ```bash
-uv run python docdb_studio.py [DATABASE] --user "YOUR NAME"
+uv run python docdb_studio.py [DATABASE] --user "YOUR_NAME"
 ```
 
 The app opens in a native desktop window on both macOS and Windows — no browser involved. (Flet is Flutter-based, so the window is a Flutter desktop view.)
