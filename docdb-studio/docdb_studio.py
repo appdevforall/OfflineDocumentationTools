@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import http.server
 import io
 import mimetypes
 import os
@@ -11,6 +12,8 @@ import threading
 import time
 import tkinter as tk
 import unicodedata
+import urllib.parse
+import webbrowser
 from html.parser import HTMLParser
 from pathlib import Path
 from tkinter import filedialog
@@ -29,6 +32,9 @@ CONTENT_CHUNK_SIZE = 1024 * 1024  # Android consumer probes for `path-N` continu
 SQL_PARAM_BATCH = 500
 
 PAGE_SIZE = 50
+
+# Built-in HTTP server for browsing Content rows in a real browser.
+CONTENT_SERVER_PORT = 6175
 
 # Special LastChange row that bumps on every mutation, regardless of which
 # per-set row was touched. Acts as a global "database version" marker.
@@ -574,6 +580,165 @@ def update_last_change(
         conn.commit()
 
 
+def get_categories_for_tooltips(
+    db_path: Path, tooltip_ids: list[int]
+) -> set[str]:
+    """Return the set of category names that the given tooltip ids belong to."""
+    if not tooltip_ids:
+        return set()
+    names: set[str] = set()
+    with sqlite3.connect(db_path) as conn:
+        for batch in _chunked(tooltip_ids, SQL_PARAM_BATCH):
+            placeholders = ",".join("?" * len(batch))
+            cur = conn.execute(
+                f"""
+                SELECT DISTINCT tc.category
+                FROM Tooltips t
+                JOIN TooltipCategories tc ON t.categoryId = tc.id
+                WHERE t.id IN ({placeholders})
+                """,
+                batch,
+            )
+            for (name,) in cur.fetchall():
+                if name:
+                    names.add(name)
+    return names
+
+
+def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
+    """Delete the given tooltip ids and their TooltipButtons rows. Returns rows deleted from Tooltips."""
+    if not tooltip_ids:
+        return 0
+    deleted = 0
+    with sqlite3.connect(db_path) as conn:
+        for batch in _chunked(tooltip_ids, SQL_PARAM_BATCH):
+            placeholders = ",".join("?" * len(batch))
+            conn.execute(
+                f"DELETE FROM TooltipButtons WHERE tooltipId IN ({placeholders})",
+                batch,
+            )
+            cur = conn.execute(
+                f"DELETE FROM Tooltips WHERE id IN ({placeholders})",
+                batch,
+            )
+            deleted += cur.rowcount
+        conn.commit()
+    return deleted
+
+
+def sanitize_clipboard_paste(text: str) -> str:
+    """Strip Unicode "Other" category codepoints (control / format / surrogate / private-use)
+    from a clipboard paste, while preserving newlines and tabs. NFC-normalised."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFC", text)
+    return "".join(
+        ch
+        for ch in normalized
+        if ch in ("\n", "\t") or unicodedata.category(ch)[0] != "C"
+    )
+
+
+def fetch_content_for_path(
+    db_path: Path, base_path: str
+) -> tuple[bytes, str] | None:
+    """Return (decompressed_bytes, mime) for `base_path`, reassembling chunks
+    and decompressing brotli where applicable. None if the path is missing or
+    decompression fails."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cur = conn.execute(
+                """
+                SELECT c.content, ct.value, ct.compression
+                FROM "Content" c
+                JOIN ContentTypes ct ON c.contentTypeID = ct.id
+                WHERE c.path = ?
+                """,
+                (base_path,),
+            )
+            base_row = cur.fetchone()
+            if base_row is None:
+                return None
+            mime = base_row[1]
+            compression = base_row[2]
+            parts: list[bytes] = [base_row[0]]
+            n = 1
+            while True:
+                chunk_cur = conn.execute(
+                    'SELECT content FROM "Content" WHERE path = ?',
+                    (f"{base_path}-{n}",),
+                )
+                chunk_row = chunk_cur.fetchone()
+                if chunk_row is None:
+                    break
+                parts.append(chunk_row[0])
+                n += 1
+    except sqlite3.OperationalError:
+        return None
+    full = b"".join(parts)
+    if compression == "brotli":
+        try:
+            full = brotli.decompress(full)
+        except brotli.error:
+            return None
+    return full, mime
+
+
+class _ContentHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """HTTP handler that serves rows of the Content table by path. The bound
+    subclass populates `db_path`."""
+
+    db_path: Path = Path()
+
+    def log_message(self, format: str, *args) -> None:  # noqa: A002 — base-class signature
+        # Default would spam stdout for every request; the GUI doesn't need it.
+        pass
+
+    def do_GET(self) -> None:  # noqa: N802 — base-class signature
+        parsed = urllib.parse.urlparse(self.path)
+        path = urllib.parse.unquote(parsed.path).lstrip("/")
+        if not path:
+            self.send_response(404)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"docdb-studio content server: specify a path")
+            return
+        result = fetch_content_for_path(self.db_path, path)
+        if result is None:
+            self.send_response(404)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(f"Not found: {path}".encode("utf-8"))
+            return
+        body, mime = result
+        self.send_response(200)
+        self.send_header("Content-Type", mime or "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def start_content_web_server(
+    db_path: Path, port: int = CONTENT_SERVER_PORT
+) -> http.server.ThreadingHTTPServer | None:
+    """Bind a daemon-thread HTTP server on 127.0.0.1:port serving Content rows.
+    Returns the server (so callers can shut it down) or None if the bind failed."""
+    handler_cls = type(
+        "_BoundContentHTTPHandler",
+        (_ContentHTTPHandler,),
+        {"db_path": db_path},
+    )
+    try:
+        httpd = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", port), handler_cls
+        )
+    except OSError:
+        return None
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    return httpd
+
+
 def insert_tooltip(
     db_path: Path,
     category_id: int,
@@ -752,11 +917,19 @@ def validate_csv_upload(
     rows: list[list[str]],
     category_name_to_id: dict[str, int],
     allowed_button_ids: set[int],
+    mode: str = "insert",
 ) -> list[str]:
     """
     Validate CSV data rows (header already stripped). Return list of error messages.
     Rows must be 10-element lists per line.
+
+    `mode` controls duplicate handling:
+      - 'insert' (default): rows whose (category, tag) already exist in the DB are rejected.
+      - 'update': pre-existing rows are accepted; the import will overwrite them.
+    Duplicates within the same file are always rejected, regardless of mode.
     """
+    if mode not in ("insert", "update"):
+        raise ValueError(f"validate_csv_upload: unknown mode {mode!r}")
     errors: list[str] = []
     if not rows:
         errors.append("File has no data rows.")
@@ -844,7 +1017,7 @@ def validate_csv_upload(
                         line_errors.append(
                             f"Line {line_num}: duplicate (category, tag) in file."
                         )
-                    elif key in existing:
+                    elif mode == "insert" and key in existing:
                         line_errors.append(
                             f"Line {line_num}: (category, tag) already exists in database."
                         )
@@ -860,8 +1033,21 @@ def import_csv_rows(
     db_path: Path,
     rows: list[list[str]],
     category_name_to_id: dict[str, int],
-) -> None:
-    """Insert validated CSV data rows into Tooltips and TooltipButtons (single transaction)."""
+    mode: str = "insert",
+) -> tuple[int, int]:
+    """Insert validated CSV data rows into Tooltips and TooltipButtons (single transaction).
+
+    `mode='insert'` adds new rows and assumes none collide (validated upstream).
+    `mode='update'` replaces existing (categoryId, tag) rows: the existing tooltip
+    is updated in place, its TooltipButtons are deleted, and the new buttons are
+    inserted. Rows that are not pre-existing are inserted as in 'insert' mode.
+
+    Returns (inserted_count, updated_count).
+    """
+    if mode not in ("insert", "update"):
+        raise ValueError(f"import_csv_rows: unknown mode {mode!r}")
+    inserted = 0
+    updated = 0
     with sqlite3.connect(db_path) as conn:
         for row in rows:
             (
@@ -877,14 +1063,38 @@ def import_csv_rows(
                 b3_uri,
             ) = (c.strip() for c in row)
             cid = category_name_to_id[category_name]
-            cur = conn.execute(
-                """
-                INSERT INTO Tooltips (categoryId, tag, summary, detail)
-                VALUES (?, ?, ?, ?)
-                """,
-                (cid, tag, summary, detail),
-            )
-            new_id = cur.lastrowid or 0
+
+            tooltip_id: int = 0
+            if mode == "update":
+                existing = conn.execute(
+                    "SELECT id FROM Tooltips WHERE categoryId = ? AND tag = ?",
+                    (cid, tag),
+                ).fetchone()
+                if existing is not None:
+                    tooltip_id = existing[0]
+                    conn.execute(
+                        """
+                        UPDATE Tooltips
+                        SET summary = ?, detail = ?
+                        WHERE id = ?
+                        """,
+                        (summary, detail, tooltip_id),
+                    )
+                    conn.execute(
+                        "DELETE FROM TooltipButtons WHERE tooltipId = ?",
+                        (tooltip_id,),
+                    )
+                    updated += 1
+            if tooltip_id == 0:
+                cur = conn.execute(
+                    """
+                    INSERT INTO Tooltips (categoryId, tag, summary, detail)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (cid, tag, summary, detail),
+                )
+                tooltip_id = cur.lastrowid or 0
+                inserted += 1
             for bid, label, uri in [
                 (1, b1_label, b1_uri),
                 (2, b2_label, b2_uri),
@@ -896,9 +1106,10 @@ def import_csv_rows(
                         INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
                         VALUES (?, ?, ?, ?)
                         """,
-                        (new_id, bid, label, uri),
+                        (tooltip_id, bid, label, uri),
                     )
         conn.commit()
+    return inserted, updated
 
 
 class ImportItem(NamedTuple):
@@ -1236,6 +1447,80 @@ def main(
     current_page = 1
     total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
 
+    # Built-in HTTP server for browsing Content rows in a real browser.
+    # Bind failure (e.g. another instance already running) is non-fatal —
+    # the "Open in browser" button just won't be useful.
+    content_server: dict[str, http.server.ThreadingHTTPServer | int | None] = {
+        "server": None,
+        "port": None,
+    }
+    started = start_content_web_server(db_path)
+    if started is not None:
+        content_server["server"] = started
+        content_server["port"] = started.server_address[1]
+    else:
+        # Either bind failed or another docdb-studio is already serving on
+        # CONTENT_SERVER_PORT — assume the latter so "Open in browser" links
+        # still work for the user.
+        content_server["port"] = CONTENT_SERVER_PORT
+
+    # Tracks the currently-focused TextField so Ctrl+Shift+V can target it.
+    focused_textfield: list[ft.TextField | None] = [None]
+
+    def track_focus(tf: ft.TextField) -> ft.TextField:
+        """Wrap a TextField's on_focus/on_blur to update the global focus tracker.
+        Call AFTER any user-set on_focus/on_blur is assigned."""
+        user_focus = tf.on_focus
+        user_blur = tf.on_blur
+
+        def _focus(e: ft.ControlEvent) -> None:
+            focused_textfield[0] = tf
+            if user_focus is not None:
+                user_focus(e)
+
+        def _blur(e: ft.ControlEvent) -> None:
+            if focused_textfield[0] is tf:
+                focused_textfield[0] = None
+            if user_blur is not None:
+                user_blur(e)
+
+        tf.on_focus = _focus
+        tf.on_blur = _blur
+        return tf
+
+    def paste_plain_text() -> None:
+        """Ctrl+Shift+V: insert clipboard text into the focused TextField with
+        all Unicode "Other" category characters stripped (controls, format,
+        surrogate, private-use). Falls back to append if selection is unknown."""
+        tf = focused_textfield[0]
+        if tf is None:
+            return
+        try:
+            raw = page.clipboard.get() or ""
+        except Exception:
+            return
+        cleaned = sanitize_clipboard_paste(raw)
+        if not cleaned:
+            return
+        current = tf.value or ""
+        start = end = len(current)
+        sel = getattr(tf, "selection", None)
+        if sel is not None:
+            try:
+                if sel.is_valid:
+                    start = min(sel.start, sel.end)
+                    end = max(sel.start, sel.end)
+            except Exception:
+                pass
+        tf.value = current[:start] + cleaned + current[end:]
+        page.update()
+
+    def on_keyboard_event(e: ft.KeyboardEvent) -> None:
+        if e.key == "V" and e.shift and (e.ctrl or e.meta):
+            paste_plain_text()
+
+    page.on_keyboard_event = on_keyboard_event
+
     def show_broken_uris_warning(
         broken: list[tuple[int, str]], on_save_anyway: "callable"
     ) -> None:
@@ -1280,10 +1565,12 @@ def main(
         either `path` or `path#anchor`."""
         state = {"page": 1, "search": None}
 
-        search_field = ft.TextField(
-            label="Search path",
-            hint_text="prefix; * is a wildcard",
-            width=400,
+        search_field = track_focus(
+            ft.TextField(
+                label="Search path",
+                hint_text="prefix; * is a wildcard",
+                width=400,
+            )
         )
         list_column = ft.Column(
             scroll=ft.ScrollMode.AUTO, expand=True, spacing=2
@@ -1499,37 +1786,68 @@ def main(
             content_controls.append(ft.Text("Buttons", style=label_style))
             uris = [uri or "" for _, _, uri in buttons_rows]
             valid_uris = uris_exist_in_content(db_path, uris)
+            server_port = content_server.get("port") or CONTENT_SERVER_PORT
+
+            def _build_browser_url(uri: str) -> str:
+                """URL-encode a button URI for the local content server, keeping
+                `?query` and `#fragment` intact."""
+                rest = uri
+                fragment = ""
+                if "#" in rest:
+                    rest, fragment = rest.split("#", 1)
+                query = ""
+                if "?" in rest:
+                    rest, query = rest.split("?", 1)
+                url = f"http://127.0.0.1:{server_port}/{urllib.parse.quote(rest)}"
+                if query:
+                    url += "?" + query
+                if fragment:
+                    url += "#" + urllib.parse.quote(fragment)
+                return url
+
             btn_columns = [
                 fdt.DataColumn2(label=ft.Text("Order"), fixed_width=48),
                 fdt.DataColumn2(label=ft.Text("Description")),
                 fdt.DataColumn2(label=ft.Text("URI")),
                 fdt.DataColumn2(label=ft.Text("Ref"), fixed_width=48),
+                fdt.DataColumn2(label=ft.Text("Open"), fixed_width=56),
             ]
+
+            def _build_btn_row(num: int | None, desc: str | None, uri: str | None) -> ft.DataRow:
+                uri_str = uri or ""
+                ref_icon = (
+                    ft.Icon(
+                        ft.Icons.CHECK,
+                        color=ft.Colors.GREEN,
+                        tooltip="Path exists",
+                    )
+                    if _uri_path_for_content_lookup(uri_str) in valid_uris
+                    else ft.Icon(
+                        ft.Icons.CLOSE,
+                        color=ft.Colors.RED,
+                        tooltip="No matching path in Content",
+                    )
+                )
+                open_btn = ft.IconButton(
+                    icon=ft.Icons.OPEN_IN_NEW,
+                    tooltip="Open in browser",
+                    on_click=lambda e, u=uri_str: webbrowser.open(
+                        _build_browser_url(u)
+                    ),
+                )
+                return ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(str(num or ""), selectable=True)),
+                        ft.DataCell(ft.Text(str(desc or ""), selectable=True)),
+                        ft.DataCell(ft.Text(uri_str, selectable=True)),
+                        ft.DataCell(ref_icon),
+                        ft.DataCell(open_btn),
+                    ]
+                )
+
             btn_table = fdt.DataTable2(
                 columns=btn_columns,
-                rows=[
-                    ft.DataRow(
-                        cells=[
-                            ft.DataCell(ft.Text(str(num or ""), selectable=True)),
-                            ft.DataCell(ft.Text(str(desc or ""), selectable=True)),
-                            ft.DataCell(ft.Text(str(uri or ""), selectable=True)),
-                            ft.DataCell(
-                                ft.Icon(
-                                    ft.Icons.CHECK,
-                                    color=ft.Colors.GREEN,
-                                    tooltip="Path exists",
-                                )
-                                if _uri_path_for_content_lookup(uri or "") in valid_uris
-                                else ft.Icon(
-                                    ft.Icons.CLOSE,
-                                    color=ft.Colors.RED,
-                                    tooltip="No matching path in Content",
-                                )
-                            ),
-                        ]
-                    )
-                    for num, desc, uri in buttons_rows
-                ],
+                rows=[_build_btn_row(num, desc, uri) for num, desc, uri in buttons_rows],
                 vertical_lines=ft.BorderSide(1, ft.Colors.OUTLINE),
                 horizontal_lines=ft.BorderSide(1, ft.Colors.OUTLINE),
                 heading_row_color=ft.Colors.PURPLE,
@@ -1620,30 +1938,36 @@ def main(
             on_select=lambda _: update_save_state(),
             fill_color=input_fill,
         )
-        tag_field = ft.TextField(
-            label="Tag",
-            value=tag or "",
-            width=400,
-            on_change=lambda _: update_save_state(),
-            fill_color=input_fill,
+        tag_field = track_focus(
+            ft.TextField(
+                label="Tag",
+                value=tag or "",
+                width=400,
+                on_change=lambda _: update_save_state(),
+                fill_color=input_fill,
+            )
         )
-        summary_field = ft.TextField(
-            label="Summary",
-            value=summary or "",
-            multiline=True,
-            min_lines=3,
-            width=400,
-            on_change=lambda _: update_save_state(),
-            fill_color=input_fill,
+        summary_field = track_focus(
+            ft.TextField(
+                label="Summary",
+                value=summary or "",
+                multiline=True,
+                min_lines=3,
+                width=400,
+                on_change=lambda _: update_save_state(),
+                fill_color=input_fill,
+            )
         )
-        detail_field = ft.TextField(
-            label="Detail",
-            value=detail or "",
-            multiline=True,
-            min_lines=3,
-            width=400,
-            on_change=lambda _: update_save_state(),
-            fill_color=input_fill,
+        detail_field = track_focus(
+            ft.TextField(
+                label="Detail",
+                value=detail or "",
+                multiline=True,
+                min_lines=3,
+                width=400,
+                on_change=lambda _: update_save_state(),
+                fill_color=input_fill,
+            )
         )
 
         def _buttons_equal(
@@ -1817,8 +2141,10 @@ def main(
                 options=[ft.dropdown.Option(str(i), str(i)) for i in available_ids],
                 fill_color=input_fill,
             )
-            add_desc_field = ft.TextField(
-                label="Description", width=200, fill_color=input_fill
+            add_desc_field = track_focus(
+                ft.TextField(
+                    label="Description", width=200, fill_color=input_fill
+                )
             )
             add_uri_field = ft.TextField(label="URI", width=200, fill_color=input_fill)
             add_uri_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
@@ -1841,6 +2167,7 @@ def main(
 
             add_uri_field.on_change = on_add_uri_change
             add_uri_field.on_blur = on_add_uri_blur
+            track_focus(add_uri_field)
 
             def on_add_browse_pick(value: str) -> None:
                 add_uri_field.value = value
@@ -1901,11 +2228,13 @@ def main(
         def open_edit_button_dialog(
             button_number_id: int, current_desc: str, current_uri: str
         ) -> None:
-            edit_desc = ft.TextField(
-                label="Description",
-                value=current_desc,
-                width=300,
-                fill_color=input_fill,
+            edit_desc = track_focus(
+                ft.TextField(
+                    label="Description",
+                    value=current_desc,
+                    width=300,
+                    fill_color=input_fill,
+                )
             )
             edit_uri = ft.TextField(
                 label="URI", value=current_uri, width=300, fill_color=input_fill
@@ -1930,6 +2259,7 @@ def main(
 
             edit_uri.on_change = on_edit_uri_change
             edit_uri.on_blur = on_edit_uri_blur
+            track_focus(edit_uri)
 
             def on_edit_browse_pick(value: str) -> None:
                 edit_uri.value = value
@@ -2052,29 +2382,35 @@ def main(
             on_select=lambda _: update_add_save_state(),
             fill_color=input_fill,
         )
-        tag_field = ft.TextField(
-            label="Tag",
-            value="",
-            width=400,
-            on_change=lambda _: update_add_save_state(),
-            fill_color=input_fill,
+        tag_field = track_focus(
+            ft.TextField(
+                label="Tag",
+                value="",
+                width=400,
+                on_change=lambda _: update_add_save_state(),
+                fill_color=input_fill,
+            )
         )
-        summary_field = ft.TextField(
-            label="Summary",
-            value="",
-            multiline=True,
-            min_lines=3,
-            width=400,
-            on_change=lambda _: update_add_save_state(),
-            fill_color=input_fill,
+        summary_field = track_focus(
+            ft.TextField(
+                label="Summary",
+                value="",
+                multiline=True,
+                min_lines=3,
+                width=400,
+                on_change=lambda _: update_add_save_state(),
+                fill_color=input_fill,
+            )
         )
-        detail_field = ft.TextField(
-            label="Detail (optional)",
-            value="",
-            multiline=True,
-            min_lines=3,
-            width=400,
-            fill_color=input_fill,
+        detail_field = track_focus(
+            ft.TextField(
+                label="Detail (optional)",
+                value="",
+                multiline=True,
+                min_lines=3,
+                width=400,
+                fill_color=input_fill,
+            )
         )
         buttons_state: list[tuple[int, str, str]] = []
 
@@ -2175,8 +2511,10 @@ def main(
                 options=[ft.dropdown.Option(str(i), str(i)) for i in available_ids],
                 fill_color=input_fill,
             )
-            add_desc_field = ft.TextField(
-                label="Description", width=200, fill_color=input_fill
+            add_desc_field = track_focus(
+                ft.TextField(
+                    label="Description", width=200, fill_color=input_fill
+                )
             )
             add_uri_field = ft.TextField(label="URI", width=200, fill_color=input_fill)
             add_uri_icon = ft.Icon(ft.Icons.HELP_OUTLINE)
@@ -2199,6 +2537,7 @@ def main(
 
             add_uri_field.on_change = on_add_uri_change
             add_uri_field.on_blur = on_add_uri_blur
+            track_focus(add_uri_field)
 
             def on_add_browse_pick(value: str) -> None:
                 add_uri_field.value = value
@@ -2259,11 +2598,13 @@ def main(
         def open_edit_button_dialog(
             button_number_id: int, current_desc: str, current_uri: str
         ) -> None:
-            edit_desc = ft.TextField(
-                label="Description",
-                value=current_desc,
-                width=300,
-                fill_color=input_fill,
+            edit_desc = track_focus(
+                ft.TextField(
+                    label="Description",
+                    value=current_desc,
+                    width=300,
+                    fill_color=input_fill,
+                )
             )
             edit_uri = ft.TextField(
                 label="URI", value=current_uri, width=300, fill_color=input_fill
@@ -2288,6 +2629,7 @@ def main(
 
             edit_uri.on_change = on_edit_uri_change
             edit_uri.on_blur = on_edit_uri_blur
+            track_focus(edit_uri)
 
             def on_edit_browse_pick(value: str) -> None:
                 edit_uri.value = value
@@ -2652,7 +2994,23 @@ def main(
 
             label_style = ft.TextStyle(weight=ft.FontWeight.BOLD)
             is_html_file = full_path.lower().endswith((".html", ".htm"))
+
+            server_port = content_server.get("port") or CONTENT_SERVER_PORT
+            browser_url = f"http://127.0.0.1:{server_port}/{urllib.parse.quote(full_path)}"
+
+            def _open_in_browser(_: ft.ControlEvent) -> None:
+                webbrowser.open(browser_url)
+
+            open_in_browser_btn = ft.Button(
+                "Open in browser",
+                style=ft.ButtonStyle(
+                    bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE
+                ),
+                on_click=_open_in_browser,
+            )
             controls: list[ft.Control] = [
+                open_in_browser_btn,
+                ft.Container(height=8),
                 ft.Text("Path", style=label_style),
                 ft.Text(full_path, selectable=True, no_wrap=False),
                 ft.Container(height=8),
@@ -2987,12 +3345,14 @@ def main(
         current_page = max(1, min(current_page, total_pages))
         page.controls.clear()
 
-        search_input = ft.TextField(
-            label="Search (tag, summary, detail)",
-            hint_text="prefix; * is a wildcard",
-            width=220,
-            value=restore_search_term or "",
-            on_submit=lambda e: run_search(e),
+        search_input = track_focus(
+            ft.TextField(
+                label="Search (tag, summary, detail)",
+                hint_text="prefix; * is a wildcard",
+                width=220,
+                value=restore_search_term or "",
+                on_submit=lambda e: run_search(e),
+            )
         )
 
         def run_search(_: ft.ControlEvent) -> None:
@@ -3008,14 +3368,24 @@ def main(
         search_btn = ft.Button("Search", on_click=run_search)
         search_bar = ft.Row(controls=[search_input, search_btn], spacing=8)
 
-        id_column = fdt.DataColumn2(label=ft.Text("ID"), fixed_width=64)
+        # Persists across pagination: tooltip ids the user has checked for bulk delete.
+        selected_ids: set[int] = set()
+
+        select_column = fdt.DataColumn2(label=ft.Text(""), fixed_width=44)
+        id_column = fdt.DataColumn2(label=ft.Text("ID"), fixed_width=128)
         category_column = fdt.DataColumn2(label=ft.Text("Category"))
         actions_column = fdt.DataColumn2(
             label=ft.Text("Actions"), fixed_width=ACTIONS_COLUMN_WIDTH
         )
-        columns = [id_column, category_column, actions_column] + [
-            fdt.DataColumn2(label=ft.Text(label))
-            for label in ["Tag", "Summary", "Detail"]
+        tag_column = fdt.DataColumn2(label=ft.Text("Tag"), size=fdt.DataColumnSize.S)
+        columns = [
+            select_column,
+            id_column,
+            category_column,
+            actions_column,
+            tag_column,
+            fdt.DataColumn2(label=ft.Text("Summary")),
+            fdt.DataColumn2(label=ft.Text("Detail")),
         ]
         view_btn_style = ft.ButtonStyle(bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
         edit_btn_style = ft.ButtonStyle(
@@ -3040,6 +3410,19 @@ def main(
             table.rows.clear()
             for i, row in enumerate(rows):
                 tooltip_id, category_val, tag_val, summary_val, detail_val = row
+
+                def _on_check(e: ft.ControlEvent, tid: int = tooltip_id) -> None:
+                    if e.control.value:
+                        selected_ids.add(tid)
+                    else:
+                        selected_ids.discard(tid)
+                    update_bulk_delete_button()
+
+                check = ft.Checkbox(
+                    value=tooltip_id in selected_ids,
+                    on_change=_on_check,
+                )
+                select_cell = ft.DataCell(check)
                 id_cell = ft.DataCell(
                     ft.Text(str(tooltip_id), selectable=True)
                 )
@@ -3076,6 +3459,7 @@ def main(
                     ft.DataRow(
                         color=ZEBRA_EVEN if i % 2 == 0 else ZEBRA_ODD,
                         cells=[
+                            select_cell,
                             id_cell,
                             category_cell,
                             actions_cell,
@@ -3117,7 +3501,9 @@ def main(
         pager_row.controls[0] = prev_btn
         pager_row.controls[2] = next_btn
 
-        def open_add_many_dialog(_: ft.ControlEvent) -> None:
+        def open_add_many_dialog(mode: str = "insert") -> None:
+            mode_label = "insert" if mode == "insert" else "update"
+
             def download_template(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
                 page.update()
@@ -3198,7 +3584,11 @@ def main(
                 category_name_to_id = {name: cid for cid, name in categories}
                 allowed_button_ids = set(get_button_number_ids(db_path))
                 validation_errors = validate_csv_upload(
-                    db_path, data_rows, category_name_to_id, allowed_button_ids
+                    db_path,
+                    data_rows,
+                    category_name_to_id,
+                    allowed_button_ids,
+                    mode=mode,
                 )
                 if validation_errors:
                     page.show_dialog(
@@ -3214,25 +3604,43 @@ def main(
                     )
                     page.update()
                     return
-                import_csv_rows(db_path, data_rows, category_name_to_id)
+                inserted, updated = import_csv_rows(
+                    db_path, data_rows, category_name_to_id, mode=mode
+                )
                 for category_name in {row[0].strip() for row in data_rows}:
                     update_last_change(
                         db_path,
                         "tooltips-" + category_name,
                         user_name,
                     )
+                show_simple_dialog(
+                    "Add many — done",
+                    f"Inserted: {inserted}\nUpdated: {updated}",
+                )
                 show_browse_page(
                     get_total_count(db_path, (search_input.value or "").strip() or None),
                     restore_page=current_page,
                     restore_search_term=(search_input.value or "").strip() or None,
                 )
 
+            if mode == "insert":
+                title = "Add many — insert only"
+                body = (
+                    "Download a CSV template or upload a CSV file to add multiple tooltips.\n\n"
+                    "Insert mode: rows whose (category, tag) already exist in the database are rejected."
+                )
+            else:
+                title = "Add many — update existing"
+                body = (
+                    "Download a CSV template or upload a CSV file to add or replace multiple tooltips.\n\n"
+                    "Update mode: rows whose (category, tag) already exist will REPLACE the existing tooltip "
+                    "(summary, detail, and buttons). Rows for new (category, tag) pairs are inserted."
+                )
+
             page.show_dialog(
                 ft.AlertDialog(
-                    title=ft.Text("Add many"),
-                    content=ft.Text(
-                        "Download a CSV template or upload a CSV file to add multiple tooltips."
-                    ),
+                    title=ft.Text(title),
+                    content=ft.Text(body, selectable=True),
                     actions=[
                         ft.TextButton(
                             "Cancel",
@@ -3711,10 +4119,15 @@ def main(
                     (search_input.value or "").strip() or None,
                 )
 
-            def choose_add_many(_: ft.ControlEvent) -> None:
+            def choose_add_many_insert(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
                 page.update()
-                open_add_many_dialog(None)
+                open_add_many_dialog(mode="insert")
+
+            def choose_add_many_update(_: ft.ControlEvent) -> None:
+                page.pop_dialog()
+                page.update()
+                open_add_many_dialog(mode="update")
 
             def choose_import_content(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
@@ -3736,9 +4149,14 @@ def main(
                             on_click=choose_add_one,
                         ),
                         ft.Button(
-                            "Add many tooltips",
+                            "Add many tooltips (insert only)",
                             style=orange_btn_style,
-                            on_click=choose_add_many,
+                            on_click=choose_add_many_insert,
+                        ),
+                        ft.Button(
+                            "Add many tooltips (update existing)",
+                            style=orange_btn_style,
+                            on_click=choose_add_many_update,
                         ),
                         ft.Button(
                             "Import content folder",
@@ -3766,6 +4184,96 @@ def main(
             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
             on_click=lambda _: show_content_tree_page(),
         )
+
+        def confirm_bulk_delete(_: ft.ControlEvent) -> None:
+            ids = sorted(selected_ids)
+            if not ids:
+                return
+
+            def do_delete(_: ft.ControlEvent) -> None:
+                page.pop_dialog()
+                page.update()
+                affected_categories = get_categories_for_tooltips(db_path, ids)
+                try:
+                    deleted = delete_tooltips_bulk(db_path, ids)
+                except sqlite3.Error as e:
+                    page.show_dialog(
+                        ft.AlertDialog(
+                            title=ft.Text("Bulk delete failed"),
+                            content=ft.Text(str(e), selectable=True),
+                            actions=[
+                                ft.TextButton(
+                                    "OK",
+                                    on_click=lambda e: (
+                                        page.pop_dialog(),
+                                        page.update(),
+                                    ),
+                                )
+                            ],
+                        )
+                    )
+                    page.update()
+                    return
+                for cat in affected_categories:
+                    update_last_change(db_path, "tooltips-" + cat, user_name)
+                selected_ids.clear()
+                term = (search_input.value or "").strip()
+                show_browse_page(
+                    get_total_count(db_path, term or None),
+                    restore_page=current_page,
+                    restore_search_term=term or None,
+                )
+                page.show_dialog(
+                    ft.SnackBar(
+                        content=ft.Text(
+                            f"Deleted {deleted} tooltip" + ("s" if deleted != 1 else "")
+                        )
+                    )
+                )
+                page.update()
+
+            page.show_dialog(
+                ft.AlertDialog(
+                    title=ft.Text("Bulk delete"),
+                    content=ft.Text(
+                        f"Permanently delete {len(ids)} tooltip"
+                        f"{'s' if len(ids) != 1 else ''}? "
+                        "This also removes their TooltipButtons rows and cannot be undone.",
+                        selectable=True,
+                    ),
+                    actions=[
+                        ft.TextButton(
+                            "Cancel",
+                            on_click=lambda e: (page.pop_dialog(), page.update()),
+                        ),
+                        ft.Button(
+                            "Proceed",
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.Colors.RED, color=ft.Colors.WHITE
+                            ),
+                            on_click=do_delete,
+                        ),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+            )
+            page.update()
+
+        bulk_delete_btn = ft.Button(
+            "Bulk delete",
+            style=ft.ButtonStyle(bgcolor=ft.Colors.RED, color=ft.Colors.WHITE),
+            on_click=confirm_bulk_delete,
+            disabled=True,
+        )
+
+        def update_bulk_delete_button() -> None:
+            n = len(selected_ids)
+            bulk_delete_btn.content = (
+                f"Bulk delete ({n})" if n else "Bulk delete"
+            )
+            bulk_delete_btn.disabled = n == 0
+            page.update()
+
         table_holder = ft.Container(content=table, expand=True)
         bottom_row = ft.Row(
             controls=[
@@ -3773,6 +4281,7 @@ def main(
                 add_btn,
                 validate_btn,
                 browse_content_btn,
+                bulk_delete_btn,
                 search_bar,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
