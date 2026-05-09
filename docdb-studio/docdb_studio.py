@@ -2,12 +2,15 @@
 """Browse the join of Tooltips and TooltipCategories with pagination."""
 
 import argparse
+import atexit
 import csv
 import http.server
 import io
 import mimetypes
 import os
+import platform as _platform
 import sqlite3
+import sys
 import threading
 import time
 import tkinter as tk
@@ -23,6 +26,11 @@ import brotli
 import flet as ft
 import flet_datatable2 as fdt
 
+try:
+    import posthog
+except ImportError:
+    posthog = None  # analytics becomes a no-op
+
 mimetypes.add_type("text/markdown", ".md")
 
 CONTENT_CHUNK_SIZE = 1024 * 1024  # Android consumer probes for `path-N` continuations at this size.
@@ -35,6 +43,11 @@ PAGE_SIZE = 50
 
 # Built-in HTTP server for browsing Content rows in a real browser.
 CONTENT_SERVER_PORT = 6175
+
+# PostHog project API key — write-only, safe to embed per PostHog docs.
+POSTHOG_PROJECT_API_KEY = "phc_DkwupnQn98knfJXCSSn5wTRY9QB2tE4KxZf7kWhMVhGz"
+POSTHOG_HOST = "https://us.i.posthog.com"
+APP_VERSION = "0.1.0"  # keep in sync with pyproject.toml
 
 # Special LastChange row that bumps on every mutation, regardless of which
 # per-set row was touched. Acts as a global "database version" marker.
@@ -1436,6 +1449,31 @@ def import_content_files(
     )
 
 
+def _analytics_enabled() -> bool:
+    if os.environ.get("DOCDB_NO_ANALYTICS"):
+        return False
+    if posthog is None:
+        return False
+    return bool(POSTHOG_PROJECT_API_KEY) and not POSTHOG_PROJECT_API_KEY.startswith("phc_REPLACE")
+
+
+def _analytics_init() -> None:
+    try:
+        posthog.api_key = POSTHOG_PROJECT_API_KEY
+        posthog.host = POSTHOG_HOST
+    except Exception:
+        pass
+
+
+def _capture(distinct_id: str, event: str, props: dict | None = None) -> None:
+    if not _analytics_enabled():
+        return
+    try:
+        posthog.capture(distinct_id=distinct_id, event=event, properties=props or {})
+    except Exception:
+        pass
+
+
 def main(
     page: ft.Page,
     db_path: Path,
@@ -1444,6 +1482,60 @@ def main(
     user_name: str,
 ) -> None:
     page.title = "Browse tooltips"
+
+    if _analytics_enabled():
+        _analytics_init()
+        session_start = time.monotonic()
+        closed_sent = [False]
+        db_size = db_path.stat().st_size if db_path.exists() else 0
+        _capture(user_name, "app_started", {
+            "app_version": APP_VERSION,
+            "python_version": sys.version.split()[0],
+            "platform": _platform.platform(),
+            "total_count": total_count,
+            "db_size_bytes": db_size,
+        })
+        _capture(user_name, "database_opened", {
+            "total_count": total_count,
+            "db_size_bytes": db_size,
+        })
+
+        def _send_app_closed(_e: object = None) -> None:
+            if closed_sent[0]:
+                return
+            closed_sent[0] = True
+            duration = int(time.monotonic() - session_start)
+            _capture(user_name, "app_closed", {"duration_seconds": duration})
+            try:
+                if posthog is not None:
+                    posthog.shutdown()
+            except Exception:
+                pass
+
+        # macOS red-dot / native window close: Flet's `on_disconnect` is for web
+        # sessions and doesn't fire for desktop. We must intercept the OS close
+        # signal via Window.prevent_close, flush PostHog, then call destroy()
+        # ourselves. on_disconnect/on_close/atexit are kept as fallbacks.
+        async def _on_window_event(e: "ft.WindowEvent") -> None:
+            if e.type == ft.WindowEventType.CLOSE:
+                try:
+                    _send_app_closed()
+                except Exception:
+                    pass
+                try:
+                    await page.window.destroy()
+                except Exception:
+                    pass
+
+        page.on_disconnect = _send_app_closed
+        page.on_close = _send_app_closed
+        try:
+            page.window.prevent_close = True
+            page.window.on_event = _on_window_event
+        except Exception:
+            pass
+        atexit.register(_send_app_closed)
+
     current_page = 1
     total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
 
@@ -1535,10 +1627,12 @@ def main(
         )
 
         def on_fix(_: ft.ControlEvent) -> None:
+            _capture(user_name, "broken_uri_dialog_decision", {"decision": "fix", "broken_count": len(broken)})
             page.pop_dialog()
             page.update()
 
         def on_save_anyway_click(_: ft.ControlEvent) -> None:
+            _capture(user_name, "broken_uri_dialog_decision", {"decision": "save_anyway", "broken_count": len(broken)})
             page.pop_dialog()
             page.update()
             on_save_anyway()
@@ -1727,6 +1821,7 @@ def main(
             page.update()
             return
         category, tag, summary, detail = tooltip
+        _capture(user_name, "tooltip_viewed", {"tooltip_id": tooltip_id})
         page.controls.clear()
         label_style = ft.TextStyle(
             weight=ft.FontWeight.BOLD,
@@ -1882,6 +1977,7 @@ def main(
             page.update()
             return
         category_id, category, tag, summary, detail = row
+        _capture(user_name, "tooltip_edit_started", {"tooltip_id": tooltip_id})
         categories = get_categories(db_path)
         valid_paths = get_all_content_paths(db_path)
         page.controls.clear()
@@ -2011,11 +2107,13 @@ def main(
             cid_val = category_dropdown.value
             tag_val = (tag_field.value or "").strip()
             if not cid_val:
+                _capture(user_name, "validation_error", {"error_type": "category_missing", "where": "tooltip_edit"})
                 page.show_dialog(
                     ft.SnackBar(content=ft.Text("Please select a category."))
                 )
                 return
             if not tag_val:
+                _capture(user_name, "validation_error", {"error_type": "tag_required", "where": "tooltip_edit"})
                 page.show_dialog(ft.SnackBar(content=ft.Text("Tag is required.")))
                 return
 
@@ -2031,6 +2129,7 @@ def main(
                     )
                     replace_tooltip_buttons(db_path, tooltip_id, buttons_state)
                 except sqlite3.IntegrityError:
+                    _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_edit"})
                     page.show_dialog(
                         ft.SnackBar(
                             content=ft.Text("Tag already exists in this category.")
@@ -2038,6 +2137,7 @@ def main(
                     )
                     return
                 except ValueError as ve:
+                    _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_edit"})
                     page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
                     return
                 category_name = get_category_name(db_path, int(cid_val))
@@ -2045,6 +2145,11 @@ def main(
                     update_last_change(
                         db_path, "tooltips-" + category_name, user_name
                     )
+                _capture(user_name, "tooltip_saved", {
+                    "mode": "update",
+                    "category_id": int(cid_val),
+                    "button_count": len(buttons_state),
+                })
                 go_back()
 
             broken = find_broken_button_uris(db_path, buttons_state)
@@ -2184,6 +2289,7 @@ def main(
             def on_add_button(_: ft.ControlEvent) -> None:
                 o = add_order_dropdown.value
                 if not o:
+                    _capture(user_name, "validation_error", {"error_type": "button_order_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("Select an order (number)."))
                     )
@@ -2191,16 +2297,19 @@ def main(
                 desc = (add_desc_field.value or "").strip()
                 uri = (add_uri_field.value or "").strip()
                 if not desc:
+                    _capture(user_name, "validation_error", {"error_type": "button_description_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("Description is required."))
                     )
                     return
                 if not uri:
+                    _capture(user_name, "validation_error", {"error_type": "button_uri_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("URI is required."))
                     )
                     return
                 buttons_state.append((int(o), desc, uri))
+                _capture(user_name, "tooltip_button_changed", {"action": "add", "context": "edit"})
                 add_desc_field.value = ""
                 add_uri_field.value = ""
                 add_order_dropdown.value = None
@@ -2282,6 +2391,7 @@ def main(
                             edit_uri.value or "",
                         )
                         break
+                _capture(user_name, "tooltip_button_changed", {"action": "edit", "context": "edit"})
                 page.pop_dialog()
                 refresh_buttons_section()
                 update_save_state()
@@ -2313,6 +2423,7 @@ def main(
             buttons_state[:] = [
                 b for b in buttons_state if b[0] != button_number_id
             ]
+            _capture(user_name, "tooltip_button_changed", {"action": "remove", "context": "edit"})
             refresh_buttons_section()
             update_save_state()
 
@@ -2554,6 +2665,7 @@ def main(
             def on_add_button(_: ft.ControlEvent) -> None:
                 o = add_order_dropdown.value
                 if not o:
+                    _capture(user_name, "validation_error", {"error_type": "button_order_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("Select an order (number)."))
                     )
@@ -2561,16 +2673,19 @@ def main(
                 desc = (add_desc_field.value or "").strip()
                 uri = (add_uri_field.value or "").strip()
                 if not desc:
+                    _capture(user_name, "validation_error", {"error_type": "button_description_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("Description is required."))
                     )
                     return
                 if not uri:
+                    _capture(user_name, "validation_error", {"error_type": "button_uri_missing", "where": "button_add"})
                     page.show_dialog(
                         ft.SnackBar(content=ft.Text("URI is required."))
                     )
                     return
                 buttons_state.append((int(o), desc, uri))
+                _capture(user_name, "tooltip_button_changed", {"action": "add", "context": "insert"})
                 add_desc_field.value = ""
                 add_uri_field.value = ""
                 add_order_dropdown.value = None
@@ -2652,6 +2767,7 @@ def main(
                             edit_uri.value or "",
                         )
                         break
+                _capture(user_name, "tooltip_button_changed", {"action": "edit", "context": "insert"})
                 page.pop_dialog()
                 refresh_buttons_section()
                 page.update()
@@ -2683,6 +2799,7 @@ def main(
             buttons_state[:] = [
                 b for b in buttons_state if b[0] != button_number_id
             ]
+            _capture(user_name, "tooltip_button_changed", {"action": "remove", "context": "insert"})
             refresh_buttons_section()
             page.update()
 
@@ -2691,14 +2808,17 @@ def main(
             tag_val = (tag_field.value or "").strip()
             summary_val = (summary_field.value or "").strip()
             if not cid_val:
+                _capture(user_name, "validation_error", {"error_type": "category_missing", "where": "tooltip_insert"})
                 page.show_dialog(
                     ft.SnackBar(content=ft.Text("Please select a category."))
                 )
                 return
             if not tag_val:
+                _capture(user_name, "validation_error", {"error_type": "tag_required", "where": "tooltip_insert"})
                 page.show_dialog(ft.SnackBar(content=ft.Text("Tag is required.")))
                 return
             if not summary_val:
+                _capture(user_name, "validation_error", {"error_type": "summary_required", "where": "tooltip_insert"})
                 page.show_dialog(
                     ft.SnackBar(content=ft.Text("Summary is required."))
                 )
@@ -2715,6 +2835,7 @@ def main(
                     )
                     replace_tooltip_buttons(db_path, new_id, buttons_state)
                 except sqlite3.IntegrityError:
+                    _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_insert"})
                     page.show_dialog(
                         ft.SnackBar(
                             content=ft.Text("Tag already exists in this category.")
@@ -2722,6 +2843,7 @@ def main(
                     )
                     return
                 except ValueError as ve:
+                    _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_insert"})
                     page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
                     return
                 category_name = get_category_name(db_path, int(cid_val))
@@ -2729,6 +2851,11 @@ def main(
                     update_last_change(
                         db_path, "tooltips-" + category_name, user_name
                     )
+                _capture(user_name, "tooltip_saved", {
+                    "mode": "insert",
+                    "category_id": int(cid_val),
+                    "button_count": len(buttons_state),
+                })
                 show_browse_page(
                     get_total_count(db_path, from_search_term),
                     restore_page=from_page,
@@ -2782,6 +2909,7 @@ def main(
         restore_selected_file: str | None = None,
     ) -> None:
         """Browse the Content table as a Finder-style column view, with size + reference counts."""
+        _capture(user_name, "content_tree_opened")
         page.controls.clear()
         try:
             paths_with_sizes = get_paths_with_sizes(db_path)
@@ -2999,6 +3127,7 @@ def main(
             browser_url = f"http://127.0.0.1:{server_port}/{urllib.parse.quote(full_path)}"
 
             def _open_in_browser(_: ft.ControlEvent) -> None:
+                _capture(user_name, "content_path_opened_in_browser", {"mime_type": mime})
                 webbrowser.open(browser_url)
 
             open_in_browser_btn = ft.Button(
@@ -3184,6 +3313,10 @@ def main(
         rows = get_all_button_rows(db_path)
         valid_paths = get_all_content_paths(db_path)
         broken = find_broken_button_rows(rows, valid_paths)
+        _capture(user_name, "validate_uris_opened", {
+            "broken_count": len(broken),
+            "total_buttons": len(rows),
+        })
 
         back_btn = ft.Button(
             "Back",
@@ -3360,6 +3493,11 @@ def main(
             term = (search_input.value or "").strip()
             search_term = term if term else None
             total_count = get_total_count(db_path, search_term)
+            _capture(user_name, "search_executed", {
+                "term_length": len(term),
+                "results_count": total_count,
+                "is_wildcard": "*" in term,
+            })
             total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
             current_page = 1
             fill_table()
@@ -3521,6 +3659,7 @@ def main(
                         path, "w", newline="", encoding="utf-8"
                     ) as f:
                         f.write(get_csv_template_content())
+                    _capture(user_name, "csv_template_downloaded")
                     page.update()
 
             def upload_csv(_: ft.ControlEvent) -> None:
@@ -3613,6 +3752,12 @@ def main(
                         "tooltips-" + category_name,
                         user_name,
                     )
+                _capture(user_name, "csv_imported", {
+                    "mode": mode,
+                    "inserted_count": inserted,
+                    "updated_count": updated,
+                    "row_count": len(data_rows),
+                })
                 show_simple_dialog(
                     "Add many — done",
                     f"Inserted: {inserted}\nUpdated: {updated}",
@@ -3995,6 +4140,13 @@ def main(
                     page.update()
 
                 async def _finish_with_result(summary: ImportSummary) -> None:
+                    _capture(user_name, "content_folder_imported", {
+                        "files_imported": summary.files_imported,
+                        "files_overwritten": summary.files_overwritten,
+                        "orphans_deleted": summary.orphans_deleted,
+                        "rows_inserted": summary.rows_inserted,
+                        "files_skipped_error": summary.files_skipped_error,
+                    })
                     page.pop_dialog()
                     page.update()
                     show_result_dialog(summary)
@@ -4216,6 +4368,10 @@ def main(
                     return
                 for cat in affected_categories:
                     update_last_change(db_path, "tooltips-" + cat, user_name)
+                _capture(user_name, "tooltips_bulk_deleted", {
+                    "count": deleted,
+                    "category_count": len(affected_categories),
+                })
                 selected_ids.clear()
                 term = (search_input.value or "").strip()
                 show_browse_page(
