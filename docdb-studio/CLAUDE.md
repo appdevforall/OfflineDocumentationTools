@@ -48,3 +48,17 @@ Tests live in `tests/` and run against tempfile SQLite DBs. The script is import
 - All SQL must use parameterized queries — never f-string user input into SQL. The one exception in the codebase is `db-summary.py`'s `COUNT(*)` query, which quotes a table name retrieved from `sqlite_master`.
 - Wrap each DB operation in `with sqlite3.connect(...) as conn:` and commit explicitly.
 - Surface errors to the user via `ft.SnackBar` rather than letting exceptions propagate to the UI.
+
+## Verifying UI changes
+
+`pytest` passes do **not** prove a UI change works — the test suite does not exercise Flet. After any change touching `main()` / `show_*_page()` / dialogs / pickers, either:
+- launch `uv run python docdb_studio.py --user test` and exercise the affected flow yourself, or
+- explicitly tell the user "I cannot UI-test this from here, please verify before I declare done."
+
+Never claim a UI fix is done on the strength of pytest alone.
+
+## Library notes
+
+- `pyproject.toml` pins `flet >= 0.27` but the actually installed version is **0.80**, which has API breaks. Before writing Flet code, run `uv run python -c "import flet; print(flet.__version__)"`.
+- In Flet 0.80, `FilePicker` is a **Service** (not a Control) under `flet.controls.services.file_picker`. Construct it inside an event handler and call `await picker.save_file(...)` / `pick_files(...)` / `get_directory_path(...)` — it auto-registers via the Flet context. Do **not** add it to `page.overlay` (throws "Unknown control: FilePicker").
+- Do **not** use `tkinter.filedialog` inside a Flet app. Tkinter's Tk mainloop and Flet's event loop can deadlock the process (picker never opens, Ctrl-C cannot kill the app). Also, an unparented Tk window has no z-order relationship to the Flutter main window on macOS *or* Windows, causing dialogs to render behind the app.
