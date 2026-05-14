@@ -13,13 +13,11 @@ import sqlite3
 import sys
 import threading
 import time
-import tkinter as tk
 import unicodedata
 import urllib.parse
 import webbrowser
 from html.parser import HTMLParser
 from pathlib import Path
-from tkinter import filedialog
 from typing import Callable, NamedTuple
 
 import brotli
@@ -3642,18 +3640,16 @@ def main(
         def open_add_many_dialog(mode: str = "insert") -> None:
             mode_label = "insert" if mode == "insert" else "update"
 
-            def download_template(_: ft.ControlEvent) -> None:
+            async def download_template(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
                 page.update()
-                root = tk.Tk()
-                root.wm_withdraw()
-                path = filedialog.asksaveasfilename(
-                    defaultextension=".csv",
-                    filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                    initialfile="tooltips_template.csv",
-                    title="Save CSV template",
+                picker = ft.FilePicker()
+                path = await picker.save_file(
+                    dialog_title="Save CSV template",
+                    file_name="tooltips_template.csv",
+                    file_type=ft.FilePickerFileType.CUSTOM,
+                    allowed_extensions=["csv"],
                 )
-                root.destroy()
                 if path:
                     with open(
                         path, "w", newline="", encoding="utf-8"
@@ -3662,18 +3658,19 @@ def main(
                     _capture(user_name, "csv_template_downloaded")
                     page.update()
 
-            def upload_csv(_: ft.ControlEvent) -> None:
+            async def upload_csv(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
                 page.update()
-                root = tk.Tk()
-                root.wm_withdraw()
-                path = filedialog.askopenfilename(
-                    filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                    title="Upload CSV file",
+                picker = ft.FilePicker()
+                files = await picker.pick_files(
+                    dialog_title="Upload CSV file",
+                    file_type=ft.FilePickerFileType.CUSTOM,
+                    allowed_extensions=["csv"],
+                    allow_multiple=False,
                 )
-                root.destroy()
-                if not path:
+                if not files or not files[0].path:
                     return
+                path = files[0].path
                 try:
                     with open(path, newline="", encoding="utf-8", errors="strict") as f:
                         reader = csv.reader(f)
@@ -3826,11 +3823,11 @@ def main(
             )
             page.update()
 
-        def run_import_content_flow() -> None:
-            root = tk.Tk()
-            root.wm_withdraw()
-            folder_str = filedialog.askdirectory(title="Choose content folder")
-            root.destroy()
+        async def run_import_content_flow() -> None:
+            picker = ft.FilePicker()
+            folder_str = await picker.get_directory_path(
+                dialog_title="Choose content folder",
+            )
             if not folder_str:
                 return
 
@@ -4281,10 +4278,10 @@ def main(
                 page.update()
                 open_add_many_dialog(mode="update")
 
-            def choose_import_content(_: ft.ControlEvent) -> None:
+            async def choose_import_content(_: ft.ControlEvent) -> None:
                 page.pop_dialog()
                 page.update()
-                run_import_content_flow()
+                await run_import_content_flow()
 
             page.show_dialog(
                 ft.AlertDialog(
