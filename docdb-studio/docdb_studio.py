@@ -591,6 +591,23 @@ def update_last_change(
         conn.commit()
 
 
+def vacuum_database(db_path: Path) -> None:
+    """Reclaim free pages by rewriting the DB file. Runs after every mutation
+    that includes a DELETE — DB hygiene is non-negotiable per project policy.
+
+    VACUUM cannot run inside a transaction, so this opens a fresh connection
+    with isolation_level=None and issues the statement directly. Callers should
+    invoke this from a worker thread when triggered from the UI: on a ~380 MB
+    DB the rewrite takes several seconds and would otherwise freeze the event
+    loop.
+    """
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        conn.execute("VACUUM")
+    finally:
+        conn.close()
+
+
 def get_categories_for_tooltips(
     db_path: Path, tooltip_ids: list[int]
 ) -> set[str]:
@@ -634,6 +651,8 @@ def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
             )
             deleted += cur.rowcount
         conn.commit()
+    if deleted:
+        vacuum_database(db_path)
     return deleted
 
 
@@ -860,6 +879,7 @@ def delete_tooltip_button(
             (tooltip_id, button_number_id),
         )
         conn.commit()
+    vacuum_database(db_path)
 
 
 def replace_tooltip_buttons(
@@ -891,6 +911,7 @@ def replace_tooltip_buttons(
                 (tooltip_id, button_number_id, description, uri),
             )
         conn.commit()
+    vacuum_database(db_path)
 
 
 CSV_TEMPLATE_HEADERS = [
@@ -1120,6 +1141,8 @@ def import_csv_rows(
                         (tooltip_id, bid, label, uri),
                     )
         conn.commit()
+    if updated:
+        vacuum_database(db_path)
     return inserted, updated
 
 
@@ -1436,6 +1459,11 @@ def import_content_files(
 
     update_last_change(db_path, documentation_set, user_name)
 
+    if orphans_deleted or files_overwritten:
+        _report("vacuum", 0, 1)
+        vacuum_database(db_path)
+        _report("vacuum", 1, 1)
+
     return ImportSummary(
         files_imported=files_imported,
         files_overwritten=files_overwritten,
@@ -1610,6 +1638,59 @@ def main(
             paste_plain_text()
 
     page.on_keyboard_event = on_keyboard_event
+
+    def show_compacting_dialog() -> None:
+        """Modal indeterminate-progress dialog shown while VACUUM runs.
+
+        Every UI delete path triggers VACUUM (DB hygiene policy — no opt-out),
+        and on the ~380 MB DB that takes several seconds. The dialog reassures
+        the user the app hasn't hung. Non-dismissible: VACUUM is uninterruptible
+        and per policy the user can't skip it."""
+        page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Compacting database…"),
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.ProgressBar(value=None, width=420),
+                            ft.Text("This may take a few seconds."),
+                        ],
+                        tight=True,
+                        spacing=12,
+                    ),
+                    width=460,
+                ),
+            )
+        )
+        page.update()
+
+    def run_with_compacting_dialog(
+        work: "callable", on_done: "callable"
+    ) -> None:
+        """Pop the Compacting dialog, run `work()` on a worker thread, then
+        close the dialog and call `on_done(result_or_exception)` on the event
+        loop. `work` returns whatever the caller needs; if it raises, the
+        exception is passed to `on_done` instead so the caller can branch on
+        type.
+
+        Mirrors the run_import/_finish_with_result/_finish_with_error pattern
+        used by the content-import flow."""
+        show_compacting_dialog()
+
+        async def _finish(result: object) -> None:
+            page.pop_dialog()
+            page.update()
+            on_done(result)
+
+        def _worker() -> None:
+            try:
+                result: object = work()
+            except Exception as exc:  # noqa: BLE001
+                result = exc
+            page.run_task(_finish, result)
+
+        page.run_thread(_worker)
 
     def show_broken_uris_warning(
         broken: list[tuple[int, str]], on_save_anyway: "callable"
@@ -2116,7 +2197,7 @@ def main(
                 return
 
             def commit_save() -> None:
-                try:
+                def work() -> None:
                     update_tooltip(
                         db_path,
                         tooltip_id,
@@ -2126,29 +2207,35 @@ def main(
                         detail_field.value or "",
                     )
                     replace_tooltip_buttons(db_path, tooltip_id, buttons_state)
-                except sqlite3.IntegrityError:
-                    _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_edit"})
-                    page.show_dialog(
-                        ft.SnackBar(
-                            content=ft.Text("Tag already exists in this category.")
+                    category_name = get_category_name(db_path, int(cid_val))
+                    if category_name is not None:
+                        update_last_change(
+                            db_path, "tooltips-" + category_name, user_name
                         )
-                    )
-                    return
-                except ValueError as ve:
-                    _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_edit"})
-                    page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
-                    return
-                category_name = get_category_name(db_path, int(cid_val))
-                if category_name is not None:
-                    update_last_change(
-                        db_path, "tooltips-" + category_name, user_name
-                    )
-                _capture(user_name, "tooltip_saved", {
-                    "mode": "update",
-                    "category_id": int(cid_val),
-                    "button_count": len(buttons_state),
-                })
-                go_back()
+
+                def on_done(result: object) -> None:
+                    if isinstance(result, sqlite3.IntegrityError):
+                        _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_edit"})
+                        page.show_dialog(
+                            ft.SnackBar(
+                                content=ft.Text("Tag already exists in this category.")
+                            )
+                        )
+                        return
+                    if isinstance(result, ValueError):
+                        _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_edit"})
+                        page.show_dialog(ft.SnackBar(content=ft.Text(str(result))))
+                        return
+                    if isinstance(result, BaseException):
+                        raise result
+                    _capture(user_name, "tooltip_saved", {
+                        "mode": "update",
+                        "category_id": int(cid_val),
+                        "button_count": len(buttons_state),
+                    })
+                    go_back()
+
+                run_with_compacting_dialog(work, on_done)
 
             broken = find_broken_button_uris(db_path, buttons_state)
             if broken:
@@ -2823,7 +2910,7 @@ def main(
                 return
 
             def commit_save() -> None:
-                try:
+                def work() -> None:
                     new_id = insert_tooltip(
                         db_path,
                         int(cid_val),
@@ -2832,33 +2919,39 @@ def main(
                         detail_field.value or "",
                     )
                     replace_tooltip_buttons(db_path, new_id, buttons_state)
-                except sqlite3.IntegrityError:
-                    _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_insert"})
-                    page.show_dialog(
-                        ft.SnackBar(
-                            content=ft.Text("Tag already exists in this category.")
+                    category_name = get_category_name(db_path, int(cid_val))
+                    if category_name is not None:
+                        update_last_change(
+                            db_path, "tooltips-" + category_name, user_name
                         )
+
+                def on_done(result: object) -> None:
+                    if isinstance(result, sqlite3.IntegrityError):
+                        _capture(user_name, "validation_error", {"error_type": "tag_duplicate", "where": "tooltip_insert"})
+                        page.show_dialog(
+                            ft.SnackBar(
+                                content=ft.Text("Tag already exists in this category.")
+                            )
+                        )
+                        return
+                    if isinstance(result, ValueError):
+                        _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_insert"})
+                        page.show_dialog(ft.SnackBar(content=ft.Text(str(result))))
+                        return
+                    if isinstance(result, BaseException):
+                        raise result
+                    _capture(user_name, "tooltip_saved", {
+                        "mode": "insert",
+                        "category_id": int(cid_val),
+                        "button_count": len(buttons_state),
+                    })
+                    show_browse_page(
+                        get_total_count(db_path, from_search_term),
+                        restore_page=from_page,
+                        restore_search_term=from_search_term,
                     )
-                    return
-                except ValueError as ve:
-                    _capture(user_name, "validation_error", {"error_type": "button_uri_invalid", "where": "tooltip_insert"})
-                    page.show_dialog(ft.SnackBar(content=ft.Text(str(ve))))
-                    return
-                category_name = get_category_name(db_path, int(cid_val))
-                if category_name is not None:
-                    update_last_change(
-                        db_path, "tooltips-" + category_name, user_name
-                    )
-                _capture(user_name, "tooltip_saved", {
-                    "mode": "insert",
-                    "category_id": int(cid_val),
-                    "button_count": len(buttons_state),
-                })
-                show_browse_page(
-                    get_total_count(db_path, from_search_term),
-                    restore_page=from_page,
-                    restore_search_term=from_search_term,
-                )
+
+                run_with_compacting_dialog(work, on_done)
 
             broken = find_broken_button_uris(db_path, buttons_state)
             if broken:
@@ -3740,30 +3833,39 @@ def main(
                     )
                     page.update()
                     return
-                inserted, updated = import_csv_rows(
-                    db_path, data_rows, category_name_to_id, mode=mode
-                )
-                for category_name in {row[0].strip() for row in data_rows}:
-                    update_last_change(
-                        db_path,
-                        "tooltips-" + category_name,
-                        user_name,
+                def work() -> tuple[int, int]:
+                    counts = import_csv_rows(
+                        db_path, data_rows, category_name_to_id, mode=mode
                     )
-                _capture(user_name, "csv_imported", {
-                    "mode": mode,
-                    "inserted_count": inserted,
-                    "updated_count": updated,
-                    "row_count": len(data_rows),
-                })
-                show_simple_dialog(
-                    "Add many — done",
-                    f"Inserted: {inserted}\nUpdated: {updated}",
-                )
-                show_browse_page(
-                    get_total_count(db_path, (search_input.value or "").strip() or None),
-                    restore_page=current_page,
-                    restore_search_term=(search_input.value or "").strip() or None,
-                )
+                    for category_name in {row[0].strip() for row in data_rows}:
+                        update_last_change(
+                            db_path,
+                            "tooltips-" + category_name,
+                            user_name,
+                        )
+                    return counts
+
+                def on_done(result: object) -> None:
+                    if isinstance(result, BaseException):
+                        raise result
+                    inserted, updated = result  # type: ignore[misc]
+                    _capture(user_name, "csv_imported", {
+                        "mode": mode,
+                        "inserted_count": inserted,
+                        "updated_count": updated,
+                        "row_count": len(data_rows),
+                    })
+                    show_simple_dialog(
+                        "Add many — done",
+                        f"Inserted: {inserted}\nUpdated: {updated}",
+                    )
+                    show_browse_page(
+                        get_total_count(db_path, (search_input.value or "").strip() or None),
+                        restore_page=current_page,
+                        restore_search_term=(search_input.value or "").strip() or None,
+                    )
+
+                run_with_compacting_dialog(work, on_done)
 
             if mode == "insert":
                 title = "Add many — insert only"
@@ -4098,6 +4200,10 @@ def main(
                 overwrite_bar = ft.ProgressBar(value=0.0, width=420)
                 add_text = ft.Text(f"Adding files: 0 / {add_count}")
                 add_bar = ft.ProgressBar(value=0.0, width=420)
+                # Visible only once the helper enters its vacuum phase. Bar is
+                # indeterminate because SQLite VACUUM emits no progress.
+                vacuum_text = ft.Text("Compacting database…", visible=False)
+                vacuum_bar = ft.ProgressBar(value=None, width=420, visible=False)
 
                 progress_controls: list[ft.Control] = []
                 if delete_count:
@@ -4106,6 +4212,8 @@ def main(
                     progress_controls.extend([overwrite_text, overwrite_bar])
                 if add_count:
                     progress_controls.extend([add_text, add_bar])
+                if delete_count or overwrite_count:
+                    progress_controls.extend([vacuum_text, vacuum_bar])
 
                 page.show_dialog(
                     ft.AlertDialog(
@@ -4165,6 +4273,14 @@ def main(
                     elif phase == "add":
                         add_text.value = f"Adding files: {current} / {total}"
                         add_bar.value = current / total
+                    elif phase == "vacuum":
+                        # current==0 marks vacuum start (reveal the indeterminate
+                        # bar); current==1 marks completion (hide it again so the
+                        # final result dialog isn't preceded by a half-open row).
+                        vacuum_text.visible = current == 0
+                        vacuum_bar.visible = current == 0
+                        page.run_task(_flush_update)
+                        return
 
                     now = time.monotonic()
                     # Always flush the first and last tick of a phase so phase
@@ -4343,47 +4459,56 @@ def main(
                 page.pop_dialog()
                 page.update()
                 affected_categories = get_categories_for_tooltips(db_path, ids)
-                try:
-                    deleted = delete_tooltips_bulk(db_path, ids)
-                except sqlite3.Error as e:
+
+                def work() -> int:
+                    deleted_local = delete_tooltips_bulk(db_path, ids)
+                    for cat in affected_categories:
+                        update_last_change(db_path, "tooltips-" + cat, user_name)
+                    return deleted_local
+
+                def on_done(result: object) -> None:
+                    if isinstance(result, sqlite3.Error):
+                        page.show_dialog(
+                            ft.AlertDialog(
+                                title=ft.Text("Bulk delete failed"),
+                                content=ft.Text(str(result), selectable=True),
+                                actions=[
+                                    ft.TextButton(
+                                        "OK",
+                                        on_click=lambda e: (
+                                            page.pop_dialog(),
+                                            page.update(),
+                                        ),
+                                    )
+                                ],
+                            )
+                        )
+                        page.update()
+                        return
+                    if isinstance(result, BaseException):
+                        raise result
+                    deleted = int(result)
+                    _capture(user_name, "tooltips_bulk_deleted", {
+                        "count": deleted,
+                        "category_count": len(affected_categories),
+                    })
+                    selected_ids.clear()
+                    term = (search_input.value or "").strip()
+                    show_browse_page(
+                        get_total_count(db_path, term or None),
+                        restore_page=current_page,
+                        restore_search_term=term or None,
+                    )
                     page.show_dialog(
-                        ft.AlertDialog(
-                            title=ft.Text("Bulk delete failed"),
-                            content=ft.Text(str(e), selectable=True),
-                            actions=[
-                                ft.TextButton(
-                                    "OK",
-                                    on_click=lambda e: (
-                                        page.pop_dialog(),
-                                        page.update(),
-                                    ),
-                                )
-                            ],
+                        ft.SnackBar(
+                            content=ft.Text(
+                                f"Deleted {deleted} tooltip" + ("s" if deleted != 1 else "")
+                            )
                         )
                     )
                     page.update()
-                    return
-                for cat in affected_categories:
-                    update_last_change(db_path, "tooltips-" + cat, user_name)
-                _capture(user_name, "tooltips_bulk_deleted", {
-                    "count": deleted,
-                    "category_count": len(affected_categories),
-                })
-                selected_ids.clear()
-                term = (search_input.value or "").strip()
-                show_browse_page(
-                    get_total_count(db_path, term or None),
-                    restore_page=current_page,
-                    restore_search_term=term or None,
-                )
-                page.show_dialog(
-                    ft.SnackBar(
-                        content=ft.Text(
-                            f"Deleted {deleted} tooltip" + ("s" if deleted != 1 else "")
-                        )
-                    )
-                )
-                page.update()
+
+                run_with_compacting_dialog(work, on_done)
 
             page.show_dialog(
                 ft.AlertDialog(
@@ -4412,9 +4537,12 @@ def main(
             )
             page.update()
 
+        # Initial style is grey because the button starts disabled (no rows
+        # selected). update_bulk_delete_button swaps to red once n > 0 so the
+        # destructive affordance only shows red when it'll actually do something.
         bulk_delete_btn = ft.Button(
             "Bulk delete",
-            style=ft.ButtonStyle(bgcolor=ft.Colors.RED, color=ft.Colors.WHITE),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_400, color=ft.Colors.WHITE),
             on_click=confirm_bulk_delete,
             disabled=True,
         )
@@ -4425,6 +4553,10 @@ def main(
                 f"Bulk delete ({n})" if n else "Bulk delete"
             )
             bulk_delete_btn.disabled = n == 0
+            bulk_delete_btn.style = ft.ButtonStyle(
+                bgcolor=ft.Colors.RED if n else ft.Colors.GREY_400,
+                color=ft.Colors.WHITE,
+            )
             page.update()
 
         table_holder = ft.Container(content=table, expand=True)
