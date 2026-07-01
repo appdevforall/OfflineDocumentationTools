@@ -1,1 +1,1 @@
-rootProject.name = "example-data-processor"
+rootProject.name = "testlib"
