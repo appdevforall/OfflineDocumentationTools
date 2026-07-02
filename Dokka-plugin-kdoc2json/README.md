@@ -17,6 +17,7 @@ This plugin intercepts base Dokka's pipeline just before rendering to output JSO
 Clone this repository and publish the plugin to your local Maven repository:
 
 ```bash
+cd kdoc-to-json
 ./gradlew publishToMavenLocal
 ```
 
@@ -26,9 +27,38 @@ In the target project where you want to generate documentation, add the plugin t
 
 ```kotlin
 dependencies {
-    dokkaPlugin("my.dokka.plugin:json-output-plugin:1.0.0-SNAPSHOT")
+    dokkaPlugin("org.appdevforall.dokka:kdoc-to-json:1.0.0-SNAPSHOT")
 }
 ```
+
+> **Dokka version compatibility:** `kdoc-to-json/build.gradle.kts` compiles against `dokka-core`/`dokka-base` version `2.2.0-Beta` by default (chosen for compatibility with the [kotlin-stdlib-docs build tool](https://github.com/JetBrains/kotlin/tree/master/libraries/tools/kotlin-stdlib-docs)). Your consuming project's `org.jetbrains.dokka` Gradle plugin version should match (or be binary-compatible with) that version — see `examples/example-data-processor/build.gradle.kts` for a working setup. If you need a different Dokka version, update the `compileOnly` versions in `kdoc-to-json/build.gradle.kts` and republish before applying the plugin to a project on that version.
+
+### Trying It Out with the Example Library
+
+`examples/example-data-processor` is a small sample Kotlin library already wired up to use this plugin (see its `build.gradle.kts`). To build the plugin and generate its JSON documentation in one step, run:
+
+```bash
+./scripts/build-example.sh
+```
+
+This publishes `kdoc-to-json` to your local Maven repository and then runs Dokka against the example library. Output is written to `examples/example-data-processor/build/dokka/html/`.
+
+### Sanity-Checking Rendered Output
+
+`scripts/sanity_check.py` helps validate documentation rendered downstream from this plugin's JSON (e.g. by a templating engine like Pebble or Jinja that turns the JSON into HTML pages):
+
+```bash
+# Check that every file in a list (e.g. Dokka's package-list) exists in the rendered output
+python3 scripts/sanity_check.py check-list files.txt path/to/rendered-html
+
+# Compare a standard Dokka HTML build against a JSON-derived HTML build, page for page
+python3 scripts/sanity_check.py compare-base path/to/dokka-html path/to/rendered-html
+
+# Scan a directory of rendered HTML files for broken internal links
+python3 scripts/sanity_check.py check-links path/to/rendered-html
+```
+
+Each subcommand accepts `--output-file/-o` to write a full results log to disk.
 
 ## 3. Configuration Options
 
@@ -42,7 +72,7 @@ import javax.inject.Inject
 @OptIn(InternalDokkaApi::class)
 abstract class JsonOutputPluginParameters @Inject constructor(
     name: String
-) : DokkaPluginParametersBaseSpec(name, "my.dokka.plugin.JsonOutputPlugin") {
+) : DokkaPluginParametersBaseSpec(name, "org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") {
     
     // Define the plugin's behavior via a JSON string
     override fun jsonEncode(): String = """{
@@ -57,7 +87,7 @@ abstract class JsonOutputPluginParameters @Inject constructor(
 dokka {
     pluginsConfiguration {
         registerBinding(JsonOutputPluginParameters::class, JsonOutputPluginParameters::class)
-        register<JsonOutputPluginParameters>("my.dokka.plugin.JsonOutputPlugin") { }
+        register<JsonOutputPluginParameters>("org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") { }
     }
 }
 ```
@@ -69,6 +99,8 @@ dokka {
 | `replaceHtmlExtension` | Boolean | `false` | If `true`, the plugin will rewrite all internal relative URLs to end in `.json` instead of `.html`. |
 | `omitFields` | List | `[]` | A list of JSON keys to completely strip from the final output (e.g., `["breadcrumbs", "sources"]`). Useful for reducing disk footprint. |
 | `omitNulls` | Boolean | `false` | If `true`, deeply filters the AST payload to remove any keys where the value is null, an empty string, an empty array, or an empty object. |
+| `classDiscriminator` | String | `"kind"` | The JSON key used to discriminate between polymorphic `Documentable` types (e.g., `"kind": "class"`). Must not collide with an existing DTO field name (e.g. `"type"` or `"name"`), or serialization will fail. |
+| `prettyPrint` | Boolean | `false` | If `true`, formats the written JSON files with indentation for human readability instead of compact single-line output. |
 
 ## 4. Understanding Dokka Terminology
 
