@@ -1,4 +1,4 @@
-package my.dokka.plugin
+package org.appdevforall.dokka.kdoc2json
 
 import kotlinx.serialization.json.*
 import org.jetbrains.dokka.plugability.DokkaContext

@@ -1,4 +1,4 @@
-package my.dokka.plugin.dtos
+package org.appdevforall.dokka.kdoc2json.dtos
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

@@ -1,4 +1,4 @@
-package my.dokka.plugin
+package org.appdevforall.dokka.kdoc2json
 
 import org.jetbrains.dokka.CoreExtensions
 import org.jetbrains.dokka.base.DokkaBase

@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group = "my.dokka.plugin"
+group = "org.appdevforall.dokka"
 version = "1.0.0-SNAPSHOT"
 
 repositories {

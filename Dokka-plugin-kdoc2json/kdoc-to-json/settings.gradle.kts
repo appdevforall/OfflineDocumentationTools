@@ -1,1 +1,1 @@
-rootProject.name = "json-output-plugin"
+rootProject.name = "kdoc-to-json"

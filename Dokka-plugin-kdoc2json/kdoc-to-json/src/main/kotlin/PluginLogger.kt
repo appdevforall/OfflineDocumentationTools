@@ -1,4 +1,4 @@
-package my.dokka.plugin
+package org.appdevforall.dokka.kdoc2json
 
 import org.jetbrains.dokka.utilities.DokkaLogger
 import java.io.File

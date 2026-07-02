@@ -1,8 +1,8 @@
-package my.dokka.plugin
+package org.appdevforall.dokka.kdoc2json
 
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.*
-import my.dokka.plugin.dtos.*
+import org.appdevforall.dokka.kdoc2json.dtos.*
 import org.jetbrains.dokka.base.DokkaBase
 import org.jetbrains.dokka.model.*
 import org.jetbrains.dokka.pages.PageNode
@@ -17,16 +17,15 @@ import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class JsonRenderer(private val context: DokkaContext) : Renderer {
-    
-    private val json = Json { 
-        prettyPrint = false 
-        classDiscriminator = "kind" 
-        encodeDefaults = false
-        ignoreUnknownKeys = true 
+
+    // Only used to manually decode the plugin's own config, before finalConfig (and its
+    // classDiscriminator/prettyPrint settings) is known.
+    private val configJson = Json {
+        ignoreUnknownKeys = true
     }
 
     override fun render(root: RootPageNode) {
-        val fqcn = "my.dokka.plugin.JsonOutputPlugin"
+        val fqcn = "org.appdevforall.dokka.kdoc2json.JsonOutputPlugin"
         var config = configuration<JsonOutputPlugin, JsonPluginConfig>(context)
 
         if (config == null) {
@@ -34,7 +33,7 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
             if (rawConfig != null) {
                 context.logger.info("Dokka native config parsing failed. Manually parsing: $rawConfig")
                 try {
-                    config = json.decodeFromString<JsonPluginConfig>(rawConfig)
+                    config = configJson.decodeFromString<JsonPluginConfig>(rawConfig)
                 } catch (e: Exception) {
                     context.logger.error("Manual config parsing failed: ${e.message}")
                 }
@@ -45,6 +44,13 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
 
         val finalConfig = config ?: JsonPluginConfig()
         val logger = PluginLogger(context.logger, finalConfig.logLevel, finalConfig.logFile)
+
+        val json = Json {
+            prettyPrint = finalConfig.prettyPrint
+            classDiscriminator = finalConfig.classDiscriminator
+            encodeDefaults = false
+            ignoreUnknownKeys = true
+        }
 
         logger.info("Initializing JSON Renderer with config: $finalConfig")
 

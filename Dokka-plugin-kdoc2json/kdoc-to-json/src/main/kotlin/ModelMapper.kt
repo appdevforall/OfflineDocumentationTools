@@ -1,6 +1,6 @@
-package my.dokka.plugin
+package org.appdevforall.dokka.kdoc2json
 
-import my.dokka.plugin.dtos.*
+import org.appdevforall.dokka.kdoc2json.dtos.*
 import org.jetbrains.dokka.base.resolvers.local.LocationProvider
 import org.jetbrains.dokka.links.DRI
 import org.jetbrains.dokka.model.*

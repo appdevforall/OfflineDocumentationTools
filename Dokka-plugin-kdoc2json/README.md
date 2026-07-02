@@ -179,3 +179,20 @@ For example, to render a table of functions for a class:
     </table>
 {% endif %}
 ```
+
+## 9. Building the Kotlin Standard Library Docs (`scripts/kotlin`)
+
+`scripts/kotlin/` contains everything needed to generate both the default HTML docs and the kdoc-to-json JSON docs for the Kotlin standard library (`kotlin-stdlib`, `kotlin-test`, `kotlin-reflect`), side by side, for comparison purposes.
+
+* **`scripts/kotlin/build.gradle.kts`** — a drop-in replacement for the `build.gradle.kts` in a `kotlin-stdlib-docs` checkout (the Dokka doc-build module inside JetBrains' [kotlin](https://github.com/JetBrains/kotlin) repo, at `libraries/tools/kotlin-stdlib-docs`). It adds a `dokkaGenerateModuleJson` task and gates the `kdoc-to-json` plugin (classpath + `pluginsConfiguration`) behind `gradle.startParameter.taskNames` so the plugin is only active when `dokkaGenerateModuleJson` is explicitly requested — every other Dokka task (`dokkaGenerateHtml`, `dokkaGeneratePublicationHtml`, etc.) is unaffected and still produces normal HTML.
+* **`scripts/kotlin/build-kotlin-stdlib.sh`** — installs that `build.gradle.kts` into a `kotlin-stdlib-docs` checkout (backing up the original as `build.gradle.kts.orig` on first run) and then runs both `dokkaGenerateHtml` and `dokkaGenerateModuleJson`, each with its own `-PdocsBuildDir`, so the two outputs land in separate directories instead of overwriting each other.
+
+**Usage:**
+
+```bash
+./scripts/kotlin/build-kotlin-stdlib.sh /path/to/kotlin/libraries/tools/kotlin-stdlib-docs [output-dir]
+```
+
+This writes HTML output to `<output-dir>/html/latest/all-libs` and JSON output to `<output-dir>/json/latest/all-libs` (`output-dir` defaults to `scripts/kotlin/build-output`).
+
+> **Provenance / staleness warning:** `scripts/kotlin/build.gradle.kts` was derived from the `kotlin-stdlib-docs/build.gradle.kts` in JetBrains' `kotlin` repo as of commit [`cfcb49fd0113`](https://github.com/JetBrains/kotlin/commit/cfcb49fd0113d2300a2b677c4fc2e16dddff7df5) ("[stdlib] Update Dokka to 2.2.0-Beta and migrate to DGPv2"). That upstream file is not under our control and can change — new source sets, Dokka API changes, or a different doc-build structure could all require re-diffing our modifications against a newer upstream version. If `build-kotlin-stdlib.sh` starts failing against a newer `kotlin` checkout, compare `scripts/kotlin/build.gradle.kts` against the current upstream `kotlin-stdlib-docs/build.gradle.kts` and re-apply the `useJsonPlugin`/`dokkaGenerateModuleJson` additions by hand.
