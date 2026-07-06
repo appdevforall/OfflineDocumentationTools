@@ -18,12 +18,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 class JsonRenderer(private val context: DokkaContext) : Renderer {
 
-    // Only used to manually decode the plugin's own config, before finalConfig (and its
-    // classDiscriminator/prettyPrint settings) is known.
-    private val configJson = Json {
-        ignoreUnknownKeys = true
-    }
-
     override fun render(root: RootPageNode) {
         val fqcn = "org.appdevforall.dokka.kdoc2json.JsonOutputPlugin"
         var config = configuration<JsonOutputPlugin, JsonPluginConfig>(context)
@@ -33,7 +27,10 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
             if (rawConfig != null) {
                 context.logger.info("Dokka native config parsing failed. Manually parsing: $rawConfig")
                 try {
-                    config = configJson.decodeFromString<JsonPluginConfig>(rawConfig)
+                    // A dedicated instance because finalConfig (and the "real" json below) isn't known yet;
+                    // ignoreUnknownKeys tolerates extra keys in this user-authored config rather than
+                    // failing to parse it at all.
+                    config = Json { ignoreUnknownKeys = true }.decodeFromString<JsonPluginConfig>(rawConfig)
                 } catch (e: Exception) {
                     context.logger.error("Manual config parsing failed: ${e.message}")
                 }
@@ -48,8 +45,6 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
         val json = Json {
             prettyPrint = finalConfig.prettyPrint
             classDiscriminator = finalConfig.classDiscriminator
-            encodeDefaults = false
-            ignoreUnknownKeys = true
         }
 
         logger.info("Initializing JSON Renderer with config: $finalConfig")
