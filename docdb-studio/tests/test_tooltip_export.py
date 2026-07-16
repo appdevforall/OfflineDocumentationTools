@@ -161,6 +161,18 @@ def test_search_matches_button_uri() -> None:
         db.unlink(missing_ok=True)
 
 
+def test_search_matches_uri_substring_without_wildcard() -> None:
+    """A bare term (no leading '*') still matches a URI fragment in the middle:
+    'rename.html' finds ide/refactor/rename.html even though the URI does not
+    start with it."""
+    db = _make_db()
+    try:
+        assert get_total_count(db, "refactor/rename") == 1
+        assert get_page(db, 50, 0, "refactor/rename")[0][2] == "rename"
+    finally:
+        db.unlink(missing_ok=True)
+
+
 def test_search_on_uri_does_not_duplicate_multibutton_tooltip() -> None:
     db = _make_db()
     try:

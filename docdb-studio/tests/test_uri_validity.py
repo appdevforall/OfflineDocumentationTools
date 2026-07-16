@@ -319,8 +319,11 @@ def test_build_like_pattern_translates_user_wildcard_and_escapes_meta() -> None:
 
 
 def test_search_params_uses_anchored_pattern() -> None:
-    """Pin the tooltip-browse search semantics: each OR'd LIKE (tag, summary,
-    detail, category, button uri, button description) is anchored at the start
-    of its column, and there is one param per placeholder in SEARCH_WHERE."""
-    assert _search_params("foo") == ("foo%",) * 6
-    assert _search_params("*foo") == ("%foo%",) * 6
+    """Pin the tooltip-browse search semantics: tag/summary/detail/category are
+    anchored ("starts with"), while button uri/description match as a substring
+    ("contains"), since URLs are searched by an interior fragment. One param per
+    placeholder in SEARCH_WHERE, in that order."""
+    assert _search_params("foo") == ("foo%", "foo%", "foo%", "foo%", "%foo%", "%foo%")
+    # With a leading wildcard every column is already a substring match. The
+    # contains columns keep their extra leading '%' (harmless, still matches).
+    assert _search_params("*foo") == ("%foo%", "%foo%", "%foo%", "%foo%", "%%foo%", "%%foo%")
