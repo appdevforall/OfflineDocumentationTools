@@ -319,7 +319,8 @@ def test_build_like_pattern_translates_user_wildcard_and_escapes_meta() -> None:
 
 
 def test_search_params_uses_anchored_pattern() -> None:
-    """Pin the tooltip-browse search semantics: each of the three OR'd LIKEs
-    is anchored at the start of its column."""
-    assert _search_params("foo") == ("foo%", "foo%", "foo%")
-    assert _search_params("*foo") == ("%foo%", "%foo%", "%foo%")
+    """Pin the tooltip-browse search semantics: each OR'd LIKE (tag, summary,
+    detail, category, button uri, button description) is anchored at the start
+    of its column, and there is one param per placeholder in SEARCH_WHERE."""
+    assert _search_params("foo") == ("foo%",) * 6
+    assert _search_params("*foo") == ("%foo%",) * 6

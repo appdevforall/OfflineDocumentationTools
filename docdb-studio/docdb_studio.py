@@ -74,7 +74,13 @@ JOIN TooltipCategories tc ON t.categoryId = tc.id
 SEARCH_WHERE = (
     " WHERE (t.tag LIKE ? ESCAPE '\\'"
     " OR t.summary LIKE ? ESCAPE '\\'"
-    " OR t.detail LIKE ? ESCAPE '\\')"
+    " OR t.detail LIKE ? ESCAPE '\\'"
+    " OR tc.category LIKE ? ESCAPE '\\'"
+    # Non-correlated subquery: SQLite evaluates it once (not per Tooltips row),
+    # so URI/description search stays a single TooltipButtons scan instead of a
+    # per-row nested loop. IN also keeps each tooltip to one result row.
+    " OR t.id IN (SELECT tb.tooltipId FROM TooltipButtons tb"
+    " WHERE tb.uri LIKE ? ESCAPE '\\' OR tb.description LIKE ? ESCAPE '\\'))"
 )
 
 
@@ -136,9 +142,11 @@ def _build_like_pattern(term: str) -> str:
     return escaped.replace("*", "%") + "%"
 
 
-def _search_params(term: str) -> tuple[str, str, str]:
+def _search_params(term: str) -> tuple[str, ...]:
+    # One pattern per placeholder in SEARCH_WHERE (tag, summary, detail,
+    # category, button uri, button description). All identical, so order is moot.
     pattern = _build_like_pattern(term)
-    return (pattern, pattern, pattern)
+    return (pattern,) * 6
 
 
 def get_total_count(db_path: Path, search_term: str | None = None) -> int:
@@ -417,6 +425,57 @@ def get_all_button_rows(
         return cur.fetchall()
 
 
+def get_tooltip_export_rows(
+    db_path: Path, search_term: str | None = None
+) -> list[list[str]]:
+    """Return tooltips as rows matching CSV_TEMPLATE_HEADERS, ready to round-trip
+    through the update importer.
+
+    When `search_term` is given, only tooltips matching the same filter as the
+    browse list are included. Buttons are slotted by buttonNumberId
+    (1 -> button1, 2 -> button2, 3 -> button3); button numbers outside 1-3 are
+    omitted (the CSV template supports at most three buttons).
+
+    Only rows that satisfy the import invariant (`validate_tooltip_row_fields`)
+    are emitted — the export never produces a record the importer would reject
+    (e.g. an empty or newline-bearing summary), so the round-trip stays clean.
+    Use `count_exportable_tooltips` to learn how many matching tooltips were
+    skipped for failing that invariant.
+    """
+    tooltip_sql = (
+        JOIN_BASE.rstrip()
+        + (SEARCH_WHERE if search_term else "")
+        + JOIN_ORDER
+    )
+    params = _search_params(search_term) if search_term else ()
+    with sqlite3.connect(db_path) as conn:
+        tooltips = conn.execute(tooltip_sql, params).fetchall()
+        # One pass over TooltipButtons, grouped by tooltip -> {buttonNumberId: (label, uri)}.
+        buttons_by_tooltip: dict[int, dict[int, tuple[str, str]]] = {}
+        for tid, bnum, desc, uri in conn.execute(
+            "SELECT tooltipId, buttonNumberId, description, uri FROM TooltipButtons"
+        ):
+            buttons_by_tooltip.setdefault(tid, {})[bnum] = (desc or "", uri or "")
+
+    category_name_to_id = {name: cid for cid, name in get_categories(db_path)}
+    allowed_button_ids = set(get_button_number_ids(db_path))
+
+    rows: list[list[str]] = []
+    for tooltip_id, category, tag, summary, detail in tooltips:
+        buttons = buttons_by_tooltip.get(tooltip_id, {})
+        row = [category or "", tag or "", summary or "", detail or ""]
+        for bnum in (1, 2, 3):
+            label, uri = buttons.get(bnum, ("", ""))
+            row.extend([label, uri])
+        field_errors, _ = validate_tooltip_row_fields(
+            row, category_name_to_id, allowed_button_ids
+        )
+        if field_errors:
+            continue  # not importable — skip so the export round-trips cleanly
+        rows.append(row)
+    return rows
+
+
 def find_broken_button_rows(
     rows: list[tuple[int, str, str, int, str, str]], valid_paths: set[str]
 ) -> list[tuple[int, str, str, int, str, str]]:
@@ -426,6 +485,17 @@ def find_broken_button_rows(
         for row in rows
         if _uri_path_for_content_lookup(row[5] or "") not in valid_paths
     ]
+
+
+def find_empty_summary_tooltips(db_path: Path) -> list[tuple[int, str]]:
+    """Return (tooltip_id, tag) for tooltips whose summary is empty or
+    whitespace-only. These fail the import invariant (summary is required), so
+    CSV export skips them; the validate page surfaces them for fixing."""
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            "SELECT id, tag FROM Tooltips WHERE TRIM(summary) = '' ORDER BY tag"
+        )
+        return [(row[0], row[1] or "") for row in cur.fetchall()]
 
 
 def get_content_paths_count(db_path: Path, search: str | None = None) -> int:
@@ -944,6 +1014,76 @@ def get_existing_tooltip_keys(db_path: Path) -> set[tuple[int, str]]:
         return {(row[0], row[1].strip()) for row in cur.fetchall()}
 
 
+_CSV_CELL_FIELD_NAMES = (
+    "category", "tag", "summary", "detail",
+    "button1 label", "button1 uri",
+    "button2 label", "button2 uri",
+    "button3 label", "button3 uri",
+)
+
+
+def validate_tooltip_row_fields(
+    row: list[str],
+    category_name_to_id: dict[str, int],
+    allowed_button_ids: set[int],
+) -> tuple[list[str], tuple[int, str] | None]:
+    """Field-level validation for a single CSV/export row — the invariant a row
+    must satisfy to be importable, shared by CSV import and CSV export.
+
+    Returns ``(errors, key)`` with *unprefixed* error messages (no line numbers)
+    and, when the row's identity fields are otherwise valid, ``key=(categoryId,
+    tag)`` for the caller's cross-row duplicate/existence checks (``None`` when
+    the row has field errors or no usable key). An empty ``errors`` list means
+    the row is safe to import — and therefore safe to export for round-trip.
+    """
+    expected_columns = len(CSV_TEMPLATE_HEADERS)
+    if len(row) != expected_columns:
+        return ([f"expected {expected_columns} fields, got {len(row)}."], None)
+
+    cleaned_cells: list[str] = []
+    for cell, field_name in zip(row, _CSV_CELL_FIELD_NAMES):
+        allow_nl = field_name == "detail"
+        try:
+            cleaned_cells.append(
+                sanitize_text(cell.strip(), field=field_name, allow_newline=allow_nl)
+            )
+        except ValueError as e:
+            return ([str(e)], None)
+
+    (
+        category_name, tag, summary, _detail,
+        b1_label, b1_uri, b2_label, b2_uri, b3_label, b3_uri,
+    ) = cleaned_cells
+
+    errors: list[str] = []
+    if not category_name:
+        errors.append("category is required.")
+    elif category_name not in category_name_to_id:
+        errors.append(f"category {category_name!r} is not in TooltipCategories.")
+    if not tag:
+        errors.append("tag is required.")
+    if not summary:
+        errors.append("summary is required.")
+
+    for pair_name, label, uri, bid in [
+        ("button1", b1_label, b1_uri, 1),
+        ("button2", b2_label, b2_uri, 2),
+        ("button3", b3_label, b3_uri, 3),
+    ]:
+        has_label = bool(label)
+        has_uri = bool(uri)
+        if has_label != has_uri:
+            errors.append(f"{pair_name} requires both label and uri or neither.")
+        if (has_label or has_uri) and bid not in allowed_button_ids:
+            errors.append(
+                f"{pair_name} references button id {bid} which is not in TooltipButtonNumbers."
+            )
+
+    cid = category_name_to_id.get(category_name)
+    key = (cid, tag) if (not errors and cid is not None and tag) else None
+    return (errors, key)
+
+
 def validate_csv_upload(
     db_path: Path,
     rows: list[list[str]],
@@ -967,96 +1107,26 @@ def validate_csv_upload(
         errors.append("File has no data rows.")
         return errors
 
-    expected_columns = len(CSV_TEMPLATE_HEADERS)
     seen_in_file: set[tuple[int, str]] = set()
     existing = get_existing_tooltip_keys(db_path)
 
     for i, row in enumerate(rows):
         line_num = i + 2  # 1-based, line 1 is header
-        line_errors: list[str] = []
-
-        if len(row) != expected_columns:
-            line_errors.append(
-                f"Line {line_num}: expected {expected_columns} fields, got {len(row)}."
-            )
-        else:
-            cell_field_names = (
-                "category", "tag", "summary", "detail",
-                "button1 label", "button1 uri",
-                "button2 label", "button2 uri",
-                "button3 label", "button3 uri",
-            )
-            cleaned_cells: list[str] = []
-            cell_error = False
-            for cell, field_name in zip(row, cell_field_names):
-                allow_nl = field_name == "detail"
-                try:
-                    cleaned_cells.append(
-                        sanitize_text(cell.strip(), field=field_name, allow_newline=allow_nl)
-                    )
-                except ValueError as e:
-                    line_errors.append(f"Line {line_num}: {e}")
-                    cell_error = True
-                    break
-            if cell_error:
-                errors.extend(line_errors)
-                continue
-            (
-                category_name,
-                tag,
-                summary,
-                detail,
-                b1_label,
-                b1_uri,
-                b2_label,
-                b2_uri,
-                b3_label,
-                b3_uri,
-            ) = cleaned_cells
-
-            if not category_name:
-                line_errors.append(f"Line {line_num}: category is required.")
-            elif category_name not in category_name_to_id:
-                line_errors.append(
-                    f"Line {line_num}: category {category_name!r} is not in TooltipCategories."
+        field_errors, key = validate_tooltip_row_fields(
+            row, category_name_to_id, allowed_button_ids
+        )
+        if field_errors:
+            errors.extend(f"Line {line_num}: {e}" for e in field_errors)
+            continue
+        if key is not None:
+            if key in seen_in_file:
+                errors.append(f"Line {line_num}: duplicate (category, tag) in file.")
+            elif mode == "insert" and key in existing:
+                errors.append(
+                    f"Line {line_num}: (category, tag) already exists in database."
                 )
-            if not tag:
-                line_errors.append(f"Line {line_num}: tag is required.")
-            if not summary:
-                line_errors.append(f"Line {line_num}: summary is required.")
-
-            for pair_name, label, uri, bid in [
-                ("button1", b1_label, b1_uri, 1),
-                ("button2", b2_label, b2_uri, 2),
-                ("button3", b3_label, b3_uri, 3),
-            ]:
-                has_label = bool(label)
-                has_uri = bool(uri)
-                if has_label != has_uri:
-                    line_errors.append(
-                        f"Line {line_num}: {pair_name} requires both label and uri or neither."
-                    )
-                if (has_label or has_uri) and bid not in allowed_button_ids:
-                    line_errors.append(
-                        f"Line {line_num}: {pair_name} references button id {bid} which is not in TooltipButtonNumbers."
-                    )
-
-            if not line_errors:
-                cid = category_name_to_id.get(category_name)
-                if cid is not None and tag:
-                    key = (cid, tag)
-                    if key in seen_in_file:
-                        line_errors.append(
-                            f"Line {line_num}: duplicate (category, tag) in file."
-                        )
-                    elif mode == "insert" and key in existing:
-                        line_errors.append(
-                            f"Line {line_num}: (category, tag) already exists in database."
-                        )
-                    else:
-                        seen_in_file.add(key)
-
-        errors.extend(line_errors)
+            else:
+                seen_in_file.add(key)
 
     return errors
 
@@ -3399,14 +3469,34 @@ def main(
         rerender()
 
     def show_validate_uris_page(restore_page: int | None = None) -> None:
-        """Audit every TooltipButton URI; render the broken set with per-row Edit links."""
+        """Audit tooltips for problems (broken button URIs and empty summaries);
+        render each problem tooltip with a Problem-type column and Edit link."""
         page.controls.clear()
-        rows = get_all_button_rows(db_path)
+        button_rows = get_all_button_rows(db_path)
         valid_paths = get_all_content_paths(db_path)
-        broken = find_broken_button_rows(rows, valid_paths)
-        _capture(user_name, "validate_uris_opened", {
-            "broken_count": len(broken),
-            "total_buttons": len(rows),
+        broken = find_broken_button_rows(button_rows, valid_paths)
+        empty_summary = find_empty_summary_tooltips(db_path)
+
+        # One row per (tooltip, problem type). A tooltip with both an empty
+        # summary and a broken URI appears once for each.
+        seen_broken: set[int] = set()
+        broken_tooltips: list[tuple[int, str]] = []
+        for tid, _category, tag, _bid, _desc, _uri in broken:
+            if tid in seen_broken:
+                continue
+            seen_broken.add(tid)
+            broken_tooltips.append((tid, tag or ""))
+
+        issues: list[tuple[int, str, str]] = (
+            [(tid, tag, "Broken URI") for tid, tag in broken_tooltips]
+            + [(tid, tag, "Empty summary") for tid, tag in empty_summary]
+        )
+
+        _capture(user_name, "validate_tooltips_opened", {
+            "broken_uri_tooltips": len(broken_tooltips),
+            "broken_buttons": len(broken),
+            "empty_summary_tooltips": len(empty_summary),
+            "total_buttons": len(button_rows),
         })
 
         back_btn = ft.Button(
@@ -3414,23 +3504,25 @@ def main(
             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.BLACK),
             on_click=lambda _: show_browse_page(get_total_count(db_path)),
         )
-        broken_tooltip_count = len({row[0] for row in broken})
         header = ft.Text(
-            f"{broken_tooltip_count} tooltip"
-            f"{'s' if broken_tooltip_count != 1 else ''}"
-            f" with broken URIs ({len(broken)} of {len(rows)} buttons).",
+            f"{len(issues)} issue{'s' if len(issues) != 1 else ''}: "
+            f"{len(broken_tooltips)} tooltip"
+            f"{'s' if len(broken_tooltips) != 1 else ''} with broken URIs "
+            f"({len(broken)} of {len(button_rows)} buttons), "
+            f"{len(empty_summary)} with empty summary.",
             style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=14),
             selectable=True,
         )
 
-        if not broken:
+        if not issues:
             page.add(
                 ft.Column(
                     [
                         back_btn,
                         header,
                         ft.Text(
-                            "All TooltipButtons URIs match a Content.path.",
+                            "All tooltips have a summary and every button URI "
+                            "matches a Content.path.",
                             selectable=True,
                         ),
                     ],
@@ -3443,18 +3535,12 @@ def main(
         columns = [
             fdt.DataColumn2(label=ft.Text("ID"), fixed_width=72),
             fdt.DataColumn2(label=ft.Text("Tag")),
+            fdt.DataColumn2(label=ft.Text("Problem"), fixed_width=160),
             fdt.DataColumn2(label=ft.Text("Edit"), fixed_width=120),
         ]
-        seen_ids: set[int] = set()
-        unique_tooltips: list[tuple[int, str]] = []
-        for tid, _category, tag, _bid, _desc, _uri in broken:
-            if tid in seen_ids:
-                continue
-            seen_ids.add(tid)
-            unique_tooltips.append((tid, tag or ""))
 
         total_pages_local = max(
-            1, (len(unique_tooltips) + PAGE_SIZE - 1) // PAGE_SIZE
+            1, (len(issues) + PAGE_SIZE - 1) // PAGE_SIZE
         )
         initial_page = (
             max(1, min(restore_page, total_pages_local))
@@ -3479,9 +3565,9 @@ def main(
 
         def fill_table() -> None:
             offset = (validator_state["page"] - 1) * PAGE_SIZE
-            page_slice = unique_tooltips[offset : offset + PAGE_SIZE]
+            page_slice = issues[offset : offset + PAGE_SIZE]
             table.rows.clear()
-            for tid, tag in page_slice:
+            for tid, tag, problem in page_slice:
                 edit_btn = ft.Button(
                     "Edit",
                     style=ft.ButtonStyle(
@@ -3501,6 +3587,7 @@ def main(
                         cells=[
                             ft.DataCell(ft.Text(str(tid), selectable=True)),
                             ft.DataCell(ft.Text(tag, selectable=True)),
+                            ft.DataCell(ft.Text(problem, selectable=True)),
                             ft.DataCell(edit_btn),
                         ]
                     )
@@ -3509,13 +3596,13 @@ def main(
         def update_pager() -> None:
             start = (
                 (validator_state["page"] - 1) * PAGE_SIZE + 1
-                if unique_tooltips
+                if issues
                 else 0
             )
-            end = min(validator_state["page"] * PAGE_SIZE, len(unique_tooltips))
+            end = min(validator_state["page"] * PAGE_SIZE, len(issues))
             pager_text.value = (
                 f"Page {validator_state['page']} of {total_pages_local}"
-                f" — tooltips {start}–{end} of {len(unique_tooltips)}"
+                f" — issues {start}–{end} of {len(issues)}"
             )
             prev_btn.disabled = validator_state["page"] <= 1
             next_btn.disabled = validator_state["page"] >= total_pages_local
@@ -3571,7 +3658,7 @@ def main(
 
         search_input = track_focus(
             ft.TextField(
-                label="Search (tag, summary, detail)",
+                label="Search (tag, summary, detail, category, URI)",
                 hint_text="prefix; * is a wildcard",
                 width=220,
                 value=restore_search_term or "",
@@ -4440,7 +4527,7 @@ def main(
             on_click=open_add_chooser,
         )
         validate_btn = ft.Button(
-            "Validate URIs",
+            "Validate tooltips",
             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
             on_click=lambda _: show_validate_uris_page(),
         )
@@ -4448,6 +4535,75 @@ def main(
             "Browse content",
             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
             on_click=lambda _: show_content_tree_page(),
+        )
+
+        async def export_csv(_: ft.ControlEvent) -> None:
+            # Export the current view: all tooltips when the search box is empty,
+            # otherwise just the rows matching the active search.
+            term = (search_input.value or "").strip()
+            search_term = term if term else None
+            rows = get_tooltip_export_rows(db_path, search_term)
+            # Rows the importer would reject (e.g. empty summary) are excluded so
+            # the file round-trips cleanly; report how many were left out.
+            skipped = get_total_count(db_path, search_term) - len(rows)
+            picker = ft.FilePicker()
+            path = await picker.save_file(
+                dialog_title="Export tooltips CSV",
+                file_name="tooltips.csv",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["csv"],
+            )
+            if not path:
+                return
+            try:
+                with open(path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(CSV_TEMPLATE_HEADERS)
+                    writer.writerows(rows)
+            except OSError as e:
+                page.show_dialog(
+                    ft.AlertDialog(
+                        title=ft.Text("Export failed"),
+                        content=ft.Text(str(e), selectable=True),
+                        actions=[
+                            ft.TextButton(
+                                "OK",
+                                on_click=lambda e: (page.pop_dialog(), page.update()),
+                            )
+                        ],
+                    )
+                )
+                page.update()
+                return
+            _capture(user_name, "tooltips_exported", {
+                "row_count": len(rows),
+                "skipped_count": skipped,
+                "filtered": search_term is not None,
+            })
+            message = f"Exported {len(rows)} tooltips to {path}"
+            if skipped:
+                message += (
+                    f"\n\nSkipped {skipped} tooltip(s) that cannot be re-imported "
+                    "(e.g. empty summary). Use \"Validate tooltips\" to find and fix them."
+                )
+            page.show_dialog(
+                ft.AlertDialog(
+                    title=ft.Text("Export complete"),
+                    content=ft.Text(message, selectable=True),
+                    actions=[
+                        ft.TextButton(
+                            "OK",
+                            on_click=lambda e: (page.pop_dialog(), page.update()),
+                        )
+                    ],
+                )
+            )
+            page.update()
+
+        export_btn = ft.Button(
+            "Export CSV",
+            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
+            on_click=export_csv,
         )
 
         def confirm_bulk_delete(_: ft.ControlEvent) -> None:
@@ -4566,6 +4722,7 @@ def main(
                 add_btn,
                 validate_btn,
                 browse_content_btn,
+                export_btn,
                 bulk_delete_btn,
                 search_bar,
             ],
