@@ -142,11 +142,23 @@ def _build_like_pattern(term: str) -> str:
     return escaped.replace("*", "%") + "%"
 
 
+def _build_contains_pattern(term: str) -> str:
+    """Like `_build_like_pattern` but matches the term *anywhere* (substring),
+    not just at the start. Used for button URIs and descriptions, where the
+    useful part (a filename such as ``use.html``) is typically in the middle of
+    the value rather than at its start. ``*`` still works and metacharacters are
+    still escaped; e.g. ``'use.html' -> '%use.html%'``.
+    """
+    return "%" + _build_like_pattern(term)
+
+
 def _search_params(term: str) -> tuple[str, ...]:
-    # One pattern per placeholder in SEARCH_WHERE (tag, summary, detail,
-    # category, button uri, button description). All identical, so order is moot.
-    pattern = _build_like_pattern(term)
-    return (pattern,) * 6
+    # One pattern per placeholder in SEARCH_WHERE, in order: tag, summary,
+    # detail, category (prefix/"starts-with"), then button uri, description
+    # (substring/"contains", since URLs are searched by an interior fragment).
+    prefix = _build_like_pattern(term)
+    contains = _build_contains_pattern(term)
+    return (prefix, prefix, prefix, prefix, contains, contains)
 
 
 def get_total_count(db_path: Path, search_term: str | None = None) -> int:
