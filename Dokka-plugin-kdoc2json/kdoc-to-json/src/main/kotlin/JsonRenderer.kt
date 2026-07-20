@@ -62,6 +62,11 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
             if (node is WithDocumentables) {
                 node.documentables.forEach { doc ->
                     if (doc is org.jetbrains.dokka.model.DPackage) {
+                        if (!passesSourceSetWhitelist(doc.sourceSets, finalConfig.sourceSetWhitelist)) {
+                            val docSourceSets = doc.sourceSets.map { it.sourceSetID.toString().substringAfterLast("/") }
+                            logger.info("Omitting '${doc.name}' from package-list: sourceSets=$docSourceSets not in whitelist ${finalConfig.sourceSetWhitelist}")
+                            return@forEach
+                        }
                         doc.dri.packageName?.takeIf { it.isNotBlank() }?.let { packages.add(it) }
                     }
                 }
@@ -117,7 +122,14 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
             if (node is WithDocumentables && node.documentables.isNotEmpty()) {
                 val documentable = node.documentables.first()
                 logger.debug("Processing documentable: ${documentable.name} (${documentable.dri})")
-                
+
+                if (!passesSourceSetWhitelist(documentable.sourceSets, finalConfig.sourceSetWhitelist)) {
+                    val docSourceSets = documentable.sourceSets.map { it.sourceSetID.toString().substringAfterLast("/") }
+                    logger.info("Omitting '${documentable.name}': sourceSets=$docSourceSets not in whitelist ${finalConfig.sourceSetWhitelist}")
+                    node.children.forEach { traverse(it, currentPath) }
+                    return
+                }
+
                 if (documentable is DClasslike || documentable is DTypeAlias) {
                     var typeUrl = locationProvider.resolve(node, context = null, skipExtension = false)
                     if (typeUrl != null && finalConfig.replaceHtmlExtension && !typeUrl.startsWith("http")) {
@@ -154,10 +166,11 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
                 }
                 
                 val mapper = ModelMapper(
-                    locationProvider = locationProvider, 
-                    contextNode = node, 
+                    locationProvider = locationProvider,
+                    contextNode = node,
                     logger = logger,
-                    replaceHtmlExtension = finalConfig.replaceHtmlExtension
+                    replaceHtmlExtension = finalConfig.replaceHtmlExtension,
+                    sourceSetWhitelist = finalConfig.sourceSetWhitelist
                 )
                 
                 val dto = mapper.mapToDto(documentable, breadcrumbs)
@@ -236,5 +249,13 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
                (element is JsonPrimitive && element.isString && element.content.isEmpty()) ||
                (element is JsonArray && element.isEmpty()) ||
                (element is JsonObject && element.isEmpty())
+    }
+
+    private fun passesSourceSetWhitelist(
+        sourceSets: Set<org.jetbrains.dokka.DokkaConfiguration.DokkaSourceSet>,
+        whitelist: List<String>
+    ): Boolean {
+        if (whitelist.isEmpty()) return true
+        return sourceSets.any { it.sourceSetID.toString().substringAfterLast("/") in whitelist }
     }
 }

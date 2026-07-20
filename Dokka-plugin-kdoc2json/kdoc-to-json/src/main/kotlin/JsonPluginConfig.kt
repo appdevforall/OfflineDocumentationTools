@@ -13,5 +13,6 @@ data class JsonPluginConfig(
     @SerialName("omit-nulls")
     val omitNulls: Boolean = false,
     val classDiscriminator: String = "kind",
-    val prettyPrint: Boolean = false
+    val prettyPrint: Boolean = false,
+    val sourceSetWhitelist: List<String> = emptyList()
 ) : ConfigurableBlock

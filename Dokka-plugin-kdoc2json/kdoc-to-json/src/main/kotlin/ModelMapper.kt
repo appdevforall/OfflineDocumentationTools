@@ -17,7 +17,8 @@ class ModelMapper(
     private val locationProvider: LocationProvider,
     private val contextNode: PageNode,
     private val logger: PluginLogger,
-    private val replaceHtmlExtension: Boolean
+    private val replaceHtmlExtension: Boolean,
+    private val sourceSetWhitelist: List<String> = emptyList()
 ) {
     private fun resolveUrl(dri: DRI?, sourceSets: Set<DisplaySourceSet>): String? {
         if (dri == null) return null
@@ -53,7 +54,7 @@ class ModelMapper(
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
                 // Pass shallow = true to children so the tree stops recursing!
-                packages = if (shallow) emptyList() else doc.packages.mapNotNull { mapToDto(it, emptyList(), true) }
+                packages = if (shallow) emptyList() else filterWhitelisted(doc.packages).mapNotNull { mapToDto(it, emptyList(), true) }
             )
             is DPackage -> PackageDto(
                 dri = doc.dri.toString(), name = doc.name, url = url,
@@ -61,10 +62,10 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
-                typeAliases = if (shallow) emptyList() else doc.typealiases.mapNotNull { mapToDto(it, emptyList(), true) }
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
+                typeAliases = if (shallow) emptyList() else filterWhitelisted(doc.typealiases).mapNotNull { mapToDto(it, emptyList(), true) }
             )
             is DClass -> ClassDto(
                 dri = doc.dri.toString(), name = doc.name, url = url,
@@ -72,13 +73,13 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                constructors = if (shallow) emptyList() else doc.constructors.mapNotNull { mapToDto(it, emptyList(), true) },
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
+                constructors = if (shallow) emptyList() else filterWhitelisted(doc.constructors).mapNotNull { mapToDto(it, emptyList(), true) },
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
                 sources = mapSourceSetDependent(doc.sources) { _, it -> it.path },
                 visibility = mapSourceSetDependent(doc.visibility) { _, it -> it.name },
-                companion = if (shallow) null else doc.companion?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
+                companion = if (shallow) null else doc.companion?.takeIfWhitelisted()?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
                 generics = doc.generics.mapNotNull { mapToDto(it) as? TypeParameterDto },
                 supertypes = mapSourceSetDependent(doc.supertypes) { ss, list -> 
                     list.map { TypeConstructorWithKindDto(mapBound(it.typeConstructor, setOf(ss.toDisplaySourceSet())), it.kind.toString()) } 
@@ -93,14 +94,14 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                entries = if (shallow) emptyList() else doc.entries.mapNotNull { mapToDto(it, emptyList(), true) },
-                constructors = if (shallow) emptyList() else doc.constructors.mapNotNull { mapToDto(it, emptyList(), true) },
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
+                entries = if (shallow) emptyList() else filterWhitelisted(doc.entries).mapNotNull { mapToDto(it, emptyList(), true) },
+                constructors = if (shallow) emptyList() else filterWhitelisted(doc.constructors).mapNotNull { mapToDto(it, emptyList(), true) },
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
                 sources = mapSourceSetDependent(doc.sources) { _, it -> it.path },
                 visibility = mapSourceSetDependent(doc.visibility) { _, it -> it.name },
-                companion = if (shallow) null else doc.companion?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
+                companion = if (shallow) null else doc.companion?.takeIfWhitelisted()?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
                 supertypes = mapSourceSetDependent(doc.supertypes) { ss, list -> 
                     list.map { TypeConstructorWithKindDto(mapBound(it.typeConstructor, setOf(ss.toDisplaySourceSet())), it.kind.toString()) } 
                 },
@@ -113,9 +114,9 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) }
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) }
             )
             is DFunction -> FunctionDto(
                 dri = doc.dri.toString(), name = doc.name, url = url,
@@ -140,12 +141,12 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
                 sources = mapSourceSetDependent(doc.sources) { _, it -> it.path },
                 visibility = mapSourceSetDependent(doc.visibility) { _, it -> it.name },
-                companion = if (shallow) null else doc.companion?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
+                companion = if (shallow) null else doc.companion?.takeIfWhitelisted()?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
                 generics = doc.generics.mapNotNull { mapToDto(it) as? TypeParameterDto },
                 supertypes = mapSourceSetDependent(doc.supertypes) { ss, list -> 
                     list.map { TypeConstructorWithKindDto(mapBound(it.typeConstructor, setOf(ss.toDisplaySourceSet())), it.kind.toString()) } 
@@ -160,9 +161,9 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
                 sources = mapSourceSetDependent(doc.sources) { _, it -> it.path },
                 visibility = mapSourceSetDependent(doc.visibility) { _, it -> it.name },
                 supertypes = mapSourceSetDependent(doc.supertypes) { ss, list -> 
@@ -177,13 +178,13 @@ class ModelMapper(
                 expectPresentInSet = doc.expectPresentInSet?.sourceSetID?.toString(), 
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
-                functions = if (shallow) emptyList() else doc.functions.mapNotNull { mapToDto(it, emptyList(), true) },
-                properties = if (shallow) emptyList() else doc.properties.mapNotNull { mapToDto(it, emptyList(), true) },
-                classlikes = if (shallow) emptyList() else doc.classlikes.mapNotNull { mapToDto(it, emptyList(), true) },
+                functions = if (shallow) emptyList() else filterWhitelisted(doc.functions).mapNotNull { mapToDto(it, emptyList(), true) },
+                properties = if (shallow) emptyList() else filterWhitelisted(doc.properties).mapNotNull { mapToDto(it, emptyList(), true) },
+                classlikes = if (shallow) emptyList() else filterWhitelisted(doc.classlikes).mapNotNull { mapToDto(it, emptyList(), true) },
                 sources = mapSourceSetDependent(doc.sources) { _, it -> it.path },
                 visibility = mapSourceSetDependent(doc.visibility) { _, it -> it.name },
-                companion = if (shallow) null else doc.companion?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
-                constructors = if (shallow) emptyList() else doc.constructors.mapNotNull { mapToDto(it, emptyList(), true) },
+                companion = if (shallow) null else doc.companion?.takeIfWhitelisted()?.let { mapToDto(it, emptyList(), true) as? ObjectDto },
+                constructors = if (shallow) emptyList() else filterWhitelisted(doc.constructors).mapNotNull { mapToDto(it, emptyList(), true) },
                 generics = doc.generics.mapNotNull { mapToDto(it) as? TypeParameterDto },
                 isExpectActual = doc.isExpectActual
             )
@@ -431,4 +432,20 @@ class ModelMapper(
     private fun mapSourceSets(sets: Set<org.jetbrains.dokka.DokkaConfiguration.DokkaSourceSet>): List<String> {
         return sets.map { abbreviateSourceSet(it.sourceSetID.toString()) }
     }
+
+    private fun passesWhitelist(doc: Documentable): Boolean {
+        if (sourceSetWhitelist.isEmpty()) return true
+        return doc.sourceSets.any { abbreviateSourceSet(it.sourceSetID.toString()) in sourceSetWhitelist }
+    }
+
+    // Drops a shallow child reference (e.g. a package/classlike/function listed in a parent's
+    // own index) whose source sets don't overlap the whitelist, so index pages don't dangle
+    // links to files that JsonRenderer omits entirely.
+    private fun <T : Documentable> T.takeIfWhitelisted(): T? {
+        if (passesWhitelist(this)) return this
+        logger.info("Omitting reference to '${name}' from index: sourceSets=${mapSourceSets(sourceSets)} not in whitelist $sourceSetWhitelist")
+        return null
+    }
+
+    private fun <T : Documentable> filterWhitelisted(docs: List<T>): List<T> = docs.mapNotNull { it.takeIfWhitelisted() }
 }
