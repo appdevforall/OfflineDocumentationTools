@@ -60,6 +60,14 @@ python3 scripts/sanity_check.py check-links path/to/rendered-html
 
 Each subcommand accepts `--output-file/-o` to write a full results log to disk.
 
+`scripts/verify_sourceset_whitelist.py` recursively scans a rendered JSON output directory and confirms every file's top-level `sourceSets` field intersects a given whitelist — useful for confirming the plugin's `sourceSetWhitelist` config option (or a downstream filter) actually excluded everything it should have:
+
+```bash
+python3 scripts/verify_sourceset_whitelist.py path/to/rendered-json jvm js
+```
+
+Pass one or more source set names (space- or comma-separated) as the whitelist. Files without a top-level `sourceSets` field (e.g. `all-types.json`, the multimodule root `index.json`) are synthetic/aggregate outputs and are skipped rather than flagged. Accepts `--output-file/-o` to log violations and `--verbose/-v` to print every file checked.
+
 ## 3. Configuration Options
 
 You can configure the JSON plugin by extending `DokkaPluginParametersBaseSpec` and registering it in your `dokka` configuration block. This utilizes the modern Dokka V2 plugin API.
@@ -101,6 +109,7 @@ dokka {
 | `omitNulls` | Boolean | `false` | If `true`, deeply filters the AST payload to remove any keys where the value is null, an empty string, an empty array, or an empty object. |
 | `classDiscriminator` | String | `"kind"` | The JSON key used to discriminate between polymorphic `Documentable` types (e.g., `"kind": "class"`). Must not collide with an existing DTO field name (e.g. `"type"` or `"name"`), or serialization will fail. |
 | `prettyPrint` | Boolean | `false` | If `true`, formats the written JSON files with indentation for human readability instead of compact single-line output. |
+| `sourceSetWhitelist` | List | `[]` | A list of source set names (matching the values that appear in the output `sourceSets` field, e.g. `["jvm"]`). If non-empty, any Documentable that isn't present in at least one whitelisted source set has its output file omitted, and a message is logged with the symbol's name and its `sourceSets`. Leave empty to disable filtering (default: all source sets included). |
 
 ## 4. Understanding Dokka Terminology
 

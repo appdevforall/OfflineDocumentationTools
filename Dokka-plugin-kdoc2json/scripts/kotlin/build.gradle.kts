@@ -22,7 +22,8 @@ abstract class JsonOutputPluginParameters @Inject constructor(
         "logFile": "build/dokka_json.log",
         "omitFields": ["sources"],
         "replaceHtmlExtension": false,
-        "omitNulls": true
+        "omitNulls": true,
+	"sourceSetWhitelist": ["common", "jvm"]
     }"""
 }
 
