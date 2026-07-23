@@ -103,7 +103,7 @@ def main():
         help="Root dir directly containing kotlin-stdlib/, kotlin-reflect/, kotlin-test/ "
              "(e.g. .../all-libs from a KDoc-to-JSON run)",
     )
-    parser.add_argument("--db", default="/home/alex/documentation.db", help="Path to documentation.db")
+    parser.add_argument("--db", default="documentation.db", help="Path to documentation.db (default: documentation.db in the current directory)")
     parser.add_argument("--dry-run", action="store_true", help="Report what would happen without modifying anything")
     args = parser.parse_args()
 
@@ -142,6 +142,7 @@ def main():
     unknown_types = set()
 
     try:
+        conn.execute("BEGIN")
         for content_id, path, content_type_id in rows:
             rel_target = relative_target_path(path)
             source_file = os.path.join(args.plugin_output_root, rel_target)

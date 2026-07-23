@@ -23,16 +23,11 @@ and its media straight into a `documentation.db`-schema SQLite database.
 - `cairosvg` (only needed if an optimized SVG exceeds `--svg-rasterize-threshold`): `pip install cairosvg`
 - `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
 
-`populate_db.py` also expects, relative to its own location (not copied into
-this directory — see note below):
+`populate_db.py` also expects, relative to its own location, and already
+included in this directory:
 
 - `templates/page.peb`, `templates/nav.peb` — Pebble templates upserted into the `Templates` table.
 - `assets/docs.css`, `assets/tabs.js`, `assets/sidebar.js` — static assets inserted at `assets/<name>`.
-
-> **Note:** per ADFA-4737, only the `.py` files from the original working
-> directory were copied here. `templates/` and `assets/` (and any `.config`
-> files you use) must be placed alongside these scripts before running
-> `populate_db.py`.
 
 ## Inputs you need before starting
 

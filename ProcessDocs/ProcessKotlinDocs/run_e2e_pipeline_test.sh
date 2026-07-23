@@ -152,14 +152,55 @@ print(f"  k/kotlin-stdlib/*  rows: {count('path LIKE ? OR path = ?', ('k/kotlin-
 print(f"  k/kotlin-reflect/* rows: {count('path LIKE ? OR path = ?', ('k/kotlin-reflect/%', 'k/kotlin-reflect'))}")
 print(f"  k/kotlin-test/*    rows: {count('path LIKE ? OR path = ?', ('k/kotlin-test/%', 'k/kotlin-test'))}")
 
-wasm_rows = conn.execute(
-    "SELECT path FROM Content WHERE path LIKE 'k/html/wasm%'"
-).fetchall()
-print(f"  k/html/wasm* rows remaining (should be 0 after pruning): {len(wasm_rows)}")
-for (path,) in wasm_rows[:10]:
-    print(f"    {path}")
-
 conn.close()
+PYEOF
+
+echo
+echo "== Blacklist pruning verification =="
+# Recomputes, from the same kr.tree and BLACKLIST used above, exactly which
+# topic stems populate_db.py's own prune_blacklisted_elements() decided to
+# exclude - then confirms none of those pages made it into the database.
+# Reusing that real pruning logic (rather than guessing at path patterns)
+# means this check stays correct if BLACKLIST or kr.tree's structure change.
+python3 - "$PROCESS_DIR" "$DOCS_ROOT" "$TEST_DB" "${BLACKLIST[@]}" <<'PYEOF'
+import sqlite3
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+process_dir, docs_root, db_path, *blacklist_raw = sys.argv[1:]
+sys.path.insert(0, process_dir)
+import populate_db  # noqa: E402
+
+root = ET.parse(Path(docs_root) / "kr.tree").getroot()
+blacklisted_paths = {populate_db.parse_blacklist_path(raw) for raw in blacklist_raw}
+blacklisted_stems, unmatched_paths = populate_db.prune_blacklisted_elements(root, blacklisted_paths)
+
+conn = sqlite3.connect(db_path)
+leftover = []
+for stem in sorted(blacklisted_stems):
+    path = f"k/html/{stem}.html"
+    if conn.execute("SELECT 1 FROM Content WHERE path = ?", (path,)).fetchone():
+        leftover.append(path)
+conn.close()
+
+print(f"Blacklisted toc-element path(s) checked: {len(blacklisted_paths)}")
+for path in sorted(blacklisted_paths):
+    status = "unmatched (no such element in kr.tree)" if path in unmatched_paths else "matched"
+    print(f"  {' > '.join(path)}: {status}")
+print(f"Topic page(s) expected removed: {len(blacklisted_stems)}")
+
+if unmatched_paths:
+    print(f"FAIL: {len(unmatched_paths)} blacklist path(s) never matched a <toc-element> - "
+          "check BLACKLIST against this DOCS_ROOT's kr.tree.")
+    sys.exit(1)
+if leftover:
+    print(f"FAIL: {len(leftover)} blacklisted page(s) still present in the database:")
+    for path in leftover:
+        print(f"  {path}")
+    sys.exit(1)
+
+print(f"PASS: all {len(blacklisted_stems)} blacklisted topic page(s) confirmed absent from {db_path}.")
 PYEOF
 
 echo

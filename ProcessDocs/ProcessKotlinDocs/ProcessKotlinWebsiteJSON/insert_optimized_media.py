@@ -196,7 +196,17 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
     page/nav row; fragment continuation rows are named "<path>-<N>" (the
     "-N" appended after the ".html" already in path), so the path filter
     below naturally excludes them without needing to detect chunking up
-    front."""
+    front.
+
+    Substitutes in a single pass over each row's original text (one regex
+    covering every old_name, dispatched through `replacements` by exact
+    match) rather than N sequential str.replace calls on a mutating buffer.
+    Sequential replaces would risk a chain rename: if one rename's new_name
+    equals another rename's old_name (e.g. foo.png -> foo.webp and,
+    unrelated, foo.webp -> foo-2.webp), a later replace could re-match text
+    an earlier replace just wrote, sending an original foo.png reference to
+    foo-2.webp instead of foo.webp. Scanning the untouched original text
+    once makes that impossible."""
     if not rename_map:
         return 0
 
@@ -206,19 +216,20 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
         (page_content_type_id,),
     ).fetchall()
 
+    replacements = {
+        f'{IMAGES_URL_PREFIX}{old_name}\\"': f'{IMAGES_URL_PREFIX}{new_name}\\"'
+        for old_name, new_name in rename_map.items()
+    }
+    old_ref_pattern = re.compile("|".join(re.escape(old_ref) for old_ref in replacements))
+
     changed = 0
     for path, first_content, template_id in rows:
         full = reassemble_content(conn, path, first_content)
         text = brotli.decompress(full).decode("utf-8")
-        new_text = text
-        hits = 0
-        for old_name, new_name in rename_map.items():
-            old_ref = f'{IMAGES_URL_PREFIX}{old_name}\\"'
-            new_ref = f'{IMAGES_URL_PREFIX}{new_name}\\"'
-            hits += new_text.count(old_ref)
-            new_text = new_text.replace(old_ref, new_ref)
-        if new_text == text:
+        hits = len(old_ref_pattern.findall(text))
+        if not hits:
             continue
+        new_text = old_ref_pattern.sub(lambda m: replacements[m.group(0)], text)
         blob = brotli.compress(new_text.encode("utf-8"))
         delete_content(conn, path)
         insert_chunked_content(conn, path, language_id, page_content_type_id, template_id, blob, chunked_log)
