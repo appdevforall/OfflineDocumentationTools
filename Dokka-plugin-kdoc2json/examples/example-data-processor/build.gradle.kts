@@ -24,13 +24,22 @@ dependencies {
 abstract class JsonOutputPluginParameters @Inject constructor(
     name: String
 ) : DokkaPluginParametersBaseSpec(name, "org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") {
-    override fun jsonEncode(): String = """{
-        "logLevel": "debug",
-        "omitFields": [],
-        "replaceHtmlExtension": true,
-        "omitNulls": true,
-        "prettyPrint": true
-    }"""
+    // The tests/ directory drives this example project through many different plugin configs
+    // without hand-editing this build script for each run: point KDOC2JSON_TEST_CONFIG at a
+    // JSON file and its contents are used verbatim as the plugin config for this build.
+    override fun jsonEncode(): String {
+        val overridePath = System.getenv("KDOC2JSON_TEST_CONFIG")
+        if (overridePath != null) {
+            return File(overridePath).readText()
+        }
+        return """{
+            "logLevel": "debug",
+            "omitFields": [],
+            "replaceHtmlExtension": true,
+            "omitNulls": true,
+            "prettyPrint": true
+        }"""
+    }
 }
 
 dokka {
