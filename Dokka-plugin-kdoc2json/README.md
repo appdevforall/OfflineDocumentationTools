@@ -153,9 +153,9 @@ The JSON payloads are strictly typed. Every top-level object and nested member c
 
 ## 7. Resolving Cross-Module Links
 
-If you are inspecting the JSON and notice a URL like `unresolved:kotlin.collections/List///PointingToDeclaration/`, this means the `LinkPostProcessor` failed to find that DRI in the current build environment.
+`LinkPostProcessor` rewrites every `unresolved:<DRI>` marker in a single pass, so the final on-disk JSON never contains an `unresolved:` string to grep for — resolved DRIs become a relative path, and DRIs it couldn't find become a bare `"#"`. To find which links failed to resolve, check the Dokka build log rather than the output JSON: the post-processor logs a `Failed to resolve N DRIs (patched to "#")` warning listing every DRI it couldn't place.
 
-This usually happens when:
+A link typically fails to resolve when:
 
 1. The target module was not included in the Dokka multi-module task.
 2. The target dependency is an external library, and external documentation links were not properly configured in the `build.gradle.kts` file.

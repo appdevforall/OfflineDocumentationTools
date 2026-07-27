@@ -28,29 +28,38 @@ object LinkPostProcessor {
         // --- PASS 2: Resolve Links ---
         val unresolvedRegex = """unresolved:([^\s")\\]+)""".toRegex()
         var replacedCount = 0
-        
+        val unresolvedDris = mutableSetOf<String>()
+
         for (file in jsonFiles) {
-            val text = file.readText()
-            if (text.contains("unresolved:")) {
-                val relativeParent = file.parentFile.toRelativeString(dir).replace("\\", "/")
-                val depth = if (relativeParent.isEmpty()) 0 else relativeParent.split("/").filter { it.isNotEmpty() }.size
-                val rootPrefix = if (depth == 0) "./" else "../".repeat(depth)
-                
-                val replaced = unresolvedRegex.replace(text) { matchResult ->
-                    val dri = matchResult.groupValues[1]
-                    val resolved = driIndex[dri]
-                    
-                    if (resolved != null) {
-                        replacedCount++
-                        "$rootPrefix$resolved"
-                    } else {
-                        "#"
+            try {
+                val text = file.readText()
+                if (text.contains("unresolved:")) {
+                    val relativeParent = file.parentFile.toRelativeString(dir).replace("\\", "/")
+                    val depth = if (relativeParent.isEmpty()) 0 else relativeParent.split("/").filter { it.isNotEmpty() }.size
+                    val rootPrefix = if (depth == 0) "./" else "../".repeat(depth)
+
+                    val replaced = unresolvedRegex.replace(text) { matchResult ->
+                        val dri = matchResult.groupValues[1]
+                        val resolved = driIndex[dri]
+
+                        if (resolved != null) {
+                            replacedCount++
+                            "$rootPrefix$resolved"
+                        } else {
+                            unresolvedDris.add(dri)
+                            "#"
+                        }
                     }
+                    file.writeText(replaced)
                 }
-                file.writeText(replaced)
+            } catch (e: Exception) {
+                context.logger.warn("Failed to resolve links in ${file.name}: ${e.message}")
             }
         }
         context.logger.info("Successfully resolved $replacedCount cross-module links!")
+        if (unresolvedDris.isNotEmpty()) {
+            context.logger.warn("Failed to resolve ${unresolvedDris.size} DRIs (patched to \"#\"): ${unresolvedDris.joinToString(", ")}")
+        }
     }
 
     private fun extractDris(element: JsonElement, relativePath: String, index: MutableMap<String, String>) {
@@ -61,6 +70,8 @@ object LinkPostProcessor {
             if (dri != null && url != null && !url.startsWith("unresolved:") && !url.startsWith("http") && !url.startsWith("#")) {
                 val cleanParent = relativePath.trim('/')
                 val fullUrl = if (cleanParent.isEmpty()) url else "$cleanParent/$url"
+                // Last-writer-wins: a DRI can legitimately resolve to multiple files (e.g. expect/actual
+                // declarations across source sets), and any of those locations is a valid link target.
                 index[dri] = fullUrl
             }
             
