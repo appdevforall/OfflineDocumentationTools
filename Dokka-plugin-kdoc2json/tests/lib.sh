@@ -58,6 +58,46 @@ run_dokka() {
     LAST_GRADLE_LOG="$gradle_log"
 }
 
+# run_dokka_expect_failure '<json config>' is run_dokka's counterpart for tests
+# that assert the build SHOULD fail (e.g. a genuinely malformed config, or a
+# classDiscriminator collision). Never aborts the script on a Dokka failure --
+# instead records the outcome in LAST_EXIT_CODE (0 or 1) and the log path in
+# LAST_GRADLE_LOG, leaving the assertion itself to the caller.
+LAST_EXIT_CODE=""
+
+run_dokka_expect_failure() {
+    local config_json="$1"
+    local config_file="$TMP_DIR/config-$RANDOM.json"
+    local gradle_log="$TMP_DIR/gradle-$RANDOM.log"
+    printf '%s' "$config_json" >"$config_file"
+
+    rm -rf "$EXAMPLE_DIR/build/dokka"
+
+    if (cd "$EXAMPLE_DIR" && KDOC2JSON_TEST_CONFIG="$config_file" ./gradlew --console=plain dokkaGenerate) >"$gradle_log" 2>&1; then
+        LAST_EXIT_CODE=0
+    else
+        LAST_EXIT_CODE=1
+    fi
+    LAST_GRADLE_LOG="$gradle_log"
+}
+
+# run_dokka_no_plugin_config runs dokkaGenerate with KDOC2JSON_NO_PLUGIN_CONFIG=1,
+# which build.gradle.kts uses to skip registering any pluginsConfiguration entry
+# at all -- distinct from an empty/malformed one, which still registers
+# *something*. Aborts the script on failure, like run_dokka.
+run_dokka_no_plugin_config() {
+    local gradle_log="$TMP_DIR/gradle-$RANDOM.log"
+
+    rm -rf "$EXAMPLE_DIR/build/dokka"
+
+    if ! (cd "$EXAMPLE_DIR" && KDOC2JSON_NO_PLUGIN_CONFIG=1 ./gradlew --console=plain dokkaGenerate) >"$gradle_log" 2>&1; then
+        echo "FATAL: dokkaGenerate failed with no plugin config registered" >&2
+        cat "$gradle_log" >&2
+        exit 1
+    fi
+    LAST_GRADLE_LOG="$gradle_log"
+}
+
 # Returns a path inside the test's tmp dir that does not yet exist, suitable for
 # passing as a `logFile` config value when the assertion cares whether the plugin
 # itself creates the file.

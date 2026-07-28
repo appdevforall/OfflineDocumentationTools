@@ -98,7 +98,7 @@ The repo already has the tooling for this — it just needs to run as part of th
 
 | Test | Assertion |
 | --- | --- |
-| Malformed plugin config | An unparseable `pluginsConfiguration` value doesn't crash the build — falls through to the lenient manual `Json { ignoreUnknownKeys = true }` parse, and to `JsonPluginConfig()` defaults if even that fails (per the `try`/`catch` in `JsonRenderer.render`) |
+| Malformed plugin config | **Verified only partially true** (see `tests/test_robustness.sh`): valid JSON with an unrelated unknown key is tolerated (Dokka's own decoder and our manual `ignoreUnknownKeys` fallback both handle it). But genuinely invalid JSON syntax, and valid JSON with a wrong-typed known field, both crash the *entire Gradle build* — Dokka's own Gradle plugin deserializes the raw `jsonEncode()` string against `JsonPluginConfig` client-side (via Jackson) before our worker/renderer code ever runs, so the `try`/`catch` in `JsonRenderer.render` can never be reached for those two cases. Nothing in this plugin's own code can fix that; it's an upstream Dokka Gradle Plugin behavior. |
 | No config at all | Build succeeds using all-default `JsonPluginConfig` |
 | Empty/near-empty module | A module with a package but no public declarations doesn't throw; produces a valid (if mostly empty) `package-list` and module `index.json` |
 | `classDiscriminator` collision | Setting it to an existing field name (e.g. `"name"`) — README calls this out as a footgun; confirm it fails with a clear serialization error rather than silently corrupting output |

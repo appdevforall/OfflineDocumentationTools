@@ -51,7 +51,11 @@ dokka {
     }
 
     pluginsConfiguration {
-        registerBinding(JsonOutputPluginParameters::class, JsonOutputPluginParameters::class)
-        register<JsonOutputPluginParameters>("org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") { }
+        // Lets tests/test_robustness.sh exercise the "no config registered at all" path
+        // (distinct from an empty/malformed config, which still registers *something*).
+        if (System.getenv("KDOC2JSON_NO_PLUGIN_CONFIG") != "1") {
+            registerBinding(JsonOutputPluginParameters::class, JsonOutputPluginParameters::class)
+            register<JsonOutputPluginParameters>("org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") { }
+        }
     }
 }
