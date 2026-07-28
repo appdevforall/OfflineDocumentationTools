@@ -43,6 +43,13 @@ abstract class JsonOutputPluginParameters @Inject constructor(
 }
 
 dokka {
+    // Without this, Dokka can't resolve @sample tags at all: the referenced function's
+    // source is never located, so the Sample doc tag comes through with empty text
+    // regardless of the plugin's own sampleIndex fallback logic.
+    dokkaSourceSets.configureEach {
+        samples.from("src/main/kotlin")
+    }
+
     pluginsConfiguration {
         registerBinding(JsonOutputPluginParameters::class, JsonOutputPluginParameters::class)
         register<JsonOutputPluginParameters>("org.appdevforall.dokka.kdoc2json.JsonOutputPlugin") { }

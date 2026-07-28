@@ -12,6 +12,31 @@ class BoundedContainer<T : Comparable<T>>(val value: T) {
 }
 
 /**
+ * A running count that can be incremented.
+ *
+ * Exercises a mutable (`var`) property, which has both a getter and a setter.
+ */
+class Counter {
+    var count: Int = 0
+}
+
+/**
+ * Invokes each of [plain], [extension], and [suspending] with placeholder values.
+ *
+ * Exercises the three functional-type shapes: a plain lambda, an extension
+ * lambda, and a suspend lambda.
+ */
+suspend fun applyCallbacks(
+    plain: (Int) -> String,
+    extension: String.() -> Int,
+    suspending: suspend () -> Unit
+) {
+    plain(0)
+    "".extension()
+    suspending()
+}
+
+/**
  * Copies every element of [source] into [destination].
  *
  * Exercises use-site variance: `out Number` on the read-only source and
@@ -176,6 +201,12 @@ class CustomException(message: String) : Throwable(message)
  * Formatting check: **bold**, *italic*, and a list:
  * - first item
  * - second item
+ *
+ * ```
+ * val result = safeDivide(10, 2)
+ * ```
+ *
+ * > Division by zero throws [ArithmeticException] rather than returning `Infinity`.
  *
  * @param numerator the value to divide
  * @param denominator the value to divide by, must not be zero

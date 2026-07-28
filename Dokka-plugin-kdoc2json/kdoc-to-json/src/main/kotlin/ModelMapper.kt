@@ -12,6 +12,7 @@ import org.jetbrains.dokka.pages.ContentNode
 import org.jetbrains.dokka.pages.ContentCodeBlock
 import org.jetbrains.dokka.pages.ContentText
 import org.jetbrains.dokka.pages.ContentBreakLine
+import org.jetbrains.dokka.pages.ContentKind
 
 class ModelMapper(
     private val locationProvider: LocationProvider,
@@ -337,8 +338,8 @@ class ModelMapper(
             val pageSamples = mutableListOf<String>()
             if (contextNode is ContentPage) {
                 fun walk(n: ContentNode) {
-                    if (n is ContentCodeBlock && 
-                        n.style.any { it.toString().contains("RunnableSample", ignoreCase = true) } &&
+                    if (n is ContentCodeBlock &&
+                        n.dci.kind == ContentKind.Sample &&
                         n.sourceSets.contains(displaySourceSet)
                     ) {
                         fun extractContentText(cn: ContentNode): String {
