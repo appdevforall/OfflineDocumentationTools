@@ -37,6 +37,11 @@ publish_plugin() {
 # $OUTPUT_DIR reflects only this run. Aborts the whole test script (not just the
 # current assertion) if the Dokka build itself fails, since that means the harness
 # is broken rather than the config option under test.
+# After a successful call, LAST_GRADLE_LOG holds the path to that run's captured
+# Gradle output -- useful for tests asserting on build-log content (e.g. the
+# "Failed to resolve N DRIs" warning), not just the written JSON files.
+LAST_GRADLE_LOG=""
+
 run_dokka() {
     local config_json="$1"
     local config_file="$TMP_DIR/config-$RANDOM.json"
@@ -50,6 +55,7 @@ run_dokka() {
         cat "$gradle_log" >&2
         exit 1
     fi
+    LAST_GRADLE_LOG="$gradle_log"
 }
 
 # Returns a path inside the test's tmp dir that does not yet exist, suitable for
