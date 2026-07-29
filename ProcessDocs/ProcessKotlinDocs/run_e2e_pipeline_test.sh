@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # End-to-end test of the Kotlin website JSON/DB pipeline (ADFA-4737): convert
-# docs + prune blacklist into the database, re-optimize/reinsert media, then
-# run the kotlin-stdlib doc sync. Operates on a scratch copy of
-# documentation.db so the real database is never touched. Re-run freely; each
-# run recopies the source db from scratch.
+# docs + prune blacklist into the database, re-optimize/reinsert media,
+# generate fresh kotlin-stdlib/-reflect/-test JSON docs via a freshly-built
+# kdoc-to-json plugin, then sync them into the database. Operates on a
+# scratch copy of documentation.db so the real database is never touched.
+# Re-run freely; each run recopies the source db from scratch.
 #
 # Before running: fill in every <PLACEHOLDER> value below for your machine.
 # The script refuses to start if any are left unfilled or don't exist on disk.
@@ -36,16 +37,14 @@ DOCS_ROOT="<PATH_TO_KOTLIN_WEB_SITE_DOCS_CHECKOUT>"
 # is written next to kr.tree once that build finishes.
 IMAGES_ZIP="<PATH_TO_WEBHELPIMAGES_ZIP>"
 
-# STDLIB_ALL_LIBS: the "all-libs" output directory of a KDoc-to-JSON Dokka
-# plugin run (directly containing kotlin-stdlib/, kotlin-reflect/,
-# kotlin-test/ subdirectories of .json files). Generate it by running the
-# Dokka plugin in this repo's Dokka-plugin-kdoc2json/ against the Kotlin
-# stdlib sources - see that directory's own docs for the exact Gradle task.
-# The path typically ends in ".../json/latest/all-libs".
-# Check out the most recent changes on
-# https://github.com/appdevforall/OfflineDocumentationTools/tree/fix/ADFA-4514
-# to produce Kotlin stdlib docs that have source sets whitelisted.
-STDLIB_ALL_LIBS="<PATH_TO_KDOC2JSON_ALL_LIBS_OUTPUT_DIR>"
+# STDLIB_DOCS_DIR: the "libraries/tools/kotlin-stdlib-docs" directory inside
+# a full clone of https://github.com/JetBrains/kotlin (not the kotlin repo
+# root itself - this exact subdirectory). Step 4 below builds a fresh copy
+# of the kdoc-to-json plugin from this repo's Dokka-plugin-kdoc2json/ and
+# runs it against this checkout to produce kotlin-stdlib/-reflect/-test JSON
+# docs (common + jvm source sets only) - no separate manual doc-generation
+# step needed.
+STDLIB_DOCS_DIR="<PATH_TO_KOTLIN_STDLIB_DOCS_DIR>"
 
 # SOURCE_DB: the runtime "documentation.db" SQLite database this project's
 # offline documentation app/server reads from (see docdb-studio/ and
@@ -84,7 +83,7 @@ require_path() {
 }
 require_path DOCS_ROOT "$DOCS_ROOT"
 require_path IMAGES_ZIP "$IMAGES_ZIP"
-require_path STDLIB_ALL_LIBS "$STDLIB_ALL_LIBS"
+require_path STDLIB_DOCS_DIR "$STDLIB_DOCS_DIR"
 require_path SOURCE_DB "$SOURCE_DB"
 
 WORKDIR="$(mktemp -d /tmp/adfa4737-e2e.XXXXXX)"
@@ -96,18 +95,18 @@ rm -f "$TEST_DB"
 cp "$SOURCE_DB" "$TEST_DB"
 
 echo
-echo "== Step 1/4: find_missing_assets.py (source QA report) =="
+echo "== Step 1/5: find_missing_assets.py (source QA report) =="
 REPORT_PATH="$WORKDIR/missing-assets-report.md"
 python3 "$PROCESS_DIR/find_missing_assets.py" "$DOCS_ROOT" "$REPORT_PATH"
 echo "Report written to $REPORT_PATH"
 
 echo
-echo "== Step 2/4: populate_db.py (convert docs, prune blacklist, insert into test db) =="
+echo "== Step 2/5: populate_db.py (convert docs, prune blacklist, insert into test db) =="
 ( cd "$PROCESS_DIR" && python3 populate_db.py "$DOCS_ROOT" "$CONFIG_JSON" "$IMAGES_ZIP" "$TEST_DB" \
     --blacklisted-element-titles "${BLACKLIST[@]}" )
 
 echo
-echo "== Step 3/4: insert_optimized_media.py (re-optimize + reinsert k/html/images/*) =="
+echo "== Step 3/5: insert_optimized_media.py (re-optimize + reinsert k/html/images/*) =="
 # --webp requires an "image/webp" ContentTypes row, which this database
 # doesn't ship with (see insert_optimized_media.py's own module docstring) -
 # add it (idempotent) before running.
@@ -127,7 +126,18 @@ python3 "$PROCESS_DIR/insert_optimized_media.py" "$MEDIA_DIR" "$TEST_DB" \
     --jpeg-quality "$JPEG_QUALITY" --webp --webp-quality "$WEBP_QUALITY" --verbose
 
 echo
-echo "== Step 4/4: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content) =="
+echo "== Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdlib/-reflect/-test JSON) =="
+# STDLIB_DOCS_DIR is .../kotlin/libraries/tools/kotlin-stdlib-docs; the
+# kotlin repo root (needed to locate gradle/libs.versions.toml and to
+# resolve kotlin_root inside the injected build.gradle.kts) is exactly three
+# levels up, matching that build.gradle.kts's own "../../../" convention.
+KOTLIN_ROOT="$(cd "$STDLIB_DOCS_DIR/../../.." && pwd)"
+STDLIB_ALL_LIBS="$("$REPO_ROOT/Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh" \
+    "$KOTLIN_ROOT" "$WORKDIR/stdlib-json")"
+echo "Generated JSON docs at $STDLIB_ALL_LIBS"
+
+echo
+echo "== Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content) =="
 python3 "$SYNC_SCRIPT" "$STDLIB_ALL_LIBS" --db "$TEST_DB"
 
 echo
