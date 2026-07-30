@@ -111,6 +111,8 @@ dokka {
 | `prettyPrint` | Boolean | `false` | If `true`, formats the written JSON files with indentation for human readability instead of compact single-line output. |
 | `sourceSetWhitelist` | List | `[]` | A list of source set names (matching the values that appear in the output `sourceSets` field, e.g. `["jvm"]`). If non-empty, any Documentable that isn't present in at least one whitelisted source set has its output file omitted, and a message is logged with the symbol's name and its `sourceSets`. Leave empty to disable filtering (default: all source sets included). |
 
+> **`omitNulls` also strips *empty* values, not just `null`.** Despite the name, `omitNulls: true` removes a key whenever its value is `null`, `""`, `[]`, or `{}` (see the filter in `JsonRenderer.filterJson`) — so with it enabled, `"functions": []` doesn't appear at all rather than appearing as an empty array. Consumers must treat a **missing** key as equivalent to its empty value (e.g. `functions is defined and functions is not empty`, as in the Pebble example in §8), not assume every key is always present.
+
 ## 4. Understanding Dokka Terminology
 
 To successfully consume the JSON output, it helps to understand a few core Dokka concepts that dictate the structure of the data:

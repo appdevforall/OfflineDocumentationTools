@@ -12,9 +12,17 @@ started):
   replace step resolves exactly 0 links ("Successfully resolved 0 cross-module
   links!" in the build log) -- every "unresolved:" marker here is either
   resolved directly by locationProvider at write time, or is a synthetic
-  accessor DRI with no page at all, so it's patched straight to "#".
+  accessor/parent DRI with no page at all, so it's patched straight to "#".
 - "Last-writer-wins" for expect/actual: needs two files where the same DRI
   legitimately resolves in both.
+
+Note: synthetic accessor DRIs (getX/setX, constructors, callable parameters) used
+to end up here too, but ModelMapper.resolveUrl now falls back to the owning
+declaration's own DRI for those, so they resolve to a real link instead (see the
+PR review fix for "accessor/param links resolve to dead #"). The remaining
+always-unresolvable case used below is a genuinely pageless DRI with no owning
+declaration to fall back to: a compiler-internal annotation Kotlin attaches
+automatically, which no page (in this module or any external doc link) documents.
 """
 import os
 import re
@@ -45,12 +53,17 @@ def main():
     )
 
     # --- Genuinely unresolvable DRI: patched to "#", and named in the log ---
-    description = load(os.path.join(output_dir, "com.example.testlib", "-meta", "description.json"))
-    getter = description.get("getter") or {}
+    # Level3 (an enum)'s compiler-generated `name` property picks up @IntrinsicConstEvaluation
+    # automatically from the Kotlin compiler; it's a compiler-internal annotation with no page
+    # anywhere (in this module or any external doc link) to link to.
+    level3 = load(os.path.join(output_dir, "com.example.testlib", "-level1", "-level2", "-level3", "index.json"))
+    name_property = next((p for p in level3.get("properties", []) if p.get("name") == "name"), None)
+    annotations = (name_property or {}).get("extras", {}).get("annotations", {}).get(":/main", [])
+    intrinsic_annotation = next((a for a in annotations if "IntrinsicConstEvaluation" in a.get("dri", "")), None)
     c.check(
-        getter.get("url") == "#" and "getDescription" in getter.get("dri", ""),
-        'a synthetic accessor DRI with no page of its own (Meta.getDescription) is patched to "#"',
-        f"got getter={getter}",
+        intrinsic_annotation is not None and intrinsic_annotation.get("url") == "#",
+        'a genuinely pageless DRI (the compiler-internal @IntrinsicConstEvaluation annotation) is patched to "#"',
+        f"got annotations={annotations}",
     )
 
     with open(gradle_log_path, "r", encoding="utf-8", errors="replace") as f:
@@ -62,7 +75,7 @@ def main():
         listed = match.group(2)
         c.check(count > 0, "the warning reports a positive count of unresolved DRIs", f"got {count}")
         c.check(
-            "com.example.testlib/Meta/getDescription" in listed,
+            "kotlin.internal/IntrinsicConstEvaluation" in listed,
             "the warning names the specific DRI that ended up patched to \"#\"",
         )
 

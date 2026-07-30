@@ -176,16 +176,23 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
                 val dto = mapper.mapToDto(documentable, breadcrumbs)
                 
                 if (dto != null) {
-                    val pagePath = locationProvider.resolve(node, context = null, skipExtension = true)
-                    val outputFile = File(outputDir, "$pagePath.json")
-                    outputFile.parentFile.mkdirs()
-                    
-                    val rawJsonElement = json.encodeToJsonElement(DocumentableDto.serializer(), dto)
-                    // Deeply filters out the nulls and empties before writing
-                    val filteredJsonElement = filterJson(rawJsonElement, finalConfig.omitFields, finalConfig.omitNulls)
-                    outputFile.writeText(json.encodeToString(JsonElement.serializer(), filteredJsonElement))
-                    
-                    logger.debug("Wrote JSON to: ${outputFile.name}")
+                    try {
+                        val pagePath = locationProvider.resolve(node, context = null, skipExtension = true)
+                        val outputFile = File(outputDir, "$pagePath.json")
+                        outputFile.parentFile.mkdirs()
+
+                        val rawJsonElement = json.encodeToJsonElement(DocumentableDto.serializer(), dto)
+                        // Deeply filters out the nulls and empties before writing
+                        val filteredJsonElement = filterJson(rawJsonElement, finalConfig.omitFields, finalConfig.omitNulls)
+                        outputFile.writeText(json.encodeToString(JsonElement.serializer(), filteredJsonElement))
+
+                        logger.debug("Wrote JSON to: ${outputFile.name}")
+                    } catch (e: Exception) {
+                        // One unwritable/unserializable page (permissions, disk full, a
+                        // serialization edge case) shouldn't abort every other page's output --
+                        // matches the resilience LinkPostProcessor's own per-file passes already have.
+                        logger.warn("Failed to write JSON for '${documentable.name}' (${documentable.dri}): ${e.message}")
+                    }
                 }
             }
             

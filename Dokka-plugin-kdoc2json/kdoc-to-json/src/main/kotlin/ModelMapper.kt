@@ -3,6 +3,7 @@ package org.appdevforall.dokka.kdoc2json
 import org.appdevforall.dokka.kdoc2json.dtos.*
 import org.jetbrains.dokka.base.resolvers.local.LocationProvider
 import org.jetbrains.dokka.links.DRI
+import org.jetbrains.dokka.links.PointingToDeclaration
 import org.jetbrains.dokka.model.*
 import org.jetbrains.dokka.model.doc.*
 import org.jetbrains.dokka.model.properties.PropertyContainer
@@ -23,12 +24,24 @@ class ModelMapper(
 ) {
     private fun resolveUrl(dri: DRI?, sourceSets: Set<DisplaySourceSet>): String? {
         if (dri == null) return null
-        
+
         var url = locationProvider.resolve(dri, sourceSets, contextNode)
         if (url == null) {
             url = locationProvider.resolve(dri, emptySet(), contextNode)
         }
-        
+
+        if (url == null && dri.callable != null) {
+            // Synthetic accessors (getX/setX), constructors, and callable/type parameters never
+            // get their own PageNode -- Dokka renders them inline on their enclosing
+            // declaration's page. Falling back to that declaration's own DRI (same
+            // package/class, no callable, pointing at the declaration itself) turns what would
+            // otherwise be a permanently dead "#" link (see LinkPostProcessor) into a real link
+            // to the page that actually documents this member.
+            val parentDri = dri.copy(callable = null, target = PointingToDeclaration)
+            url = locationProvider.resolve(parentDri, sourceSets, contextNode)
+                ?: locationProvider.resolve(parentDri, emptySet(), contextNode)
+        }
+
         if (url == null) {
             url = "unresolved:${dri}"
         }
@@ -221,7 +234,7 @@ class ModelMapper(
                 extras = mapExtras(doc.extra),
                 breadcrumbs = breadcrumbs,
                 bounds = doc.bounds.map { mapBound(it, displaySourceSets) },
-                variantTypeParameter = mapProjection(doc.variantTypeParameter, displaySourceSets) as VarianceDto
+                variantTypeParameter = mapVariance(doc.variantTypeParameter, displaySourceSets)
             )
             is DTypeAlias -> TypeAliasDto(
                 dri = doc.dri.toString(), name = doc.name, url = url,
@@ -239,7 +252,15 @@ class ModelMapper(
         }
     }
 
+    // VERSION-COUPLED: isObviousMember/isException below detect Dokka-internal extras by
+    // comparing ::class.java.simpleName against string literals, because ObviousMember and
+    // ExceptionInSupertypes aren't public API to check against directly. Bumping the Dokka
+    // version pinned in kdoc-to-json/build.gradle.kts (2.2.0-Beta) could rename, move, or remove
+    // either class with no compile error -- the simpleName check would just always return false.
+    // DokkaVersionCheck.runOnce below verifies the exact FQCNs this file depends on are still
+    // loadable, so that kind of break is a loud warning instead of a silent one.
     private fun mapExtras(extra: PropertyContainer<*>): ExtrasDto {
+        DokkaVersionCheck.runOnce(logger)
         val isObviousMember = extra.allOfType<Any>().any { it::class.java.simpleName == "ObviousMember" }
         val isException = extra.allOfType<Any>().any { it::class.java.simpleName == "ExceptionInSupertypes" }
 
@@ -300,6 +321,16 @@ class ModelMapper(
             }
             is Bound -> mapBound(proj, sourceSets)
         }
+    }
+
+    // A DTypeParameter's own variantTypeParameter is a Projection (Star | Variance | Bound) even
+    // though in practice Dokka only ever hands us a Variance here -- Star/bare-Bound would only
+    // show up for a use-site projection, not a type parameter's own declared variance. Rather
+    // than a hard `as VarianceDto` cast that throws ClassCastException if that assumption is ever
+    // wrong, degrade to Invariance around whatever bound (if any) we can salvage.
+    private fun mapVariance(proj: Projection, sourceSets: Set<DisplaySourceSet>): VarianceDto {
+        val mapped = mapProjection(proj, sourceSets)
+        return mapped as? VarianceDto ?: InvarianceDto(mapped as? BoundDto ?: UnresolvedBoundDto("*"))
     }
 
     private fun mapBound(bound: Bound, sourceSets: Set<DisplaySourceSet>): BoundDto {
@@ -376,6 +407,13 @@ class ModelMapper(
         }
     }
 
+    // Escapes an HTML attribute value (e.g. the href of an <a> tag built from KDoc content).
+    // "&" must be escaped first, or escaping "\"" afterwards would double-escape any "&quot;"
+    // that was already literally present in the source text.
+    private fun escapeHtmlAttribute(value: String): String {
+        return value.replace("&", "&amp;").replace("\"", "&quot;")
+    }
+
     private fun extractText(tag: DocTag, sourceSets: Set<DisplaySourceSet>): String {
         return when (tag) {
             is Text -> tag.body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -404,11 +442,11 @@ class ModelMapper(
             is H6 -> "<h6>${tag.children.joinToString("") { extractText(it, sourceSets) }}</h6>"
             
             is A -> {
-                val href = tag.params["href"] ?: ""
+                val href = escapeHtmlAttribute(tag.params["href"] ?: "")
                 "<a href=\"$href\">${tag.children.joinToString("") { extractText(it, sourceSets) }}</a>"
             }
             is DocumentationLink -> {
-                val href = resolveUrl(tag.dri, sourceSets)
+                val href = escapeHtmlAttribute(resolveUrl(tag.dri, sourceSets) ?: "")
                 "<a href=\"$href\">${tag.children.joinToString("") { extractText(it, sourceSets) }}</a>"
             }
             
@@ -449,4 +487,38 @@ class ModelMapper(
     }
 
     private fun <T : Documentable> filterWhitelisted(docs: List<T>): List<T> = docs.mapNotNull { it.takeIfWhitelisted() }
+}
+
+// One-time-per-process sanity check for mapExtras' reflective, simpleName-based detection of
+// Dokka-internal extras (see the VERSION-COUPLED comment on mapExtras). Verifies the exact FQCNs
+// that detection depends on are still loadable against whatever Dokka version is actually on the
+// classpath, so a future Dokka bump that renames/moves/removes one of these fails loudly instead
+// of silently degrading to "never detected."
+private object DokkaVersionCheck {
+    @Volatile
+    private var checked = false
+
+    private val REFLECTED_DOKKA_CLASSES = listOf(
+        "org.jetbrains.dokka.model.ObviousMember",
+        "org.jetbrains.dokka.model.ExceptionInSupertypes",
+        "org.jetbrains.dokka.model.DefaultValue",
+        "org.jetbrains.dokka.model.AdditionalModifiers"
+    )
+
+    @Synchronized
+    fun runOnce(logger: PluginLogger) {
+        if (checked) return
+        checked = true
+        REFLECTED_DOKKA_CLASSES.forEach { fqcn ->
+            try {
+                Class.forName(fqcn)
+            } catch (e: ClassNotFoundException) {
+                logger.warn(
+                    "Dokka-internal class '$fqcn' not found on the classpath. " +
+                        "mapExtras' reflective detection of ObviousMember/ExceptionInSupertypes/" +
+                        "DefaultValue/AdditionalModifiers may be silently broken for this Dokka version."
+                )
+            }
+        }
+    }
 }
