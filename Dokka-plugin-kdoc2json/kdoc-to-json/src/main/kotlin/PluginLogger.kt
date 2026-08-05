@@ -6,7 +6,7 @@ import java.io.File
 class PluginLogger(
     private val dokkaLogger: DokkaLogger, 
     levelStr: String,
-    logFilePath: String? = null // <--- ADD THIS
+    logFilePath: String? = null
 ) {
     private val level = when (levelStr.lowercase()) {
         "debug" -> 0
