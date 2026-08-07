@@ -5,6 +5,7 @@ into a simple JSON block schema suitable for a templating engine.
 
 Usage:
     python3 md_to_json.py <docs-root> <output-dir> <config> [--topics-subdir topics]
+        [--images-subdir images] [--allow-failures]
 
 <docs-root> is the checkout of kotlin-web-site/docs (contains v.list, topics/, ...).
 One JSON file is written per input .md file, mirroring its relative path under
@@ -29,6 +30,9 @@ Output schema (one object per page):
 
 Block shapes:
   {"type": "heading", "level": 2, "id": "anonymous-classes", "html": "..."}
+    - "attrs" is present only if the heading's source line had a trailing
+      `{...}` attribute group (e.g. `## Title {id="custom-anchor"}`); an
+      explicit "id" in it overrides the auto-generated slug.
   {"type": "paragraph", "html": "..."}
   {"type": "code", "lang": "kotlin", "code": "...", "attrs": {"kotlin-runnable": "true"}}
   {"type": "blockquote", "attrs": {"style": "note"}, "blocks": [...]}
@@ -66,9 +70,17 @@ Known limitations (fine for a first pass, worth revisiting before production use
   - A handful of images/ filenames collide across subdirectories (leftover
     duplicates in the source tree); resolution keeps the first match in sorted
     order and prints a warning rather than guessing which one is "correct".
+  - A heading's id is slugify()'d from its text unless the source overrides
+    it with a trailing "{id=...}". A hand-written #anchor that was authored
+    against Writerside's own anchor algorithm rather than either of those
+    could still resolve to the right page but land on no anchor, if the two
+    algorithms diverge on a case not yet seen in the corpus (inline code or
+    punctuation in the heading, duplicate heading text) - not currently
+    detected.
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -80,22 +92,49 @@ from markdown_it.token import Token
 
 TITLE_RE = re.compile(r"^\[//\]:\s*#\s*\(title:\s*(.*?)\)\s*$", re.MULTILINE)
 ATTR_LINE_RE = re.compile(r"^\{(.*)\}$")
-ATTR_PAIR_RE = re.compile(r'([\w-]+)=(?:"([^"]*)"|(\S+))')
-TAG_RE = re.compile(r"^<(/?)(tabs|tab|note|tip|warning)([^>]*)/?>$", re.I)
+TRAILING_ATTR_GROUPS_RE = re.compile(r"\s*((?:\{[^{}]*\})+)\s*$")
+
+# No leading "^": matched via .match(content, pos) below, which already
+# anchors at pos - unlike search(), match() never scans forward - but "^"
+# itself always means the absolute start of the *string*, not of pos, so
+# keeping it here would silently stop the pos-advancing loop after the
+# first brace group on every second-and-later iteration.
+IMAGE_ATTR_GROUP_RE = re.compile(r"\{([^{}]*)\}")
+ATTR_PAIR_RE = re.compile(r'([\w-]+)\s*=\s*(?:"([^"]*)"|(\S+))')
 VAR_RE = re.compile(r"%([\w.-]+)%")
 MD_LINK_RE = re.compile(r"^([\w.-]+)\.md(#.*)?$")
 EXTERNAL_HREF_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//|^mailto:", re.I)
 LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
+STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
+IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.I)
+IMG_SRC_RE = re.compile(r'src="([^"]*)"')
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$")
 
+# TAG_RE is built from this set (rather than hardcoding the same five names
+# twice) so the two can't silently diverge. The (?![\w-]) after the
+# alternation is load-bearing: without it, "tab" matches as a prefix of
+# "table", consuming "<table>" as tag "tab" with attrs "le".
 CONTAINER_TAGS = {"tabs", "tab", "note", "tip", "warning"}
+TAG_RE = re.compile(r"^<(/?)(" + "|".join(CONTAINER_TAGS) + r")(?![\w-])([^>]*)/?>$", re.I)
 
 
 def build_topic_index(topics_dir: Path) -> dict:
-    """Bare filename stem (e.g. "enum-classes") -> page id (e.g. "kotlin-tour/enum-classes")."""
+    """Bare filename stem (e.g. "enum-classes") -> page id (e.g. "kotlin-tour/enum-classes").
+
+    Mirrors build_image_index's collision handling: a stem that exists more
+    than once under topics_dir keeps its first (sorted) page id and prints a
+    warning naming the others, rather than resolving to whichever sorts
+    first with no diagnostic at all."""
     index = {}
+    candidates = {}
     for md_path in sorted(topics_dir.rglob("*.md")):
-        page_id = str(md_path.relative_to(topics_dir).with_suffix("")).replace("\\", "/")
+        page_id = md_path.relative_to(topics_dir).with_suffix("").as_posix()
+        candidates.setdefault(md_path.stem, []).append(page_id)
         index.setdefault(md_path.stem, page_id)
+    for stem, ids in sorted(candidates.items()):
+        if len(ids) > 1:
+            print(f"warning: ambiguous topic filename {stem!r}: "
+                  f"using {ids[0]}.md, ignoring {', '.join(i + '.md' for i in ids[1:])}", file=sys.stderr)
     return index
 
 
@@ -137,9 +176,14 @@ def substitute_vars(text: str, variables: dict) -> str:
 
 
 def parse_attrs(attr_str: str) -> dict:
+    """name="quoted value" or name=bare -> {"name": "quoted value"/"bare"},
+    decided per pair. findall() coerces a non-participating group to "" (not
+    None), and exactly one of quoted/bare participates per match, so the
+    other is always "" - `quoted or bare` picks whichever one actually
+    matched, including a genuinely empty quoted value ("" or "" -> "")."""
     attrs = {}
     for name, quoted, bare in ATTR_PAIR_RE.findall(attr_str or ""):
-        attrs[name] = quoted if quoted != "" or '="' in (attr_str or "") else bare
+        attrs[name] = quoted or bare
     return attrs
 
 
@@ -202,6 +246,23 @@ class Converter:
         # resolution logic (rather than re-parsing links with regexes) by
         # running convert_file over every page and reading this list back.
         self.warnings = []
+        # Reset per file in convert_file - two headings with the same text
+        # on the same page would otherwise share a slug, so an anchor to the
+        # second one lands on the first.
+        self.seen_heading_ids = set()
+
+    def unique_heading_id(self, text: str) -> str:
+        """slugify(text), de-duped against every other heading id already
+        seen on this page - resolve_href points at these ids verbatim (via
+        the source's own #anchor), so two headings sharing a slug would
+        make any link to the second one land on the first instead."""
+        base = slug = slugify(text)
+        n = 2
+        while slug in self.seen_heading_ids:
+            slug = f"{base}-{n}"
+            n += 1
+        self.seen_heading_ids.add(slug)
+        return slug
 
     def resolve_href(self, href: str):
         """"other-page.md#anchor" -> "/<page-id>.html#anchor", or None to leave href untouched."""
@@ -247,7 +308,11 @@ class Converter:
             return f'src="{new_src}"' if new_src is not None else m.group(0)
 
         html = re.sub(r'href="([^"]*)"', href_repl, html)
-        html = re.sub(r'src="([^"]*)"', src_repl, html)
+        # Scoped to <img ...> tags specifically - a bare src="..." regex
+        # would also rewrite <script src=...>/<iframe src=...>, running the
+        # image resolver against filenames that were never images and
+        # producing false "image not found" warnings for them.
+        html = IMG_TAG_RE.sub(lambda m: IMG_SRC_RE.sub(src_repl, m.group(0)), html)
         return self.style_broken_and_external_links(html)
 
     def classify_href(self, href: str):
@@ -275,27 +340,76 @@ class Converter:
             tag = m.group(0)
             if self.classify_href(m.group(1)) is None:
                 return tag
-            return tag[:-1] + f' style="color: {self.broken_ext_link_color};">'
+            rule = f"color: {self.broken_ext_link_color};"
+            # An <a> that already carries a style= (rare, but Writerside's
+            # raw HTML passthrough allows it) would otherwise end up with
+            # two style attributes - HTML5 keeps only the first, so the
+            # color being added here would be the one silently ignored.
+            # Merge into the existing attribute instead of appending a
+            # second one.
+            existing = STYLE_ATTR_RE.search(tag)
+            if existing:
+                return tag[:existing.start(1)] + existing.group(1) + " " + rule + tag[existing.end(1):]
+            return tag[:-1] + f' style="{rule}">'
 
         return LINK_TAG_RE.sub(repl, html)
 
     def fold_image_attrs(self, tokens) -> list:
-        """Folds a `{...}` attribute-text token immediately following an
-        image (e.g. `![alt](x.png){width="500"}` - CommonMark has no syntax
-        for this, so it otherwise tokenizes as a literal "{width=..}" text
-        run right after the image) into that image's own HTML attributes
-        instead of leaving it as visible text."""
+        """Folds one or more `{...}` attribute-text groups immediately
+        following an image (e.g. `![alt](x.png){width="500"}{type="joined"}`
+        - CommonMark has no syntax for this, so it otherwise tokenizes as a
+        literal "{width=..}{type=..}" text run right after the image) into
+        that image's own HTML attributes instead of leaving it as visible
+        text. Only the leading `{...}` group(s) are consumed - anything
+        after them (a second attribute group is fine, but so is unrelated
+        prose the author just happened to write right after the image) is
+        kept as ordinary visible text rather than silently discarded along
+        with the attribute groups."""
         result = []
         for tok in tokens:
             if tok.type == "text" and result and result[-1].type == "image":
-                m = ATTR_LINE_RE.match(tok.content.strip())
-                if m:
+                content = tok.content.strip()
+                pos = 0
+                folded_any = False
+                while True:
+                    m = IMAGE_ATTR_GROUP_RE.match(content, pos)
+                    if not m:
+                        break
                     result[-1].attrs.update(parse_attrs(m.group(1)))
+                    pos = m.end()
+                    folded_any = True
+                if folded_any:
+                    remainder = content[pos:].strip()
+                    if remainder:
+                        tok.content = remainder
+                        result.append(tok)
                     continue
             if tok.children:
                 tok.children = self.fold_image_attrs(tok.children)
             result.append(tok)
         return result
+
+    def extract_trailing_attrs(self, children) -> dict:
+        """Strips trailing `{...}` attribute group(s) off the last text
+        child (if any) and returns the parsed attrs - the same Writerside
+        `{key="value"}` convention fold_image_attrs handles for images, but
+        written after a heading's own text instead (e.g.
+        `## Enum classes {id="custom-anchor"}`). Found by running the real
+        converter against the live kotlin-web-site corpus: unlike the image
+        case, this one was landing as visible garbage text at the end of
+        the rendered heading with no attribute handling at all."""
+        if not children or children[-1].type != "text":
+            return {}
+        m = TRAILING_ATTR_GROUPS_RE.search(children[-1].content)
+        if not m:
+            return {}
+        attrs = {}
+        for group in re.findall(r"\{([^{}]*)\}", m.group(1)):
+            attrs.update(parse_attrs(group))
+        if not attrs:
+            return {}
+        children[-1].content = children[-1].content[: m.start()]
+        return attrs
 
     def render_inline(self, inline_token: Token) -> str:
         children = self.fold_image_attrs(inline_token.children)
@@ -329,13 +443,37 @@ class Converter:
         if ttype == "heading_open":
             inline = node.children[0].token
             level = int(t.tag[1:])
-            text = inline.content
-            return {
+            # Must run before render_inline (which also folds image attrs
+            # off inline.children) so a trailing "{id=...}" doesn't survive
+            # into the rendered heading text as literal garbage, and so an
+            # explicit id, if given, can override the auto-generated slug -
+            # that's the actual point of Writerside authors writing one.
+            heading_attrs = self.extract_trailing_attrs(inline.children)
+            if heading_attrs.get("id"):
+                # An explicit id is an intentional, presumably-stable anchor
+                # - registered so a *later* auto-slugified heading won't be
+                # renamed into colliding with it, but not itself renamed
+                # even if two headings happen to specify the same one.
+                heading_id = heading_attrs["id"]
+                self.seen_heading_ids.add(heading_id)
+            else:
+                # heading_attrs being non-empty (just with no "id" key, e.g.
+                # only "completion-point") still means a suffix was found
+                # and stripped off inline.children - inline.content itself
+                # is a separate cached string on the parent token, so it
+                # needs the same suffix removed before it's used for the
+                # slug, or the leftover "{...}" text would still corrupt it.
+                clean_text = TRAILING_ATTR_GROUPS_RE.sub("", inline.content) if heading_attrs else inline.content
+                heading_id = self.unique_heading_id(clean_text)
+            block = {
                 "type": "heading",
                 "level": level,
-                "id": slugify(text),
+                "id": heading_id,
                 "html": self.render_inline(inline),
             }
+            if heading_attrs:
+                block["attrs"] = heading_attrs
+            return block
 
         if ttype == "fence":
             return {
@@ -424,14 +562,20 @@ class Converter:
             if b["type"] == "paragraph":
                 raw = b.pop("_raw", "").strip()
                 m = ATTR_LINE_RE.match(raw)
-                if m and merged:
-                    merged[-1].setdefault("attrs", {}).update(parse_attrs(m.group(1)))
-                    continue
+                if m:
+                    parsed = parse_attrs(m.group(1))
+                    # Only fold (and drop the paragraph) when something was
+                    # actually recovered - a `{...}`-shaped paragraph that
+                    # parses to no attrs (e.g. `{ a.length }`, or a real
+                    # attr line that ATTR_PAIR_RE just doesn't match) is
+                    # still real page content, not a decoration to discard.
+                    if parsed and merged:
+                        merged[-1].setdefault("attrs", {}).update(parsed)
+                        continue
             merged.append(b)
         return merged
 
-    @staticmethod
-    def group_containers(blocks: list) -> list:
+    def group_containers(self, blocks: list) -> list:
         """Turn <tabs>/<tab>/<note>/<tip>/<warning> tag_marker pairs into nested blocks."""
         root: dict = {"blocks": []}
         stack = [root]
@@ -441,8 +585,28 @@ class Converter:
                     node = {"type": b["tag"], "attrs": b["attrs"], "blocks": []}
                     stack[-1]["blocks"].append(node)
                     stack.append(node)
-                elif len(stack) > 1 and stack[-1]["type"] == b["tag"]:
+                elif stack[-1]["type"] == b["tag"]:
                     stack.pop()
+                else:
+                    # A closing marker that doesn't match the top of the
+                    # stack used to be discarded outright, leaving the
+                    # wrong frame open - everything after it then landed
+                    # inside a container it was never written to be part
+                    # of. This always indicates malformed source (a missing
+                    # closer somewhere), so it's always worth a warning -
+                    # pop back to the nearest open frame of the same tag
+                    # anywhere on the stack when one exists (closing
+                    # whatever was left open in between), or just ignore the
+                    # marker if it doesn't.
+                    print(f"warning: unmatched </{b['tag']}> in {self.current_source!r}", file=sys.stderr)
+                    self.warnings.append(
+                        {"kind": "tag", "source": self.current_source, "reference": f"</{b['tag']}>"}
+                    )
+                    match_depth = next(
+                        (i for i in range(len(stack) - 1, 0, -1) if stack[i]["type"] == b["tag"]), None
+                    )
+                    if match_depth is not None:
+                        del stack[match_depth:]
                 continue
             stack[-1]["blocks"].append(b)
 
@@ -468,8 +632,13 @@ class Converter:
             children = Converter._finalize_list(b["blocks"])
             tab_children = [c for c in children if c.get("type") == "tab"]
             if tab_children:
-                # Well-formed <tabs><tab>...</tab>...</tabs>.
-                return {
+                # Well-formed <tabs><tab>...</tab>...</tabs>. Any sibling
+                # that isn't itself a <tab> (intro/trailing prose written
+                # inside the <tabs> block) doesn't belong inside any one
+                # tab, so splice it back in at the tabs block's own
+                # position instead of dropping it - only the <tab> children
+                # feed the "tabs" list below.
+                tabs_block = {
                     "type": "tabs",
                     "attrs": b["attrs"],
                     "tabs": [
@@ -477,6 +646,18 @@ class Converter:
                         for c in tab_children
                     ],
                 }
+                if len(tab_children) == len(children):
+                    return tabs_block
+                result = []
+                inserted = False
+                for c in children:
+                    if c.get("type") == "tab":
+                        if not inserted:
+                            result.append(tabs_block)
+                            inserted = True
+                        continue
+                    result.append(c)
+                return result
             if len(children) >= 2 and all(c.get("type") == "code" for c in children):
                 # Bare <tabs> wrapping only fenced code blocks with no <tab>
                 # tags at all (seen in some compatibility guide pages, e.g.
@@ -512,6 +693,7 @@ class Converter:
 
     def convert_file(self, path: Path, page_id: str, source_rel: str) -> dict:
         self.current_source = source_rel
+        self.seen_heading_ids = set()
         raw = path.read_text(encoding="utf-8")
         # Substitute %variables% in the raw source, before markdown-it ever
         # sees it. Doing this post-render instead would (a) miss the title,
@@ -545,12 +727,34 @@ def load_config(config_path: Path) -> dict:
     """Loads the {"broken-ext-link-color": ..., "menu-no-link-color": ...}
     theming config. Missing keys just disable that particular styling (a
     warning is printed) rather than being a hard error, since neither is
-    required for the JSON conversion itself to be correct."""
+    required for the JSON conversion itself to be correct. A present key
+    that isn't a plausible CSS color, however, IS a hard error:
+    broken-ext-link-color is interpolated directly into a `style="color:
+    ...;"` HTML attribute (see style_broken_and_external_links), so an
+    unvalidated value is a markup-injection hole - config.json is
+    repo-controlled today, not attacker-reachable, but validating here means
+    that stays true if it ever grows a CI override."""
     config = json.loads(config_path.read_text(encoding="utf-8"))
     for key in CONFIG_KEYS:
         if key not in config:
             print(f"warning: config {config_path} is missing {key!r}; that styling will be skipped", file=sys.stderr)
+        elif not COLOR_RE.match(config[key]):
+            print(f"error: config {config_path} has an invalid {key!r} value {config[key]!r} "
+                  f"(expected a hex color like \"#cc0000\" or a CSS color name)", file=sys.stderr)
+            sys.exit(1)
     return config
+
+
+def _copy_if_changed(src, dst, *, follow_symlinks=True):
+    """shutil.copytree copy_function that skips a file whose size and mtime
+    already match the destination - kotlin-web-site's images/ is roughly
+    1,800 files / 90MB, and copytree(dirs_exist_ok=True) otherwise re-copies
+    every one of them on every run even when only a single topic changed."""
+    if os.path.exists(dst):
+        s_stat, d_stat = os.stat(src), os.stat(dst)
+        if s_stat.st_size == d_stat.st_size and int(s_stat.st_mtime) == int(d_stat.st_mtime):
+            return dst
+    return shutil.copy2(src, dst, follow_symlinks=follow_symlinks)
 
 
 def main():
@@ -561,6 +765,9 @@ def main():
                          help='Path to a JSON config with "broken-ext-link-color" and "menu-no-link-color"')
     parser.add_argument("--topics-subdir", default="topics", help="Subdirectory of docs_root holding .md files")
     parser.add_argument("--images-subdir", default="images", help="Subdirectory of docs_root holding image files")
+    parser.add_argument("--allow-failures", action="store_true",
+                         help="Exit 0 even if some files failed to convert (default: exit 1 if any did, "
+                              "so a CI step calling this can tell a partial run from a complete one)")
     args = parser.parse_args()
 
     docs_root: Path = args.docs_root
@@ -576,7 +783,7 @@ def main():
     config = load_config(args.config)
     variables = load_variables(docs_root)
     topic_index = build_topic_index(topics_dir)
-    image_index, _image_collisions = build_image_index(images_dir)
+    image_index, _image_collisions = build_image_index(images_dir)  # collisions warning already printed inside
     md = make_markdown_it()
     converter = Converter(md, variables, topic_index, image_index,
                            broken_ext_link_color=config.get("broken-ext-link-color"))
@@ -593,19 +800,31 @@ def main():
     )
 
     if images_dir.is_dir():
-        shutil.copytree(images_dir, args.output_dir / "images", dirs_exist_ok=True)
+        shutil.copytree(images_dir, args.output_dir / "images", dirs_exist_ok=True, copy_function=_copy_if_changed)
     else:
         print(f"warning: {images_dir} not found; image references will 404", file=sys.stderr)
 
+    # Clear out whatever a previous run wrote here first - otherwise a topic
+    # deleted upstream since then keeps its stale JSON (and keeps shipping)
+    # forever, since nothing else here ever removes a file on its own.
+    topics_out_dir = args.output_dir / args.topics_subdir
+    if topics_out_dir.is_dir():
+        shutil.rmtree(topics_out_dir)
+
     count = 0
+    failed = 0
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
-        page_id = str(rel.with_suffix(""))
-        source_rel = str(Path(args.topics_subdir) / rel)
+        # .as_posix(), not str() - build_topic_index resolves cross-page
+        # links through the same forward-slashed ids, so an OS-native
+        # separator here would make the two disagree on Windows.
+        page_id = rel.with_suffix("").as_posix()
+        source_rel = f"{args.topics_subdir}/{rel.as_posix()}"
         try:
             page = converter.convert_file(md_path, page_id, source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke
             print(f"error converting {md_path}: {exc}", file=sys.stderr)
+            failed += 1
             continue
         out_path = args.output_dir / args.topics_subdir / rel.with_suffix(".json")
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -613,6 +832,9 @@ def main():
         count += 1
 
     print(f"Converted {count}/{len(md_files)} files into {args.output_dir}")
+    if failed and not args.allow_failures:
+        print(f"error: {failed} file(s) failed to convert (pass --allow-failures to tolerate this)", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

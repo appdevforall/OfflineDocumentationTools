@@ -19,7 +19,7 @@ conversion step itself. Building the sidebar nav from `kr.tree`
 ## Usage
 
 ```bash
-python3 md_to_json.py <docs-root> <output-dir> <config> [--topics-subdir topics]
+python3 md_to_json.py <docs-root> <output-dir> <config> [--topics-subdir topics] [--images-subdir images] [--allow-failures]
 ```
 
 - `<docs-root>` — a checkout of `kotlin-web-site/docs` (contains `v.list`, `topics/`, `images/`).
@@ -50,12 +50,22 @@ the module docstring in [`md_to_json.py`](md_to_json.py) for full shapes and
 known limitations (nested tabs, `<include>` resolution, variable
 substitution).
 
+A heading's `id` is `slugify()`'d from its text, unless the source line has
+an explicit `{id="..."}` (which overrides it directly). Cross-page links
+that carry a source `#anchor` are passed through verbatim rather than
+re-slugified, so a link and its target agree as long as both derive their id
+the same way; a hand-written `#anchor` that doesn't match either path (e.g.
+because Writerside's own anchor algorithm diverges from `slugify()` on
+headings with inline code or punctuation) will resolve to the right page but
+land on no anchor. Not currently detected - worth spot-checking if a page's
+in-page anchors stop scrolling to the right place.
+
 ## Trying it out
 
 [`review_build_json.sh`](review_build_json.sh) is a throwaway helper for
-reviewers — it installs `markdown-it-py`, clones `kotlin-web-site`, and runs
-`md_to_json.py` against it so you can look at real output without any other
-setup. It's not part of the actual pipeline (that's ADFA-4739):
+reviewers — it clones `kotlin-web-site` and runs `md_to_json.py` against it
+via `uv run` so you can look at real output without any other setup. It's
+not part of the actual pipeline (that's ADFA-4739):
 
 ```bash
 ./review_build_json.sh
