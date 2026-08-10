@@ -110,7 +110,11 @@ def test_fold_image_attrs_preserves_trailing_prose():
     out = make_converter().fold_image_attrs([img, text])
     assert img.attrs == {"width": "25", "type": "joined"}
     assert len(out) == 2
-    assert out[1].content == "Slack:"
+    # Asserting the exact string (not .strip()'d) matters here: the
+    # remainder used to be re-stripped after slicing, silently eating the
+    # leading space that separates the image from this text - "Slack:"
+    # would pass that bug just as well as " Slack:" does.
+    assert out[1].content == " Slack:"
 
 
 def test_fold_image_attrs_single_group_still_leaves_no_leftover_token():
@@ -207,6 +211,22 @@ def test_well_formed_open_close_does_not_warn():
     assert conv.warnings == []
 
 
+def test_top_level_unmatched_closer_does_not_crash():
+    """A closing tag_marker with no matching opener anywhere on the stack -
+    stack is back down to the bare {"blocks": []} root, which has no "type"
+    key at all - used to raise KeyError('type') instead of hitting the
+    already-correct "no matching frame" warning path."""
+    blocks = [
+        {"type": "tag_marker", "closing": True, "tag": "note", "attrs": {}},
+        {"type": "paragraph", "html": "After."},
+    ]
+    conv = make_converter()
+    conv.current_source = "test.md"
+    result = conv.group_containers(blocks)
+    assert [b["html"] for b in result if b.get("type") == "paragraph"] == ["After."]
+    assert any(w["kind"] == "tag" for w in conv.warnings)
+
+
 # --- style_broken_and_external_links: no duplicate style= ---------------
 
 def test_broken_link_style_merges_into_existing_style_attr():
@@ -218,6 +238,19 @@ def test_broken_link_style_merges_into_existing_style_attr():
     assert html.count('style="') == 1
     assert "color: #cc0000" in html
     assert "font-weight:bold" in html
+
+
+def test_broken_link_style_merge_inserts_semicolon_separator():
+    """The merge used to concatenate the existing style value and the
+    injected rule with just a space when the existing value had no trailing
+    ";" - "font-weight: bold color: red;" is ONE malformed CSS declaration,
+    which browsers discard entirely, losing both rules."""
+    conv = make_converter(broken_ext_link_color="#cc0000")
+    html = conv.style_broken_and_external_links(
+        '<a href="https://x.com" style="font-weight: bold">x</a>')
+    assert html.count('style="') == 1
+    assert "font-weight: bold;" in html
+    assert "color: #cc0000;" in html
 
 
 def test_non_broken_link_untouched():
@@ -248,6 +281,21 @@ def test_load_config_rejects_markup_injection_payload(tmp_path):
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps({
         "broken-ext-link-color": 'red"><script>alert(1)</script>',
+        "menu-no-link-color": "#999999",
+    }))
+    with pytest.raises(SystemExit) as exc_info:
+        m.load_config(config_path)
+    assert exc_info.value.code == 1
+
+
+def test_load_config_rejects_non_string_color_value(tmp_path):
+    """A JSON number (an unquoted hex-like value is a plausible hand-edit
+    slip, e.g. writing cc0000 instead of "#cc0000") used to raise a bare
+    TypeError from COLOR_RE.match(int) instead of the intended clean
+    "invalid ... value" error the line below is meant to produce."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({
+        "broken-ext-link-color": 123,
         "menu-no-link-color": "#999999",
     }))
     with pytest.raises(SystemExit) as exc_info:
@@ -398,3 +446,13 @@ def test_main_prunes_stale_topic_json(tmp_path):
     assert _run_main(docs_root, out_dir, config).returncode == 0
     assert not (out_dir / "topics" / "good.json").exists()
     assert (out_dir / "topics" / "new.json").exists()
+
+
+def test_main_refuses_when_output_dir_is_docs_root(tmp_path):
+    """output_dir == docs_root makes topics_out_dir the very same directory
+    as the source topics/ - the pruning rmtree used to delete it outright,
+    with every already-globbed source file then failing to convert."""
+    docs_root, config = _write_minimal_docs_root(tmp_path)
+    result = _run_main(docs_root, docs_root, config)
+    assert result.returncode == 1
+    assert (docs_root / "topics" / "good.md").exists()

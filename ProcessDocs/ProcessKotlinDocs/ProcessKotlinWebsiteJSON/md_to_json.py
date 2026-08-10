@@ -349,7 +349,8 @@ class Converter:
             # second one.
             existing = STYLE_ATTR_RE.search(tag)
             if existing:
-                return tag[:existing.start(1)] + existing.group(1) + " " + rule + tag[existing.end(1):]
+                sep = "" if not existing.group(1).strip() or existing.group(1).rstrip().endswith(";") else "; "
+                return tag[:existing.start(1)] + existing.group(1) + sep + " " + rule + tag[existing.end(1):]
             return tag[:-1] + f' style="{rule}">'
 
         return LINK_TAG_RE.sub(repl, html)
@@ -379,8 +380,8 @@ class Converter:
                     pos = m.end()
                     folded_any = True
                 if folded_any:
-                    remainder = content[pos:].strip()
-                    if remainder:
+                    remainder = content[pos:]
+                    if remainder.strip():
                         tok.content = remainder
                         result.append(tok)
                     continue
@@ -585,7 +586,7 @@ class Converter:
                     node = {"type": b["tag"], "attrs": b["attrs"], "blocks": []}
                     stack[-1]["blocks"].append(node)
                     stack.append(node)
-                elif stack[-1]["type"] == b["tag"]:
+                elif len(stack) > 1 and stack[-1]["type"] == b["tag"]:
                     stack.pop()
                 else:
                     # A closing marker that doesn't match the top of the
@@ -738,7 +739,7 @@ def load_config(config_path: Path) -> dict:
     for key in CONFIG_KEYS:
         if key not in config:
             print(f"warning: config {config_path} is missing {key!r}; that styling will be skipped", file=sys.stderr)
-        elif not COLOR_RE.match(config[key]):
+        elif not isinstance(config[key], str) or not COLOR_RE.match(config[key]):
             print(f"error: config {config_path} has an invalid {key!r} value {config[key]!r} "
                   f"(expected a hex color like \"#cc0000\" or a CSS color name)", file=sys.stderr)
             sys.exit(1)
@@ -809,6 +810,10 @@ def main():
     # forever, since nothing else here ever removes a file on its own.
     topics_out_dir = args.output_dir / args.topics_subdir
     if topics_out_dir.is_dir():
+        if topics_out_dir.resolve() == topics_dir.resolve():
+            print(f"error: output topics dir {topics_out_dir} is the source topics dir {topics_dir}",
+                  file=sys.stderr)
+            sys.exit(1)
         shutil.rmtree(topics_out_dir)
 
     count = 0
