@@ -83,9 +83,12 @@ plugin system, not by anything in this repo: App Dev For All supports plugins th
 documentation database, including the bookshelf feature specifically —
 [appdevforall/bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin). So the absence
 of any `Templates`/`Bookshelf`/`BookCategories` handling here is not a gap to fill; it's out of
-scope for this repo. (A repo-wide search for `templateId`, `Templates`, `Bookshelf`,
-`BookCategories`, or `PUCC` turns up zero matches outside `WebServer.kt` itself, which is
-consistent with that division of responsibility.) Concretely, relative to the schema above:
+scope for this repo. (A repo-wide search for `Templates`, `Bookshelf`, `BookCategories`, or `PUCC`
+turns up zero matches outside `WebServer.kt` itself, which is consistent with that division of
+responsibility. `templateId` itself is a different story - `populate_db.py` and
+`insert_optimized_media.py` both read/write it directly, since it's a plain column on `Content`
+they populate; it's only the `Templates` table and the plugin system that reference it that stay
+out of scope.) Concretely, relative to the schema above:
 
 | Piece | What it thinks the schema is | Consequence |
 | --- | --- | --- |
@@ -146,14 +149,11 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   knows nothing about compression-aware content types, templates, or fragmentation. **This is not
   what ships in the app** — treat it as historical/reference only, not as documentation of current
   server behavior. `WebServer.kt` is the real thing.
-- **`Dokka-plugin-kdoc2json/`** — on `main`, this is just a `README.md` describing the intended
-  design plus a flowchart image; there is no code here yet. The actual implementation (the Dokka
-  `JsonRenderer`/`ModelMapper`/`LinkPostProcessor` plugin, its test suite, and the
-  `kotlin-stdlib-docs` build scripts) exists only on the unmerged branch **`fix/ADFA-4514`**. That
-  branch's diff against `main` also shows it removing recent `docdb-studio` work and all of
-  `scripts/pdfjs/` — almost certainly because the branch was cut before those were added and hasn't
-  been rebased, not because it intends to delete them. **Flagged: rebase `fix/ADFA-4514` onto
-  current `main` before merging**, to avoid actually deleting that work.
+- **`Dokka-plugin-kdoc2json/`** — the Dokka `JsonRenderer`/`ModelMapper`/`LinkPostProcessor` plugin,
+  its test suite, and the `kotlin-stdlib-docs` build scripts, merged to `main` via `fix/ADFA-4514`
+  (`4c6b8aef`). Consumed by `scripts/kotlin/build-stdlib-json-docs.sh` and
+  `scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py` (ADFA-4739) to generate and load
+  kotlin-stdlib/-reflect/-test JSON docs.
 - **`ProcessDocs/`** — HTML-processing pipelines that predate the "build docs as JSON" goal:
   `ProcessKotlinDocs/` (turns Kotlin's HTML doc export into a self-contained HTML set + table of
   contents, used by `.github/workflows/automate-kotlin.yaml`), `ProcessAndroidDevSite/`, `AndroidDocs/`
@@ -180,7 +180,6 @@ isn't lost:
   (e.g. [bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin)), not by this repo.
   Not a gap to fill here.
 - `PUCC_*` tables are unrelated to documentation tooling. Ignore; leave as-is.
-- `fix/ADFA-4514` needs a rebase onto `main` before merge — noted above.
 - `docdb-studio`'s schema is expected to lag the live schema and catch up after the fact; that's
   fine, no urgent update needed.
 - `check-tools/db_health_checker.py` is not being extended with `Templates`/`Bookshelf` checks

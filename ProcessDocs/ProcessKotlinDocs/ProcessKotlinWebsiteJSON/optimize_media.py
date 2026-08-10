@@ -43,9 +43,9 @@ prints all resolved config parameters up front). --log-file redirects all
 log output (those per-file lines, warnings, and errors) to that file
 instead of stdout/stderr.
 
-Requires the "pngquant" binary on PATH, the Pillow and scour Python packages
-(pip install Pillow scour), and - only if any SVG actually needs rasterizing
-- the cairosvg package (pip install cairosvg).
+Requires the "pngquant" binary on PATH, plus the Pillow, scour and cairosvg
+Python packages listed in requirements.txt - run via
+`uv run --with-requirements <repo-root>/requirements.txt optimize_media.py ...`.
 """
 import argparse
 import io
@@ -299,7 +299,8 @@ def rasterize_svg(svg_text: str, max_width: int) -> Image.Image:
         import cairosvg
     except ImportError as exc:
         raise RuntimeError(
-            "cairosvg is required to rasterize oversized SVGs; install it with `pip install cairosvg`"
+            "cairosvg is required to rasterize oversized SVGs; it's in requirements.txt - "
+            "run this script via `uv run --with-requirements <repo-root>/requirements.txt`"
         ) from exc
     png_bytes = cairosvg.svg2png(bytestring=svg_text.encode("utf-8"), output_width=max_width)
     img = Image.open(io.BytesIO(png_bytes))

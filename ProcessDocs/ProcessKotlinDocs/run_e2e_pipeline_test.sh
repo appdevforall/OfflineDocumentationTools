@@ -10,10 +10,16 @@
 # The script refuses to start if any are left unfilled or don't exist on disk.
 set -euo pipefail
 
+if ! command -v uv >/dev/null 2>&1; then
+  echo "error: uv is required - see https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
+fi
+
 # --- Repo-relative paths - auto-detected, no edits needed ---------------
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROCESS_DIR="$REPO_ROOT/ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON"
 SYNC_SCRIPT="$REPO_ROOT/scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py"
+UV_RUN=(uv run --with-requirements "$REPO_ROOT/requirements.txt")
 
 # config.json, templates/, and assets/ are staged directly in $PROCESS_DIR
 # (this repo) rather than pulled from anyone's local machine - populate_db.py
@@ -97,12 +103,12 @@ cp "$SOURCE_DB" "$TEST_DB"
 echo
 echo "== Step 1/5: find_missing_assets.py (source QA report) =="
 REPORT_PATH="$WORKDIR/missing-assets-report.md"
-python3 "$PROCESS_DIR/find_missing_assets.py" "$DOCS_ROOT" "$REPORT_PATH"
+"${UV_RUN[@]}" "$PROCESS_DIR/find_missing_assets.py" "$DOCS_ROOT" "$REPORT_PATH"
 echo "Report written to $REPORT_PATH"
 
 echo
 echo "== Step 2/5: populate_db.py (convert docs, prune blacklist, insert into test db) =="
-( cd "$PROCESS_DIR" && python3 populate_db.py "$DOCS_ROOT" "$CONFIG_JSON" "$IMAGES_ZIP" "$TEST_DB" \
+( cd "$PROCESS_DIR" && "${UV_RUN[@]}" populate_db.py "$DOCS_ROOT" "$CONFIG_JSON" "$IMAGES_ZIP" "$TEST_DB" \
     --blacklisted-element-titles "${BLACKLIST[@]}" )
 
 echo
@@ -122,7 +128,7 @@ MEDIA_DIR="$WORKDIR/media"
 mkdir -p "$MEDIA_DIR"
 unzip -q "$IMAGES_ZIP" -d "$MEDIA_DIR"
 
-python3 "$PROCESS_DIR/insert_optimized_media.py" "$MEDIA_DIR" "$TEST_DB" \
+"${UV_RUN[@]}" "$PROCESS_DIR/insert_optimized_media.py" "$MEDIA_DIR" "$TEST_DB" \
     --jpeg-quality "$JPEG_QUALITY" --webp --webp-quality "$WEBP_QUALITY" --verbose
 
 echo
@@ -138,11 +144,11 @@ echo "Generated JSON docs at $STDLIB_ALL_LIBS"
 
 echo
 echo "== Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content) =="
-python3 "$SYNC_SCRIPT" "$STDLIB_ALL_LIBS" --db "$TEST_DB"
+"${UV_RUN[@]}" "$SYNC_SCRIPT" "$STDLIB_ALL_LIBS" --db "$TEST_DB"
 
 echo
 echo "== Summary =="
-python3 - "$TEST_DB" <<'PYEOF'
+"${UV_RUN[@]}" python3 - "$TEST_DB" <<'PYEOF'
 import sqlite3
 import sys
 
@@ -172,7 +178,7 @@ echo "== Blacklist pruning verification =="
 # exclude - then confirms none of those pages made it into the database.
 # Reusing that real pruning logic (rather than guessing at path patterns)
 # means this check stays correct if BLACKLIST or kr.tree's structure change.
-python3 - "$PROCESS_DIR" "$DOCS_ROOT" "$TEST_DB" "${BLACKLIST[@]}" <<'PYEOF'
+"${UV_RUN[@]}" python3 - "$PROCESS_DIR" "$DOCS_ROOT" "$TEST_DB" "${BLACKLIST[@]}" <<'PYEOF'
 import sqlite3
 import sys
 import xml.etree.ElementTree as ET

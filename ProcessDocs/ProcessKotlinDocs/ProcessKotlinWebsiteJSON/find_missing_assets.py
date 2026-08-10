@@ -6,7 +6,8 @@ which doesn't actually exist, so broken source content can be found and
 fixed without having to read every generated page.
 
 Usage:
-    python3 find_missing_assets.py <docs-root> [report-path] [--topics-subdir topics] [--images-subdir images]
+    python3 find_missing_assets.py <docs-root> [report-path] [--topics-subdir topics]
+        [--images-subdir images] [--allow-failures]
 
 Reuses md_to_json.py's own link/image resolution (build_topic_index,
 build_image_index, Converter) instead of re-parsing links with regexes, so
@@ -72,6 +73,9 @@ def main():
                          help="Where to write the Markdown report (default: ./missing-assets-report.md)")
     parser.add_argument("--topics-subdir", default="topics", help="Subdirectory of docs_root holding .md files")
     parser.add_argument("--images-subdir", default="images", help="Subdirectory of docs_root holding image files")
+    parser.add_argument("--allow-failures", action="store_true",
+                         help="Exit 0 even if some files failed to scan (default: exit 1 if any did, so this "
+                              "pre-flight gate can't report a clean run over a corpus it couldn't actually read)")
     args = parser.parse_args()
 
     docs_root: Path = args.docs_root
@@ -88,6 +92,7 @@ def main():
     converter = Converter(md, variables, topic_index, image_index)
 
     md_files = sorted(topics_dir.rglob("*.md"))
+    failed = 0
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
         page_id = str(rel.with_suffix(""))
@@ -96,6 +101,7 @@ def main():
             converter.convert_file(md_path, page_id, source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep auditing the rest
             print(f"error scanning {md_path}: {exc}", file=sys.stderr)
+            failed += 1
 
     link_warnings = [w for w in converter.warnings if w["kind"] == "link"]
     image_warnings = [w for w in converter.warnings if w["kind"] == "image"]
@@ -117,6 +123,7 @@ def main():
         f"- {len(images)} missing image(s)",
         f"- {len(collisions)} ambiguous image filename(s) (exist in more than one place under images/)",
         f"- {len(includes)} unresolved `<include>` target(s)",
+        f"- {failed} file(s) failed to scan" + (" - **this report is incomplete**" if failed else ""),
         "",
         render_section("Unresolved cross-page links", links),
         render_section("Missing images", images),
@@ -136,6 +143,9 @@ def main():
     args.report_path.write_text("\n".join(report), encoding="utf-8")
     print(f"Wrote {args.report_path} "
           f"({len(links)} links, {len(images)} images, {len(collisions)} ambiguous, {len(includes)} includes)")
+    if failed and not args.allow_failures:
+        print(f"error: {failed} file(s) failed to scan (pass --allow-failures to tolerate this)", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

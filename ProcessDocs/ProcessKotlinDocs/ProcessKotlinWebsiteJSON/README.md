@@ -21,9 +21,7 @@ for anything here to run.
 
 ## Requirements
 
-- Python 3.10+
-- `pip install markdown-it-py Pillow scour brotli`
-- `cairosvg` (only needed if an optimized SVG exceeds `--svg-rasterize-threshold`): `pip install cairosvg`
+- Python 3.10+ and [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — every command below is run as `uv run --with-requirements <repo-root>/requirements.txt <script>.py ...`, which installs `markdown-it-py`, `Pillow`, `scour`, `cairosvg`, `brotli`, and the rest of the repo's dependencies into an ephemeral environment; there's no separate `pip install` step.
 - `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
 
 `populate_db.py` also expects, relative to its own location, and already
@@ -49,14 +47,16 @@ for local inspection or a different renderer. Step 1 is `md_to_json.py`
 produces.
 
 ```bash
+UV_RUN="uv run --with-requirements ../../../requirements.txt"
+
 # 1. Convert every topic .md into JSON, one file per page (ADFA-5039)
-python3 md_to_json.py <docs-root> <output-dir> config.json
+$UV_RUN md_to_json.py <docs-root> <output-dir> config.json
 
 # 2. Build the sidebar nav from kr.tree against that JSON output
-python3 build_nav.py <docs-root> <output-dir> <output-dir>
+$UV_RUN build_nav.py <docs-root> <output-dir> <output-dir>
 
 # 3. (optional) Check for broken links/images/includes in the source tree
-python3 find_missing_assets.py <docs-root> missing-assets-report.md
+$UV_RUN find_missing_assets.py <docs-root> missing-assets-report.md
 ```
 
 `<output-dir>` ends up containing everything `md_to_json.py` writes, plus:
@@ -69,7 +69,7 @@ the same conversion as `md_to_json.py`/`build_nav.py` internally — you don't
 run those scripts first.
 
 ```bash
-python3 populate_db.py <docs-root> config.json <webHelpImages.zip> [db-path]
+uv run --with-requirements ../../../requirements.txt populate_db.py <docs-root> config.json <webHelpImages.zip> [db-path]
 ```
 
 - `db-path` defaults to `documentation.db` in the current directory, and must already exist with the expected schema (`Languages`, `ContentTypes`, `Templates` tables populated).
@@ -87,7 +87,8 @@ illustrative only — open `<docs-root>/kr.tree` and copy the actual
 `toc-title` chain for whatever section you're dropping (e.g. Kotlin/Wasm):
 
 ```bash
-python3 populate_db.py <docs-root> config.json <webHelpImages.zip> documentation.db \
+uv run --with-requirements ../../../requirements.txt populate_db.py \
+  <docs-root> config.json <webHelpImages.zip> documentation.db \
   --blacklisted-element-titles \
     "<Top-Level Title>\/<Nested Title>"
 ```
@@ -106,13 +107,13 @@ Two options, depending on whether the database already has pages loaded:
 **Standalone optimization only** (no database involved):
 
 ```bash
-python3 optimize_media.py <input-dir> <output-dir> [--max-width 500] [--webp] [...]
+uv run --with-requirements ../../../requirements.txt optimize_media.py <input-dir> <output-dir> [--max-width 500] [--webp] [...]
 ```
 
 **Optimize and update an existing database's images in place:**
 
 ```bash
-python3 insert_optimized_media.py <media-dir> <db-path> [work-dir] [options]
+uv run --with-requirements ../../../requirements.txt insert_optimized_media.py <media-dir> <db-path> [work-dir] [options]
 ```
 
 This re-runs `optimize_media.py`'s pipeline, backs up the database first,
