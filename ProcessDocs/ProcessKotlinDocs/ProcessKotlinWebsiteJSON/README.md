@@ -45,10 +45,12 @@ python3 md_to_json.py <docs-root> <output-dir> <config> [--topics-subdir topics]
 ```
 
 Block types: `heading`, `paragraph`, `code`, `blockquote`, `list`, `table`,
-`image`, `hr`, `tabs`, `note`/`tip`/`warning`, `html` (raw passthrough). See
-the module docstring in [`md_to_json.py`](md_to_json.py) for full shapes and
+`hr`, `tabs`, `note`/`tip`/`warning`, `html` (raw passthrough). See the
+module docstring in [`md_to_json.py`](md_to_json.py) for full shapes and
 known limitations (nested tabs, `<include>` resolution, variable
-substitution).
+substitution). There is no standalone `image` block type - an image is
+always inline content inside whatever block contains it (typically
+`paragraph`), rendered straight into that block's own `html` string.
 
 A heading's `id` is `slugify()`'d from its text, unless the source line has
 an explicit `{id="..."}` (which overrides it directly). Cross-page links

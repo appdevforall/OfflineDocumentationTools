@@ -46,6 +46,66 @@ def test_tag_re_still_matches_real_container_tags():
     assert m.TAG_RE.match("</warning>") is not None
 
 
+# --- TAG_RE / html_block: self-closing tags must not stay open ----------
+
+def test_tag_re_captures_self_closing_marker_separately():
+    """The attrs group used to be greedy, so it swallowed a self-closing
+    tag's trailing "/" before the optional "/?" at the end ever got a
+    chance to match it - "<tab .../>" came out with an empty closing
+    group, i.e. indistinguishable from a plain opener."""
+    closing, tag, attrs, self_closing = m.TAG_RE.match('<tab title="A"/>').groups()
+    assert (closing, tag, self_closing) == ("", "tab", "/")
+    assert attrs.strip() == 'title="A"'
+
+    closing, tag, attrs, self_closing = m.TAG_RE.match('<tab title="A">').groups()
+    assert self_closing == ""
+
+
+def test_html_block_self_closing_tag_emits_open_and_close_markers():
+    """convert_node's html_block dispatch must turn a self-closing tag into
+    an immediate open/close pair rather than a bare opener - otherwise the
+    container never closes and silently nests the rest of the page."""
+    node = m.Node(FakeToken("html_block", content='<tab title="A"/>'))
+    conv = make_converter()
+    result = conv.convert_node(node)
+    assert [(b["type"], b["closing"], b["tag"]) for b in result] == [
+        ("tag_marker", False, "tab"),
+        ("tag_marker", True, "tab"),
+    ]
+
+
+def test_self_closing_tag_does_not_swallow_trailing_content():
+    """End-to-end repro: a self-closing <tab/> immediately followed by a
+    paragraph must not leave that paragraph nested inside the tab."""
+    node = m.Node(FakeToken("html_block", content='<tab title="A"/>'))
+    conv = make_converter()
+    conv.current_source = "test.md"
+    markers = conv.convert_node(node)
+    blocks = markers + [{"type": "paragraph", "html": "After."}]
+    result = conv.group_containers(blocks)
+    assert [b["html"] for b in result if b.get("type") == "paragraph"] == ["After."]
+    assert conv.warnings == []
+
+
+# --- convert_node: indented code_block must render as code, not html ----
+
+def test_indented_code_block_renders_as_code_not_html():
+    """convert_node only handled markdown-it's "fence" (```-delimited)
+    token; an indented (4-space) code block produces a different token
+    type, "code_block", which fell through to the generic fallback and
+    came out as an unescaped "html" block instead - raw "<"/"&" in the
+    code would be interpreted as markup rather than shown as text, and the
+    block lost its code typing entirely."""
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    tokens = md.parse('    List<String> x = listOf("a", "b");\n')
+    tree = m.build_tree(tokens)
+    block = conv.convert_node(tree[0])
+    assert block["type"] == "code"
+    assert block["lang"] is None
+    assert "List<String>" in block["code"]
+
+
 # --- ATTR_PAIR_RE / parse_attrs -----------------------------------------
 
 def test_parse_attrs_allows_whitespace_around_equals():

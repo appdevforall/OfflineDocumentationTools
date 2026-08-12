@@ -38,11 +38,16 @@ Block shapes:
   {"type": "blockquote", "attrs": {"style": "note"}, "blocks": [...]}
   {"type": "list", "ordered": false, "items": [{"blocks": [...]}]}
   {"type": "table", "headers": ["a", "b"], "rows": [["1", "2"]]}
-  {"type": "image", "src": "...", "alt": "..."}
   {"type": "hr"}
   {"type": "tabs", "attrs": {"group": "build-system"},
    "tabs": [{"title": "Gradle", "attrs": {"group-key": "gradle"}, "blocks": [...]}]}
   {"type": "html", "html": "<raw passthrough for anything unrecognized>"}
+
+There is no standalone "image" block type - CommonMark only ever produces
+"image" as an inline token nested inside a paragraph/heading/etc., so a
+`![alt](foo.png)` in the source always ends up as an <img> inside that
+block's own "html" string (via render_inline), never as a top-level block
+of its own.
 
 Cross-page links (`[text](other-page.md#anchor)`) and images (`![alt](foo.png)`)
 use Writerside's bare-filename convention - the referenced file is looked up
@@ -114,8 +119,15 @@ COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$")
 # twice) so the two can't silently diverge. The (?![\w-]) after the
 # alternation is load-bearing: without it, "tab" matches as a prefix of
 # "table", consuming "<table>" as tag "tab" with attrs "le".
+#
+# Group 3 (attrs) is non-greedy and group 4 (self-closing "/") is anchored
+# right before the final ">" - with a single greedy "([^>]*)/?>$" instead,
+# the attrs group swallows a self-closing tag's trailing "/" before the
+# optional "/?" ever gets a chance to match it, so "<tab .../>" came out
+# indistinguishable from "<tab ...>": an opener with no matching closer,
+# silently nesting the rest of the page inside it.
 CONTAINER_TAGS = {"tabs", "tab", "note", "tip", "warning"}
-TAG_RE = re.compile(r"^<(/?)(" + "|".join(CONTAINER_TAGS) + r")(?![\w-])([^>]*)/?>$", re.I)
+TAG_RE = re.compile(r"^<(/?)(" + "|".join(CONTAINER_TAGS) + r")(?![\w-])([^>]*?)\s*(/?)>$", re.I)
 
 
 def build_topic_index(topics_dir: Path) -> dict:
@@ -476,7 +488,14 @@ class Converter:
                 block["attrs"] = heading_attrs
             return block
 
-        if ttype == "fence":
+        if ttype in ("fence", "code_block"):
+            # code_block is markdown-it's token for indented (4-space) code,
+            # as opposed to fence (```-delimited) - it carries no language
+            # info, but otherwise wants the same "code" block shape. Without
+            # this case it fell through to the generic fallback below and
+            # came out as an unescaped "html" block instead - raw <, & etc.
+            # in the code would be interpreted as markup rather than shown
+            # as text, and it lost its code typing entirely.
             return {
                 "type": "code",
                 "lang": (t.info or "").strip() or None,
@@ -533,13 +552,23 @@ class Converter:
                 m = TAG_RE.match(line.strip())
                 if m:
                     flush_raw()
-                    closing, tag, attrstr = m.groups()
-                    result.append({
-                        "type": "tag_marker",
-                        "closing": bool(closing),
-                        "tag": tag.lower(),
-                        "attrs": parse_attrs(attrstr),
-                    })
+                    closing, tag, attrstr, self_closing = m.groups()
+                    attrs = parse_attrs(attrstr)
+                    tag = tag.lower()
+                    if self_closing:
+                        # "<tab .../>" has no children and no separate
+                        # closer - emit the open/close pair immediately
+                        # rather than treating it as an opener that leaves
+                        # the container open for the rest of the page.
+                        result.append({"type": "tag_marker", "closing": False, "tag": tag, "attrs": attrs})
+                        result.append({"type": "tag_marker", "closing": True, "tag": tag, "attrs": {}})
+                    else:
+                        result.append({
+                            "type": "tag_marker",
+                            "closing": bool(closing),
+                            "tag": tag,
+                            "attrs": attrs,
+                        })
                 elif line.strip():
                     raw_run.append(line)
             flush_raw()
