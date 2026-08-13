@@ -35,16 +35,27 @@ INCLUDE_RE = re.compile(r'<include\b[^>]*\bfrom\s*=\s*"([^"]+)"')
 FENCE_RE = re.compile(r"```.*?```", re.S)
 
 
-def find_include_warnings(topics_dir: Path) -> list:
+def find_include_warnings(topics_dir: Path) -> tuple:
+    """Returns (warnings, failed_count). A per-file read/scan failure here
+    used to raise uncaught, killing the whole process (and bypassing
+    --allow-failures) even when the main conversion loop's own try/except
+    would have just counted it as one more scan failure - same shape as the
+    bug that loop was fixed for, just in this separate scan."""
     all_filenames = {p.name for p in topics_dir.rglob("*") if p.is_file()}
     warnings = []
+    failed = 0
     for md_path in sorted(topics_dir.rglob("*.md")):
-        text_no_fences = FENCE_RE.sub("", md_path.read_text(encoding="utf-8"))
         source_rel = str(md_path.relative_to(topics_dir.parent))
+        try:
+            text_no_fences = FENCE_RE.sub("", md_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 - surface which file broke, keep scanning the rest
+            print(f"error scanning {md_path} for <include> targets: {exc}", file=sys.stderr)
+            failed += 1
+            continue
         for target in INCLUDE_RE.findall(text_no_fences):
             if target not in all_filenames:
                 warnings.append({"kind": "include", "source": source_rel, "reference": target})
-    return warnings
+    return warnings, failed
 
 
 def group_by_reference(warnings: list) -> dict:
@@ -105,7 +116,8 @@ def main():
 
     link_warnings = [w for w in converter.warnings if w["kind"] == "link"]
     image_warnings = [w for w in converter.warnings if w["kind"] == "image"]
-    include_warnings = find_include_warnings(topics_dir)
+    include_warnings, include_scan_failed = find_include_warnings(topics_dir)
+    failed += include_scan_failed
 
     links = group_by_reference(link_warnings)
     images = group_by_reference(image_warnings)
