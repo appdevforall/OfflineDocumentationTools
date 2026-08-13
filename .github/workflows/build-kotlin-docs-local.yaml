@@ -1,0 +1,336 @@
+name: Build Kotlin Docs (Local)
+
+# Local-filesystem counterpart of build-kotlin-docs.yaml: same five steps
+# (find_missing_assets -> populate_db -> insert_optimized_media ->
+# build-stdlib-json-docs -> sync_kdoc_json_to_db), same ADFA-4737 blacklist,
+# but reads its documentation.db/webHelpImages.zip inputs from paths on the
+# runner's own disk (db_path / images_zip_path) instead of Google Drive, and
+# writes its outputs (the updated database, the missing-assets report) back
+# to disk (output_dir / db_path) instead of uploading them to Drive. No GCP
+# Workload Identity Federation, Drive API, or associated secrets are used
+# anywhere in this file.
+#
+# Since a GitHub-hosted runner is a fresh, disposable VM with no access to
+# anyone's actual local disk, db_path/images_zip_path/output_dir only make
+# sense here against a self-hosted runner, or when this workflow is run
+# locally (e.g. via https://github.com/nektos/act) with those host paths
+# bind-mounted into the job's container at the paths you pass as inputs.
+#
+# KNOWN LIMITATION: populate_db.py requires Writerside's own image export
+# ("webHelpImages.zip"), which JetBrains only produces via IntelliJ IDEA's
+# Writerside plugin build/export action - there is no headless/CLI way to
+# generate it (see ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/README.md,
+# "Inputs you need before starting"). So this workflow expects that export
+# to already exist on disk at images_zip_path rather than generating it
+# itself. Use skip_website_docs to bypass this entirely and only refresh the
+# kotlin-stdlib/-reflect/-test JSON content.
+#
+# Optional secret (Slack notifications are skipped with a warning if unset) -
+# same as build-kotlin-docs.yaml:
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, since this workflow mutates a
+#                        single shared local file, db_path).
+
+permissions:
+  contents: read
+
+# This workflow overwrites a single shared local file (db_path) - never let
+# two runs race to write it at the same time.
+concurrency:
+  group: build-kotlin-docs-local
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      kotlin_web_site_ref:
+        description: >-
+          Branch/tag/commit of JetBrains/kotlin-web-site to check out for the
+          "docs" tree (topics/, images/, kr.tree, v.list). Leave empty to use
+          the repo's default branch.
+        required: false
+        default: ''
+      kotlin_ref:
+        description: >-
+          Branch/tag/commit of JetBrains/kotlin to check out for the
+          kotlin-stdlib-docs build. Leave empty to use the repo's default
+          branch. Pin this to a real release tag for a reproducible build.
+        required: false
+        default: ''
+      db_path:
+        description: >-
+          Path on this runner's disk to the input documentation.db. Read
+          directly (no download/unzip) and, unless dry_run is true, written
+          back to this same path when the run finishes.
+        required: true
+      images_zip_path:
+        description: >-
+          Path on this runner's disk to Writerside's webHelpImages.zip
+          export matching kotlin_web_site_ref (see KNOWN LIMITATION above).
+          Required unless skip_website_docs is true.
+        required: false
+        default: ''
+      output_dir:
+        description: >-
+          Directory on this runner's disk to write outputs into: the
+          missing-assets QA report and a run-numbered copy of the built
+          database (documentation-db-<run_number>.db). Created if it
+          doesn't already exist.
+        required: false
+        default: 'build-kotlin-docs-output'
+      skip_website_docs:
+        description: 'Skip the kotlin-web-site steps and only refresh kotlin-stdlib/-reflect/-test JSON content.'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT write the result
+          back to db_path - the input file on disk is left untouched. Set to
+          false only once you trust a given ref/path combination (see this
+          workflow's testing notes).
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-kotlin-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      KOTLIN_WEB_SITE_REF: ${{ inputs.kotlin_web_site_ref }}
+      KOTLIN_REF: ${{ inputs.kotlin_ref }}
+      DB_PATH: ${{ inputs.db_path }}
+      IMAGES_ZIP_PATH: ${{ inputs.images_zip_path }}
+      OUTPUT_DIR: ${{ inputs.output_dir }}
+      SKIP_WEBSITE_DOCS: ${{ inputs.skip_website_docs }}
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve local file paths
+        run: |
+          if [ ! -f "$DB_PATH" ]; then
+            echo "Error: db_path '$DB_PATH' does not exist on this runner - for a self-hosted runner this must be a path on that machine; for act, bind-mount it into the container so it's visible at this exact path" >&2
+            exit 1
+          fi
+          if [ "$SKIP_WEBSITE_DOCS" != "true" ]; then
+            if [ -z "$IMAGES_ZIP_PATH" ]; then
+              echo "Error: images_zip_path is required unless skip_website_docs is true" >&2
+              exit 1
+            fi
+            if [ ! -f "$IMAGES_ZIP_PATH" ]; then
+              echo "Error: images_zip_path '$IMAGES_ZIP_PATH' does not exist on this runner" >&2
+              exit 1
+            fi
+          fi
+          mkdir -p "$OUTPUT_DIR"
+          echo "Resolved DB_PATH: $DB_PATH"
+          echo "Resolved IMAGES_ZIP_PATH: ${IMAGES_ZIP_PATH:-(skipped)}"
+          echo "Resolved OUTPUT_DIR: $OUTPUT_DIR"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (for the kdoc-to-json / kotlin-stdlib-docs Gradle builds)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # kdoc-to-json's own Gradle wrapper is pinned to Gradle 9.1.0, which
+          # needs JDK 17+. Bump this if the kotlin checkout's own wrapper
+          # (invoked by build-stdlib-json-docs.sh against kotlin-stdlib-docs)
+          # turns out to need something newer - verify on first real run.
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y pngquant unzip sqlite3
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # markdown-it-py/scour/cairosvg: ProcessKotlinWebsiteJSON's own
+          # requirements (see its README), not in the root requirements.txt.
+          pip install markdown-it-py scour cairosvg
+
+      - name: Copy documentation.db from local disk
+        run: |
+          cp "$DB_PATH" documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      - name: 'Notify Slack: build started'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: Clone kotlin-web-site
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_WEB_SITE_REF" ] && ARGS+=(--branch "$KOTLIN_WEB_SITE_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site
+
+      - name: Copy Writerside image export from local disk
+        if: ${{ !inputs.skip_website_docs }}
+        run: cp "$IMAGES_ZIP_PATH" webHelpImages.zip
+
+      - name: 'Step 1/5: find_missing_assets.py (source QA report)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
+            kotlin-web-site/docs missing-assets-report.md
+
+      - name: Write missing-assets report to output_dir
+        if: ${{ !inputs.skip_website_docs }}
+        run: cp missing-assets-report.md "$OUTPUT_DIR/missing-assets-report.md"
+
+      - name: 'Step 2/5: populate_db.py (convert docs, prune blacklist, insert into db)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          # Same three blacklist entries as run_e2e_pipeline_test.sh
+          # (ADFA-4737) - re-derive these from kotlin-web-site/docs/kr.tree
+          # if its nav structure has changed since this was written.
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
+            kotlin-web-site/docs \
+            ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/config.json \
+            webHelpImages.zip \
+            documentation.db \
+            --blacklisted-element-titles \
+              'Development\/Web development' \
+              'Interoperability\/Swift/Objective-C and C interop' \
+              'Interoperability\/JavaScript interop'
+
+      - name: 'Step 3/5: insert_optimized_media.py (re-optimize + reinsert images)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          # --webp requires an "image/webp" ContentTypes row, which this
+          # database doesn't ship with by default (idempotent).
+          sqlite3 documentation.db \
+            "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
+          mkdir -p media
+          unzip -q webHelpImages.zip -d media
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
+            media documentation.db \
+            --jpeg-quality 85 --webp --webp-quality 90 --verbose
+
+      - name: Clone kotlin (for kotlin-stdlib-docs)
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_REF" ] && ARGS+=(--branch "$KOTLIN_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin.git kotlin-repo
+
+      - name: 'Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdlib/-reflect/-test JSON)'
+        id: stdlib_docs
+        run: |
+          OUTPUT="$(Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh kotlin-repo stdlib-json-build)"
+          echo "Generated JSON docs at $OUTPUT"
+          echo "all_libs_dir=$OUTPUT" >> "$GITHUB_OUTPUT"
+
+      - name: 'Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
+        run: |
+          python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
+            "${{ steps.stdlib_docs.outputs.all_libs_dir }}" --db documentation.db
+
+      - name: Summary
+        run: |
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3
+          import sys
+
+          conn = sqlite3.connect(sys.argv[1])
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          print(f"Database: {sys.argv[1]}")
+          print(f"  k/html/*             rows: {count('path LIKE ?', ('k/html/%',))}")
+          print(f"  k/html/images/*      rows: {count('path LIKE ?', ('k/html/images/%',))}")
+          print(f"  k/html/images/*.webp rows: {count('path LIKE ?', ('k/html/images/%.webp%',))}")
+          print(f"  k/kotlin-stdlib/*    rows: {count('path LIKE ? OR path = ?', ('k/kotlin-stdlib/%', 'k/kotlin-stdlib'))}")
+          print(f"  k/kotlin-reflect/*   rows: {count('path LIKE ? OR path = ?', ('k/kotlin-reflect/%', 'k/kotlin-reflect'))}")
+          print(f"  k/kotlin-test/*      rows: {count('path LIKE ? OR path = ?', ('k/kotlin-test/%', 'k/kotlin-test'))}")
+          conn.close()
+          PYEOF
+
+      - name: Blacklist pruning verification
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
+            'Development\/Web development' \
+            'Interoperability\/Swift/Objective-C and C interop' \
+            'Interoperability\/JavaScript interop' <<'PYEOF'
+          import sqlite3
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          process_dir, docs_root, db_path, *blacklist_raw = sys.argv[1:]
+          sys.path.insert(0, process_dir)
+          import populate_db  # noqa: E402
+
+          root = ET.parse(Path(docs_root) / "kr.tree").getroot()
+          blacklisted_paths = {populate_db.parse_blacklist_path(raw) for raw in blacklist_raw}
+          blacklisted_stems, unmatched_paths = populate_db.prune_blacklisted_elements(root, blacklisted_paths)
+
+          conn = sqlite3.connect(db_path)
+          leftover = []
+          for stem in sorted(blacklisted_stems):
+              path = f"k/html/{stem}.html"
+              if conn.execute("SELECT 1 FROM Content WHERE path = ?", (path,)).fetchone():
+                  leftover.append(path)
+          conn.close()
+
+          print(f"Blacklisted toc-element path(s) checked: {len(blacklisted_paths)}")
+          for path in sorted(blacklisted_paths):
+              status = "unmatched (no such element in kr.tree)" if path in unmatched_paths else "matched"
+              print(f"  {' > '.join(path)}: {status}")
+          print(f"Topic page(s) expected removed: {len(blacklisted_stems)}")
+
+          if unmatched_paths:
+              print(f"FAIL: {len(unmatched_paths)} blacklist path(s) never matched a <toc-element>.")
+              sys.exit(1)
+          if leftover:
+              print(f"FAIL: {len(leftover)} blacklisted page(s) still present in the database:")
+              for path in leftover:
+                  print(f"  {path}")
+              sys.exit(1)
+
+          print(f"PASS: all {len(blacklisted_stems)} blacklisted topic page(s) confirmed absent from {db_path}.")
+          PYEOF
+
+      - name: Write built database to output_dir
+        run: |
+          cp documentation.db "$OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+          echo "Wrote $OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+
+      - name: Write updated database back to db_path
+        if: ${{ !inputs.dry_run }}
+        run: |
+          cp documentation.db "$DB_PATH"
+          echo "Wrote updated documentation.db back to $DB_PATH"
+
+      - name: 'Notify Slack: build complete'
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Updated Kotlin documentation. Dropping baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi

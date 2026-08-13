@@ -1,18 +1,15 @@
 # Process Kotlin Website JSON
 
-Scripts for loading converted Kotlin website JSON, its navigation tree, and
-its media straight into a `documentation.db`-schema SQLite database.
-
-The JSON conversion itself (`md_to_json.py`) is a separate ticket/PR
-(ADFA-5039); `build_nav.py` and `populate_db.py` below import it directly,
-so it needs to already be merged (or otherwise present in this directory)
-for anything here to run.
+Converts a `kotlin-web-site/docs` checkout (JetBrains Writerside-flavored
+Markdown) into the JSON block schema this project's templating engine
+renders, then (optionally) builds the sidebar nav and loads everything
+straight into a `documentation.db`-schema SQLite database.
 
 ## Scripts
 
 | Script | Purpose |
 |---|---|
-| `md_to_json.py` (ADFA-5039, not in this PR) | Converts every `topics/**/*.md` page into one JSON file. Writes `theme.json` and copies `images/` into the output directory. See that ticket's README for the page JSON schema. |
+| [`md_to_json.py`](md_to_json.py) | Converts every `topics/**/*.md` page into one JSON file. Writes `theme.json` and copies `images/` into the output directory. See "Page JSON schema" below. |
 | [`build_nav.py`](build_nav.py) | Builds `nav.json`/`nav.html` sidebar navigation from `kr.tree`, resolving each `<toc-element topic="...">` against `md_to_json.py`'s output. |
 | [`find_missing_assets.py`](find_missing_assets.py) | QA pass: reports cross-page links, images, and `<include>` targets in the source tree that don't resolve to anything. Reuses `md_to_json.py`'s own resolution logic, so it flags exactly what would end up broken on the rendered site. |
 | [`populate_db.py`](populate_db.py) | The database path: converts the docs tree the same way `md_to_json.py` does, builds nav the same way `build_nav.py` does, and inserts pages + nav + images + CSS/JS directly into `documentation.db` (replacing everything under `k/html/` and `assets/`). Supports pruning whole `kr.tree` subtrees via `--blacklisted-element-titles`. |
@@ -33,23 +30,52 @@ included in this directory:
 ## Inputs you need before starting
 
 - A checkout of `kotlin-web-site/docs` (the `<docs-root>` argument below) — contains `topics/`, `images/`, `v.list`, and `kr.tree`.
-- A config JSON with theming colors, e.g.:
+- A config JSON with theming colors, e.g. [`config.json`](config.json):
   ```json
   {"broken-ext-link-color": "#cc0000", "menu-no-link-color": "#999999"}
   ```
 - Writerside's own image export zip (e.g. `webHelpImages.zip`, found next to `kr.tree`) if you're using `populate_db.py`.
 
+## Page JSON schema
+
+`md_to_json.py`'s output (one file per source `.md` page):
+
+```json
+{
+  "id": "enum-classes",
+  "sourceFile": "topics/enum-classes.md",
+  "title": "Enum classes",
+  "blocks": [ { "type": "heading", "level": 2, "id": "...", "html": "..." }, "..." ]
+}
+```
+
+Block types: `heading`, `paragraph`, `code`, `blockquote`, `list`, `table`,
+`hr`, `tabs`, `note`/`tip`/`warning`, `html` (raw passthrough). See the
+module docstring in [`md_to_json.py`](md_to_json.py) for full shapes and
+known limitations (nested tabs, `<include>` resolution, variable
+substitution). There is no standalone `image` block type - an image is
+always inline content inside whatever block contains it (typically
+`paragraph`), rendered straight into that block's own `html` string.
+
+A heading's `id` is `slugify()`'d from its text, unless the source line has
+an explicit `{id="..."}` (which overrides it directly). Cross-page links
+that carry a source `#anchor` are passed through verbatim rather than
+re-slugified, so a link and its target agree as long as both derive their id
+the same way; a hand-written `#anchor` that doesn't match either path (e.g.
+because Writerside's own anchor algorithm diverges from `slugify()` on
+headings with inline code or punctuation) will resolve to the right page but
+land on no anchor. Not currently detected - worth spot-checking if a page's
+in-page anchors stop scrolling to the right place.
+
 ## Workflow: generate JSON + nav for a static/templated preview
 
 Use this to produce standalone JSON pages and nav data (not the database)
-for local inspection or a different renderer. Step 1 is `md_to_json.py`
-(ADFA-5039) — see that ticket for its own usage and the page JSON schema it
-produces.
+for local inspection or a different renderer.
 
 ```bash
 UV_RUN="uv run --with-requirements ../../../requirements.txt"
 
-# 1. Convert every topic .md into JSON, one file per page (ADFA-5039)
+# 1. Convert every topic .md into JSON, one file per page
 $UV_RUN md_to_json.py <docs-root> <output-dir> config.json
 
 # 2. Build the sidebar nav from kr.tree against that JSON output
@@ -132,3 +158,14 @@ reference.
 1. `find_missing_assets.py` against the new `<docs-root>` — fix anything broken in the source before converting it.
 2. `populate_db.py`, with `--blacklisted-element-titles` for anything you don't want documented (e.g. Kotlin/Wasm per ADFA-4737).
 3. `insert_optimized_media.py` against the raw media directory, if you want optimized (resized/compressed) images rather than Writerside's own export as-is.
+
+## Trying it out
+
+[`review_build_json.sh`](review_build_json.sh) is a throwaway helper for
+reviewers — it clones `kotlin-web-site` and runs `md_to_json.py` against it
+via `uv run` so you can look at real output without any other setup. It's
+not part of the actual pipeline:
+
+```bash
+./review_build_json.sh
+```
