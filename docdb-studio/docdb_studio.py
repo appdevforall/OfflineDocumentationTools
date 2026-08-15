@@ -37,7 +37,9 @@ CONTENT_CHUNK_SIZE = 1024 * 1024  # Android consumer probes for `path-N` continu
 # builds cap at 999 host parameters, modern ones at 32766; we stay well under.
 SQL_PARAM_BATCH = 500
 
-PAGE_SIZE = 50
+SQLITE_PAGE_SIZE_BYTES = 2048  # ADFA-5141: smallest on the real ~300MB docdb, of the sizes tested.
+
+UI_PAGE_SIZE = 50
 
 # Built-in HTTP server for browsing Content rows in a real browser.
 CONTENT_SERVER_PORT = 6175
@@ -677,6 +679,11 @@ def vacuum_database(db_path: Path) -> None:
     """Reclaim free pages by rewriting the DB file. Runs after every mutation
     that includes a DELETE — DB hygiene is non-negotiable per project policy.
 
+    Also pins the page size to SQLITE_PAGE_SIZE_BYTES (ADFA-5141): PRAGMA
+    page_size only takes effect on the following VACUUM, so it's set here
+    rather than at connect time. Once the file is at the target page size
+    this is a no-op.
+
     VACUUM cannot run inside a transaction, so this opens a fresh connection
     with isolation_level=None and issues the statement directly. Callers should
     invoke this from a worker thread when triggered from the UI: on a ~380 MB
@@ -685,6 +692,7 @@ def vacuum_database(db_path: Path) -> None:
     """
     conn = sqlite3.connect(db_path, isolation_level=None)
     try:
+        conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
         conn.execute("VACUUM")
     finally:
         conn.close()
@@ -1645,7 +1653,7 @@ def main(
         atexit.register(_send_app_closed)
 
     current_page = 1
-    total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
+    total_pages = max(1, (total_count + UI_PAGE_SIZE - 1) // UI_PAGE_SIZE)
 
     # Built-in HTTP server for browsing Content rows in a real browser.
     # Bind failure (e.g. another instance already running) is non-fatal —
@@ -3552,7 +3560,7 @@ def main(
         ]
 
         total_pages_local = max(
-            1, (len(issues) + PAGE_SIZE - 1) // PAGE_SIZE
+            1, (len(issues) + UI_PAGE_SIZE - 1) // UI_PAGE_SIZE
         )
         initial_page = (
             max(1, min(restore_page, total_pages_local))
@@ -3576,8 +3584,8 @@ def main(
         next_btn = ft.Button("Next")
 
         def fill_table() -> None:
-            offset = (validator_state["page"] - 1) * PAGE_SIZE
-            page_slice = issues[offset : offset + PAGE_SIZE]
+            offset = (validator_state["page"] - 1) * UI_PAGE_SIZE
+            page_slice = issues[offset : offset + UI_PAGE_SIZE]
             table.rows.clear()
             for tid, tag, problem in page_slice:
                 edit_btn = ft.Button(
@@ -3607,11 +3615,11 @@ def main(
 
         def update_pager() -> None:
             start = (
-                (validator_state["page"] - 1) * PAGE_SIZE + 1
+                (validator_state["page"] - 1) * UI_PAGE_SIZE + 1
                 if issues
                 else 0
             )
-            end = min(validator_state["page"] * PAGE_SIZE, len(issues))
+            end = min(validator_state["page"] * UI_PAGE_SIZE, len(issues))
             pager_text.value = (
                 f"Page {validator_state['page']} of {total_pages_local}"
                 f" — issues {start}–{end} of {len(issues)}"
@@ -3663,7 +3671,7 @@ def main(
     ) -> None:
         nonlocal current_page, total_pages
         total_count = initial_total_count
-        total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
+        total_pages = max(1, (total_count + UI_PAGE_SIZE - 1) // UI_PAGE_SIZE)
         current_page = restore_page if restore_page is not None else 1
         current_page = max(1, min(current_page, total_pages))
         page.controls.clear()
@@ -3688,7 +3696,7 @@ def main(
                 "results_count": total_count,
                 "is_wildcard": "*" in term,
             })
-            total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
+            total_pages = max(1, (total_count + UI_PAGE_SIZE - 1) // UI_PAGE_SIZE)
             current_page = 1
             fill_table()
             update_pager()
@@ -3733,8 +3741,8 @@ def main(
             category_column.fixed_width = category_column_width(db_path)
             term = (search_input.value or "").strip()
             search_term = term if term else None
-            offset = (current_page - 1) * PAGE_SIZE
-            rows = get_page(db_path, PAGE_SIZE, offset, search_term)
+            offset = (current_page - 1) * UI_PAGE_SIZE
+            rows = get_page(db_path, UI_PAGE_SIZE, offset, search_term)
             table.rows.clear()
             for i, row in enumerate(rows):
                 tooltip_id, category_val, tag_val, summary_val, detail_val = row
@@ -3817,8 +3825,8 @@ def main(
         pager_row = ft.Row(controls=[ft.Text(""), pager_text, ft.Text("")])
 
         def update_pager() -> None:
-            start = (current_page - 1) * PAGE_SIZE + 1 if total_count > 0 else 0
-            end = min(current_page * PAGE_SIZE, total_count)
+            start = (current_page - 1) * UI_PAGE_SIZE + 1 if total_count > 0 else 0
+            end = min(current_page * UI_PAGE_SIZE, total_count)
             pager_text.value = f"Page {current_page} of {total_pages}  —  rows {start}–{end} of {total_count}"
             prev_btn.disabled = current_page <= 1
             next_btn.disabled = current_page >= total_pages

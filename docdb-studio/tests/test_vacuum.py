@@ -93,6 +93,17 @@ def test_vacuum_database_runs_without_error_and_preserves_schema() -> None:
         db.unlink(missing_ok=True)
 
 
+def test_vacuum_database_sets_target_page_size() -> None:
+    db = _make_tooltip_db(seed_filler_rows=10)
+    try:
+        vacuum_database(db)
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
 def test_vacuum_database_shrinks_after_large_delete() -> None:
     db = _make_tooltip_db(seed_filler_rows=200)
     try:
