@@ -117,6 +117,7 @@ gets either a shorter fragment or a missing row. Every file that ended up
 chunked is logged by name at the end of the run.
 """
 import argparse
+import atexit
 import json
 import shutil
 import sqlite3
@@ -294,6 +295,12 @@ class DictionaryCompressor:
         self._work_dir = Path(tempfile.mkdtemp(prefix="brotli-dict-"))
         self._dict_path = self._work_dir / "dictionary.bin"
         self._dict_path.write_bytes(dictionary_data)
+        # Safety net for callers that can't cleanly scope a `with` block around
+        # every instance -- e.g. one created per worker thread in a thread pool,
+        # where no single point of control can call close() on each. Safe to
+        # also call close() explicitly afterward: shutil.rmtree(ignore_errors=True)
+        # tolerates a directory that's already gone.
+        atexit.register(self.close)
 
     def _run(self, *extra_args: str, data: bytes) -> bytes:
         result = subprocess.run(
