@@ -10,6 +10,8 @@ import subprocess
 import contextlib
 
 class DocumentationDatabase:
+    SQLITE_PAGE_SIZE_BYTES = 2048  # ADFA-5141: match docdb-studio's pinned page size
+
     COMPRESSORS = {
         'text': 'brotli',
         'image': 'none',
@@ -69,6 +71,11 @@ class DocumentationDatabase:
         if not os.path.exists(database_path) or os.path.getsize(database_path) == 0:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
+                # PRAGMA page_size only takes effect on an empty database, before
+                # the first table is created (ADFA-5141) -- this is the one place
+                # in the release pipeline where the DB is guaranteed empty, so
+                # pinning it here is free (no VACUUM rewrite needed).
+                connection.execute(f"PRAGMA page_size={self.SQLITE_PAGE_SIZE_BYTES}")
                 self.create_tables(cursor)
                 self.populate_content_types(cursor)
                 self.populate_languages(cursor)

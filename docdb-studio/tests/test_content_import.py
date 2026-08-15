@@ -24,11 +24,17 @@ ImportItem = docdb_studio.ImportItem
 
 
 def _make_db_with_content_schema() -> Path:
-    """Create a temp DB seeded with Content/ContentTypes/Languages/LastChange schema and a few rows."""
+    """Create a temp DB seeded with Content/ContentTypes/Languages/LastChange schema and a few rows.
+
+    Pinned to SQLITE_PAGE_SIZE_BYTES up front so these tests (about import
+    behavior, not migration) don't incidentally trigger the one-time ADFA-5141
+    page_size vacuum -- that path has its own dedicated tests in test_vacuum.py.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     Path(path).unlink(missing_ok=True)
     p = Path(path)
     with sqlite3.connect(p) as conn:
+        conn.execute(f"PRAGMA page_size={docdb_studio.SQLITE_PAGE_SIZE_BYTES}")
         conn.executescript(
             """
             CREATE TABLE Languages (id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE);

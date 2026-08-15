@@ -681,8 +681,13 @@ def vacuum_database(db_path: Path) -> None:
 
     Also pins the page size to SQLITE_PAGE_SIZE_BYTES (ADFA-5141): PRAGMA
     page_size only takes effect on the following VACUUM, so it's set here
-    rather than at connect time. Once the file is at the target page size
-    this is a no-op.
+    rather than at connect time. VACUUM always does its full rebuild-and-copy
+    of the file regardless of whether the page size actually changes — there
+    is no cheaper no-op path once the DB is already at the target size.
+
+    PRAGMA page_size silently has no effect on the following VACUUM when
+    journal_mode is WAL, so this temporarily switches to DELETE mode for the
+    rewrite and restores the original mode afterward.
 
     VACUUM cannot run inside a transaction, so this opens a fresh connection
     with isolation_level=None and issues the statement directly. Callers should
@@ -690,12 +695,28 @@ def vacuum_database(db_path: Path) -> None:
     DB the rewrite takes several seconds and would otherwise freeze the event
     loop.
     """
-    conn = sqlite3.connect(db_path, isolation_level=None)
-    try:
+    with sqlite3.connect(db_path, isolation_level=None) as conn:
+        (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+        if journal_mode.lower() == "wal":
+            conn.execute("PRAGMA journal_mode=DELETE")
         conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
         conn.execute("VACUUM")
-    finally:
-        conn.close()
+        if journal_mode.lower() == "wal":
+            conn.execute(f"PRAGMA journal_mode={journal_mode}")
+
+
+def _page_size_migration_pending(db_path: Path) -> bool:
+    """Cheap read-only check for whether vacuum_database still needs to run to
+    reach SQLITE_PAGE_SIZE_BYTES (ADFA-5141).
+
+    vacuum_database is otherwise only triggered by DB-hygiene call sites gated
+    on "did this mutation delete/overwrite anything" — which a pure-insert
+    workflow never satisfies. Callers OR this into that gate so the one-time
+    migration still happens on the tool's common all-insert paths.
+    """
+    with sqlite3.connect(db_path) as conn:
+        (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+    return page_size != SQLITE_PAGE_SIZE_BYTES
 
 
 def get_categories_for_tooltips(
@@ -766,7 +787,11 @@ def fetch_content_for_path(
     and decompressing brotli where applicable. None if the path is missing or
     decompression fails."""
     try:
-        with sqlite3.connect(db_path) as conn:
+        # vacuum_database can hold an exclusive lock for several seconds on the
+        # ~380 MB DB (longer on the one-time ADFA-5141 page_size migration);
+        # the default 5s busy timeout would otherwise turn that into a false
+        # 404 for content that genuinely exists.
+        with sqlite3.connect(db_path, timeout=30.0) as conn:
             cur = conn.execute(
                 """
                 SELECT c.content, ct.value, ct.compression
@@ -1231,7 +1256,7 @@ def import_csv_rows(
                         (tooltip_id, bid, label, uri),
                     )
         conn.commit()
-    if updated:
+    if updated or _page_size_migration_pending(db_path):
         vacuum_database(db_path)
     return inserted, updated
 
@@ -1549,7 +1574,7 @@ def import_content_files(
 
     update_last_change(db_path, documentation_set, user_name)
 
-    if orphans_deleted or files_overwritten:
+    if orphans_deleted or files_overwritten or _page_size_migration_pending(db_path):
         _report("vacuum", 0, 1)
         vacuum_database(db_path)
         _report("vacuum", 1, 1)

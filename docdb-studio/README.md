@@ -200,4 +200,4 @@ docdb-studio/
 └── pyproject.toml    # project metadata + dependencies
 ```
 
-The database schema is documented in `SCHEMA.md` and is treated as immutable — the tool performs no migrations.
+The database schema is documented in `SCHEMA.md` and is treated as immutable — the tool performs no schema migrations. (It does pin the on-disk SQLite page size to `SQLITE_PAGE_SIZE_BYTES` via `vacuum_database`, ADFA-5141 — a storage-format change, not a schema change.)

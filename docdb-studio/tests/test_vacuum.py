@@ -21,12 +21,19 @@ get_content_types = docdb_studio.get_content_types
 ImportItem = docdb_studio.ImportItem
 
 
-def _make_tooltip_db(seed_filler_rows: int = 0) -> Path:
-    """Tooltip-shaped temp DB with optional seed rows to inflate the file."""
+def _make_tooltip_db(
+    seed_filler_rows: int = 0, starting_page_size: int | None = None
+) -> Path:
+    """Tooltip-shaped temp DB with optional seed rows to inflate the file.
+
+    `starting_page_size`, when given, is set via PRAGMA before any table is
+    created — page_size only takes effect on an empty database."""
     fd, path = tempfile.mkstemp(suffix=".db")
     Path(path).unlink(missing_ok=True)
     p = Path(path)
     with sqlite3.connect(p) as conn:
+        if starting_page_size is not None:
+            conn.execute(f"PRAGMA page_size={starting_page_size}")
         conn.executescript(
             """
             CREATE TABLE TooltipCategories (
@@ -94,12 +101,34 @@ def test_vacuum_database_runs_without_error_and_preserves_schema() -> None:
 
 
 def test_vacuum_database_sets_target_page_size() -> None:
-    db = _make_tooltip_db(seed_filler_rows=10)
+    """Real production DBs start at page_size=1024 (ADFA-5141); exercise that
+    actual 1024 -> 2048 growth, not just an already-larger compiled default."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
     try:
+        with sqlite3.connect(db) as conn:
+            (page_size_before,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size_before == 1024
         vacuum_database(db)
         with sqlite3.connect(db) as conn:
             (page_size,) = conn.execute("PRAGMA page_size").fetchone()
         assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_vacuum_database_migrates_page_size_under_wal() -> None:
+    """PRAGMA page_size silently fails to take effect on VACUUM under WAL
+    journal mode; vacuum_database must work around it."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+        vacuum_database(db)
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+            (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+        assert journal_mode.lower() == "wal"
     finally:
         db.unlink(missing_ok=True)
 
@@ -212,14 +241,34 @@ def test_import_csv_rows_update_mode_does_not_grow_file() -> None:
         db.unlink(missing_ok=True)
 
 
+def test_import_csv_rows_pure_insert_still_migrates_page_size() -> None:
+    """A pure-insert import (no rows updated) must not skip the ADFA-5141
+    page_size migration just because it never satisfies the DB-hygiene
+    delete/overwrite gate."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        rows = [
+            ["ide", "brand-new", "summary", "detail", "", "", "", "", "", ""],
+        ]
+        inserted, updated = import_csv_rows(db, rows, {"ide": 1}, mode="insert")
+        assert (inserted, updated) == (1, 0)
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
 # ---------- import_content_files (orphan delete) ----------
 
 
-def _make_content_db() -> Path:
+def _make_content_db(starting_page_size: int | None = None) -> Path:
     fd, path = tempfile.mkstemp(suffix=".db")
     Path(path).unlink(missing_ok=True)
     p = Path(path)
     with sqlite3.connect(p) as conn:
+        if starting_page_size is not None:
+            conn.execute(f"PRAGMA page_size={starting_page_size}")
         conn.executescript(
             """
             CREATE TABLE Languages (id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE);
@@ -288,8 +337,45 @@ def test_import_content_files_orphan_phase_shrinks_file(tmp_path: Path) -> None:
         db.unlink(missing_ok=True)
 
 
+def test_import_content_files_pure_insert_still_migrates_page_size(
+    tmp_path: Path,
+) -> None:
+    """A pure-insert import (no orphans, no overwrites) must not skip the
+    ADFA-5141 page_size migration just because it never satisfies the
+    DB-hygiene delete/overwrite gate."""
+    db = _make_content_db(starting_page_size=1024)
+    try:
+        new_file = tmp_path / "docs" / "new.html"
+        new_file.parent.mkdir()
+        new_file.write_bytes(b"hello")
+        content_types = get_content_types(db)
+        scan = prescan_content_import(db, tmp_path / "docs", content_types)
+        assert not scan.orphan_row_ids
+        assert not scan.overwrite_row_ids_by_base
+
+        summary = import_content_files(
+            db,
+            scan.mapped,
+            language_id=1,
+            user_name="tester",
+            documentation_set="test",
+            orphan_row_ids=scan.orphan_row_ids,
+            overwrite_row_ids_by_base=scan.overwrite_row_ids_by_base,
+            progress_callback=None,
+        )
+        assert summary.orphans_deleted == 0
+        assert summary.files_overwritten == 0
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
 def test_import_content_files_vacuum_phase_is_reported() -> None:
-    """Pure-insert import skips VACUUM; delete-bearing import fires the phase."""
+    """Delete-bearing import fires the vacuum phase (a pure-insert import also
+    fires it once, to migrate page_size -- see
+    test_import_content_files_pure_insert_still_migrates_page_size)."""
     db = _make_content_db()
     try:
         # Seed one row that the import will overwrite.

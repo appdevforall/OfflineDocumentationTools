@@ -27,6 +27,16 @@ class TestDocumentationDatabase(unittest.TestCase):
             self.assertIn(('ContentTypes',), tables)
             # ide_tooltip_table is optional and created by tooltip processing scripts
 
+    def test_page_size_pinned_on_fresh_database(self):
+        # ADFA-5141: a freshly created database should already be at the
+        # pinned page size -- no VACUUM migration needed for the release
+        # pipeline's actual build path.
+        with sqlite3.connect(self.temp_db_file.name) as connection:
+            cursor = connection.cursor()
+            cursor.execute("PRAGMA page_size;")
+            (page_size,) = cursor.fetchone()
+            self.assertEqual(page_size, DocumentationDatabase.SQLITE_PAGE_SIZE_BYTES)
+
     def test_content_types_populated(self):
         # Check if the ContentTypes table contains all expected types
         with sqlite3.connect(self.temp_db_file.name) as connection:
