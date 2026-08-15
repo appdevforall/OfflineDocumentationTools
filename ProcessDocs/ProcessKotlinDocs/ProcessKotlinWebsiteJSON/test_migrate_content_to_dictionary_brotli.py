@@ -5,7 +5,9 @@ Run directly: python3 test_migrate_content_to_dictionary_brotli.py
 """
 import random
 import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 
 import brotli
 
@@ -76,7 +78,14 @@ def reassemble(conn, path, first_content):
 
 class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
     def setUp(self):
-        self.conn = sqlite3.connect(":memory:")
+        # A real file, not :memory: - migrate() parallelizes the read+compress
+        # phase across worker threads, each opening its own read-only
+        # connection to db_path, which an in-memory database has no path for
+        # (and can't share across connections at all).
+        fd, path = tempfile.mkstemp(suffix=".db")
+        Path(path).unlink(missing_ok=True)
+        self.db_path = Path(path)
+        self.conn = sqlite3.connect(self.db_path)
         self.conn.executescript(SCHEMA_SQL)
         self.conn.execute("INSERT INTO Languages (value) VALUES ('en-US')")
         self.conn.execute("INSERT INTO ContentTypes (value, compression) VALUES ('text/html', 'brotli')")
@@ -88,6 +97,7 @@ class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
 
     def tearDown(self):
         self.conn.close()
+        self.db_path.unlink(missing_ok=True)
 
     def test_migrates_plain_brotli_rows_preserving_content(self):
         originals = {}
@@ -101,7 +111,7 @@ class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
         )
         self.conn.commit()
 
-        stats = migrate(self.conn, sample_size=20, dict_size=16384)
+        stats = migrate(self.conn, self.db_path, sample_size=20, dict_size=16384)
         self.assertEqual(stats["scanned"], 20)
         self.assertEqual(stats["migrated"], 20)
         self.assertEqual(stats["already_migrated"], 0)
@@ -144,7 +154,7 @@ class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
         ).fetchone()
         self.assertIsNotNone(fragment_exists, "test fixture did not produce a chunked row; adjust its size")
 
-        stats = migrate(self.conn, sample_size=21, dict_size=16384)
+        stats = migrate(self.conn, self.db_path, sample_size=21, dict_size=16384)
         self.assertEqual(stats["migrated"], 21)
 
         dictionary_data = load_dictionary(self.conn)
@@ -163,7 +173,7 @@ class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
             originals[f"k/html/p{i}.html"] = plain
         self.conn.commit()
 
-        first_stats = migrate(self.conn, sample_size=15, dict_size=16384)
+        first_stats = migrate(self.conn, self.db_path, sample_size=15, dict_size=16384)
         self.assertEqual(first_stats["migrated"], 15)
         dictionary_after_first_run = load_dictionary(self.conn)
 
@@ -172,7 +182,7 @@ class MigrateContentToDictionaryBrotliTest(unittest.TestCase):
             for path in originals
         }
 
-        second_stats = migrate(self.conn, sample_size=15, dict_size=16384)
+        second_stats = migrate(self.conn, self.db_path, sample_size=15, dict_size=16384)
         self.assertEqual(second_stats["migrated"], 0)
         self.assertEqual(second_stats["already_migrated"], 15)
 
