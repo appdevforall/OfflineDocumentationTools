@@ -199,6 +199,35 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 # worth it).
 DEFAULT_DICT_SIZE = 256 * 1024
 
+# ADFA-5141: smallest page size measured against the real ~300MB docdb, of
+# the sizes tested - see docdb-studio/docdb_studio.py's SQLITE_PAGE_SIZE_BYTES.
+# This pipeline's own VACUUM (below) is the one actually run against the live
+# documentation.db, so the migration has to live here too, not only in the
+# docdb-studio GUI tool's vacuum_database().
+SQLITE_PAGE_SIZE_BYTES = 2048
+
+
+def vacuum_and_pin_page_size(db_path: Path) -> None:
+    """Rebuild db_path via VACUUM, reclaiming freed pages and pinning the page
+    size to SQLITE_PAGE_SIZE_BYTES (ADFA-5141).
+
+    PRAGMA page_size only takes effect on the following VACUUM, so it's set
+    here rather than at connect time. PRAGMA page_size silently has no effect
+    on VACUUM when journal_mode is WAL, so this temporarily switches to
+    DELETE mode for the rewrite and restores the original mode afterward.
+    """
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+        if journal_mode.lower() == "wal":
+            conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
+        conn.execute("VACUUM")
+        if journal_mode.lower() == "wal":
+            conn.execute(f"PRAGMA journal_mode={journal_mode}")
+    finally:
+        conn.close()
+
 
 def find_pngquant() -> str:
     """Locates the pngquant executable on PATH. Raises if it's missing,
@@ -758,13 +787,10 @@ def main():
     # freelist. VACUUM is the only thing that actually rebuilds the file at
     # its true minimal size, and it can't run inside the transaction above
     # (SQLite refuses VACUUM while one is active), so it's a separate step
-    # on its own connection afterwards.
+    # on its own connection afterwards. Also pins the page size - see
+    # vacuum_and_pin_page_size.
     print("Vacuuming database to reclaim freed space...", file=sys.stderr)
-    vacuum_conn = sqlite3.connect(args.db_path)
-    try:
-        vacuum_conn.execute("VACUUM")
-    finally:
-        vacuum_conn.close()
+    vacuum_and_pin_page_size(args.db_path)
 
     print(
         f"Inserted {len(pages)} page(s) + 1 navigation row + {images_inserted} image(s) + "
