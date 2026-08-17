@@ -3,7 +3,9 @@
 
 Run directly: python3 test_vacuum_and_pin_page_size.py
 """
+import os
 import sqlite3
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +57,21 @@ class VacuumAndPinPageSizeTest(unittest.TestCase):
                 (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
             self.assertEqual(page_size, SQLITE_PAGE_SIZE_BYTES)
             self.assertEqual(journal_mode.lower(), "wal")
+        finally:
+            db.unlink(missing_ok=True)
+
+    def test_preserves_file_permissions(self):
+        # VACUUM INTO rewrites through a tempfile.mkstemp() temp file, which
+        # is always created mode 0600 regardless of the original's mode or
+        # the process umask - confirmed via real-world QA (on the mirrored
+        # docdb-studio.py fix) to silently drop a 644 documentation.db to 600
+        # on every vacuum if not restored after the os.replace swap.
+        db = _make_db(starting_page_size=1024)
+        try:
+            os.chmod(db, 0o644)
+            vacuum_and_pin_page_size(db)
+            mode = stat.S_IMODE(db.stat().st_mode)
+            self.assertEqual(mode, 0o644)
         finally:
             db.unlink(missing_ok=True)
 

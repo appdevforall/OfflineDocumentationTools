@@ -122,6 +122,7 @@ import json
 import os
 import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -227,14 +228,20 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
 
     The rewrite happens in a temp file created next to db_path (so the final
     os.replace is same-filesystem and atomic, avoiding a shared/guessable
-    /tmp path per the ADFA-5088 CWE-377 lesson). VACUUM INTO always produces
-    a plain rollback-journal file regardless of the source's journal_mode, so
-    if the source was WAL, journal_mode=WAL is reapplied to the new file (via
-    its final path, so the resulting -wal/-shm sidecars get the right name)
+    /tmp path per the ADFA-5088 CWE-377 lesson). tempfile.mkstemp always
+    creates its file mode 0600 regardless of the original's mode or the
+    process umask, so db_path's original permission bits are restored on the
+    swapped-in file (confirmed on real hardware during QA of the docdb-studio
+    version of this fix: without this, every vacuum silently dropped a 644
+    documentation.db to 600). VACUUM INTO always produces a plain
+    rollback-journal file regardless of the source's journal_mode, so if the
+    source was WAL, journal_mode=WAL is reapplied to the new file (via its
+    final path, so the resulting -wal/-shm sidecars get the right name)
     before it replaces the original; any sidecars left behind by the file
     just replaced are then stale and removed.
     """
     db_path = Path(db_path)
+    original_mode = stat.S_IMODE(db_path.stat().st_mode)
     with sqlite3.connect(db_path, timeout=30.0) as conn:
         (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         was_wal = journal_mode.lower() == "wal"
@@ -247,6 +254,7 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
             conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
             conn.execute(f"VACUUM INTO '{tmp_path}'")
         os.replace(tmp_path, db_path)
+        os.chmod(db_path, original_mode)
     finally:
         tmp_path.unlink(missing_ok=True)
 
