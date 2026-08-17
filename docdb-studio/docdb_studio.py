@@ -743,15 +743,14 @@ def vacuum_database(db_path: Path) -> None:
         fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
         os.close(fd)
         tmp_path = Path(tmp_name)
-        # SQLite string-literal escaping (double any embedded single quote) --
-        # VACUUM INTO takes its target as a string literal, not a bindable
-        # parameter, so a path containing a quote (e.g. a user's home directory
-        # named "David's Docs") would otherwise break the statement.
-        escaped_tmp_path = str(tmp_path).replace("'", "''")
         try:
             with sqlite3.connect(db_path, timeout=30.0) as conn:
                 conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-                conn.execute(f"VACUUM INTO '{escaped_tmp_path}'")
+                # Bound parameter, not an f-string: VACUUM INTO's target
+                # accepts one, which sidesteps having to escape a path that
+                # contains a single quote (e.g. a user directory named
+                # "David's Docs").
+                conn.execute("VACUUM INTO ?", (str(tmp_path),))
             os.replace(tmp_path, db_path)
             os.chmod(db_path, original_mode)
         finally:
