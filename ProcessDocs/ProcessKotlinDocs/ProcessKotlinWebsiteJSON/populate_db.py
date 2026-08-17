@@ -245,6 +245,7 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
     with sqlite3.connect(db_path, timeout=30.0) as conn:
         (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         was_wal = journal_mode.lower() == "wal"
+    conn.close()
 
     fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
     os.close(fd)
@@ -252,7 +253,11 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
     try:
         with sqlite3.connect(db_path, timeout=30.0) as conn:
             conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-            conn.execute(f"VACUUM INTO '{tmp_path}'")
+            # Bound parameter, not an f-string, matching backup_database's
+            # use of the same pattern above: VACUUM INTO's target accepts
+            # one, which sidesteps having to escape a path that contains a
+            # single quote (e.g. a user directory named "David's Docs").
+            conn.execute("VACUUM INTO ?", (str(tmp_path),))
         os.replace(tmp_path, db_path)
         os.chmod(db_path, original_mode)
     finally:

@@ -125,6 +125,30 @@ class VacuumAndPinPageSizeTest(unittest.TestCase):
         finally:
             db.unlink(missing_ok=True)
 
+    def test_handles_quote_in_parent_dir_name(self):
+        # An earlier version built "VACUUM INTO '{tmp_path}'" via an
+        # f-string; a single quote anywhere in db_path's parent directory
+        # (e.g. a real user directory like "David's Docs") broke that
+        # statement outright. Now a bound parameter, which needs no escaping.
+        tmp_dir = tempfile.mkdtemp()
+        quote_dir = Path(tmp_dir) / "David's Docs"
+        quote_dir.mkdir()
+        db = quote_dir / "test.db"
+        try:
+            with sqlite3.connect(db) as conn:
+                conn.executescript(
+                    "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT); INSERT INTO t (v) VALUES ('x');"
+                )
+                conn.commit()
+            vacuum_and_pin_page_size(db)  # must not raise
+            with sqlite3.connect(db) as conn:
+                (count,) = conn.execute("SELECT count(*) FROM t").fetchone()
+            self.assertEqual(count, 1)
+        finally:
+            db.unlink(missing_ok=True)
+            quote_dir.rmdir()
+            os.rmdir(tmp_dir)
+
     def test_leaves_original_untouched_if_vacuum_into_fails(self):
         db = _make_db(starting_page_size=1024)
         try:
