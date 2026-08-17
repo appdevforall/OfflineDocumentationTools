@@ -11,6 +11,7 @@ import os
 import platform as _platform
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -673,46 +674,78 @@ def update_last_change(
         if documentation_set != WHOLEDB_KEY:
             _stamp(conn, WHOLEDB_KEY)
         conn.commit()
+    conn.close()
 
 
 def vacuum_database(db_path: Path) -> None:
-    """Reclaim free pages by rewriting the DB file. Runs after every mutation
-    that includes a DELETE — DB hygiene is non-negotiable per project policy.
+    """Reclaim free pages and pin the page size (ADFA-5141) by rewriting the DB
+    into a fresh file via VACUUM INTO, then atomically swapping it into place.
+    Runs after every mutation that includes a DELETE — DB hygiene is
+    non-negotiable per project policy.
 
-    Also pins the page size to SQLITE_PAGE_SIZE_BYTES (ADFA-5141): PRAGMA
-    page_size only takes effect on the following VACUUM, so it's set here
-    rather than at connect time. VACUUM always does its full rebuild-and-copy
-    of the file regardless of whether the page size actually changes — there
-    is no cheaper no-op path once the DB is already at the target size.
+    This deliberately avoids in-place VACUUM + a journal_mode round-trip.
+    Switching a WAL-mode database away from WAL requires exclusive access --
+    no other connection may have the file open at all -- which is impractical
+    to guarantee in a desktop app that may have other connections open
+    elsewhere (e.g. a live data browser, or even the caller's own connection:
+    Python's `with sqlite3.connect(...) as conn:` does not close conn on
+    exit, and empirically an unclosed connection can keep the file locked
+    well past its enclosing function's return). VACUUM INTO only needs a read
+    snapshot of the source, so it works regardless of what else currently has
+    db_path open.
 
-    PRAGMA page_size silently has no effect on the following VACUUM when
-    journal_mode is WAL, so this temporarily switches to DELETE mode for the
-    rewrite and restores the original mode afterward — even if the rewrite
-    itself fails, so a lock error doesn't leave the DB permanently off WAL.
+    The rewrite happens in a temp file created next to db_path (so the final
+    os.replace is same-filesystem and atomic, and per the ADFA-5088 CWE-377
+    lesson this avoids writing into a shared, guessable /tmp). VACUUM INTO
+    always produces a plain rollback-journal file regardless of the source's
+    journal_mode, so if the source was WAL, journal_mode=WAL is reapplied to
+    the new file (via its final path, so the resulting -wal/-shm sidecars get
+    the right name) before it replaces the original; any sidecars left behind
+    by the file just replaced are then stale and removed.
 
-    VACUUM cannot run inside a transaction, so this opens a fresh connection
-    with isolation_level=None and issues the statement directly. Callers should
-    invoke this from a worker thread when triggered from the UI: on a ~380 MB
-    DB the rewrite takes several seconds and would otherwise freeze the event
-    loop.
+    Callers should invoke this from a worker thread when triggered from the
+    UI: on a ~380 MB DB the rewrite takes several seconds and would otherwise
+    freeze the event loop.
     """
-    with sqlite3.connect(db_path, isolation_level=None) as conn:
+    db_path = Path(db_path)
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
         (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         was_wal = journal_mode.lower() == "wal"
-        try:
-            if was_wal:
-                conn.execute("PRAGMA journal_mode=DELETE")
+
+    fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        with sqlite3.connect(db_path, timeout=30.0) as conn:
             conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-            conn.execute("VACUUM")
-        finally:
-            if was_wal:
-                conn.execute(f"PRAGMA journal_mode={journal_mode}")
-    _page_size_confirmed.add(Path(db_path))
+            conn.execute(f"VACUUM INTO '{tmp_path}'")
+        os.replace(tmp_path, db_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    # Any -wal/-shm sidecars still sitting at db_path's name at this point are
+    # for the file just replaced -- guaranteed stale, since the swapped-in
+    # file was just VACUUM INTO'd fresh (plain rollback-journal, no sidecars).
+    for suffix in ("-wal", "-shm"):
+        stale = db_path.with_name(db_path.name + suffix)
+        stale.unlink(missing_ok=True)
+
+    if was_wal:
+        # Reapply on db_path's final name (not tmp_path's) so the resulting
+        # sidecars are named correctly -- VACUUM INTO always produces a plain
+        # rollback-journal file regardless of the source's journal_mode.
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+
+    with _page_size_confirmed_lock:
+        _page_size_confirmed.add(db_path)
 
 
 # Paths already confirmed at SQLITE_PAGE_SIZE_BYTES, so _page_size_migration_pending
 # can skip re-opening the DB on every import call once the one-time migration is done.
+# Guarded by a lock since imports can run migration checks from worker threads.
 _page_size_confirmed: set[Path] = set()
+_page_size_confirmed_lock = threading.Lock()
 
 
 def _page_size_migration_pending(db_path: Path) -> bool:
@@ -725,16 +758,19 @@ def _page_size_migration_pending(db_path: Path) -> bool:
     migration still happens on the tool's common all-insert paths.
     """
     db_path = Path(db_path)
-    if db_path in _page_size_confirmed:
-        return False
+    with _page_size_confirmed_lock:
+        if db_path in _page_size_confirmed:
+            return False
     # Matches fetch_content_for_path's timeout: a concurrent vacuum_database can
     # hold an exclusive lock for several seconds, and the default 5s busy timeout
     # would otherwise surface a spurious failure on an import that has already committed.
     with sqlite3.connect(db_path, timeout=30.0) as conn:
         (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+    conn.close()
     pending = page_size != SQLITE_PAGE_SIZE_BYTES
     if not pending:
-        _page_size_confirmed.add(db_path)
+        with _page_size_confirmed_lock:
+            _page_size_confirmed.add(db_path)
     return pending
 
 
@@ -781,7 +817,8 @@ def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
             )
             deleted += cur.rowcount
         conn.commit()
-    if deleted:
+    conn.close()
+    if deleted or _page_size_migration_pending(db_path):
         vacuum_database(db_path)
     return deleted
 
@@ -1013,6 +1050,7 @@ def delete_tooltip_button(
             (tooltip_id, button_number_id),
         )
         conn.commit()
+    conn.close()
     vacuum_database(db_path)
 
 
@@ -1045,6 +1083,7 @@ def replace_tooltip_buttons(
                 (tooltip_id, button_number_id, description, uri),
             )
         conn.commit()
+    conn.close()
     vacuum_database(db_path)
 
 
@@ -1275,6 +1314,7 @@ def import_csv_rows(
                         (tooltip_id, bid, label, uri),
                     )
         conn.commit()
+    conn.close()
     if updated or _page_size_migration_pending(db_path):
         vacuum_database(db_path)
     return inserted, updated
@@ -1344,7 +1384,9 @@ def get_content_types(db_path: Path) -> dict[str, tuple[int, str]]:
     """Return {ContentTypes.value: (id, compression)} for every row."""
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute("SELECT id, value, compression FROM ContentTypes")
-        return {value: (cid, compression) for cid, value, compression in cur.fetchall()}
+        result = {value: (cid, compression) for cid, value, compression in cur.fetchall()}
+    conn.close()
+    return result
 
 
 def get_languages(db_path: Path) -> list[tuple[int, str]]:
@@ -1472,6 +1514,7 @@ def prescan_content_import(
             else:
                 orphan_set.add(base)
                 orphan_row_ids.append(row_id)
+    conn.close()
 
     return ScanResult(
         mapped=list(candidates),
@@ -1590,6 +1633,7 @@ def import_content_files(
                 _report("add", adds_done, add_total)
 
         conn.commit()
+    conn.close()
 
     update_last_change(db_path, documentation_set, user_name)
 

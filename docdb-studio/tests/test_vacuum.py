@@ -136,8 +136,53 @@ def test_vacuum_database_migrates_page_size_under_wal() -> None:
         db.unlink(missing_ok=True)
 
 
-class _FailOnVacuumConn:
-    """Wraps a real sqlite3.Connection, raising on VACUUM. sqlite3.Connection
+def test_vacuum_database_succeeds_with_other_connections_still_open() -> None:
+    """The in-place VACUUM + journal_mode round-trip this replaced required
+    exclusive access to db_path -- SQLite refuses to switch a WAL-mode db away
+    from WAL while any other connection has it open. That made vacuum_database
+    fragile against anything else in the app holding db_path open (e.g. a live
+    data browser), not just the caller's own unclosed connection. VACUUM INTO
+    only needs a read snapshot of the source, so this must succeed even with
+    both an unrelated open connection and an unclosed caller-style connection
+    still around."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+
+        # An unrelated, still-open connection with a live read outstanding --
+        # e.g. a UI data browser left open while an import runs elsewhere.
+        browser_conn = sqlite3.connect(db)
+        browser_conn.execute("SELECT * FROM Tooltips")
+
+        # A second connection that wrote+committed and is deliberately left
+        # unclosed, mirroring a caller that didn't close its own connection.
+        writer_conn = sqlite3.connect(db)
+        writer_conn.execute(
+            "INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (?, ?, ?, ?)",
+            (1, "extra", "s", "d"),
+        )
+        writer_conn.commit()
+
+        try:
+            vacuum_database(db)  # must not raise "database is locked"
+        finally:
+            browser_conn.close()
+            writer_conn.close()
+
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+            (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+            (count,) = conn.execute("SELECT count(*) FROM Tooltips").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+        assert journal_mode.lower() == "wal"
+        assert count == 11  # 10 seeded + 1 from writer_conn
+    finally:
+        db.unlink(missing_ok=True)
+
+
+class _FailOnVacuumIntoConn:
+    """Wraps a real sqlite3.Connection, raising on VACUUM INTO. sqlite3.Connection
     is a C type and refuses attribute assignment (even per-instance), so this
     proxies everything else through to a genuine connection instead."""
 
@@ -145,8 +190,8 @@ class _FailOnVacuumConn:
         self._real = real
 
     def execute(self, sql, *args, **kwargs):
-        if sql.strip().upper() == "VACUUM":
-            raise sqlite3.OperationalError("simulated lock failure")
+        if sql.strip().upper().startswith("VACUUM INTO"):
+            raise sqlite3.OperationalError("simulated vacuum-into failure")
         return self._real.execute(sql, *args, **kwargs)
 
     def __enter__(self):
@@ -160,26 +205,33 @@ class _FailOnVacuumConn:
         return getattr(self._real, name)
 
 
-def test_vacuum_database_restores_wal_even_if_vacuum_fails() -> None:
-    """If VACUUM itself raises after journal_mode was switched away from WAL,
-    the original journal_mode must still be restored -- a lock error mid-vacuum
-    must not leave the DB stuck on DELETE journal mode forever."""
+def test_vacuum_database_leaves_original_untouched_if_vacuum_into_fails() -> None:
+    """If VACUUM INTO fails partway, the original db_path must be left
+    completely unchanged (content, page_size, journal_mode) -- vacuum_database
+    only ever swaps in a fully-built replacement, never edits db_path in place
+    -- and the temp file must not be left behind."""
     db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
     try:
         with sqlite3.connect(db) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
+        size_before = db.stat().st_size
 
         real_connect = sqlite3.connect
         with mock.patch("docdb_studio.sqlite3.connect") as mock_connect:
-            mock_connect.side_effect = lambda *a, **k: _FailOnVacuumConn(
+            mock_connect.side_effect = lambda *a, **k: _FailOnVacuumIntoConn(
                 real_connect(*a, **k)
             )
-            with pytest.raises(sqlite3.OperationalError):
+            with pytest.raises(sqlite3.OperationalError, match="simulated vacuum-into failure"):
                 vacuum_database(db)
 
+        assert db.stat().st_size == size_before
         with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
             (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+        assert page_size == 1024
         assert journal_mode.lower() == "wal"
+        leftover_tmp = list(db.parent.glob(f"{db.name}*.vacuum.tmp"))
+        assert leftover_tmp == []
     finally:
         db.unlink(missing_ok=True)
 
@@ -216,6 +268,39 @@ def test_delete_tooltips_bulk_shrinks_file() -> None:
         db.unlink(missing_ok=True)
 
 
+def test_delete_tooltips_bulk_no_op_still_migrates_page_size() -> None:
+    """A bulk-delete call where nothing actually matched (deleted == 0) must not
+    skip the ADFA-5141 page_size migration just because it never satisfies the
+    `if deleted:` DB-hygiene gate -- the same gap fixed for the import paths."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        deleted = delete_tooltips_bulk(db, [999999])
+        assert deleted == 0
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_delete_tooltips_bulk_under_wal_does_not_deadlock() -> None:
+    """SQLite refuses to switch a WAL-mode db away from WAL while any other
+    connection (even one that already committed) is still open; delete_tooltips_bulk
+    must close its own connection before the triggered vacuum_database runs."""
+    db = _make_tooltip_db(seed_filler_rows=10)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            ids = [
+                row[0] for row in conn.execute("SELECT id FROM Tooltips").fetchall()
+            ]
+        conn.close()
+        deleted = delete_tooltips_bulk(db, ids[:5])
+        assert deleted == 5
+    finally:
+        db.unlink(missing_ok=True)
+
+
 # ---------- delete_tooltip_button ----------
 
 
@@ -236,6 +321,30 @@ def test_delete_tooltip_button_does_not_grow_file() -> None:
         delete_tooltip_button(db, 9000, 1)
         size_after = db.stat().st_size
         assert size_after <= size_before
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_delete_tooltip_button_under_wal_does_not_deadlock() -> None:
+    """SQLite refuses to switch a WAL-mode db away from WAL while any other
+    connection (even one that already committed) is still open;
+    delete_tooltip_button must close its own connection before the
+    unconditionally-triggered vacuum_database runs."""
+    db = _make_tooltip_db(seed_filler_rows=10)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(
+                "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, ?, ?, ?, ?)",
+                (9000, 1, "with-button", "s", "d"),
+            )
+            conn.execute(
+                "INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES (?, ?, ?, ?)",
+                (9000, 1, "desc", "uri.html"),
+            )
+            conn.commit()
+        conn.close()
+        delete_tooltip_button(db, 9000, 1)  # must not raise
     finally:
         db.unlink(missing_ok=True)
 
@@ -262,6 +371,26 @@ def test_replace_tooltip_buttons_does_not_grow_file() -> None:
         )
         size_after = db.stat().st_size
         assert size_after <= size_before
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_replace_tooltip_buttons_under_wal_does_not_deadlock() -> None:
+    """SQLite refuses to switch a WAL-mode db away from WAL while any other
+    connection (even one that already committed) is still open;
+    replace_tooltip_buttons must close its own connection before the
+    unconditionally-triggered vacuum_database runs."""
+    db = _make_tooltip_db(seed_filler_rows=10)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(
+                "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, ?, ?, ?, ?)",
+                (9001, 1, "replace-me", "s", "d"),
+            )
+            conn.commit()
+        conn.close()
+        replace_tooltip_buttons(db, 9001, [(1, "new1", "new1.html")])  # must not raise
     finally:
         db.unlink(missing_ok=True)
 
@@ -298,6 +427,27 @@ def test_import_csv_rows_pure_insert_still_migrates_page_size() -> None:
     delete/overwrite gate."""
     db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
     try:
+        rows = [
+            ["ide", "brand-new", "summary", "detail", "", "", "", "", "", ""],
+        ]
+        inserted, updated = import_csv_rows(db, rows, {"ide": 1}, mode="insert")
+        assert (inserted, updated) == (1, 0)
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_csv_rows_pure_insert_migrates_page_size_under_wal() -> None:
+    """The migration-triggered vacuum_database must not deadlock: SQLite refuses
+    to switch a WAL-mode db away from WAL while any other connection (even one
+    that already committed) is still open, so every mutating helper that can
+    trigger vacuum_database must close its own connection first."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
         rows = [
             ["ide", "brand-new", "summary", "detail", "", "", "", "", "", ""],
         ]
@@ -438,6 +588,42 @@ def test_import_content_files_pure_insert_still_migrates_page_size(
         )
         assert summary.orphans_deleted == 0
         assert summary.files_overwritten == 0
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_import_content_files_pure_insert_migrates_page_size_under_wal(
+    tmp_path: Path,
+) -> None:
+    """SQLite refuses to switch a WAL-mode db away from WAL while any other
+    connection (even one that already committed) is still open;
+    import_content_files must close its own connection before the migration
+    -triggered vacuum_database runs."""
+    db = _make_content_db(starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+        conn.close()
+        new_file = tmp_path / "docs" / "new.html"
+        new_file.parent.mkdir()
+        new_file.write_bytes(b"hello")
+        content_types = get_content_types(db)
+        scan = prescan_content_import(db, tmp_path / "docs", content_types)
+
+        summary = import_content_files(
+            db,
+            scan.mapped,
+            language_id=1,
+            user_name="tester",
+            documentation_set="test",
+            orphan_row_ids=scan.orphan_row_ids,
+            overwrite_row_ids_by_base=scan.overwrite_row_ids_by_base,
+            progress_callback=None,
+        )
+        assert summary.files_imported == 1
         with sqlite3.connect(db) as conn:
             (page_size,) = conn.execute("PRAGMA page_size").fetchone()
         assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
