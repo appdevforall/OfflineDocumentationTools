@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from populate_db import SQLITE_PAGE_SIZE_BYTES, vacuum_and_pin_page_size
 
@@ -65,6 +66,93 @@ class VacuumAndPinPageSizeTest(unittest.TestCase):
                 rows = conn.execute("SELECT id, data FROM t").fetchall()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0][1], b"x" * 4096)
+        finally:
+            db.unlink(missing_ok=True)
+
+    def test_succeeds_with_other_connections_still_open(self):
+        # An earlier version of this function (and docdb-studio.py's
+        # vacuum_database(), which it mirrored) did an in-place VACUUM +
+        # journal_mode round-trip, which requires exclusive access: SQLite
+        # refuses to switch a WAL-mode db away from WAL while ANY other
+        # connection has it open -- even one from a function that has
+        # already returned, since `with sqlite3.connect(...) as conn:` does
+        # not close conn on exit. VACUUM INTO only needs a read snapshot of
+        # the source, so this must succeed even with an unrelated open
+        # connection (e.g. something else in the pipeline reading the db)
+        # and an unclosed caller-style connection both still around.
+        db = _make_db(starting_page_size=1024)
+        try:
+            with sqlite3.connect(db) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+
+            reader_conn = sqlite3.connect(db)
+            reader_conn.execute("SELECT * FROM t")
+
+            writer_conn = sqlite3.connect(db)
+            writer_conn.execute("INSERT INTO t (data) VALUES (?)", (b"y" * 100,))
+            writer_conn.commit()
+
+            try:
+                vacuum_and_pin_page_size(db)  # must not raise "database is locked"
+            finally:
+                reader_conn.close()
+                writer_conn.close()
+
+            with sqlite3.connect(db) as conn:
+                (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+                (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+                (count,) = conn.execute("SELECT count(*) FROM t").fetchone()
+            self.assertEqual(page_size, SQLITE_PAGE_SIZE_BYTES)
+            self.assertEqual(journal_mode.lower(), "wal")
+            self.assertEqual(count, 2)
+        finally:
+            db.unlink(missing_ok=True)
+
+    def test_leaves_original_untouched_if_vacuum_into_fails(self):
+        db = _make_db(starting_page_size=1024)
+        try:
+            with sqlite3.connect(db) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+            size_before = db.stat().st_size
+
+            real_connect = sqlite3.connect
+
+            class _FailOnVacuumIntoConn:
+                def __init__(self, real):
+                    self._real = real
+
+                def execute(self, sql, *args, **kwargs):
+                    if sql.strip().upper().startswith("VACUUM INTO"):
+                        raise sqlite3.OperationalError("simulated vacuum-into failure")
+                    return self._real.execute(sql, *args, **kwargs)
+
+                def __enter__(self):
+                    self._real.__enter__()
+                    return self
+
+                def __exit__(self, *exc_info):
+                    return self._real.__exit__(*exc_info)
+
+                def __getattr__(self, name):
+                    return getattr(self._real, name)
+
+            with mock.patch("populate_db.sqlite3.connect") as mock_connect:
+                mock_connect.side_effect = lambda *a, **k: _FailOnVacuumIntoConn(
+                    real_connect(*a, **k)
+                )
+                with self.assertRaisesRegex(
+                    sqlite3.OperationalError, "simulated vacuum-into failure"
+                ):
+                    vacuum_and_pin_page_size(db)
+
+            self.assertEqual(db.stat().st_size, size_before)
+            with sqlite3.connect(db) as conn:
+                (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+                (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+            self.assertEqual(page_size, 1024)
+            self.assertEqual(journal_mode.lower(), "wal")
+            leftover_tmp = list(db.parent.glob(f"{db.name}*.vacuum.tmp"))
+            self.assertEqual(leftover_tmp, [])
         finally:
             db.unlink(missing_ok=True)
 

@@ -119,6 +119,7 @@ chunked is logged by name at the end of the run.
 import argparse
 import atexit
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -208,25 +209,60 @@ SQLITE_PAGE_SIZE_BYTES = 2048
 
 
 def vacuum_and_pin_page_size(db_path: Path) -> None:
-    """Rebuild db_path via VACUUM, reclaiming freed pages and pinning the page
-    size to SQLITE_PAGE_SIZE_BYTES (ADFA-5141).
+    """Reclaim freed pages and pin the page size (ADFA-5141) by rewriting
+    db_path into a fresh file via VACUUM INTO, then atomically swapping it
+    into place.
 
-    PRAGMA page_size only takes effect on the following VACUUM, so it's set
-    here rather than at connect time. PRAGMA page_size silently has no effect
-    on VACUUM when journal_mode is WAL, so this temporarily switches to
-    DELETE mode for the rewrite and restores the original mode afterward.
+    This deliberately avoids in-place VACUUM + a journal_mode round-trip.
+    Switching a WAL-mode database away from WAL requires exclusive access --
+    no other connection may have the file open at all -- which an earlier
+    version of this function (and docdb-studio.py's vacuum_database(), which
+    it mirrored) got wrong: any unclosed connection anywhere in the calling
+    process, including one from a function that has already returned
+    (Python's `with sqlite3.connect(...) as conn:` does not close conn on
+    exit), can keep the file locked well past where you'd expect and turn
+    this into "database is locked". VACUUM INTO only needs a read snapshot
+    of the source, so it works regardless of what else currently has db_path
+    open.
+
+    The rewrite happens in a temp file created next to db_path (so the final
+    os.replace is same-filesystem and atomic, avoiding a shared/guessable
+    /tmp path per the ADFA-5088 CWE-377 lesson). VACUUM INTO always produces
+    a plain rollback-journal file regardless of the source's journal_mode, so
+    if the source was WAL, journal_mode=WAL is reapplied to the new file (via
+    its final path, so the resulting -wal/-shm sidecars get the right name)
+    before it replaces the original; any sidecars left behind by the file
+    just replaced are then stale and removed.
     """
-    conn = sqlite3.connect(db_path, isolation_level=None)
-    try:
+    db_path = Path(db_path)
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
         (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
-        if journal_mode.lower() == "wal":
-            conn.execute("PRAGMA journal_mode=DELETE")
-        conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-        conn.execute("VACUUM")
-        if journal_mode.lower() == "wal":
-            conn.execute(f"PRAGMA journal_mode={journal_mode}")
+        was_wal = journal_mode.lower() == "wal"
+
+    fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        with sqlite3.connect(db_path, timeout=30.0) as conn:
+            conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
+            conn.execute(f"VACUUM INTO '{tmp_path}'")
+        os.replace(tmp_path, db_path)
     finally:
-        conn.close()
+        tmp_path.unlink(missing_ok=True)
+
+    # Any -wal/-shm sidecars still sitting at db_path's name at this point are
+    # for the file just replaced -- guaranteed stale, since the swapped-in
+    # file was just VACUUM INTO'd fresh (plain rollback-journal, no sidecars).
+    for suffix in ("-wal", "-shm"):
+        stale = db_path.with_name(db_path.name + suffix)
+        stale.unlink(missing_ok=True)
+
+    if was_wal:
+        # Reapply on db_path's final name (not tmp_path's) so the resulting
+        # sidecars are named correctly -- VACUUM INTO always produces a plain
+        # rollback-journal file regardless of the source's journal_mode.
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
 
 
 def find_pngquant() -> str:
