@@ -1,7 +1,9 @@
 import unittest
 import os
+import re
 import tempfile
 import sqlite3
+from pathlib import Path
 from DocumentationDatabase import DocumentationDatabase
 
 class TestDocumentationDatabase(unittest.TestCase):
@@ -36,6 +38,27 @@ class TestDocumentationDatabase(unittest.TestCase):
             cursor.execute("PRAGMA page_size;")
             (page_size,) = cursor.fetchone()
             self.assertEqual(page_size, DocumentationDatabase.SQLITE_PAGE_SIZE_BYTES)
+
+    def test_page_size_matches_docdb_studio(self):
+        # ADFA-5141: scripts/ and docdb-studio/ are separately deployed tools
+        # (own dependency files, no shared import) that each hardcode
+        # SQLITE_PAGE_SIZE_BYTES. Parse docdb_studio.py's source instead of
+        # importing it, since scripts/ doesn't have docdb-studio's
+        # dependencies (flet, etc.) installed -- this only guards against the
+        # two constants drifting apart, without requiring either tool's
+        # packaging to change.
+        docdb_studio_source = (
+            Path(__file__).resolve().parents[1] / "docdb-studio" / "docdb_studio.py"
+        ).read_text()
+        match = re.search(
+            r"^SQLITE_PAGE_SIZE_BYTES\s*=\s*(\d+)", docdb_studio_source, re.MULTILINE
+        )
+        self.assertIsNotNone(
+            match, "docdb-studio/docdb_studio.py must define SQLITE_PAGE_SIZE_BYTES"
+        )
+        self.assertEqual(
+            DocumentationDatabase.SQLITE_PAGE_SIZE_BYTES, int(match.group(1))
+        )
 
     def test_content_types_populated(self):
         # Check if the ContentTypes table contains all expected types

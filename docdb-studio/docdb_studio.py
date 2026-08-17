@@ -687,7 +687,8 @@ def vacuum_database(db_path: Path) -> None:
 
     PRAGMA page_size silently has no effect on the following VACUUM when
     journal_mode is WAL, so this temporarily switches to DELETE mode for the
-    rewrite and restores the original mode afterward.
+    rewrite and restores the original mode afterward — even if the rewrite
+    itself fails, so a lock error doesn't leave the DB permanently off WAL.
 
     VACUUM cannot run inside a transaction, so this opens a fresh connection
     with isolation_level=None and issues the statement directly. Callers should
@@ -697,12 +698,21 @@ def vacuum_database(db_path: Path) -> None:
     """
     with sqlite3.connect(db_path, isolation_level=None) as conn:
         (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
-        if journal_mode.lower() == "wal":
-            conn.execute("PRAGMA journal_mode=DELETE")
-        conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-        conn.execute("VACUUM")
-        if journal_mode.lower() == "wal":
-            conn.execute(f"PRAGMA journal_mode={journal_mode}")
+        was_wal = journal_mode.lower() == "wal"
+        try:
+            if was_wal:
+                conn.execute("PRAGMA journal_mode=DELETE")
+            conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
+            conn.execute("VACUUM")
+        finally:
+            if was_wal:
+                conn.execute(f"PRAGMA journal_mode={journal_mode}")
+    _page_size_confirmed.add(Path(db_path))
+
+
+# Paths already confirmed at SQLITE_PAGE_SIZE_BYTES, so _page_size_migration_pending
+# can skip re-opening the DB on every import call once the one-time migration is done.
+_page_size_confirmed: set[Path] = set()
 
 
 def _page_size_migration_pending(db_path: Path) -> bool:
@@ -714,9 +724,18 @@ def _page_size_migration_pending(db_path: Path) -> bool:
     workflow never satisfies. Callers OR this into that gate so the one-time
     migration still happens on the tool's common all-insert paths.
     """
-    with sqlite3.connect(db_path) as conn:
+    db_path = Path(db_path)
+    if db_path in _page_size_confirmed:
+        return False
+    # Matches fetch_content_for_path's timeout: a concurrent vacuum_database can
+    # hold an exclusive lock for several seconds, and the default 5s busy timeout
+    # would otherwise surface a spurious failure on an import that has already committed.
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
         (page_size,) = conn.execute("PRAGMA page_size").fetchone()
-    return page_size != SQLITE_PAGE_SIZE_BYTES
+    pending = page_size != SQLITE_PAGE_SIZE_BYTES
+    if not pending:
+        _page_size_confirmed.add(db_path)
+    return pending
 
 
 def get_categories_for_tooltips(

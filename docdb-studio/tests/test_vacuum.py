@@ -7,6 +7,9 @@ and one end-to-end shrinkage check per delete-bearing helper."""
 import sqlite3
 import tempfile
 from pathlib import Path
+from unittest import mock
+
+import pytest
 
 import docdb_studio
 
@@ -128,6 +131,54 @@ def test_vacuum_database_migrates_page_size_under_wal() -> None:
             (page_size,) = conn.execute("PRAGMA page_size").fetchone()
             (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+        assert journal_mode.lower() == "wal"
+    finally:
+        db.unlink(missing_ok=True)
+
+
+class _FailOnVacuumConn:
+    """Wraps a real sqlite3.Connection, raising on VACUUM. sqlite3.Connection
+    is a C type and refuses attribute assignment (even per-instance), so this
+    proxies everything else through to a genuine connection instead."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def execute(self, sql, *args, **kwargs):
+        if sql.strip().upper() == "VACUUM":
+            raise sqlite3.OperationalError("simulated lock failure")
+        return self._real.execute(sql, *args, **kwargs)
+
+    def __enter__(self):
+        self._real.__enter__()
+        return self
+
+    def __exit__(self, *exc_info):
+        return self._real.__exit__(*exc_info)
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def test_vacuum_database_restores_wal_even_if_vacuum_fails() -> None:
+    """If VACUUM itself raises after journal_mode was switched away from WAL,
+    the original journal_mode must still be restored -- a lock error mid-vacuum
+    must not leave the DB stuck on DELETE journal mode forever."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+
+        real_connect = sqlite3.connect
+        with mock.patch("docdb_studio.sqlite3.connect") as mock_connect:
+            mock_connect.side_effect = lambda *a, **k: _FailOnVacuumConn(
+                real_connect(*a, **k)
+            )
+            with pytest.raises(sqlite3.OperationalError):
+                vacuum_database(db)
+
+        with sqlite3.connect(db) as conn:
+            (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         assert journal_mode.lower() == "wal"
     finally:
         db.unlink(missing_ok=True)
@@ -256,6 +307,28 @@ def test_import_csv_rows_pure_insert_still_migrates_page_size() -> None:
             (page_size,) = conn.execute("PRAGMA page_size").fetchone()
         assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
     finally:
+        db.unlink(missing_ok=True)
+
+
+def test_page_size_migration_pending_is_cached_once_confirmed() -> None:
+    """Once a DB is confirmed at SQLITE_PAGE_SIZE_BYTES, _page_size_migration_pending
+    must not keep reopening a connection to re-check on every call -- that would
+    add overhead (and busy-timeout risk) to every import forever, long after the
+    one-time migration is done."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        docdb_studio._page_size_confirmed.discard(Path(db))
+        assert docdb_studio._page_size_migration_pending(db) is True
+        vacuum_database(db)
+        assert Path(db) in docdb_studio._page_size_confirmed
+
+        real_connect = sqlite3.connect
+        with mock.patch("docdb_studio.sqlite3.connect") as mock_connect:
+            mock_connect.side_effect = real_connect
+            assert docdb_studio._page_size_migration_pending(db) is False
+            mock_connect.assert_not_called()
+    finally:
+        docdb_studio._page_size_confirmed.discard(Path(db))
         db.unlink(missing_ok=True)
 
 
