@@ -678,11 +678,21 @@ def update_last_change(
     conn.close()
 
 
+# Serializes vacuum_database so two concurrent callers can't race: VACUUM
+# INTO takes a read snapshot, and without this a write committed by another
+# connection between one caller's snapshot and its later os.replace would be
+# silently dropped when that stale snapshot gets swapped into place.
+_vacuum_lock = threading.Lock()
+
+
 def vacuum_database(db_path: Path) -> None:
     """Reclaim free pages and pin the page size (ADFA-5141) by rewriting the DB
     into a fresh file via VACUUM INTO, then atomically swapping it into place.
     Runs after every mutation that includes a DELETE — DB hygiene is
     non-negotiable per project policy.
+
+    Serialized process-wide via _vacuum_lock: without it, two concurrent
+    callers could race (see _vacuum_lock's own comment for the failure mode).
 
     This deliberately avoids in-place VACUUM + a journal_mode round-trip.
     Switching a WAL-mode database away from WAL requires exclusive access --
@@ -711,38 +721,57 @@ def vacuum_database(db_path: Path) -> None:
     Callers should invoke this from a worker thread when triggered from the
     UI: on a ~380 MB DB the rewrite takes several seconds and would otherwise
     freeze the event loop.
+
+    Note: this only serializes vacuum_database against itself -- it does not
+    protect against a plain write (one that never reaches this function, e.g.
+    a concurrent insert/update on another thread outside the DB-hygiene gate)
+    committing during the snapshot-to-swap window and being silently lost.
+    Closing that gap fully would mean every writer in this file taking
+    _vacuum_lock around its own write+commit too; not done here since it
+    depends on this app's broader UI threading model (whether the UI actually
+    permits overlapping mutations on one db_path) rather than anything local
+    to this function.
     """
-    db_path = Path(db_path)
-    original_mode = stat.S_IMODE(db_path.stat().st_mode)
-    with sqlite3.connect(db_path, timeout=30.0) as conn:
-        (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
-        was_wal = journal_mode.lower() == "wal"
-
-    fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
-    os.close(fd)
-    tmp_path = Path(tmp_name)
-    try:
+    with _vacuum_lock:
+        db_path = Path(db_path)
+        original_mode = stat.S_IMODE(db_path.stat().st_mode)
         with sqlite3.connect(db_path, timeout=30.0) as conn:
-            conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-            conn.execute(f"VACUUM INTO '{tmp_path}'")
-        os.replace(tmp_path, db_path)
-        os.chmod(db_path, original_mode)
-    finally:
-        tmp_path.unlink(missing_ok=True)
+            (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
+            was_wal = journal_mode.lower() == "wal"
+        conn.close()
 
-    # Any -wal/-shm sidecars still sitting at db_path's name at this point are
-    # for the file just replaced -- guaranteed stale, since the swapped-in
-    # file was just VACUUM INTO'd fresh (plain rollback-journal, no sidecars).
-    for suffix in ("-wal", "-shm"):
-        stale = db_path.with_name(db_path.name + suffix)
-        stale.unlink(missing_ok=True)
+        fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        # SQLite string-literal escaping (double any embedded single quote) --
+        # VACUUM INTO takes its target as a string literal, not a bindable
+        # parameter, so a path containing a quote (e.g. a user's home directory
+        # named "David's Docs") would otherwise break the statement.
+        escaped_tmp_path = str(tmp_path).replace("'", "''")
+        try:
+            with sqlite3.connect(db_path, timeout=30.0) as conn:
+                conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
+                conn.execute(f"VACUUM INTO '{escaped_tmp_path}'")
+            os.replace(tmp_path, db_path)
+            os.chmod(db_path, original_mode)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
-    if was_wal:
-        # Reapply on db_path's final name (not tmp_path's) so the resulting
-        # sidecars are named correctly -- VACUUM INTO always produces a plain
-        # rollback-journal file regardless of the source's journal_mode.
-        with sqlite3.connect(db_path) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
+        # Any -wal/-shm sidecars still sitting at db_path's name at this point
+        # are for the file just replaced -- guaranteed stale, since the
+        # swapped-in file was just VACUUM INTO'd fresh (plain rollback-journal,
+        # no sidecars).
+        for suffix in ("-wal", "-shm"):
+            stale = db_path.with_name(db_path.name + suffix)
+            stale.unlink(missing_ok=True)
+
+        if was_wal:
+            # Reapply on db_path's final name (not tmp_path's) so the
+            # resulting sidecars are named correctly -- VACUUM INTO always
+            # produces a plain rollback-journal file regardless of the
+            # source's journal_mode.
+            with sqlite3.connect(db_path) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
 
     with _page_size_confirmed_lock:
         _page_size_confirmed.add(db_path)
@@ -967,7 +996,11 @@ def insert_tooltip(
             (category_id, tag, summary, detail),
         )
         conn.commit()
-        return cur.lastrowid or 0
+        new_id = cur.lastrowid or 0
+    conn.close()
+    if _page_size_migration_pending(db_path):
+        vacuum_database(db_path)
+    return new_id
 
 
 def update_tooltip(
@@ -992,6 +1025,9 @@ def update_tooltip(
             (category_id, tag, summary, detail, tooltip_id),
         )
         conn.commit()
+    conn.close()
+    if _page_size_migration_pending(db_path):
+        vacuum_database(db_path)
 
 
 def get_button_number_ids(db_path: Path) -> list[int]:
@@ -1020,6 +1056,9 @@ def add_tooltip_button(
             (tooltip_id, button_number_id, description, uri),
         )
         conn.commit()
+    conn.close()
+    if _page_size_migration_pending(db_path):
+        vacuum_database(db_path)
 
 
 def update_tooltip_button(
@@ -1042,6 +1081,9 @@ def update_tooltip_button(
             (description, uri, tooltip_id, button_number_id),
         )
         conn.commit()
+    conn.close()
+    if _page_size_migration_pending(db_path):
+        vacuum_database(db_path)
 
 
 def delete_tooltip_button(

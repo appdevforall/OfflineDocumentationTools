@@ -23,6 +23,10 @@ import_csv_rows = docdb_studio.import_csv_rows
 import_content_files = docdb_studio.import_content_files
 prescan_content_import = docdb_studio.prescan_content_import
 get_content_types = docdb_studio.get_content_types
+insert_tooltip = docdb_studio.insert_tooltip
+update_tooltip = docdb_studio.update_tooltip
+add_tooltip_button = docdb_studio.add_tooltip_button
+update_tooltip_button = docdb_studio.update_tooltip_button
 ImportItem = docdb_studio.ImportItem
 
 
@@ -691,5 +695,121 @@ def test_import_content_files_vacuum_phase_is_reported() -> None:
             progress_callback=cb,
         )
         assert "vacuum" in seen_phases
+    finally:
+        db.unlink(missing_ok=True)
+
+
+# ---------- single-row tooltip mutations also migrate page_size ----------
+
+
+def test_insert_tooltip_migrates_page_size() -> None:
+    db = _make_tooltip_db(starting_page_size=1024)
+    try:
+        insert_tooltip(db, category_id=1, tag="new", summary="s", detail="d")
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_update_tooltip_migrates_page_size() -> None:
+    db = _make_tooltip_db(starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (1, 1, 'x', 's', 'd')"
+            )
+            conn.commit()
+        update_tooltip(db, tooltip_id=1, category_id=1, tag="x", summary="s2", detail="d2")
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_add_tooltip_button_migrates_page_size() -> None:
+    db = _make_tooltip_db(starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (1, 1, 'x', 's', 'd')"
+            )
+            conn.commit()
+        add_tooltip_button(db, tooltip_id=1, button_number_id=1, description="d", uri="u.html")
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_update_tooltip_button_migrates_page_size() -> None:
+    db = _make_tooltip_db(starting_page_size=1024)
+    try:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (1, 1, 'x', 's', 'd')"
+            )
+            conn.execute(
+                "INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES (1, 1, 'd', 'u.html')"
+            )
+            conn.commit()
+        update_tooltip_button(db, tooltip_id=1, button_number_id=1, description="d2", uri="u2.html")
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
+# ---------- other vacuum_database robustness ----------
+
+
+def test_vacuum_database_handles_quote_in_tmp_dir_name(tmp_path: Path) -> None:
+    """VACUUM INTO's target is a SQL string literal, not a bindable parameter,
+    so an unescaped single quote anywhere in db_path's parent directory would
+    otherwise break the statement (e.g. a real user directory like "David's
+    Docs")."""
+    quote_dir = tmp_path / "David's Docs"
+    quote_dir.mkdir()
+    db = quote_dir / "test.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT); INSERT INTO t (v) VALUES ('x');"
+        )
+        conn.commit()
+    vacuum_database(db)  # must not raise
+    with sqlite3.connect(db) as conn:
+        (count,) = conn.execute("SELECT count(*) FROM t").fetchone()
+    assert count == 1
+
+
+def test_vacuum_database_concurrent_calls_do_not_raise() -> None:
+    """_vacuum_lock serializes vacuum_database against itself, so two threads
+    racing to vacuum the same db_path must not raise or corrupt the file."""
+    import threading as _threading
+
+    db = _make_tooltip_db(seed_filler_rows=20)
+    try:
+        errors: list[BaseException] = []
+
+        def run():
+            try:
+                vacuum_database(db)
+            except BaseException as e:
+                errors.append(e)
+
+        threads = [_threading.Thread(target=run) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == []
+        with sqlite3.connect(db) as conn:
+            (result,) = conn.execute("PRAGMA integrity_check").fetchone()
+        assert result == "ok"
     finally:
         db.unlink(missing_ok=True)
