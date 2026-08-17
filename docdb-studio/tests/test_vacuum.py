@@ -4,7 +4,9 @@ Per project policy, every helper that issues a DELETE must vacuum afterwards
 so freed pages are reclaimed immediately. These tests cover the helper itself
 and one end-to-end shrinkage check per delete-bearing helper."""
 
+import os
 import sqlite3
+import stat
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -132,6 +134,21 @@ def test_vacuum_database_migrates_page_size_under_wal() -> None:
             (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
         assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
         assert journal_mode.lower() == "wal"
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_vacuum_database_preserves_file_permissions() -> None:
+    """VACUUM INTO rewrites through a tempfile.mkstemp() temp file, which is
+    always created mode 0600 regardless of the original's mode or the process
+    umask -- confirmed via real-world QA to silently drop a 644 documentation.db
+    to 600 on every vacuum if not restored after the os.replace swap."""
+    db = _make_tooltip_db(seed_filler_rows=10)
+    try:
+        os.chmod(db, 0o644)
+        vacuum_database(db)
+        mode = stat.S_IMODE(db.stat().st_mode)
+        assert mode == 0o644
     finally:
         db.unlink(missing_ok=True)
 
