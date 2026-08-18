@@ -258,8 +258,12 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
             # one, which sidesteps having to escape a path that contains a
             # single quote (e.g. a user directory named "David's Docs").
             conn.execute("VACUUM INTO ?", (str(tmp_path),))
+        conn.close()
+        # chmod the temp file, not db_path, so the swap-in is atomic at the
+        # correct permissions -- fixing it up after os.replace would leave a
+        # window where db_path is visible at mkstemp's 0600.
+        os.chmod(tmp_path, original_mode)
         os.replace(tmp_path, db_path)
-        os.chmod(db_path, original_mode)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -274,8 +278,9 @@ def vacuum_and_pin_page_size(db_path: Path) -> None:
         # Reapply on db_path's final name (not tmp_path's) so the resulting
         # sidecars are named correctly -- VACUUM INTO always produces a plain
         # rollback-journal file regardless of the source's journal_mode.
-        with sqlite3.connect(db_path) as conn:
+        with sqlite3.connect(db_path, timeout=30.0) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
+        conn.close()
 
 
 def find_pngquant() -> str:
