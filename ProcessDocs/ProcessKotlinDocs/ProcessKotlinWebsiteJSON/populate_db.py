@@ -119,10 +119,8 @@ chunked is logged by name at the end of the run.
 import argparse
 import atexit
 import json
-import os
 import shutil
 import sqlite3
-import stat
 import subprocess
 import sys
 import tempfile
@@ -200,87 +198,6 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 # trained dictionary bought another 0.35x for 144x the training time - not
 # worth it).
 DEFAULT_DICT_SIZE = 256 * 1024
-
-# ADFA-5141: smallest page size measured against the real ~300MB docdb, of
-# the sizes tested - see docdb-studio/docdb_studio.py's SQLITE_PAGE_SIZE_BYTES.
-# This pipeline's own VACUUM (below) is the one actually run against the live
-# documentation.db, so the migration has to live here too, not only in the
-# docdb-studio GUI tool's vacuum_database().
-SQLITE_PAGE_SIZE_BYTES = 2048
-
-
-def vacuum_and_pin_page_size(db_path: Path) -> None:
-    """Reclaim freed pages and pin the page size (ADFA-5141) by rewriting
-    db_path into a fresh file via VACUUM INTO, then atomically swapping it
-    into place.
-
-    This deliberately avoids in-place VACUUM + a journal_mode round-trip.
-    Switching a WAL-mode database away from WAL requires exclusive access --
-    no other connection may have the file open at all -- which an earlier
-    version of this function (and docdb-studio.py's vacuum_database(), which
-    it mirrored) got wrong: any unclosed connection anywhere in the calling
-    process, including one from a function that has already returned
-    (Python's `with sqlite3.connect(...) as conn:` does not close conn on
-    exit), can keep the file locked well past where you'd expect and turn
-    this into "database is locked". VACUUM INTO only needs a read snapshot
-    of the source, so it works regardless of what else currently has db_path
-    open.
-
-    The rewrite happens in a temp file created next to db_path (so the final
-    os.replace is same-filesystem and atomic, avoiding a shared/guessable
-    /tmp path per the ADFA-5088 CWE-377 lesson). tempfile.mkstemp always
-    creates its file mode 0600 regardless of the original's mode or the
-    process umask, so db_path's original permission bits are restored on the
-    swapped-in file (confirmed on real hardware during QA of the docdb-studio
-    version of this fix: without this, every vacuum silently dropped a 644
-    documentation.db to 600). VACUUM INTO always produces a plain
-    rollback-journal file regardless of the source's journal_mode, so if the
-    source was WAL, journal_mode=WAL is reapplied to the new file (via its
-    final path, so the resulting -wal/-shm sidecars get the right name)
-    before it replaces the original; any sidecars left behind by the file
-    just replaced are then stale and removed.
-    """
-    db_path = Path(db_path)
-    original_mode = stat.S_IMODE(db_path.stat().st_mode)
-    with sqlite3.connect(db_path, timeout=30.0) as conn:
-        (journal_mode,) = conn.execute("PRAGMA journal_mode").fetchone()
-        was_wal = journal_mode.lower() == "wal"
-    conn.close()
-
-    fd, tmp_name = tempfile.mkstemp(dir=db_path.parent, suffix=".vacuum.tmp")
-    os.close(fd)
-    tmp_path = Path(tmp_name)
-    try:
-        with sqlite3.connect(db_path, timeout=30.0) as conn:
-            conn.execute(f"PRAGMA page_size={SQLITE_PAGE_SIZE_BYTES}")
-            # Bound parameter, not an f-string, matching backup_database's
-            # use of the same pattern above: VACUUM INTO's target accepts
-            # one, which sidesteps having to escape a path that contains a
-            # single quote (e.g. a user directory named "David's Docs").
-            conn.execute("VACUUM INTO ?", (str(tmp_path),))
-        conn.close()
-        # chmod the temp file, not db_path, so the swap-in is atomic at the
-        # correct permissions -- fixing it up after os.replace would leave a
-        # window where db_path is visible at mkstemp's 0600.
-        os.chmod(tmp_path, original_mode)
-        os.replace(tmp_path, db_path)
-    finally:
-        tmp_path.unlink(missing_ok=True)
-
-    # Any -wal/-shm sidecars still sitting at db_path's name at this point are
-    # for the file just replaced -- guaranteed stale, since the swapped-in
-    # file was just VACUUM INTO'd fresh (plain rollback-journal, no sidecars).
-    for suffix in ("-wal", "-shm"):
-        stale = db_path.with_name(db_path.name + suffix)
-        stale.unlink(missing_ok=True)
-
-    if was_wal:
-        # Reapply on db_path's final name (not tmp_path's) so the resulting
-        # sidecars are named correctly -- VACUUM INTO always produces a plain
-        # rollback-journal file regardless of the source's journal_mode.
-        with sqlite3.connect(db_path, timeout=30.0) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-        conn.close()
 
 
 def find_pngquant() -> str:
@@ -841,10 +758,13 @@ def main():
     # freelist. VACUUM is the only thing that actually rebuilds the file at
     # its true minimal size, and it can't run inside the transaction above
     # (SQLite refuses VACUUM while one is active), so it's a separate step
-    # on its own connection afterwards. Also pins the page size - see
-    # vacuum_and_pin_page_size.
+    # on its own connection afterwards.
     print("Vacuuming database to reclaim freed space...", file=sys.stderr)
-    vacuum_and_pin_page_size(args.db_path)
+    vacuum_conn = sqlite3.connect(args.db_path)
+    try:
+        vacuum_conn.execute("VACUUM")
+    finally:
+        vacuum_conn.close()
 
     print(
         f"Inserted {len(pages)} page(s) + 1 navigation row + {images_inserted} image(s) + "
