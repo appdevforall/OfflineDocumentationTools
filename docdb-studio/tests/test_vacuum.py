@@ -304,6 +304,21 @@ def test_delete_tooltips_bulk_no_op_still_migrates_page_size() -> None:
         db.unlink(missing_ok=True)
 
 
+def test_delete_tooltips_bulk_empty_list_still_migrates_page_size() -> None:
+    """An empty tooltip_ids list (e.g. a "delete selected" action fired with
+    nothing selected) used to early-return before the migration-pending check
+    ever ran -- must not skip the migration either."""
+    db = _make_tooltip_db(seed_filler_rows=10, starting_page_size=1024)
+    try:
+        deleted = delete_tooltips_bulk(db, [])
+        assert deleted == 0
+        with sqlite3.connect(db) as conn:
+            (page_size,) = conn.execute("PRAGMA page_size").fetchone()
+        assert page_size == docdb_studio.SQLITE_PAGE_SIZE_BYTES
+    finally:
+        db.unlink(missing_ok=True)
+
+
 def test_delete_tooltips_bulk_under_wal_does_not_deadlock() -> None:
     """SQLite refuses to switch a WAL-mode db away from WAL while any other
     connection (even one that already committed) is still open; delete_tooltips_bulk

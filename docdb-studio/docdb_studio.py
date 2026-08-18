@@ -637,8 +637,14 @@ def get_categories(db_path: Path) -> list[tuple[int, str]]:
 
 
 def get_category_name(db_path: Path, category_id: int) -> str | None:
-    """Return category string for the given id, or None if not found."""
-    with sqlite3.connect(db_path) as conn:
+    """Return category string for the given id, or None if not found.
+
+    Uses the same 30s busy timeout as fetch_content_for_path (ADFA-5141):
+    called right after replace_tooltip_buttons's unconditional vacuum in the
+    tooltip-save flow, so a concurrent vacuum_database on the same db_path
+    (e.g. from another open window) can otherwise turn a transient lock into
+    a spurious failure on the default 5s timeout."""
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
         cur = conn.execute(
             "SELECT category FROM TooltipCategories WHERE id = ?",
             (category_id,),
@@ -651,7 +657,11 @@ def update_last_change(
     db_path: Path, documentation_set: str, who: str | None
 ) -> None:
     """Stamp the LastChange row for the given documentationSet, plus the
-    global WHOLEDB_KEY row, in a single transaction."""
+    global WHOLEDB_KEY row, in a single transaction.
+
+    Uses the same 30s busy timeout as fetch_content_for_path (ADFA-5141) --
+    see get_category_name's docstring, called right before this in the same
+    tooltip-save flow, for why."""
 
     def _stamp(conn: sqlite3.Connection, doc_set: str) -> None:
         cur = conn.execute(
@@ -670,7 +680,7 @@ def update_last_change(
                 (doc_set, who),
             )
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
         _stamp(conn, documentation_set)
         if documentation_set != WHOLEDB_KEY:
             _stamp(conn, WHOLEDB_KEY)
@@ -751,8 +761,12 @@ def vacuum_database(db_path: Path) -> None:
                 # contains a single quote (e.g. a user directory named
                 # "David's Docs").
                 conn.execute("VACUUM INTO ?", (str(tmp_path),))
+            conn.close()
+            # chmod the temp file, not db_path, so the swap-in is atomic at
+            # the correct permissions -- fixing it up after os.replace would
+            # leave a window where db_path is visible at mkstemp's 0600.
+            os.chmod(tmp_path, original_mode)
             os.replace(tmp_path, db_path)
-            os.chmod(db_path, original_mode)
         finally:
             tmp_path.unlink(missing_ok=True)
 
@@ -769,8 +783,9 @@ def vacuum_database(db_path: Path) -> None:
             # resulting sidecars are named correctly -- VACUUM INTO always
             # produces a plain rollback-journal file regardless of the
             # source's journal_mode.
-            with sqlite3.connect(db_path) as conn:
+            with sqlite3.connect(db_path, timeout=30.0) as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
+            conn.close()
 
     with _page_size_confirmed_lock:
         _page_size_confirmed.add(db_path)
@@ -809,6 +824,18 @@ def _page_size_migration_pending(db_path: Path) -> bool:
     return pending
 
 
+def _vacuum_if_dirty_or_pending(db_path: Path, dirty: bool) -> None:
+    """Shared choke point for the "vacuum after a mutation, or to migrate
+    page_size even on a pure-insert" gate (ADFA-5141), used by every mutating
+    call site except import_content_files (which wraps the same gate with its
+    own progress-callback reporting). One place means a future new mutating
+    helper can't add itself here without also getting the migration check --
+    the exact gap this ticket found and fixed at each existing call site.
+    """
+    if dirty or _page_size_migration_pending(db_path):
+        vacuum_database(db_path)
+
+
 def get_categories_for_tooltips(
     db_path: Path, tooltip_ids: list[int]
 ) -> set[str]:
@@ -836,25 +863,26 @@ def get_categories_for_tooltips(
 
 def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
     """Delete the given tooltip ids and their TooltipButtons rows. Returns rows deleted from Tooltips."""
-    if not tooltip_ids:
-        return 0
     deleted = 0
-    with sqlite3.connect(db_path) as conn:
-        for batch in _chunked(tooltip_ids, SQL_PARAM_BATCH):
-            placeholders = ",".join("?" * len(batch))
-            conn.execute(
-                f"DELETE FROM TooltipButtons WHERE tooltipId IN ({placeholders})",
-                batch,
-            )
-            cur = conn.execute(
-                f"DELETE FROM Tooltips WHERE id IN ({placeholders})",
-                batch,
-            )
-            deleted += cur.rowcount
-        conn.commit()
-    conn.close()
-    if deleted or _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    if tooltip_ids:
+        with sqlite3.connect(db_path) as conn:
+            for batch in _chunked(tooltip_ids, SQL_PARAM_BATCH):
+                placeholders = ",".join("?" * len(batch))
+                conn.execute(
+                    f"DELETE FROM TooltipButtons WHERE tooltipId IN ({placeholders})",
+                    batch,
+                )
+                cur = conn.execute(
+                    f"DELETE FROM Tooltips WHERE id IN ({placeholders})",
+                    batch,
+                )
+                deleted += cur.rowcount
+            conn.commit()
+        conn.close()
+    # Checked even for an empty tooltip_ids list (e.g. a "delete selected"
+    # action fired with nothing selected) -- this call site must not skip the
+    # one-time page_size migration just because there was nothing to delete.
+    _vacuum_if_dirty_or_pending(db_path, deleted)
     return deleted
 
 
@@ -997,8 +1025,7 @@ def insert_tooltip(
         conn.commit()
         new_id = cur.lastrowid or 0
     conn.close()
-    if _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    _vacuum_if_dirty_or_pending(db_path, False)
     return new_id
 
 
@@ -1025,8 +1052,7 @@ def update_tooltip(
         )
         conn.commit()
     conn.close()
-    if _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    _vacuum_if_dirty_or_pending(db_path, False)
 
 
 def get_button_number_ids(db_path: Path) -> list[int]:
@@ -1056,8 +1082,7 @@ def add_tooltip_button(
         )
         conn.commit()
     conn.close()
-    if _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    _vacuum_if_dirty_or_pending(db_path, False)
 
 
 def update_tooltip_button(
@@ -1081,8 +1106,7 @@ def update_tooltip_button(
         )
         conn.commit()
     conn.close()
-    if _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    _vacuum_if_dirty_or_pending(db_path, False)
 
 
 def delete_tooltip_button(
@@ -1363,8 +1387,7 @@ def import_csv_rows(
                     )
         conn.commit()
     conn.close()
-    if updated or _page_size_migration_pending(db_path):
-        vacuum_database(db_path)
+    _vacuum_if_dirty_or_pending(db_path, updated)
     return inserted, updated
 
 
