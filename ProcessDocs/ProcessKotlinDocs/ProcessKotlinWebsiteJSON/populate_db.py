@@ -119,6 +119,7 @@ chunked is logged by name at the end of the run.
 import argparse
 import atexit
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -272,14 +273,24 @@ class DictionaryCompressor:
     """Compresses/decompresses bytes against a fixed raw Brotli dictionary,
     shelling out to the `brotli` CLI (the installed Python `brotli` package
     has no dictionary parameter at all). A dictionary-compressed stream and a
-    plain one are NOT interchangeable at decode time - verified empirically,
-    not just documented behavior: decoding with the wrong dictionary (a
-    different one than was used to compress, "none" when one was used, or
-    vice versa) is NOT reliably caught - it sometimes fails outright
-    ("corrupt input"), but can just as easily "succeed" while silently
-    returning different bytes than were compressed, depending on how the
-    corrupted back-references happen to land. There is no runtime check that
-    catches this after the fact. So every row compressed via this class must
+    plain one are NOT interchangeable at decode time, but the two directions
+    of that mismatch behave differently, and the difference matters - measured
+    against the real documentation.db, not assumed:
+
+      * Decoding a dictionary-compressed row with NO dictionary is loud: 398
+        of 400 sampled rows raised outright, and the other 2 returned byte-
+        identical output because the encoder never referenced the dictionary
+        for them. Zero returned wrong bytes. `migrate_content_to_dictionary_
+        brotli.py` relies on this direction, and WebServer.kt's plain-decode
+        fallback is safe for the same reason.
+
+      * Decoding with the WRONG dictionary is the silent case. Perturbing one
+        16 KiB region of the real dictionary and decoding real rows gave 50%
+        outright failures, 38% that decoded with no error into *different
+        bytes*, and 12% byte-identical (the perturbed region was never
+        referenced). Nothing at runtime catches that 38%.
+
+    So every row compressed via this class must
     be decompressed via a `DictionaryCompressor` built from the exact same
     dictionary bytes, and that dictionary must never change once anything
     has been compressed against it - see CompressionDictionary (the single
@@ -404,6 +415,32 @@ def get_content_type(conn, value: str) -> tuple:
     if row is None:
         raise RuntimeError(f"ContentTypes has no row for {value!r}; expected it to already exist in this database")
     return row[0], row[1] == "brotli"
+
+
+FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
+
+
+def fragment_chain(conn, base_path: str) -> list:
+    """Every "<base_path>-<N>" continuation row present, as (n, path) sorted by
+    n - found by LIKE query and parsed suffix rather than by probing
+    constructed paths, so it does not matter what N the chain starts at.
+
+    Probing "<base_path>-1" first (what reassembly used to do) silently returns
+    a truncated stream for an ADFA-5171 chain numbered from -2, which then
+    fails to decompress and looks indistinguishable from an already-migrated
+    row. The LIKE pattern deliberately over-matches - `_` and `%` in a path are
+    wildcards, and the suffix is not constrained to digits - so the regex
+    re-check below is what makes the result exact. Never build a DELETE or
+    UPDATE straight off that pattern.
+    """
+    rows = conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{base_path}-%",)).fetchall()
+    chain = []
+    for (path,) in rows:
+        match = FRAGMENT_SUFFIX_RE.match(path)
+        if match and match.group(1) == base_path:
+            chain.append((int(match.group(2)), path))
+    chain.sort(key=lambda item: item[0])
+    return chain
 
 
 def insert_chunked_content(conn, path: str, language_id: int, content_type_id: int, template_id: int,
