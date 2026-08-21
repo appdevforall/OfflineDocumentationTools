@@ -121,9 +121,9 @@ def test_caches_per_db_path() -> None:
     db = _make_db()
     try:
         assert get_compression_dictionary(db) is None
-        # Mutating the row after the first (cached) lookup must not change the
-        # cached result -- docdb_studio never expects a dictionary to appear or
-        # change mid-session, since it never writes one itself.
+        # A *definitive* answer is cached: docdb_studio never writes a dictionary
+        # itself, so one does not appear mid-session under normal use. (An error
+        # answer is not cached -- see the locked-database test below.)
         with sqlite3.connect(db) as conn:
             conn.execute(
                 "CREATE TABLE CompressionDictionary (id INTEGER PRIMARY KEY CHECK (id = 1), data BLOB NOT NULL)"
@@ -196,4 +196,63 @@ def test_fetch_content_for_path_decodes_dictionary_compressed_content() -> None:
         result = fetch_content_for_path(db, "docs/page.html")
         assert result == (html, "text/html")
     finally:
+        db.unlink(missing_ok=True)
+
+
+def test_locked_database_is_not_cached_as_having_no_dictionary() -> None:
+    """`sqlite3.OperationalError` also covers "database is locked", which a GUI
+    hits whenever another tool writes the same file. Caching that as "no
+    dictionary" would downgrade the whole session to plain Brotli: imports would
+    write plain rows into a dictionary database and existing rows would fail to
+    read."""
+    dictionary_data = _train_dictionary([_make_text(150, i) for i in range(60)])
+    db = _make_db(with_dictionary=dictionary_data)
+    real_connect = docdb_studio.sqlite3.connect
+    calls = {"n": 0}
+
+    def flaky_connect(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise docdb_studio.sqlite3.OperationalError("database is locked")
+        return real_connect(*args, **kwargs)
+
+    try:
+        docdb_studio.sqlite3.connect = flaky_connect
+        assert get_compression_dictionary(db) is None      # the transient failure
+        assert get_compression_dictionary(db) == dictionary_data   # retried, not cached
+    finally:
+        docdb_studio.sqlite3.connect = real_connect
+        db.unlink(missing_ok=True)
+
+
+def test_plain_row_in_a_dictionary_database_still_decodes() -> None:
+    """A dictionary database still contains plain rows: anything a plugin
+    contributes on-device, anything a script outside populate_db.py wrote, and
+    everything not yet converted during a partial migration. WebServer.kt falls
+    back to a plain decode for exactly this, and docdb-studio has to agree or it
+    cannot read rows the app serves fine."""
+    dictionary_data = _train_dictionary([_make_text(150, i) for i in range(60)])
+    db = _make_db(with_dictionary=dictionary_data)
+    try:
+        payload = _make_text(400, seed=4242)
+        plain_row = brotli.compress(payload)
+        assert docdb_studio.decompress_brotli(plain_row, db) == payload
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_missing_brotli_cli_surfaces_as_brotli_error() -> None:
+    """Every existing call site guards decoding with `except brotli.error`, so a
+    missing binary has to arrive as one rather than as an unhandled RuntimeError
+    out of content preview."""
+    dictionary_data = _train_dictionary([_make_text(150, i) for i in range(60)])
+    db = _make_db(with_dictionary=dictionary_data)
+    real_which = docdb_studio.shutil.which
+    try:
+        docdb_studio.shutil.which = lambda name: None
+        with pytest.raises(brotli.error) as excinfo:
+            docdb_studio.decompress_brotli(b"anything", db)
+        assert "brotli" in str(excinfo.value)
+    finally:
+        docdb_studio.shutil.which = real_which
         db.unlink(missing_ok=True)

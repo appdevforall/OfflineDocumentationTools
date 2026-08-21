@@ -42,7 +42,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from populate_db import CHUNK_SIZE, backup_database
+from populate_db import CHUNK_SIZE, backup_database, fragment_chain
 
 FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
 
@@ -62,17 +62,11 @@ def find_fragment_paths(conn) -> set:
 
 
 def chain_fragments(conn, base_path: str) -> list:
-    """Every "<base_path>-<N>" row present, as (n, path) sorted by n - found
-    by LIKE query and parsed suffix, not by constructed path, so it doesn't
-    matter what N the chain actually starts at or whether it has gaps."""
-    rows = conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{base_path}-%",)).fetchall()
-    fragments = []
-    for (path,) in rows:
-        m = FRAGMENT_SUFFIX_RE.match(path)
-        if m and m.group(1) == base_path:
-            fragments.append((int(m.group(2)), path))
-    fragments.sort(key=lambda item: item[0])
-    return fragments
+    """Every "<base_path>-<N>" row present, as (n, path) sorted by n. Delegates
+    to populate_db.fragment_chain so this script and the migration cannot drift
+    apart on how a chain is found - two conventions is what let ADFA-5171's
+    -2-based chains be silently skipped by the migration."""
+    return fragment_chain(conn, base_path)
 
 
 def is_contiguous_from_one(fragments: list) -> bool:
@@ -80,15 +74,23 @@ def is_contiguous_from_one(fragments: list) -> bool:
 
 
 def renumber_chain(conn, base_path: str, fragments: list) -> None:
-    """Renumbers `fragments` (n, path), sorted ascending by n, to a
-    contiguous "-1", "-2", ... run. Processed lowest-n first: each target
-    "<base_path>-<i>" is either untouched already or was the original path
-    of the fragment just renamed in the previous iteration, so it's always
-    free by the time this claims it."""
-    for i, (_n, path) in enumerate(fragments, start=1):
-        new_path = f"{base_path}-{i}"
-        if path != new_path:
-            conn.execute("UPDATE Content SET path = ? WHERE path = ?", (new_path, path))
+    """Renumbers `fragments` (n, path), sorted ascending by n, to a contiguous
+    "-1", "-2", ... run.
+
+    Two passes, via a parking name no Content row can already hold. A single
+    ascending pass is collision-free only when the chain shifts *down* (each
+    target was just vacated by the previous rename); a chain numbered from 0
+    shifts up, where ascending order renames onto a slot still occupied and
+    trips UNIQUE(path) - which rolls back the whole repair run, so one such
+    chain would block every other fix in the same pass. Parking first is
+    correct regardless of direction."""
+    parked = []
+    for _n, path in fragments:
+        parking_path = f"{path}.renumbering"
+        conn.execute("UPDATE Content SET path = ? WHERE path = ?", (parking_path, path))
+        parked.append(parking_path)
+    for i, parking_path in enumerate(parked, start=1):
+        conn.execute("UPDATE Content SET path = ? WHERE path = ?", (f"{base_path}-{i}", parking_path))
 
 
 def find_chains(conn, fragment_paths: set) -> tuple:
@@ -107,6 +109,9 @@ def find_chains(conn, fragment_paths: set) -> tuple:
         fragments = chain_fragments(conn, path)
         if not fragments or fragments[0][0] == 1:
             continue
+        # A 0-based chain is repaired, not skipped: WebServer probes "-1" first,
+        # finds it, and serves the chain with "-0" silently dropped. Shifting it
+        # up is what renumber_chain's parking pass exists to make safe.
         suffixes = [n for n, _path in fragments]
         if suffixes == list(range(suffixes[0], suffixes[0] + len(suffixes))):
             misnumbered.append((path, fragments))
