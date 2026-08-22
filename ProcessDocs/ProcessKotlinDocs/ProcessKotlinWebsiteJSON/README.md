@@ -22,6 +22,7 @@ and its media straight into a `documentation.db`-schema SQLite database.
 - `pip install markdown-it-py Pillow scour brotli`
 - `cairosvg` (only needed if an optimized SVG exceeds `--svg-rasterize-threshold`): `pip install cairosvg`
 - `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
+- `brotli` on `PATH` (e.g. `apt install brotli`) — the **command-line tool**, which is a different artifact from the `brotli` Python package listed above. `populate_db.py`, `insert_optimized_media.py` and `migrate_content_to_dictionary_brotli.py` compress against the shared dictionary in `CompressionDictionary` (ADFA-5153), and no Python binding exposes a custom dictionary, so they shell out to this binary. Without it they fail at startup.
 
 `populate_db.py` also expects, relative to its own location, and already
 included in this directory:
