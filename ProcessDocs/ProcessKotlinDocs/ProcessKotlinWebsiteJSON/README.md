@@ -13,6 +13,10 @@ and its media straight into a `documentation.db`-schema SQLite database.
 | [`build_nav.py`](build_nav.py) | Builds `nav.json`/`nav.html` sidebar navigation from `kr.tree`, resolving each `<toc-element topic="...">` against `md_to_json.py`'s output. |
 | [`find_missing_assets.py`](find_missing_assets.py) | QA pass: reports cross-page links, images, and `<include>` targets in the source tree that don't resolve to anything. Reuses `md_to_json.py`'s own resolution logic, so it flags exactly what would end up broken on the rendered site. |
 | [`populate_db.py`](populate_db.py) | The database path: converts the docs tree the same way `md_to_json.py` does, builds nav the same way `build_nav.py` does, and inserts pages + nav + images + CSS/JS directly into `documentation.db` (replacing everything under `k/html/` and `assets/`). Supports pruning whole `kr.tree` subtrees via `--blacklisted-element-titles`. |
+| [`migrate_content_to_dictionary_brotli.py`](migrate_content_to_dictionary_brotli.py) | One-off, resumable: recompresses every `brotli` Content row against the database's shared `CompressionDictionary`, training one first if there is none (ADFA-5153). Covers the rows `populate_db.py` never touches. |
+| [`renumber_misnumbered_fragments.py`](renumber_misnumbered_fragments.py) | One-off repair: chunked rows whose continuations start at `-2` (or `-0`) instead of `-1`, which `WebServer.kt` reassembles truncated (ADFA-5171). Moves paths only, never content. |
+| [`remint_dictionary.py`](remint_dictionary.py) | One-off, **destructive**: trains a *new* shared dictionary and recompresses every row against it, in one transaction. The only safe way to change a dictionary, since the stored one is otherwise permanent for that database's content. Pair with `verify_remint_dictionary.py` before putting the result in place. |
+| [`verify_remint_dictionary.py`](verify_remint_dictionary.py) | Read-only gate for the above: decodes every row out of both databases and requires the plaintexts to match, exiting non-zero otherwise. A mismatched dictionary decodes into wrong bytes without erroring, so this is what makes re-minting safe. |
 | [`optimize_media.py`](optimize_media.py) | Standalone media optimizer: downscales/recompresses a directory of images (pngquant, Pillow, Scour/cairosvg for SVG) into a mirrored output directory. |
 | [`insert_optimized_media.py`](insert_optimized_media.py) | Runs `optimize_media.py`'s pipeline over a directory of raw media, then replaces the corresponding `k/html/images/*` rows in an existing database, rewriting any page that referenced a renamed file and deleting anything left unreferenced. |
 
@@ -22,6 +26,7 @@ and its media straight into a `documentation.db`-schema SQLite database.
 - `pip install markdown-it-py Pillow scour brotli`
 - `cairosvg` (only needed if an optimized SVG exceeds `--svg-rasterize-threshold`): `pip install cairosvg`
 - `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
+- `brotli` on `PATH` (e.g. `apt install brotli`) — the **command-line tool**, which is a different artifact from the `brotli` Python package listed above. `populate_db.py`, `insert_optimized_media.py`, `migrate_content_to_dictionary_brotli.py` and `remint_dictionary.py` compress against the shared dictionary in `CompressionDictionary` (ADFA-5153), and no Python binding exposes a custom dictionary, so they shell out to this binary. Without it they fail at startup.
 
 `populate_db.py` also expects, relative to its own location, and already
 included in this directory:

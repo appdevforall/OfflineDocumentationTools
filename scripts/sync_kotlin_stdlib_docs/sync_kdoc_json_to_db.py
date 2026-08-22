@@ -22,15 +22,24 @@ dangling tooltipId would otherwise be left behind.
 A timestamped backup of the database is made before anything is modified.
 """
 import argparse
+import atexit
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 import brotli
 
 PREFIXES = ["k/kotlin-stdlib", "k/kotlin-reflect", "k/kotlin-test"]
+
+# Refuse to run if this fraction or more of the matched rows resolve to no source
+# file. A Dokka upgrade that changes the emitted layout makes *every* lookup miss,
+# and the only signal would be "Done: updated 0, deleted N" on a gutted database.
+MAX_DELETE_FRACTION = 0.5
 
 
 def backup_database(db_path):
@@ -49,9 +58,54 @@ def relative_target_path(content_path):
     return without_prefix
 
 
-def compress_for(compression, raw_bytes, path):
+def load_compression_dictionary(conn):
+    """This database's shared Brotli dictionary (ADFA-5153), or None if it has
+    none. Rows written here must be compressed the same way populate_db.py
+    compresses the rest of the database: a plain-Brotli row inside a dictionary
+    database forfeits the dictionary's compression entirely (readers cope with
+    it -- WebServer.kt and docdb-studio both fall back to a plain decode -- but
+    the bytes stay large for no reason)."""
+    table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
+    ).fetchone()
+    if table is None:
+        return None
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    return row[0] if row and row[0] else None
+
+
+class DictionaryBrotli:
+    """Compresses against a raw Brotli dictionary by shelling out to the
+    `brotli` CLI - the Python `brotli` package exposes no dictionary parameter.
+    Mirrors populate_db.DictionaryCompressor, kept local because that module
+    lives in a different tree and this script is standalone."""
+
+    def __init__(self, dictionary_data):
+        path = shutil.which("brotli")
+        if path is None:
+            raise RuntimeError(
+                "this database uses a shared Brotli dictionary (ADFA-5153), which needs the "
+                "`brotli` command-line tool; install it (apt install brotli) and retry"
+            )
+        self._brotli = path
+        self._dir = Path(tempfile.mkdtemp(prefix="sync-kdoc-brotli-dict-"))
+        self._dict_path = self._dir / "dictionary.bin"
+        self._dict_path.write_bytes(dictionary_data)
+        atexit.register(lambda: shutil.rmtree(self._dir, ignore_errors=True))
+
+    def compress(self, data):
+        result = subprocess.run(
+            [self._brotli, "-D", str(self._dict_path), "-c"],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
+        return result.stdout
+
+
+def compress_for(compression, raw_bytes, path, compressor=None):
     if compression == "brotli":
-        return brotli.compress(raw_bytes)
+        return compressor.compress(raw_bytes) if compressor is not None else brotli.compress(raw_bytes)
     if compression == "none":
         return raw_bytes
     raise ValueError(f"Unknown compression '{compression}' needed for {path}")
@@ -141,6 +195,30 @@ def main():
     deleted_paths = []
     unknown_types = set()
 
+    dictionary_data = load_compression_dictionary(conn)
+    compressor = DictionaryBrotli(dictionary_data) if dictionary_data else None
+    print(
+        "Compressing brotli rows against this database's shared dictionary."
+        if compressor else
+        "This database has no CompressionDictionary; writing plain Brotli.",
+        file=sys.stderr,
+    )
+
+    # Resolve every source file before touching anything, so a wholesale miss
+    # aborts instead of deleting the rows one at a time (see MAX_DELETE_FRACTION).
+    missing = [path for _id, path, _type in rows
+               if not os.path.isfile(os.path.join(args.plugin_output_root, relative_target_path(path)))]
+    if rows and len(missing) >= max(1, int(len(rows) * MAX_DELETE_FRACTION)):
+        print(
+            f"error: {len(missing)} of {len(rows)} matched Content rows resolve to no file under "
+            f"{args.plugin_output_root!r}. That is a layout mismatch, not {len(missing)} deletions - "
+            f"refusing to delete them. Check the Dokka output tree, then re-run. Examples: "
+            f"{', '.join(missing[:3])}",
+            file=sys.stderr,
+        )
+        conn.close()
+        sys.exit(1)
+
     try:
         conn.execute("BEGIN")
         for content_id, path, content_type_id in rows:
@@ -156,7 +234,7 @@ def main():
                     unknown_types.add(content_type_id)
                     compression = "none"
 
-                new_blob = compress_for(compression, raw_bytes, path)
+                new_blob = compress_for(compression, raw_bytes, path, compressor)
 
                 if args.dry_run:
                     print(f"  [UPDATE] {path}  <-  {rel_target}")

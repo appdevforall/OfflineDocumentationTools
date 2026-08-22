@@ -122,15 +122,25 @@ def test_target_paths_zero_raises() -> None:
 
 
 def test_compress_for_storage_brotli_round_trip() -> None:
-    data = b"hello world " * 1000
-    compressed = compress_for_storage(data, "brotli")
-    assert compressed != data
-    assert brotli.decompress(compressed) == data
+    # No CompressionDictionary in this fixture -> plain Brotli, same as a database
+    # that predates ADFA-5153.
+    db = _make_db_with_content_schema()
+    try:
+        data = b"hello world " * 1000
+        compressed = compress_for_storage(data, "brotli", db)
+        assert compressed != data
+        assert brotli.decompress(compressed) == data
+    finally:
+        db.unlink(missing_ok=True)
 
 
 def test_compress_for_storage_none_passthrough() -> None:
-    data = b"\x00\x01\x02 some bytes"
-    assert compress_for_storage(data, "none") is data or compress_for_storage(data, "none") == data
+    db = _make_db_with_content_schema()
+    try:
+        data = b"\x00\x01\x02 some bytes"
+        assert compress_for_storage(data, "none", db) is data or compress_for_storage(data, "none", db) == data
+    finally:
+        db.unlink(missing_ok=True)
 
 
 # ---------- mime_for_filename ----------
