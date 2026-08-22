@@ -295,10 +295,23 @@ def _set_version(db: Path, major: int, minor: int = 0, patch: int = 0) -> None:
               changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
             """
         )
+        conn.execute("DELETE FROM DocumentationDatabaseVersion")
         conn.execute(
             "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
             "VALUES (?, ?, ?, 'test', 'test')",
             (major, minor, patch),
+        )
+        conn.commit()
+
+
+def _append_stray_version(db: Path, major: int) -> None:
+    """Adds a row without removing the existing one -- what the contract forbids,
+    so the reader can be tested against a file that broke it."""
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
+            "VALUES (?, 0, 0, 'stray', 'appended')",
+            (major,),
         )
         conn.commit()
 
@@ -311,13 +324,14 @@ def test_a_database_with_no_version_table_reads_as_unversioned() -> None:
         db.unlink(missing_ok=True)
 
 
-def test_the_declared_major_is_the_row_inserted_last() -> None:
-    """The table is an append-only log, so a rebuild from an older pipeline is a
-    downgrade and has to read as one -- the same rule the app's resolver uses."""
+def test_a_stray_extra_row_cannot_make_the_answer_arbitrary() -> None:
+    """The table is supposed to hold one row. If a file breaks that, the version
+    read has to still be deterministic -- the row written last -- rather than
+    whichever one SQLite happens to return first."""
     db = _make_db()
     try:
         _set_version(db, 3)
-        _set_version(db, 2)
+        _append_stray_version(db, 2)
         assert docdb_studio.database_major_version(db) == 2
     finally:
         db.unlink(missing_ok=True)

@@ -159,9 +159,11 @@ def database_major_version(db_path: Path) -> int | None:
     """The MAJOR version `db_path` declares (ADFA-5220), or None when it declares
     none -- which is how every database built before that table identifies itself.
 
-    Reads the row inserted *last*, not the highest: the table is an append-only
-    log, so a rebuild from an older pipeline is a downgrade and has to read as
-    one. Same rule as the app's DatabaseVersionResolver.
+    The table holds exactly one row -- the version the file is, not a history of
+    what it has been -- so the ORDER BY below is a defence, not a model: if a
+    database ever turns up with several rows, this reads the one written last
+    instead of whichever SQLite happens to return. Same rule as the app's
+    DatabaseVersionResolver, and populate_db repairs the file when it sees this.
     """
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
         table = conn.execute(
