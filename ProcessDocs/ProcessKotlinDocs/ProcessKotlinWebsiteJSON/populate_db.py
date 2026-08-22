@@ -200,6 +200,75 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 # worth it).
 DEFAULT_DICT_SIZE = 256 * 1024
 
+# ADFA-5220. MAJOR is a compatibility contract, not a build number: 2 means the
+# brotli Content rows are compressed against CompressionDictionary, which is
+# exactly what the app gates on (DatabaseVersionResolver's
+# MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY). Bump MAJOR only when a reader that
+# understands the previous number would get this format wrong; MINOR/PATCH for
+# additions and fixes it can ignore.
+#
+# This has to be written by whichever step establishes the format, and that is
+# this script, because it is where load_or_create_dictionary mints the
+# dictionary. A database with dictionary-compressed content and no version row
+# reads as unversioned, so the app declines to use the dictionary and every
+# brotli row then fails to decode -- a working-looking database that serves
+# nothing.
+DATABASE_FORMAT_VERSION = (2, 0, 0)
+
+# Verbatim from ADFA-5220, including the comments: this is the schema the app
+# reads and the shipped database already carries, so it is copied rather than
+# paraphrased. changeTime is left to its default.
+VERSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
+  -- From https://semver.org/
+  --
+  -- Given a version number MAJOR.MINOR.PATCH, increment the:
+  --   MAJOR version when you make incompatible API changes
+  --   MINOR version when you add functionality in a backward compatible manner
+  --   PATCH version when you make backward compatible bug fixes
+  major      INT NOT NULL,
+  minor      INT NOT NULL,
+  patch      INT NOT NULL,
+  who        TEXT NOT NULL,                      -- Who made the change?
+  comment    TEXT NOT NULL,                      -- What changed?
+  changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Don't provide this. The default is fine.
+);
+"""
+
+
+def declare_database_version(
+    conn,
+    who: str = "populate_db.py",
+    comment: str = "Content rows compressed against CompressionDictionary",
+) -> bool:
+    """Records DATABASE_FORMAT_VERSION in DocumentationDatabaseVersion, creating
+    the table if this database predates it. Returns whether a row was added.
+
+    Appends only when the declared version *changes*. The table is a log of what
+    the format became, not of who ran what: a row per invocation would bury the
+    two or three entries that matter under hundreds of identical ones, and the
+    app reads only the last row anyway.
+
+    A last row that differs in either direction gets an append, including a lower
+    version than it already declares. That is deliberate -- rebuilding from an
+    older pipeline genuinely is a downgrade, and "the row inserted last wins" is
+    the convention the app's reader implements, so recording it is what keeps the
+    file honest about what it now contains.
+    """
+    conn.execute(VERSION_TABLE_SQL)
+    declared = conn.execute(
+        "SELECT major, minor, patch FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
+    ).fetchone()
+    if declared is not None and tuple(declared) == DATABASE_FORMAT_VERSION:
+        return False
+
+    major, minor, patch = DATABASE_FORMAT_VERSION
+    conn.execute(
+        "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, ?, ?, ?, ?)",
+        (major, minor, patch, who, comment),
+    )
+    return True
+
 
 def find_pngquant() -> str:
     """Locates the pngquant executable on PATH. Raises if it's missing,
@@ -752,6 +821,14 @@ def main():
         nav_json_bytes = json.dumps({"tree": nav_tree}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
         dictionary_data = load_or_create_dictionary(conn, page_json_bytes + [nav_json_bytes])
+        # Declared next to the dictionary because the dictionary is what the
+        # version means (ADFA-5220): the two have to land in the same
+        # transaction, or a reader can see one without the other.
+        version = ".".join(str(part) for part in DATABASE_FORMAT_VERSION)
+        if declare_database_version(conn):
+            print(f"Declared documentation database version {version}", file=sys.stderr)
+        else:
+            print(f"Documentation database already declares version {version}", file=sys.stderr)
         with DictionaryCompressor(dictionary_data) as compressor:
             for page, json_bytes in zip(pages, page_json_bytes):
                 path = f"{page['id']}.html"
