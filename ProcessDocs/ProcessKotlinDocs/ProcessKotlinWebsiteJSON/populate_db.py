@@ -213,6 +213,9 @@ DEFAULT_DICT_SIZE = 256 * 1024
 # reads as unversioned, so the app declines to use the dictionary and every
 # brotli row then fails to decode -- a working-looking database that serves
 # nothing.
+#
+# The table holds exactly one row: the version this file is, not a log of what it
+# has been. declare_database_version therefore replaces rather than appends.
 DATABASE_FORMAT_VERSION = (2, 0, 0)
 
 # Verbatim from ADFA-5220, including the comments: this is the schema the app
@@ -242,27 +245,25 @@ def declare_database_version(
     comment: str = "Content rows compressed against CompressionDictionary",
 ) -> bool:
     """Records DATABASE_FORMAT_VERSION in DocumentationDatabaseVersion, creating
-    the table if this database predates it. Returns whether a row was added.
+    the table if this database predates it. Returns whether the row changed.
 
-    Appends only when the declared version *changes*. The table is a log of what
-    the format became, not of who ran what: a row per invocation would bury the
-    two or three entries that matter under hundreds of identical ones, and the
-    app reads only the last row anyway.
+    **The table holds exactly one row**: the version this file *is*, not a history
+    of what it has been. So this replaces rather than appends, and a database that
+    somehow holds several rows -- an older tool, a hand-edit -- is collapsed back
+    to one. Anything wanting the history has git and the LastChange table.
 
-    A last row that differs in either direction gets an append, including a lower
-    version than it already declares. That is deliberate -- rebuilding from an
-    older pipeline genuinely is a downgrade, and "the row inserted last wins" is
-    the convention the app's reader implements, so recording it is what keeps the
-    file honest about what it now contains.
+    The replacement is unconditional in either direction, including a version
+    lower than the file already declares: rebuilding from an older pipeline
+    genuinely produces an older format, and the row has to say what the file
+    contains now rather than the highest it ever contained.
     """
     conn.execute(VERSION_TABLE_SQL)
-    declared = conn.execute(
-        "SELECT major, minor, patch FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
-    ).fetchone()
-    if declared is not None and tuple(declared) == DATABASE_FORMAT_VERSION:
+    declared = conn.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion").fetchall()
+    if len(declared) == 1 and tuple(declared[0]) == DATABASE_FORMAT_VERSION:
         return False
 
     major, minor, patch = DATABASE_FORMAT_VERSION
+    conn.execute("DELETE FROM DocumentationDatabaseVersion")
     conn.execute(
         "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, ?, ?, ?, ?)",
         (major, minor, patch, who, comment),
