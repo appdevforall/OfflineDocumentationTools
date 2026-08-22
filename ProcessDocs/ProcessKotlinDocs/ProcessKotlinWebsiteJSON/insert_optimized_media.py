@@ -67,8 +67,9 @@ from optimize_media import (
     resolve_config,
 )
 from populate_db import (
-    CHUNK_SIZE, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX, LANGUAGE, PAGE_CONTENT_TYPE,
-    DictionaryCompressor, backup_database, get_content_type, get_id, insert_chunked_content, load_dictionary,
+    CHUNK_SIZE, DictionaryCompressor, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX,
+    LANGUAGE, PAGE_CONTENT_TYPE, backup_database, fragment_chain, get_content_type, get_id,
+    insert_chunked_content, load_dictionary,
 )
 
 WEBP_CONTENT_TYPE = "image/webp"
@@ -102,8 +103,18 @@ def delete_content(conn, path: str) -> None:
     """Deletes a Content row and any chunked continuation fragments for it
     (see insert_chunked_content/CHUNK_SIZE) - safe to call even if nothing
     exists yet at that path. Content.path is UNIQUE, so this has to run
-    before any re-insert at the same path."""
-    conn.execute("DELETE FROM Content WHERE path = ? OR path LIKE ?", (path, f"{path}-%"))
+    before any re-insert at the same path.
+
+    Deletes by exact path rather than by a LIKE pattern. `_` is a single-
+    character wildcard in LIKE and the `-%` suffix does not restrict the tail to
+    digits, so "DELETE ... WHERE path LIKE '<path>-%'" also removes rows that
+    merely resemble a continuation - and those are never re-inserted, so the
+    loss is permanent. populate_db.fragment_chain does the over-matching query
+    once and re-checks every candidate's suffix, which is what makes the result
+    exact."""
+    conn.execute("DELETE FROM Content WHERE path = ?", (path,))
+    for _number, fragment_path in fragment_chain(conn, path):
+        conn.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
 def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,

@@ -79,6 +79,8 @@ These same commands work on macOS, Linux, and Windows (in PowerShell, Command Pr
 
 `uv sync` creates a virtual environment in `.venv/` and installs every dependency from `uv.lock`. There is no need to activate the venv — `uv run` does that for you.
 
+One dependency `uv sync` cannot install for you: the **`brotli` command-line tool** must be on your `PATH` (`apt install brotli` on Linux, `brew install brotli` on macOS). Databases built since ADFA-5153 compress their `Content` rows against a shared dictionary stored in the database itself, and no Python binding exposes a custom dictionary, so docdb-studio shells out to that binary to read and write those rows. Without it, opening such a database reports that the tool is missing rather than showing content. A database with no `CompressionDictionary` table needs nothing extra.
+
 ## Updating to the latest version
 
 When a new version of docdb-studio is released, you can refresh your local copy without re-cloning. Open a terminal, move into the project folder, and pull down the latest changes:
