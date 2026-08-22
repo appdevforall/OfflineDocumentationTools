@@ -79,7 +79,67 @@ These same commands work on macOS, Linux, and Windows (in PowerShell, Command Pr
 
 `uv sync` creates a virtual environment in `.venv/` and installs every dependency from `uv.lock`. There is no need to activate the venv — `uv run` does that for you.
 
-One dependency `uv sync` cannot install for you: the **`brotli` command-line tool** must be on your `PATH` (`apt install brotli` on Linux, `brew install brotli` on macOS). Databases built since ADFA-5153 compress their `Content` rows against a shared dictionary stored in the database itself, and no Python binding exposes a custom dictionary, so docdb-studio shells out to that binary to read and write those rows. Without it, opening such a database reports that the tool is missing rather than showing content. A database with no `CompressionDictionary` table needs nothing extra.
+## Installing the `brotli` command-line tool
+
+One dependency `uv sync` cannot install for you. Databases built since ADFA-5153 compress their `Content` rows against a shared dictionary stored inside the database itself, and no Python library exposes a custom dictionary, so docdb-studio runs the `brotli` **command-line program** to read and write those rows. If it is missing, content rows come up blank and docdb-studio prints an explanatory error in the terminal you launched it from — so a blank preview plus that message means "install this tool", not "this page is empty". A database with no `CompressionDictionary` table needs nothing extra.
+
+> **The `brotli` in `uv sync` is not this.** The Python package named `brotli` is already installed for you, and it is a *different thing* from the `brotli` program. Installing the Python package again will not help; you need the program, which puts a `brotli` (or `brotli.exe`) command on your `PATH`.
+
+### macOS
+
+```bash
+brew install brotli
+```
+
+### Linux
+
+```bash
+sudo apt install brotli        # Debian, Ubuntu, Mint
+sudo dnf install brotli        # Fedora, RHEL
+```
+
+### Windows
+
+Pick whichever package manager you already have. Each line searches first, because the package's exact name can change; copy the name from the search results into the install command.
+
+```powershell
+winget search brotli
+winget install --id=<Id from the search> -e
+```
+
+```powershell
+scoop search brotli
+scoop install brotli
+```
+
+```powershell
+choco search brotli
+choco install brotli
+```
+
+`choco` needs an Administrator terminal; `winget` and `scoop` do not.
+
+If you already use **Git for Windows** or **MSYS2**, its package manager has it too — from the MSYS2 terminal:
+
+```bash
+pacman -S mingw-w64-ucrt-x86_64-brotli
+```
+
+**Then close your terminal and open a new one.** Windows only picks up a changed `PATH` in newly-opened terminals, so a fresh window is what makes the next check meaningful:
+
+```powershell
+brotli --version
+```
+
+A version number means you are done. If instead you get "not recognized", the program is installed somewhere that is not on your `PATH`. Find it and add that folder:
+
+```powershell
+where.exe brotli
+```
+
+If `where.exe` finds nothing, look in the install location your package manager reports (Scoop uses `%USERPROFILE%\scoop\shims`, Chocolatey uses `C:\ProgramData\chocolatey\bin`), then add that folder to `PATH` under **Settings → System → About → Advanced system settings → Environment Variables**, and open a new terminal again.
+
+To confirm docdb-studio itself can see it, open a database that has a `CompressionDictionary` table and click any content row. If the preview shows the page's text, the tool is wired up correctly.
 
 ## Updating to the latest version
 
