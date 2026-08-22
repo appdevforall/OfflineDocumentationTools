@@ -338,6 +338,9 @@ def get_html_anchors_for_path(db_path: Path, base_path: str) -> list[str]:
     if compression == "brotli":
         try:
             full = decompress_brotli(full, db_path)
+        except BrotliCliMissing as exc:
+            print(f"error: cannot read {base_path!r}: {exc}", file=sys.stderr)
+            return []
         except brotli.error:
             return []
     return extract_html_anchors(full)
@@ -712,6 +715,9 @@ def fetch_content_for_path(
     if compression == "brotli":
         try:
             full = decompress_brotli(full, db_path)
+        except BrotliCliMissing as exc:
+            print(f"error: cannot read {base_path!r}: {exc}", file=sys.stderr)
+            return None
         except brotli.error:
             return None
     return full, mime
@@ -1236,19 +1242,26 @@ _dictionary_temp_paths: dict[Path, Path] = {}
 class BrotliCliMissing(brotli.error):
     """The `brotli` binary a dictionary database needs is not installed.
 
-    Subclasses brotli.error deliberately: every existing call site already guards
-    dictionary-free decoding with `except brotli.error`, so a missing binary
-    degrades those paths the same way a corrupt blob does instead of escaping as
-    an unhandled RuntimeError out of content preview or anchor validation."""
+    Subclasses brotli.error so it cannot escape as an unhandled RuntimeError out
+    of content preview or anchor validation -- but the call sites catch it
+    *separately* from a plain brotli.error and log it, because the two mean
+    different things to whoever is looking at the screen. A corrupt row is one
+    bad row; a missing binary means nothing in this database will ever decode,
+    and it is fixable in one command. Silently returning an empty preview for
+    that is indistinguishable from an empty page.
+
+    See "Installing the `brotli` command-line tool" in README.md."""
 
 
 def _find_brotli_cli() -> str:
     path = shutil.which("brotli")
     if path is None:
         raise BrotliCliMissing(
-            "this database uses a shared Brotli dictionary (ADFA-5153), which needs the "
-            "`brotli` command-line tool. Install it (apt install brotli / brew install brotli) "
-            "and reopen the database."
+            "this database uses a shared Brotli dictionary (ADFA-5153), which needs the `brotli` "
+            "command-line program -- not the Python package of the same name that is already "
+            "installed. brew install brotli (macOS), apt install brotli (Linux), or on Windows "
+            "winget/scoop/choco; see \"Installing the brotli command-line tool\" in README.md. "
+            "Then reopen the database."
         )
     return path
 

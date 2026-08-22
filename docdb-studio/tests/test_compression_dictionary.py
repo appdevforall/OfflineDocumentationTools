@@ -256,3 +256,27 @@ def test_missing_brotli_cli_surfaces_as_brotli_error() -> None:
     finally:
         docdb_studio.shutil.which = real_which
         db.unlink(missing_ok=True)
+
+
+def test_missing_brotli_cli_is_reported_not_swallowed(capsys) -> None:
+    """A missing binary and a corrupt row both leave the preview empty, but they
+    mean different things: one bad row versus nothing in this database will ever
+    decode, fixable in one command. The call sites log the second."""
+    dictionary_data = _train_dictionary([_make_text(150, i) for i in range(60)])
+    db = _make_db(with_dictionary=dictionary_data)
+    real_which = docdb_studio.shutil.which
+    try:
+        html = b"<html><body><p>needs the CLI</p></body></html>"
+        _insert_content(db, "docs/page.html", compress_for_storage(html, "brotli", db))
+        docdb_studio.shutil.which = lambda name: None
+
+        assert fetch_content_for_path(db, "docs/page.html") is None
+        assert docdb_studio.get_html_anchors_for_path(db, "docs/page.html") == []
+
+        message = capsys.readouterr().err
+        assert "docs/page.html" in message
+        assert "README" in message          # tells the reader where to go
+        assert message.count("error:") == 2  # once per call site, not swallowed
+    finally:
+        docdb_studio.shutil.which = real_which
+        db.unlink(missing_ok=True)
