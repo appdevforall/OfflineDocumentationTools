@@ -144,6 +144,48 @@ def _search_params(term: str) -> tuple[str, str, str]:
     return (pattern, pattern, pattern)
 
 
+# ADFA-5220: the MAJOR version this build knows how to read. MAJOR is a
+# compatibility contract, so a database declaring a higher one may store Content
+# in a way this code would misread -- and this tool *writes*, so misreading means
+# writing damage back. Refuse it instead.
+#
+# A lower or absent version is fine and is not refused: those formats are
+# strictly simpler (no shared dictionary, plain Brotli) and decompress_brotli's
+# fallback already reads them.
+SUPPORTED_DATABASE_MAJOR_VERSION = 2
+
+
+def database_major_version(db_path: Path) -> int | None:
+    """The MAJOR version `db_path` declares (ADFA-5220), or None when it declares
+    none -- which is how every database built before that table identifies itself.
+
+    Reads the row inserted *last*, not the highest: the table is an append-only
+    log, so a rebuild from an older pipeline is a downgrade and has to read as
+    one. Same rule as the app's DatabaseVersionResolver.
+    """
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'DocumentationDatabaseVersion'"
+        ).fetchone()
+        if table is None:
+            return None
+        row = conn.execute(
+            "SELECT major FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
+        ).fetchone()
+        return row[0] if row is not None and row[0] is not None else None
+
+
+def unsupported_version_error(db_path: Path, major: int) -> str:
+    """The message shown instead of the UI when a database is too new to edit."""
+    return (
+        f"{db_path} declares documentation database version {major}, and this build of "
+        f"docdb-studio understands version {SUPPORTED_DATABASE_MAJOR_VERSION}.\n\n"
+        "A higher MAJOR means the format changed in a way this build would read incorrectly, and "
+        "editing through it could write that misreading back into the file. Update docdb-studio, "
+        "or open a database built for this version."
+    )
+
+
 def get_total_count(db_path: Path, search_term: str | None = None) -> int:
     sql = COUNT_BASE.rstrip() + (SEARCH_WHERE if search_term else "")
     params = _search_params(search_term) if search_term else ()
@@ -4761,7 +4803,13 @@ if __name__ == "__main__":
         error = f"File not found: {args.database}"
     else:
         try:
-            total_count = get_total_count(args.database)
+            # Checked before anything else touches the database: a format this
+            # build does not understand must not be read *or* written (ADFA-5220).
+            declared_major = database_major_version(args.database)
+            if declared_major is not None and declared_major > SUPPORTED_DATABASE_MAJOR_VERSION:
+                error = unsupported_version_error(args.database, declared_major)
+            else:
+                total_count = get_total_count(args.database)
         except sqlite3.Error as e:
             error = str(e)
 
