@@ -227,7 +227,7 @@ def doc_set(path: str) -> str:
 
 def collect_training_samples(conn, base_rows: list, sample_size: int,
                              byte_budget: int = DEFAULT_TRAINING_BYTES,
-                             seed: int = DEFAULT_SAMPLE_SEED) -> list:
+                             seed: int = DEFAULT_SAMPLE_SEED, decode=None) -> list:
     """Plaintext samples for training a new dictionary, stratified across doc
     sets in proportion to their stored bytes and bounded by `byte_budget` of
     plaintext. See the module docstring for the measurements behind both
@@ -235,8 +235,11 @@ def collect_training_samples(conn, base_rows: list, sample_size: int,
     retrained once stored - being able to reproduce the training set later is
     the only way to explain the bytes you are then stuck with.
 
-    Only ever runs before CompressionDictionary exists, so every row here is
-    still plain Brotli."""
+    `decode` reads one item's stored bytes back to plaintext, defaulting to plain
+    Brotli because this only ever runs before CompressionDictionary exists. A
+    re-mint (see remint_dictionary.py) passes one that decodes against the
+    outgoing dictionary instead."""
+    decode = decode or brotli.decompress
     by_set = defaultdict(list)
     for row in base_rows:
         by_set[doc_set(row[0])].append(row)
@@ -265,7 +268,7 @@ def collect_training_samples(conn, base_rows: list, sample_size: int,
         if used >= byte_budget or len(samples) >= sample_size * 3:
             break
         try:
-            plain = brotli.decompress(read_item(conn, row[0]))
+            plain = decode(read_item(conn, row[0]))
         except brotli.error as exc:
             print(f"warning: could not decompress {row[0]!r} for training sample: {exc}", file=sys.stderr)
             continue
