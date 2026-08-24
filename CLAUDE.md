@@ -34,8 +34,38 @@ edit that database** — it contains no part of the production Android app itsel
 
 ## Schema: current vs. what this repo expects
 
+> ### ⚠ BLOCKER for this branch: `~/documentation.db` is now schema 2.0.0 (dictionary Brotli)
+>
+> As of 2026-08-20 the production copy reports **2.0.0** in `DocumentationDatabaseVersion`
+> ("Add CompressionDictionary table", David) — a deliberately *incompatible* major bump. Every
+> `brotli` Content row is now compressed against the shared 256 KiB raw LZ77 dictionary held in
+> `CompressionDictionary` (id 1). Measured on that database: **0 of 24 sampled brotli rows decode
+> with plain Brotli; all 24 require `brotli -D`.** The two encodings are not interchangeable in
+> either direction.
+>
+> This branch (`fix/ADFA-4739`) forked from `fix/ADFA-4737` **before** that work landed there via
+> PRs #26 and #27, so two of its three database writers are still plain-Brotli and are broken
+> against the current database:
+>
+> | File | Symptom against a 2.0.0 database |
+> |---|---|
+> | `ProcessKotlinWebsiteJSON/insert_optimized_media.py` | **Crashes.** `rewrite_pages` / `collect_referenced_media` call `brotli.decompress` on dictionary-compressed page rows. |
+> | `ProcessKotlinWebsiteJSON/populate_db.py` | **Silent corruption.** Writes plain-Brotli rows the server cannot decode. |
+> | `scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py` | Fixed — reads `CompressionDictionary` and compresses against it, falling back to plain Brotli only for pre-2.0.0 databases. |
+>
+> The fix for the first two already exists on `fix/ADFA-4737` (a `DictionaryCompressor` shelling out
+> to the `brotli` CLI's `-D` flag, plus `load_or_create_dictionary` and
+> `migrate_content_to_dictionary_brotli.py`). It is deliberately **not** duplicated here: reconciling
+> this branch with `fix/ADFA-4737` is the right way to pick it up, and porting it by hand would
+> guarantee a conflict with already-merged work. Until that reconciliation happens, do not run
+> `populate_db.py` or `insert_optimized_media.py` against a 2.0.0 database.
+>
+> Note also that `image/webp` (id 26) and `video/quicktime` (id 28) now exist in `ContentTypes`, so
+> the workflows' `INSERT OR IGNORE ... image/webp` step is a no-op against current copies.
+
 The schema below is what `~/documentation.db` (Alex's current production copy) actually contains,
-as of 2026-08-05:
+as of 2026-08-05 — predating the 2.0.0 bump described above, which additionally adds the
+`CompressionDictionary` and `DocumentationDatabaseVersion` tables:
 
 ```sql
 CREATE TABLE Languages (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE);

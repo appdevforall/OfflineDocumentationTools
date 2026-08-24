@@ -149,14 +149,14 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y pngquant unzip sqlite3
+          sudo apt-get install -y pngquant unzip sqlite3 brotli
 
       - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
-          # markdown-it-py/scour/cairosvg: ProcessKotlinWebsiteJSON's own
-          # requirements (see its README), not in the root requirements.txt.
-          pip install markdown-it-py scour cairosvg
+          # markdown-it-py: ProcessKotlinWebsiteJSON's own requirement (see
+          # its README); scour/cairosvg are in requirements.txt already.
+          pip install markdown-it-py
 
       - name: Copy documentation.db from local disk
         run: |
@@ -216,8 +216,9 @@ jobs:
       - name: 'Step 3/5: insert_optimized_media.py (re-optimize + reinsert images)'
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          # --webp requires an "image/webp" ContentTypes row, which this
-          # database doesn't ship with by default (idempotent).
+          # --webp requires an "image/webp" ContentTypes row. The current
+          # production database already has one, so this is normally a no-op;
+          # it stays for older copies that predate it (idempotent either way).
           sqlite3 documentation.db \
             "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
           mkdir -p media

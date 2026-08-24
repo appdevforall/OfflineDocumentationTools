@@ -39,9 +39,14 @@ What this does, inside a single transaction (rolled back on any error):
   6. VACUUMs the database afterwards (outside the transaction - SQLite
      refuses to VACUUM inside one), same as populate_db.py.
 
+Steps 3-5 all delete rows, so --dry-run does the entire run - optimization,
+inserts, rewrites, deletions, and their logging - and then rolls the
+transaction back instead of committing, to preview exactly what would change.
+
 Usage:
     python3 insert_optimized_media.py <media_dir> <db_path> [work_dir] [options]
     python3 insert_optimized_media.py --config myjob.config
+    python3 insert_optimized_media.py <media_dir> <db_path> --dry-run
 
 <options> are optimize_media.py's own tuning flags (--max-width,
 --jpeg-quality, --webp, --webp-quality, --pngquant-speed, --svg-precision,
@@ -51,8 +56,9 @@ work-dir can also be set via --config (as "input-dir"/"db-path"/
 "output-dir"), the same as optimize_media.py's own options.
 
 Note: --webp requires this database's ContentTypes table to already have an
-"image/webp" row (checked up front, before any optimization work starts) -
-this project's documentation.db doesn't ship with one.
+"image/webp" row (checked up front, before any optimization work starts).
+The current production documentation.db does have one; older copies taken
+before it was added do not, and need it inserted first.
 """
 import argparse
 import re
@@ -96,8 +102,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("output_dir", type=Path, nargs="?", default=None, metavar="work_dir",
                          help="Staging directory for optimized files; default: a temporary directory removed "
                               "afterwards (or set output-dir in --config)")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Do all the optimization and database work, log exactly what would change, then roll back instead of "
+             "committing. Nothing is written and no backup is taken",
+    )
     add_optimize_arguments(parser)
     return parser
+
+
+def like_escape(value: str) -> str:
+    r"""Escapes LIKE's own wildcards ("%" and "_") plus the escape character
+    itself, for use with a `LIKE ? ESCAPE '\'` clause. Without this a path
+    containing either character silently matches more rows than intended -
+    "_" matches any single character, so e.g. NAV_CONTENT_PATH
+    ("k/html/_nav.html") would have its "_" treated as a wildcard."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def delete_content(conn, path: str) -> None:
@@ -105,7 +125,10 @@ def delete_content(conn, path: str) -> None:
     (see insert_chunked_content/CHUNK_SIZE) - safe to call even if nothing
     exists yet at that path. Content.path is UNIQUE, so this has to run
     before any re-insert at the same path."""
-    conn.execute("DELETE FROM Content WHERE path = ? OR path LIKE ?", (path, f"{path}-%"))
+    conn.execute(
+        "DELETE FROM Content WHERE path = ? OR path LIKE ? ESCAPE '\\'",
+        (path, f"{like_escape(path)}-%"),
+    )
 
 
 def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
@@ -294,9 +317,26 @@ def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger) -
     up-to-date state of both stored media and in-content references - a file
     renamed this run is only "unreferenced" under its stale old name, which
     rewrite_pages will have already fixed up by the time this runs. Returns
-    the number of images removed."""
+    the number of images removed.
+
+    KNOWN LIMITATION: only page/nav Content rows are scanned for references.
+    An image reached solely from assets/docs.css (a `url(...)` background) or
+    from a .peb template would read as unreferenced and be deleted. Neither
+    does that today - both were checked - but anything that starts to must
+    either be excluded here or referenced from page content as well.
+
+    Raises if the database holds images but no page references any of them at
+    all. That combination means the reference scan found nothing to compare
+    against - most likely because this ran against a database whose k/html/*
+    pages populate_db.py hasn't written yet - and deleting the entire image
+    corpus off the back of an empty scan is never the intended outcome."""
     stored = list_stored_media(conn)
     referenced = collect_referenced_media(conn, page_content_type_id)
+    if stored and not referenced:
+        raise RuntimeError(
+            f"refusing to delete unreferenced media: {len(stored)} image(s) are stored but no page references "
+            "any image at all. Run populate_db.py first so there are pages to check against."
+        )
     removed = 0
     for name, path in sorted(stored.items()):
         if name in referenced:
@@ -375,9 +415,12 @@ def main() -> None:
             sys.exit(1)
         rename_map = build_rename_map(manifest, logger)
 
-        logger.info(f"Backing up {cfg['db_path']}...")
-        backup_path = backup_database(cfg["db_path"])
-        logger.info(f"Backup written to {backup_path}")
+        if args.dry_run:
+            logger.info("Dry run: no backup will be made and no changes will be committed.")
+        else:
+            logger.info(f"Backing up {cfg['db_path']}...")
+            backup_path = backup_database(cfg["db_path"])
+            logger.info(f"Backup written to {backup_path}")
 
         conn = sqlite3.connect(cfg["db_path"])
         try:
@@ -387,6 +430,29 @@ def main() -> None:
 
             content_type_cache = {}
             chunked_log = []
+
+            # A renamed file's old basename no longer appears anywhere under
+            # work_dir (that's what makes it a rename), so the insert loop
+            # below never visits its old db_path to replace it - it'd
+            # otherwise linger forever as an orphaned, no-longer-referenced
+            # row.
+            #
+            # This has to run *before* the inserts, not after: if one
+            # rename's new name happens to equal another rename's old name
+            # (a.png -> b.webp alongside an unrelated b.webp -> c.webp), a
+            # delete pass running afterwards would remove the very row the
+            # insert pass just wrote for b.webp. Same chain-rename hazard
+            # rewrite_pages guards against by substituting in a single pass
+            # over the original text; deleting first makes the ordering
+            # irrelevant here for the same reason.
+            removed = 0
+            for old_name in rename_map:
+                old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
+                delete_content(conn, old_db_path)
+                removed += 1
+                if cfg["verbose"]:
+                    logger.info(f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})")
+
             inserted = 0
             seen_names = {}
             for out_path in sorted(work_dir.rglob("*")):
@@ -407,40 +473,37 @@ def main() -> None:
                     if cfg["verbose"]:
                         logger.info(f"[OK] {out_path} -> {db_path}")
 
-            # A renamed file's old basename no longer appears anywhere under
-            # work_dir (that's what makes it a rename), so the loop above
-            # never visits its old db_path to replace it - it'd otherwise
-            # linger forever as an orphaned, no-longer-referenced row.
-            removed = 0
-            for old_name in rename_map:
-                old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
-                delete_content(conn, old_db_path)
-                removed += 1
-                if cfg["verbose"]:
-                    logger.info(f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})")
-
             changed_pages = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger, chunked_log)
 
             unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger)
 
-            conn.commit()
+            if args.dry_run:
+                conn.rollback()
+                logger.info("Dry run: rolled back, no changes written.")
+            else:
+                conn.commit()
         except Exception:
             conn.rollback()
             raise
         finally:
             conn.close()
 
-        logger.info("Vacuuming database to reclaim freed space...")
-        vacuum_conn = sqlite3.connect(cfg["db_path"])
-        try:
-            vacuum_conn.execute("VACUUM")
-        finally:
-            vacuum_conn.close()
+        # Nothing was committed on a dry run, so there's no freed space to
+        # reclaim - and VACUUM would rewrite the whole file for nothing.
+        if not args.dry_run:
+            logger.info("Vacuuming database to reclaim freed space...")
+            vacuum_conn = sqlite3.connect(cfg["db_path"])
+            try:
+                vacuum_conn.execute("VACUUM")
+            finally:
+                vacuum_conn.close()
 
         logger.info(
-            f"Done: inserted/updated {inserted} image(s) in {cfg['db_path']}, {removed} stale renamed-away row(s) "
+            f"{'Dry run complete: would have inserted/updated' if args.dry_run else 'Done: inserted/updated'} "
+            f"{inserted} image(s) in {cfg['db_path']}, {removed} stale renamed-away row(s) "
             f"removed, {changed_pages} page(s)/nav row(s) updated to match {len(rename_map)} renamed file(s), "
             f"{unreferenced_removed} unreferenced image(s) deleted."
+            f"{' No changes made.' if args.dry_run else ''}"
         )
         if chunked_log:
             logger.info(f"Chunked {len(chunked_log)} file(s) over {CHUNK_SIZE:,} bytes:")

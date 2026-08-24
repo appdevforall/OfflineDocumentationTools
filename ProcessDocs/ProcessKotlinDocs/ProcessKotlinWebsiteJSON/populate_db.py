@@ -418,6 +418,12 @@ def main():
              "subtree get no nav entry, none of their .md sub-topics get converted/inserted, and any other page's "
              "in-content link to one of those .md files renders as broken",
     )
+    parser.add_argument(
+        "--allow-conversion-failures", action="store_true",
+        help="Insert whatever converted successfully even if some .md files failed, instead of the default of "
+             "refusing to modify the database at all. Failed pages are dropped from nav and every link to them "
+             "renders as broken either way",
+    )
     args = parser.parse_args()
 
     docs_root: Path = args.docs_root
@@ -464,7 +470,24 @@ def main():
               file=sys.stderr)
 
     image_names = load_zip_image_names(args.images_zip)
-    image_index_db = {name: name for name in image_names}  # flat, matching the zip's own layout
+    # Bare filename -> bare filename: every image is stored at
+    # "k/html/images/<basename>" regardless of where it sat inside the zip,
+    # and Converter.resolve_image_src looks its references up by bare
+    # filename too (src.rsplit("/")[-1]), so both sides agree even if a
+    # future export grows subdirectories. Keeping the full entry name as the
+    # index value instead would silently break every reference in a nested
+    # zip - the lookup key would never match - and would disagree with
+    # insert_optimized_media.py, which flattens to the basename as well.
+    image_index_db = {}
+    image_entry_by_name = {}
+    for name in image_names:
+        base = Path(name).name
+        if base in image_entry_by_name:
+            print(f"warning: {name!r} has the same filename as {image_entry_by_name[base]!r}; "
+                  "keeping the first, skipping this one", file=sys.stderr)
+            continue
+        image_entry_by_name[base] = name
+        image_index_db[base] = base
     md = make_markdown_it()
     converter = Converter(
         md, variables, topic_index_db, image_index_db,
@@ -472,8 +495,21 @@ def main():
         image_url_prefix=IMAGES_URL_PREFIX,
     )
 
-    md_files = [p for p in sorted(topics_dir.rglob("*.md")) if p.stem not in blacklisted_stems]
+    # Every page is stored at "k/html/<stem>", so two same-stem .md files in
+    # different topics/ subdirectories would produce two inserts at one
+    # Content.path - a UNIQUE violation that aborts the whole transaction
+    # partway through. build_topic_index already resolves that ambiguity
+    # (keep the first sorted page id, warn about the rest), so defer to the
+    # choice it already made and drop the losers here instead of crashing on
+    # them: a file is kept only if topic_index maps its stem back to this
+    # exact file. No second warning - build_topic_index printed one already.
+    md_files = [
+        p for p in sorted(topics_dir.rglob("*.md"))
+        if p.stem not in blacklisted_stems
+        and topic_index.get(p.stem) == p.relative_to(topics_dir).with_suffix("").as_posix()
+    ]
     pages = []
+    failed_stems = []
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
         db_id = f"k/html/{md_path.stem}"
@@ -482,9 +518,33 @@ def main():
             page = converter.convert_file(md_path, db_id, source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep converting the rest
             print(f"error converting {md_path}: {exc}", file=sys.stderr)
+            # No Content row will exist at this page's path, so stop
+            # advertising it as a real page: without this, topic_index_db
+            # still resolves the stem and nav renders an ordinary,
+            # normally-styled link straight to a 404 (and any other page's
+            # in-content link to it does the same). Dropping it here is what
+            # the blacklist path already does above, and makes every
+            # reference render as a styled broken link instead.
+            topic_index_db.pop(md_path.stem, None)
+            failed_stems.append(md_path.stem)
             continue
         pages.append(page)
     print(f"Converted {len(pages)}/{len(md_files)} pages", file=sys.stderr)
+    # A failed conversion means a page that currently exists in the database
+    # would be deleted (see the DELETE below) and not replaced. That's a
+    # silent regression in a database this script's callers upload straight
+    # to production, so refuse to write anything rather than shipping a
+    # smaller corpus than the source tree describes. --allow-conversion-
+    # failures opts back into best-effort behaviour, matching the
+    # --allow-failures escape hatch find_missing_assets.py already has.
+    if failed_stems and not args.allow_conversion_failures:
+        print(
+            f"error: {len(failed_stems)} page(s) failed to convert "
+            f"({', '.join(sorted(failed_stems))}); refusing to modify {args.db_path}. "
+            "Fix the source, or pass --allow-conversion-failures to insert the rest anyway.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # kr.tree's start-page is home.topic, not a .md file, so it never goes
     # through the conversion loop above - nav ends up linking to
@@ -562,9 +622,14 @@ def main():
         content_type_cache = {}
         images_inserted = 0
         with zipfile.ZipFile(args.images_zip) as zf:
-            for name in image_names:
-                db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
-                if insert_file(conn, zf.read(name), name, db_path, language_id, content_type_cache, chunked_log,
+            # Keyed by bare filename, matching image_index_db above (and so
+            # the "/k/html/images/<basename>" references baked into every
+            # page at conversion time) rather than the zip's own entry name,
+            # which is the same string for a flat zip and the right one for
+            # a nested one.
+            for base, entry in sorted(image_entry_by_name.items()):
+                db_path = f"{IMAGES_DB_PATH_PREFIX}{base}"
+                if insert_file(conn, zf.read(entry), base, db_path, language_id, content_type_cache, chunked_log,
                                 pngquant_path):
                     images_inserted += 1
 
