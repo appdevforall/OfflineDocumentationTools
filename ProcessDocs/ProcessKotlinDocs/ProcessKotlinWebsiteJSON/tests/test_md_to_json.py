@@ -106,6 +106,39 @@ def test_indented_code_block_renders_as_code_not_html():
     assert "List<String>" in block["code"]
 
 
+# --- convert_node: html_block preserves blank lines in a raw run -------
+
+def test_html_block_preserves_blank_lines_within_a_raw_run():
+    """CommonMark's html_block type 1 (<pre>/<textarea>/<script>/<style>)
+    continues across blank lines, so their content can genuinely contain
+    one - but a blank line failed the "elif line.strip():" check the same
+    way a tag-marker line failed to match TAG_RE, so it was dropped
+    entirely instead of preserved, reflowing the raw HTML."""
+    node = m.Node(FakeToken("html_block", content="<pre>\nline1\n\nline3\n</pre>"))
+    result = make_converter().convert_node(node)
+    assert result == [{"type": "html", "html": "<pre>\nline1\n\nline3\n</pre>"}]
+
+
+# --- slugify: hyphenate punctuation instead of deleting it --------------
+
+def test_slugify_hyphenates_punctuation_instead_of_deleting_it():
+    """Deleting punctuation merged e.g. "package.json" into "packagejson",
+    diverging from Writerside's own anchor algorithm (which hyphenates it)
+    on any heading with a "." "/" ":" "(" ")" etc. - measured at 209 dead
+    #anchor links across the real kotlin-web-site corpus; these are its
+    own reported examples."""
+    assert m.slugify("package.json customization") == "package-json-customization"
+    assert m.slugify("Kotlin/JS") == "kotlin-js"
+    assert m.slugify("New default JVM target: 1.8") == "new-default-jvm-target-1-8"
+    assert m.slugify("Generation of TypeScript declaration files (d.ts)") == \
+        "generation-of-typescript-declaration-files-d-ts"
+
+
+def test_slugify_still_collapses_whitespace_and_strips_edges():
+    assert m.slugify("  Hello   World  ") == "hello-world"
+    assert m.slugify("Already-Hyphenated") == "already-hyphenated"
+
+
 # --- ATTR_PAIR_RE / parse_attrs -----------------------------------------
 
 def test_parse_attrs_allows_whitespace_around_equals():
@@ -193,6 +226,51 @@ def test_fold_image_attrs_leaves_unrelated_text_alone():
     out = make_converter().fold_image_attrs([img, text])
     assert img.attrs == {}
     assert out == [img, text]
+
+
+def test_fold_image_attrs_stops_on_group_that_parses_to_nothing():
+    """folded_any used to be set on a regex MATCH, not a successful parse,
+    so a brace group that isn't an attribute group (e.g. a CSS class
+    shorthand, or prose) was swallowed right along with any group already
+    folded - merge_attr_lines and extract_trailing_attrs both already
+    guard their own "{...}" folding on this same thing."""
+    img = FakeToken("image")
+    text = FakeToken("text", "{.rounded} caption here")
+    out = make_converter().fold_image_attrs([img, text])
+    assert img.attrs == {}
+    assert out == [img, text]
+
+
+def test_fold_image_attrs_keeps_a_group_already_folded_before_a_prose_group():
+    img = FakeToken("image")
+    text = FakeToken("text", '{width="500"}{ this is prose }')
+    out = make_converter().fold_image_attrs([img, text])
+    assert img.attrs == {"width": "500"}
+    assert len(out) == 2
+    assert out[1].content == "{ this is prose }"
+
+
+def test_fold_image_attrs_folds_trailing_group_after_a_link():
+    """Nothing on the inline path folded a "{...}" group written right
+    after a *link* (only after an image or a heading) - it rendered as
+    literal visible text instead of becoming an attribute on the <a>. Real
+    hit: js/js-ir-compiler.md's `{nullable="true"}` right after a link."""
+    link_open = FakeToken("link_open")
+    inner_text = FakeToken("text", "link text")
+    link_close = FakeToken("link_close")
+    trailing = FakeToken("text", '{target="_blank"} rest')
+    out = make_converter().fold_image_attrs([link_open, inner_text, link_close, trailing])
+    assert link_open.attrs == {"target": "_blank"}
+    assert out[-1].content == " rest"
+
+
+def test_fold_image_attrs_link_group_that_parses_to_nothing_is_left_alone():
+    link_open = FakeToken("link_open")
+    link_close = FakeToken("link_close")
+    trailing = FakeToken("text", "{not an attr}")
+    out = make_converter().fold_image_attrs([link_open, link_close, trailing])
+    assert link_open.attrs == {}
+    assert out[-1].content == "{not an attr}"
 
 
 # --- <tabs> block: don't discard non-<tab> siblings ---------------------
@@ -287,6 +365,35 @@ def test_top_level_unmatched_closer_does_not_crash():
     assert any(w["kind"] == "tag" for w in conv.warnings)
 
 
+def test_container_left_open_at_eof_warns():
+    """The unmatched-*closer* case (above) always warns, since that always
+    means malformed source - a container that's still open when the block
+    list runs out (a missing closer, with no closing marker at all) is the
+    same signal from the other end, but used to close over the rest of the
+    page with no warning at all."""
+    blocks = [
+        {"type": "tag_marker", "closing": False, "tag": "note", "attrs": {}},
+        {"type": "paragraph", "html": "Inside note."},
+        {"type": "paragraph", "html": "Rest of page paragraph."},
+    ]
+    conv = make_converter()
+    conv.current_source = "test.md"
+    conv.group_containers(blocks)
+    assert any(w["kind"] == "tag" for w in conv.warnings)
+
+
+def test_well_formed_container_at_eof_does_not_warn():
+    blocks = [
+        {"type": "tag_marker", "closing": False, "tag": "note", "attrs": {}},
+        {"type": "paragraph", "html": "Inside note."},
+        {"type": "tag_marker", "closing": True, "tag": "note", "attrs": {}},
+    ]
+    conv = make_converter()
+    conv.current_source = "test.md"
+    conv.group_containers(blocks)
+    assert conv.warnings == []
+
+
 # --- style_broken_and_external_links: no duplicate style= ---------------
 
 def test_broken_link_style_merges_into_existing_style_attr():
@@ -331,6 +438,49 @@ def test_src_rewrite_only_touches_img_tags():
     assert 'src="x.js"></iframe>' in html
     assert '/images/sub/x.js' in html
     assert not any(w["kind"] == "image" for w in conv.warnings)
+
+
+# --- resolve_href / resolve_image_src: bare-filename path prefixes ------
+
+def test_resolve_href_resolves_a_link_with_a_path_prefix():
+    """MD_LINK_RE's char class excluded "/", so a link like
+    "tour/hello.md" (a real, if unusual, way to reference a topic) neither
+    resolved nor got flagged "broken" by classify_href (same regex) - it
+    shipped verbatim with no warning at all, unlike the unknown-bare-stem
+    case just below it."""
+    conv = make_converter(topic_index={"hello": "kotlin-tour/hello"})
+    assert conv.resolve_href("tour/hello.md#section") == "/kotlin-tour/hello.html#section"
+    assert conv.warnings == []
+
+
+def test_resolve_href_path_prefixed_unknown_stem_still_warns():
+    conv = make_converter(topic_index={})
+    assert conv.resolve_href("tour/missing.md") is None
+    assert conv.warnings == [{"kind": "link", "source": None, "reference": "tour/missing.md"}]
+
+
+def test_resolve_image_src_resolves_a_bare_filename_with_a_path_prefix():
+    """A relative path prefix (as opposed to a bare filename) used to bail
+    out silently here with no warning either way - unlike the bare-filename
+    miss just below, which does warn. Writerside's own convention (see
+    module docstring) is to resolve images by bare filename anywhere under
+    images/, same as topics."""
+    conv = make_converter(image_index={"pic.png": "sub/pic.png"})
+    assert conv.resolve_image_src("sub/pic.png") == "/images/sub/pic.png"
+    assert conv.warnings == []
+
+
+def test_resolve_image_src_path_prefixed_unknown_name_warns():
+    conv = make_converter(image_index={})
+    assert conv.resolve_image_src("sub/missing.png") is None
+    assert conv.warnings == [{"kind": "image", "source": None, "reference": "sub/missing.png"}]
+
+
+def test_resolve_image_src_still_leaves_absolute_and_external_untouched():
+    conv = make_converter(image_index={"pic.png": "pic.png"})
+    assert conv.resolve_image_src("/already/absolute.png") is None
+    assert conv.resolve_image_src("https://example.com/x.png") is None
+    assert conv.warnings == []
 
 
 # --- load_config: reject an unsafe/invalid color ------------------------
@@ -508,6 +658,40 @@ def test_main_prunes_stale_topic_json(tmp_path):
     assert (out_dir / "topics" / "new.json").exists()
 
 
+def test_main_prunes_stale_images(tmp_path):
+    """copytree(dirs_exist_ok=True) only ever adds/overwrites - an image
+    deleted upstream used to keep shipping in the output images/ directory
+    forever, unlike a removed topic's stale JSON (pruned by the rmtree
+    exercised just above)."""
+    docs_root, config = _write_minimal_docs_root(tmp_path)
+    (docs_root / "images").mkdir()
+    (docs_root / "images" / "keep.png").write_bytes(b"keep")
+    (docs_root / "images" / "stale.png").write_bytes(b"stale")
+    out_dir = tmp_path / "out"
+    assert _run_main(docs_root, out_dir, config).returncode == 0
+    assert (out_dir / "images" / "keep.png").exists()
+    assert (out_dir / "images" / "stale.png").exists()
+
+    (docs_root / "images" / "stale.png").unlink()
+    assert _run_main(docs_root, out_dir, config).returncode == 0
+    assert (out_dir / "images" / "keep.png").exists()
+    assert not (out_dir / "images" / "stale.png").exists()
+
+
+def test_main_prunes_now_empty_stale_image_subdirectories(tmp_path):
+    docs_root, config = _write_minimal_docs_root(tmp_path)
+    (docs_root / "images" / "sub").mkdir(parents=True)
+    (docs_root / "images" / "sub" / "only.png").write_bytes(b"only")
+    out_dir = tmp_path / "out"
+    assert _run_main(docs_root, out_dir, config).returncode == 0
+    assert (out_dir / "images" / "sub" / "only.png").exists()
+
+    (docs_root / "images" / "sub" / "only.png").unlink()
+    (docs_root / "images" / "sub").rmdir()
+    assert _run_main(docs_root, out_dir, config).returncode == 0
+    assert not (out_dir / "images" / "sub").exists()
+
+
 def test_main_refuses_when_output_dir_is_docs_root(tmp_path):
     """output_dir == docs_root makes topics_out_dir the very same directory
     as the source topics/ - the pruning rmtree used to delete it outright,
@@ -516,3 +700,14 @@ def test_main_refuses_when_output_dir_is_docs_root(tmp_path):
     result = _run_main(docs_root, docs_root, config)
     assert result.returncode == 1
     assert (docs_root / "topics" / "good.md").exists()
+
+
+def test_main_refuses_before_writing_theme_json_into_the_source(tmp_path):
+    """The output_dir-aliases-docs_root guard used to run only right
+    before the topics_out_dir rmtree, well after theme.json (and the
+    images/ copytree) had already written into the very directory the
+    refusal exists to protect."""
+    docs_root, config = _write_minimal_docs_root(tmp_path)
+    result = _run_main(docs_root, docs_root, config)
+    assert result.returncode == 1
+    assert not (docs_root / "theme.json").exists()

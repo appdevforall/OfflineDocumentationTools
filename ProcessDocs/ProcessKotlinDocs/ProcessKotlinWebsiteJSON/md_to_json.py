@@ -82,6 +82,14 @@ Known limitations (fine for a first pass, worth revisiting before production use
     algorithms diverge on a case not yet seen in the corpus (inline code or
     punctuation in the heading, duplicate heading text) - not currently
     detected.
+  - "html" blocks are raw CommonMark passthrough and are NOT guaranteed to
+    be individually well-formed - e.g. a hand-written <table> whose rows
+    span multiple blank-line-separated chunks comes through as several
+    "html" blocks, each containing a structurally unbalanced fragment
+    (measured on the live corpus: 194 of 624 "html" blocks). Concatenating
+    consecutive "html" blocks verbatim reproduces the original markup
+    correctly; a template that wraps each block in its own element
+    (instead of concatenating verbatim) will shred tables like this one.
 """
 import argparse
 import json
@@ -107,7 +115,13 @@ TRAILING_ATTR_GROUPS_RE = re.compile(r"\s*((?:\{[^{}]*\})+)\s*$")
 IMAGE_ATTR_GROUP_RE = re.compile(r"\{([^{}]*)\}")
 ATTR_PAIR_RE = re.compile(r'([\w-]+)\s*=\s*(?:"([^"]*)"|(\S+))')
 VAR_RE = re.compile(r"%([\w.-]+)%")
-MD_LINK_RE = re.compile(r"^([\w.-]+)\.md(#.*)?$")
+# Leading "(?:[\w.-]+/)*" absorbs (and discards) any path prefix instead of
+# just failing to match - a link like "tour/hello.md" is still resolved by
+# its bare filename per Writerside's convention (see module docstring), the
+# same way build_topic_index looks pages up; without it, a path-containing
+# ".md" link neither resolved nor got classified as "broken" (classify_href
+# uses this same pattern) - it shipped verbatim with no warning at all.
+MD_LINK_RE = re.compile(r"^(?:[\w.-]+/)*([\w.-]+)\.md(#.*)?$")
 EXTERNAL_HREF_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//|^mailto:", re.I)
 LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
 STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
@@ -209,8 +223,14 @@ def extract_title(raw_text: str):
 
 
 def slugify(text: str) -> str:
-    slug = re.sub(r"[^\w\s-]", "", text.lower()).strip()
-    return re.sub(r"[\s_]+", "-", slug)
+    """Deletes-vs-hyphenates matters: dropping punctuation entirely (the
+    previous behavior) merges "package.json" into "packagejson", diverging
+    from Writerside's own anchor algorithm (which hyphenates it) on every
+    heading with a "." "/" ":" etc. - measured at 209 dead #anchor links
+    across the real kotlin-web-site corpus. Hyphenating punctuation instead
+    keeps this aligned with those hand-written anchors in the common case."""
+    slug = re.sub(r"[^\w\s-]", "-", text.lower())
+    return re.sub(r"[\s_-]+", "-", slug).strip("-")
 
 
 class Node:
@@ -290,10 +310,19 @@ class Converter:
         return f"/{page_id}.html{anchor or ''}"
 
     def resolve_image_src(self, src: str):
-        """"foo.png" -> "<image_url_prefix><path-within-images>", or None to leave src untouched."""
-        if not src or "://" in src or src.startswith("/") or "/" in src:
+        """"foo.png", optionally with a relative path prefix (e.g.
+        "sub/foo.png" - resolved by bare filename anywhere under images/,
+        same Writerside convention as resolve_href for topics; a path
+        prefix used to bail out here with no warning, unlike the
+        bare-filename miss below) -> "<image_url_prefix><path-within-images>",
+        or None to leave src untouched (already-absolute "/..." paths and
+        "scheme://..." URLs are left alone - "/" in src is redundant with
+        startswith("/") once a relative path prefix is allowed through, so
+        it's dropped rather than kept as dead code)."""
+        if not src or "://" in src or src.startswith("/"):
             return None
-        rel = self.image_index.get(src)
+        name = src.rsplit("/", 1)[-1]
+        rel = self.image_index.get(name)
         if rel is None:
             print(f"warning: image not found: {src!r}", file=sys.stderr)
             self.warnings.append({"kind": "image", "source": self.current_source, "reference": src})
@@ -369,18 +398,25 @@ class Converter:
 
     def fold_image_attrs(self, tokens) -> list:
         """Folds one or more `{...}` attribute-text groups immediately
-        following an image (e.g. `![alt](x.png){width="500"}{type="joined"}`
-        - CommonMark has no syntax for this, so it otherwise tokenizes as a
-        literal "{width=..}{type=..}" text run right after the image) into
-        that image's own HTML attributes instead of leaving it as visible
-        text. Only the leading `{...}` group(s) are consumed - anything
-        after them (a second attribute group is fine, but so is unrelated
-        prose the author just happened to write right after the image) is
-        kept as ordinary visible text rather than silently discarded along
-        with the attribute groups."""
+        following an image or a link (e.g. `![alt](x.png){width="500"}{type="joined"}`
+        or `[text](url){target="_blank"}` - CommonMark has no syntax for
+        this, so it otherwise tokenizes as a literal "{width=..}{type=..}"
+        text run right after the image/link) into that element's own HTML
+        attributes instead of leaving it as visible text. Only the leading
+        `{...}` group(s) are consumed - anything after them (a second
+        attribute group is fine, but so is unrelated prose the author just
+        happened to write right after the image/link) is kept as ordinary
+        visible text rather than silently discarded along with the
+        attribute groups."""
         result = []
         for tok in tokens:
-            if tok.type == "text" and result and result[-1].type == "image":
+            target = None
+            if tok.type == "text" and result:
+                if result[-1].type == "image":
+                    target = result[-1]
+                elif result[-1].type == "link_close":
+                    target = self._find_link_open(result)
+            if target is not None:
                 content = tok.content.strip()
                 pos = 0
                 folded_any = False
@@ -388,7 +424,17 @@ class Converter:
                     m = IMAGE_ATTR_GROUP_RE.match(content, pos)
                     if not m:
                         break
-                    result[-1].attrs.update(parse_attrs(m.group(1)))
+                    parsed = parse_attrs(m.group(1))
+                    # Stop (rather than fold-and-discard) on a brace group
+                    # that parses to nothing - e.g. "{.rounded}" or
+                    # "{ this is prose }" - so it survives as visible text
+                    # instead of silently vanishing along with any groups
+                    # already folded. Mirrors the same guard
+                    # merge_attr_lines and extract_trailing_attrs already
+                    # apply to their own "{...}" folding.
+                    if not parsed:
+                        break
+                    target.attrs.update(parsed)
                     pos = m.end()
                     folded_any = True
                 if folded_any:
@@ -401,6 +447,24 @@ class Converter:
                 tok.children = self.fold_image_attrs(tok.children)
             result.append(tok)
         return result
+
+    @staticmethod
+    def _find_link_open(result: list):
+        """Finds the "link_open" token matching the "link_close" at the end
+        of `result` - CommonMark links don't nest, so this is just the
+        nearest preceding "link_open" (the depth counter is defensive, not
+        load-bearing for any case in the real corpus). result[-1] is that
+        terminating "link_close" itself, so the scan starts at result[-2]
+        rather than re-counting it as a nested close to skip past."""
+        depth = 0
+        for tok in reversed(result[:-1]):
+            if tok.type == "link_close":
+                depth += 1
+            elif tok.type == "link_open":
+                if depth == 0:
+                    return tok
+                depth -= 1
+        return None
 
     def extract_trailing_attrs(self, children) -> dict:
         """Strips trailing `{...}` attribute group(s) off the last text
@@ -569,7 +633,14 @@ class Converter:
                             "tag": tag,
                             "attrs": attrs,
                         })
-                elif line.strip():
+                else:
+                    # Every non-tag-marker line, blank ones included - a
+                    # blank line inside a raw run (e.g. between two rows of
+                    # a hand-written <table>, or inside <pre>/<script>,
+                    # which CommonMark's html_block rules let span blank
+                    # lines) is real content and used to be dropped here
+                    # instead of preserved in the joined "\n".join(raw_run)
+                    # below.
                     raw_run.append(line)
             flush_raw()
             return result
@@ -639,6 +710,20 @@ class Converter:
                         del stack[match_depth:]
                 continue
             stack[-1]["blocks"].append(b)
+
+        if len(stack) > 1:
+            # A container tag left open at EOF (missing closer, with no
+            # matching close marker at all) - the sibling "unmatched
+            # closer" branch above always warns since that's always a sign
+            # of malformed source; this is the same signal from the other
+            # end, so it should warn the same way rather than silently
+            # nesting the rest of the page inside the still-open container.
+            unclosed = [frame["type"] for frame in stack[1:]]
+            print(f"warning: unclosed {', '.join(f'<{t}>' for t in unclosed)} at end of {self.current_source!r}",
+                  file=sys.stderr)
+            self.warnings.append(
+                {"kind": "tag", "source": self.current_source, "reference": f"<{unclosed[-1]}> (unclosed at EOF)"}
+            )
 
         return Converter._finalize_list(root["blocks"])
 
@@ -787,6 +872,23 @@ def _copy_if_changed(src, dst, *, follow_symlinks=True):
     return shutil.copy2(src, dst, follow_symlinks=follow_symlinks)
 
 
+def _prune_stale_files(dest_dir: Path, keep_rel_paths: set) -> None:
+    """Removes any file under dest_dir whose path (relative to dest_dir,
+    forward-slashed) isn't in keep_rel_paths, then any directory left
+    empty by those removals. copytree(dirs_exist_ok=True) only ever
+    adds/overwrites - without a pass like this, a file deleted upstream
+    keeps shipping in the output forever."""
+    for path in list(dest_dir.rglob("*")):
+        if path.is_file() and path.relative_to(dest_dir).as_posix() not in keep_rel_paths:
+            path.unlink()
+    # Deepest-first so removing a child directory can make its
+    # now-empty parent eligible for removal in the same pass.
+    dirs = sorted((p for p in dest_dir.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True)
+    for path in dirs:
+        if not any(path.iterdir()):
+            path.rmdir()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("docs_root", type=Path, help="Path to kotlin-web-site/docs")
@@ -821,6 +923,17 @@ def main():
     md_files = sorted(topics_dir.rglob("*.md"))
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Guard against output_dir aliasing docs_root before anything below
+    # writes into (theme.json) or deletes from (the topics_out_dir rmtree)
+    # the output tree - this used to run only right before that rmtree, so
+    # the run that correctly refused to proceed had already dropped
+    # theme.json into the source checkout by the time it did.
+    topics_out_dir = args.output_dir / args.topics_subdir
+    if topics_out_dir.is_dir() and topics_out_dir.resolve() == topics_dir.resolve():
+        print(f"error: output topics dir {topics_out_dir} is the source topics dir {topics_dir}",
+              file=sys.stderr)
+        sys.exit(1)
+
     # menu-no-link-color applies to the sidebar, which build_nav.py builds
     # separately from nav.json/kr.tree - it reads this back from the output
     # directory it's already given, rather than needing its own copy of the
@@ -831,18 +944,15 @@ def main():
 
     if images_dir.is_dir():
         shutil.copytree(images_dir, args.output_dir / "images", dirs_exist_ok=True, copy_function=_copy_if_changed)
+        keep = {p.relative_to(images_dir).as_posix() for p in images_dir.rglob("*") if p.is_file()}
+        _prune_stale_files(args.output_dir / "images", keep)
     else:
         print(f"warning: {images_dir} not found; image references will 404", file=sys.stderr)
 
     # Clear out whatever a previous run wrote here first - otherwise a topic
     # deleted upstream since then keeps its stale JSON (and keeps shipping)
     # forever, since nothing else here ever removes a file on its own.
-    topics_out_dir = args.output_dir / args.topics_subdir
     if topics_out_dir.is_dir():
-        if topics_out_dir.resolve() == topics_dir.resolve():
-            print(f"error: output topics dir {topics_out_dir} is the source topics dir {topics_dir}",
-                  file=sys.stderr)
-            sys.exit(1)
         shutil.rmtree(topics_out_dir)
 
     count = 0
