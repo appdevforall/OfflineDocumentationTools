@@ -34,31 +34,29 @@ edit that database** — it contains no part of the production Android app itsel
 
 ## Schema: current vs. what this repo expects
 
-> ### ⚠ BLOCKER for this branch: `~/documentation.db` is now schema 2.0.0 (dictionary Brotli)
+> ### Schema 2.0.0: every Brotli row uses a shared dictionary
 >
-> As of 2026-08-20 the production copy reports **2.0.0** in `DocumentationDatabaseVersion`
+> As of 2026-08-20 `~/documentation.db` reports **2.0.0** in `DocumentationDatabaseVersion`
 > ("Add CompressionDictionary table", David) — a deliberately *incompatible* major bump. Every
-> `brotli` Content row is now compressed against the shared 256 KiB raw LZ77 dictionary held in
+> `brotli` Content row is compressed against the shared 256 KiB raw LZ77 dictionary held in
 > `CompressionDictionary` (id 1). Measured on that database: **0 of 24 sampled brotli rows decode
-> with plain Brotli; all 24 require `brotli -D`.** The two encodings are not interchangeable in
-> either direction.
+> with plain Brotli; all 24 require `brotli -D`.** A dictionary stream and a plain one are not
+> interchangeable, so anything reading or writing `Content` has to go through the dictionary.
 >
-> This branch (`fix/ADFA-4739`) forked from `fix/ADFA-4737` **before** that work landed there via
-> PRs #26 and #27, so two of its three database writers are still plain-Brotli and are broken
-> against the current database:
+> No Python Brotli binding exposes a custom dictionary (the `brotli` package has no such parameter;
+> `brotlicffi` dropped `BrotliDecoderSetCustomDictionary` in 1.2), so all three writers shell out to
+> the **`brotli` CLI** — which therefore has to be installed wherever the pipeline runs. Both
+> workflows install it.
 >
-> | File | Symptom against a 2.0.0 database |
+> | Writer | Dictionary handling |
 > |---|---|
-> | `ProcessKotlinWebsiteJSON/insert_optimized_media.py` | **Crashes.** `rewrite_pages` / `collect_referenced_media` call `brotli.decompress` on dictionary-compressed page rows. |
-> | `ProcessKotlinWebsiteJSON/populate_db.py` | **Silent corruption.** Writes plain-Brotli rows the server cannot decode. |
-> | `scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py` | Fixed — reads `CompressionDictionary` and compresses against it, falling back to plain Brotli only for pre-2.0.0 databases. |
+> | `ProcessKotlinWebsiteJSON/populate_db.py` | `DictionaryCompressor` + `load_or_create_dictionary`; trains one only if the table is absent/empty, and **never** retrains. |
+> | `ProcessKotlinWebsiteJSON/insert_optimized_media.py` | Reads the existing dictionary via `load_dictionary`; never creates one. |
+> | `scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py` | `DictionaryBrotli` + `load_compression_dictionary`; falls back to plain Brotli only for pre-2.0.0 databases. |
 >
-> The fix for the first two already exists on `fix/ADFA-4737` (a `DictionaryCompressor` shelling out
-> to the `brotli` CLI's `-D` flag, plus `load_or_create_dictionary` and
-> `migrate_content_to_dictionary_brotli.py`). It is deliberately **not** duplicated here: reconciling
-> this branch with `fix/ADFA-4737` is the right way to pick it up, and porting it by hand would
-> guarantee a conflict with already-merged work. Until that reconciliation happens, do not run
-> `populate_db.py` or `insert_optimized_media.py` against a 2.0.0 database.
+> Retraining an existing dictionary would orphan every row already compressed against the old one,
+> which is why all three only ever read what is already stored.
+> `migrate_content_to_dictionary_brotli.py` recompresses any remaining plain-Brotli rows.
 >
 > Note also that `image/webp` (id 26) and `video/quicktime` (id 28) now exist in `ContentTypes`, so
 > the workflows' `INSERT OR IGNORE ... image/webp` step is a no-op against current copies.

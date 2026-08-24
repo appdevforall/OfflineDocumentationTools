@@ -4,9 +4,9 @@ Every test here covers a way this script could delete a row it shouldn't -
 the LIKE-wildcard over-match in delete_content, and the "no pages to check
 against" case that would otherwise wipe the whole image corpus.
 """
+import shutil
 import sqlite3
 
-import brotli
 import pytest
 
 from insert_optimized_media import (
@@ -14,9 +14,9 @@ from insert_optimized_media import (
     collect_referenced_media,
     delete_content,
     delete_unreferenced_media,
-    like_escape,
 )
 from optimize_media import Logger
+from populate_db import DictionaryCompressor
 
 SCHEMA = """
 CREATE TABLE Languages (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE);
@@ -34,6 +34,20 @@ CREATE TABLE Content (
 """
 
 PAGE_TYPE_ID = 12
+# Content is dictionary-compressed from schema 2.0.0 on (ADFA-5153), and
+# insert_optimized_media reads pages back through that dictionary, so these
+# fixtures have to speak it too.
+DICTIONARY = bytes(range(256)) * 64
+needs_brotli_cli = pytest.mark.skipif(shutil.which("brotli") is None, reason="brotli CLI not installed")
+
+pytestmark = needs_brotli_cli
+
+
+@pytest.fixture
+def compressor():
+    instance = DictionaryCompressor(DICTIONARY)
+    yield instance
+    instance.close()
 
 
 @pytest.fixture
@@ -58,21 +72,12 @@ def paths(conn):
     return {row[0] for row in conn.execute("SELECT path FROM Content")}
 
 
-def page_blob(*image_names):
+def page_blob(compressor, *image_names):
     """A stored page blob referencing each image the way md_to_json bakes it
     in: an HTML src="..." attribute inside JSON, so the filename is followed
     by an escaped quote."""
     srcs = "".join(f'<img src=\\"{IMAGES_URL_PREFIX}{name}\\">' for name in image_names)
-    return brotli.compress(f'{{"blocks":[{{"html":"{srcs}"}}]}}'.encode("utf-8"))
-
-
-class TestLikeEscape:
-    def test_escapes_wildcards_and_the_escape_character(self):
-        assert like_escape("a_b%c") == r"a\_b\%c"
-        assert like_escape(r"back\slash") == r"back\\slash"
-
-    def test_leaves_ordinary_paths_alone(self):
-        assert like_escape("k/html/images/mascot.png") == "k/html/images/mascot.png"
+    return compressor.compress(f'{{"blocks":[{{"html":"{srcs}"}}]}}'.encode("utf-8"))
 
 
 class TestDeleteContent:
@@ -110,18 +115,18 @@ class TestDeleteContent:
 
 
 class TestDeleteUnreferencedMedia:
-    def test_removes_only_images_no_page_references(self, conn):
-        add_row(conn, "k/html/page.html", page_blob("kept.png"), template_id=2)
+    def test_removes_only_images_no_page_references(self, conn, compressor):
+        add_row(conn, "k/html/page.html", page_blob(compressor, "kept.png"), template_id=2)
         add_row(conn, "k/html/images/kept.png")
         add_row(conn, "k/html/images/orphan.png")
         add_row(conn, "k/html/images/orphan.png-1")
 
-        removed = delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None))
+        removed = delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None), compressor)
 
         assert removed == 1
         assert paths(conn) == {"k/html/page.html", "k/html/images/kept.png"}
 
-    def test_refuses_to_run_when_no_page_references_any_image(self, conn):
+    def test_refuses_to_run_when_no_page_references_any_image(self, conn, compressor):
         # populate_db.py hasn't written its pages yet (or was skipped): the
         # reference scan comes back empty and every stored image looks like
         # garbage. Deleting the whole corpus is never what was meant.
@@ -129,17 +134,17 @@ class TestDeleteUnreferencedMedia:
         add_row(conn, "k/html/images/b.png")
 
         with pytest.raises(RuntimeError, match="no page references any image"):
-            delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None))
+            delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None), compressor)
 
         assert paths(conn) == {"k/html/images/a.png", "k/html/images/b.png"}
 
-    def test_empty_database_is_not_an_error(self, conn):
-        assert delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None)) == 0
+    def test_empty_database_is_not_an_error(self, conn, compressor):
+        assert delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None), compressor) == 0
 
-    def test_untemplated_rows_are_not_scanned_for_references(self, conn):
+    def test_untemplated_rows_are_not_scanned_for_references(self, conn, compressor):
         # templateId 0 marks a raw asset, not a page; only page/nav rows carry
         # the JSON that image references live in.
-        add_row(conn, "k/html/page.html", page_blob("kept.png"), template_id=2)
+        add_row(conn, "k/html/page.html", page_blob(compressor, "kept.png"), template_id=2)
         add_row(conn, "k/html/images/kept.png")
 
-        assert collect_referenced_media(conn, PAGE_TYPE_ID) == {"kept.png"}
+        assert collect_referenced_media(conn, PAGE_TYPE_ID, compressor) == {"kept.png"}

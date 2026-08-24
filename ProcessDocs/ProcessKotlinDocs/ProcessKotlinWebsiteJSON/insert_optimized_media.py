@@ -57,8 +57,8 @@ work-dir can also be set via --config (as "input-dir"/"db-path"/
 
 Note: --webp requires this database's ContentTypes table to already have an
 "image/webp" row (checked up front, before any optimization work starts).
-The current production documentation.db does have one; older copies taken
-before it was added do not, and need it inserted first.
+The current production documentation.db does have one (id 26); older copies
+taken before it was added do not, and need it inserted first.
 """
 import argparse
 import re
@@ -68,15 +68,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-import brotli
-
 from optimize_media import (
     BUILTIN_DEFAULTS, Logger, OPTION_SPECS, add_optimize_arguments, find_pngquant, optimize_directory,
     resolve_config,
 )
 from populate_db import (
-    CHUNK_SIZE, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX, LANGUAGE, PAGE_CONTENT_TYPE,
-    backup_database, get_content_type, get_id, insert_chunked_content,
+    CHUNK_SIZE, DictionaryCompressor, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX,
+    LANGUAGE, PAGE_CONTENT_TYPE, backup_database, fragment_chain, get_content_type, get_id,
+    insert_chunked_content, load_dictionary,
 )
 
 WEBP_CONTENT_TYPE = "image/webp"
@@ -111,28 +110,26 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def like_escape(value: str) -> str:
-    r"""Escapes LIKE's own wildcards ("%" and "_") plus the escape character
-    itself, for use with a `LIKE ? ESCAPE '\'` clause. Without this a path
-    containing either character silently matches more rows than intended -
-    "_" matches any single character, so e.g. NAV_CONTENT_PATH
-    ("k/html/_nav.html") would have its "_" treated as a wildcard."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def delete_content(conn, path: str) -> None:
     """Deletes a Content row and any chunked continuation fragments for it
     (see insert_chunked_content/CHUNK_SIZE) - safe to call even if nothing
     exists yet at that path. Content.path is UNIQUE, so this has to run
-    before any re-insert at the same path."""
-    conn.execute(
-        "DELETE FROM Content WHERE path = ? OR path LIKE ? ESCAPE '\\'",
-        (path, f"{like_escape(path)}-%"),
-    )
+    before any re-insert at the same path.
+
+    Deletes by exact path rather than by a LIKE pattern. `_` is a single-
+    character wildcard in LIKE and the `-%` suffix does not restrict the tail to
+    digits, so "DELETE ... WHERE path LIKE '<path>-%'" also removes rows that
+    merely resemble a continuation - and those are never re-inserted, so the
+    loss is permanent. populate_db.fragment_chain does the over-matching query
+    once and re-checks every candidate's suffix, which is what makes the result
+    exact."""
+    conn.execute("DELETE FROM Content WHERE path = ?", (path,))
+    for _number, fragment_path in fragment_chain(conn, path):
+        conn.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
 def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
-                           chunked_log: list) -> bool:
+                           chunked_log: list, compressor: DictionaryCompressor) -> bool:
     """Inserts one already-optimized file's bytes as-is. Unlike
     populate_db.py's own insert_file, this does not run pngquant itself -
     optimize_media.py already did, and running it again here would just
@@ -148,7 +145,7 @@ def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_i
     content_type_id, compress = content_type_cache[content_type_value]
 
     if compress:
-        data = brotli.compress(data)
+        data = compressor.compress(data)
     delete_content(conn, db_path)
     insert_chunked_content(conn, db_path, language_id, content_type_id, 0, data, chunked_log)
     return True
@@ -198,7 +195,7 @@ def reassemble_content(conn, path: str, first_content: bytes) -> bytes:
 
 
 def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id: int, logger: Logger,
-                   chunked_log: list) -> int:
+                   chunked_log: list, compressor: DictionaryCompressor) -> int:
     """Rewrites every k/html/*.html page (and the nav row) that references a
     renamed image, replacing "/k/html/images/<old-name>" with
     "/k/html/images/<new-name>" wherever it appears. Operates directly on
@@ -248,12 +245,12 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
     changed = 0
     for path, first_content, template_id in rows:
         full = reassemble_content(conn, path, first_content)
-        text = brotli.decompress(full).decode("utf-8")
+        text = compressor.decompress(full).decode("utf-8")
         hits = len(old_ref_pattern.findall(text))
         if not hits:
             continue
         new_text = old_ref_pattern.sub(lambda m: replacements[m.group(0)], text)
-        blob = brotli.compress(new_text.encode("utf-8"))
+        blob = compressor.compress(new_text.encode("utf-8"))
         delete_content(conn, path)
         insert_chunked_content(conn, path, language_id, page_content_type_id, template_id, blob, chunked_log)
         changed += 1
@@ -269,7 +266,7 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
 IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
 
 
-def collect_referenced_media(conn, page_content_type_id: int) -> set:
+def collect_referenced_media(conn, page_content_type_id: int, compressor: DictionaryCompressor) -> set:
     """Bare filenames (e.g. "mascot.png") referenced by at least one
     src="/k/html/images/<name>" anywhere across current k/html/*.html page
     content and the nav row - the same row selection/reassembly
@@ -282,7 +279,7 @@ def collect_referenced_media(conn, page_content_type_id: int) -> set:
     referenced = set()
     for path, first_content in rows:
         full = reassemble_content(conn, path, first_content)
-        text = brotli.decompress(full).decode("utf-8")
+        text = compressor.decompress(full).decode("utf-8")
         referenced.update(IMAGE_REF_RE.findall(text))
     return referenced
 
@@ -310,7 +307,8 @@ def list_stored_media(conn) -> dict:
     return {path[len(IMAGES_DB_PATH_PREFIX):]: path for path in paths if not is_fragment(path)}
 
 
-def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger) -> int:
+def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger,
+                               compressor: DictionaryCompressor) -> int:
     """Deletes every currently-stored k/html/images/<name> row (base row and
     any chunked fragments) that no page or the nav row references even once.
     Must run after insertion and rename-rewriting, so it sees the final,
@@ -331,7 +329,7 @@ def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger) -
     pages populate_db.py hasn't written yet - and deleting the entire image
     corpus off the back of an empty scan is never the intended outcome."""
     stored = list_stored_media(conn)
-    referenced = collect_referenced_media(conn, page_content_type_id)
+    referenced = collect_referenced_media(conn, page_content_type_id, compressor)
     if stored and not referenced:
         raise RuntimeError(
             f"refusing to delete unreferenced media: {len(stored)} image(s) are stored but no page references "
@@ -427,55 +425,66 @@ def main() -> None:
             conn.execute("BEGIN")
             language_id = get_id(conn, "Languages", LANGUAGE)
             page_content_type_id = get_id(conn, "ContentTypes", PAGE_CONTENT_TYPE)
+            # This script only ever runs against a database populate_db.py
+            # already populated (see module docstring), so its
+            # CompressionDictionary must already exist - never train a new
+            # one here, since that would orphan every row already
+            # compressed against the existing one (see DictionaryCompressor).
+            compressor = DictionaryCompressor(load_dictionary(conn))
 
             content_type_cache = {}
             chunked_log = []
-
-            # A renamed file's old basename no longer appears anywhere under
-            # work_dir (that's what makes it a rename), so the insert loop
-            # below never visits its old db_path to replace it - it'd
-            # otherwise linger forever as an orphaned, no-longer-referenced
-            # row.
-            #
-            # This has to run *before* the inserts, not after: if one
-            # rename's new name happens to equal another rename's old name
-            # (a.png -> b.webp alongside an unrelated b.webp -> c.webp), a
-            # delete pass running afterwards would remove the very row the
-            # insert pass just wrote for b.webp. Same chain-rename hazard
-            # rewrite_pages guards against by substituting in a single pass
-            # over the original text; deleting first makes the ordering
-            # irrelevant here for the same reason.
-            removed = 0
-            for old_name in rename_map:
-                old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
-                delete_content(conn, old_db_path)
-                removed += 1
-                if cfg["verbose"]:
-                    logger.info(f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})")
-
             inserted = 0
             seen_names = {}
-            for out_path in sorted(work_dir.rglob("*")):
-                if out_path.is_dir():
-                    continue
-                name = out_path.name
-                if name in seen_names:
-                    logger.error(
-                        f"warning: {out_path} has the same filename as {seen_names[name]}; keeping the first, "
-                        "skipping this one"
-                    )
-                    continue
-                seen_names[name] = out_path
-                db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
-                if insert_optimized_file(conn, out_path.read_bytes(), name, db_path, language_id, content_type_cache,
-                                          chunked_log):
-                    inserted += 1
+            try:
+                # A renamed file's old basename no longer appears anywhere under
+                # work_dir (that's what makes it a rename), so the insert loop
+                # below never visits its old db_path to replace it - it'd
+                # otherwise linger forever as an orphaned, no-longer-referenced
+                # row.
+                #
+                # This has to run *before* the inserts, not after: if one
+                # rename's new name happens to equal another rename's old name
+                # (a.png -> b.webp alongside an unrelated b.webp -> c.webp), a
+                # delete pass running afterwards would remove the very row the
+                # insert pass just wrote for b.webp. Same chain-rename hazard
+                # rewrite_pages guards against by substituting in a single pass
+                # over the original text; deleting first makes the ordering
+                # irrelevant here for the same reason.
+                removed = 0
+                for old_name in rename_map:
+                    old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
+                    delete_content(conn, old_db_path)
+                    removed += 1
                     if cfg["verbose"]:
-                        logger.info(f"[OK] {out_path} -> {db_path}")
+                        logger.info(
+                            f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})"
+                        )
 
-            changed_pages = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger, chunked_log)
+                for out_path in sorted(work_dir.rglob("*")):
+                    if out_path.is_dir():
+                        continue
+                    name = out_path.name
+                    if name in seen_names:
+                        logger.error(
+                            f"warning: {out_path} has the same filename as {seen_names[name]}; keeping the first, "
+                            "skipping this one"
+                        )
+                        continue
+                    seen_names[name] = out_path
+                    db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
+                    if insert_optimized_file(conn, out_path.read_bytes(), name, db_path, language_id,
+                                              content_type_cache, chunked_log, compressor):
+                        inserted += 1
+                        if cfg["verbose"]:
+                            logger.info(f"[OK] {out_path} -> {db_path}")
 
-            unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger)
+                changed_pages = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger,
+                                               chunked_log, compressor)
+
+                unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger, compressor)
+            finally:
+                compressor.close()
 
             if args.dry_run:
                 conn.rollback()

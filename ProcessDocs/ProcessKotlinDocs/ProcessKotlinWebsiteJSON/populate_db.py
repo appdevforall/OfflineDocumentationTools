@@ -81,13 +81,17 @@ What this does, inside a single transaction (rolled back on any error):
      "Home" link had nowhere to go. It still renders through page.peb, so
      the sidebar nav shows up on it like any other page.
   4. Inserts one Content row per page at k/html/<flattened-id>.html,
-     JSON-encoded and brotli-compressed, with prev/next computed from
-     kr.tree's document order, the same way RenderDocs.java does it for the
-     static site. contentTypeID is the "text/html" row (12|text/html|brotli),
-     not "application/json": the stored bytes are JSON, but templateId
-     points the server at page.peb to render that JSON into HTML before a
-     browser ever sees it, so the Content-Type the server actually sends
-     back should describe that rendered output, not the storage format.
+     JSON-encoded and Brotli-compressed against this database's shared
+     CompressionDictionary (see ADFA-5153; trained once and reused forever -
+     never retrained - since a dictionary-compressed row is only decodable
+     against the exact dictionary it was compressed with), with prev/next
+     computed from kr.tree's document order, the same way RenderDocs.java
+     does it for the static site. contentTypeID is the "text/html" row
+     (12|text/html|brotli), not "application/json": the stored bytes are
+     JSON, but templateId points the server at page.peb to render that JSON
+     into HTML before a browser ever sees it, so the Content-Type the server
+     actually sends back should describe that rendered output, not the
+     storage format.
   5. Builds the same navigation tree build_nav.py does from kr.tree, and
      inserts it as one more Content row (see NAV_CONTENT_PATH below),
      associated with the nav.peb template and the same "text/html"
@@ -113,17 +117,18 @@ gets either a shorter fragment or a missing row. Every file that ended up
 chunked is logged by name at the end of the run.
 """
 import argparse
+import atexit
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime
 from pathlib import Path
-
-import brotli
 
 from build_nav import build_node
 from md_to_json import (
@@ -178,6 +183,23 @@ EXTENSION_TO_CONTENT_TYPE = {
 PNGQUANT_CONTENT_TYPE = "image/png"
 PNGQUANT_QUALITY = "65-80"
 
+# Single-row table: the whole documentation.db has exactly one shared Brotli
+# dictionary, embedded here so it always ships in sync with the content
+# compressed against it (see ADFA-5153). The id/CHECK pair enforces "exactly
+# one row" at the schema level - a second INSERT fails outright instead of
+# silently leaving two rows for a reader to pick between arbitrarily.
+DICTIONARY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS CompressionDictionary (
+    id   INTEGER PRIMARY KEY CHECK (id = 1),
+    data BLOB NOT NULL
+);
+"""
+# 256 KiB fast-cover dictionary was the measured sweet spot in ADFA-5153
+# (16.26x held-out ratio vs. 8.20x undictionaried; a larger, exhaustively-
+# trained dictionary bought another 0.35x for 144x the training time - not
+# worth it).
+DEFAULT_DICT_SIZE = 256 * 1024
+
 
 def find_pngquant() -> str:
     """Locates the pngquant executable on PATH. Raises if it's missing,
@@ -207,6 +229,151 @@ def compress_png_with_pngquant(data: bytes, pngquant_path: str, name: str) -> by
         )
         return data
     return result.stdout
+
+
+def find_tool(name: str) -> str:
+    """Locates an executable on PATH. Raises if it's missing, rather than
+    silently falling back to some other behavior - see find_pngquant."""
+    path = shutil.which(name)
+    if path is None:
+        raise RuntimeError(f"{name} not found on PATH; install it and retry")
+    return path
+
+
+def train_dictionary(samples: list, dict_size: int = DEFAULT_DICT_SIZE) -> bytes:
+    """Trains a zstd fast-cover dictionary from `samples` (a list of byte
+    strings) and returns its raw bytes. That output is usable directly as
+    Brotli's raw `-D` dictionary (validated in ADFA-5153) - zstd's fast-cover
+    trainer is dramatically cheaper than Brotli's own dictionary tooling for
+    equivalent quality. Needs a few dozen samples at minimum; zstd's trainer
+    refuses ("nb of samples too low") on too few/too-small inputs, since a
+    dictionary trained on a handful of samples won't generalize.
+    """
+    zstd_path = find_tool("zstd")
+    work_dir = Path(tempfile.mkdtemp(prefix="brotli-dict-train-"))
+    try:
+        sample_paths = []
+        for i, sample in enumerate(samples):
+            sample_path = work_dir / f"sample_{i:06}.bin"
+            sample_path.write_bytes(sample)
+            sample_paths.append(str(sample_path))
+        dict_path = work_dir / "dictionary.bin"
+        result = subprocess.run(
+            [zstd_path, "--train-fastcover", f"--maxdict={dict_size}", "-o", str(dict_path), *sample_paths],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"zstd --train-fastcover failed: {result.stderr.decode(errors='replace').strip()}")
+        return dict_path.read_bytes()
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+class DictionaryCompressor:
+    """Compresses/decompresses bytes against a fixed raw Brotli dictionary,
+    shelling out to the `brotli` CLI (the installed Python `brotli` package
+    has no dictionary parameter at all). A dictionary-compressed stream and a
+    plain one are NOT interchangeable at decode time, but the two directions
+    of that mismatch behave differently, and the difference matters - measured
+    against the real documentation.db, not assumed:
+
+      * Decoding a dictionary-compressed row with NO dictionary is loud: 398
+        of 400 sampled rows raised outright, and the other 2 returned byte-
+        identical output because the encoder never referenced the dictionary
+        for them. Zero returned wrong bytes. `migrate_content_to_dictionary_
+        brotli.py` relies on this direction, and WebServer.kt's plain-decode
+        fallback is safe for the same reason.
+
+      * Decoding with the WRONG dictionary is the silent case. Perturbing one
+        16 KiB region of the real dictionary and decoding real rows gave 50%
+        outright failures, 38% that decoded with no error into *different
+        bytes*, and 12% byte-identical (the perturbed region was never
+        referenced). Nothing at runtime catches that 38%.
+
+    So every row compressed via this class must
+    be decompressed via a `DictionaryCompressor` built from the exact same
+    dictionary bytes, and that dictionary must never change once anything
+    has been compressed against it - see CompressionDictionary (the single
+    source of truth for those bytes) and load_or_create_dictionary's
+    never-retrain guarantee.
+
+    The dictionary is written once to a private temp file for this instance's
+    lifetime (each compress/decompress call reuses it) rather than per call.
+    """
+
+    def __init__(self, dictionary_data: bytes):
+        self._brotli_path = find_tool("brotli")
+        self._work_dir = Path(tempfile.mkdtemp(prefix="brotli-dict-"))
+        self._dict_path = self._work_dir / "dictionary.bin"
+        self._dict_path.write_bytes(dictionary_data)
+        # Safety net for callers that can't cleanly scope a `with` block around
+        # every instance -- e.g. one created per worker thread in a thread pool,
+        # where no single point of control can call close() on each. Safe to
+        # also call close() explicitly afterward: shutil.rmtree(ignore_errors=True)
+        # tolerates a directory that's already gone.
+        atexit.register(self.close)
+
+    def _run(self, *extra_args: str, data: bytes) -> bytes:
+        result = subprocess.run(
+            [self._brotli_path, "-D", str(self._dict_path), *extra_args, "-c"],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
+        return result.stdout
+
+    def compress(self, data: bytes) -> bytes:
+        return self._run(data=data)
+
+    def decompress(self, data: bytes) -> bytes:
+        return self._run("-d", data=data)
+
+    def close(self) -> None:
+        shutil.rmtree(self._work_dir, ignore_errors=True)
+
+    def __enter__(self) -> "DictionaryCompressor":
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.close()
+
+
+def load_dictionary(conn) -> bytes:
+    """Returns the CompressionDictionary bytes already stored in this
+    database. Raises if the table doesn't exist or is empty - callers that
+    only ever run against a database populate_db.py already touched (e.g.
+    insert_optimized_media.py) should never need to train a new one."""
+    row = conn.execute(
+        "SELECT data FROM CompressionDictionary WHERE id = 1"
+    ).fetchone() if _table_exists(conn, "CompressionDictionary") else None
+    if row is None:
+        raise RuntimeError(
+            "CompressionDictionary is missing or empty; run populate_db.py against this database first"
+        )
+    return row[0]
+
+
+def load_or_create_dictionary(conn, samples_for_training: list, dict_size: int = DEFAULT_DICT_SIZE) -> bytes:
+    """Returns the dictionary bytes stored in CompressionDictionary, training
+    a new one from `samples_for_training` and storing it if the table
+    doesn't exist yet or is empty. Never retrains an existing dictionary:
+    since dictionary-compressed content elsewhere in this same database can
+    only ever be decoded with the exact dictionary it was compressed against
+    (see DictionaryCompressor), silently replacing an already-populated
+    dictionary would orphan every row compressed against the old one."""
+    conn.execute(DICTIONARY_TABLE_SQL)
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    if row is not None:
+        return row[0]
+    dictionary_data = train_dictionary(samples_for_training, dict_size)
+    conn.execute("INSERT INTO CompressionDictionary (id, data) VALUES (1, ?)", (dictionary_data,))
+    return dictionary_data
+
+
+def _table_exists(conn, table_name: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table_name,)
+    ).fetchone() is not None
 
 
 def backup_database(db_path: Path) -> Path:
@@ -250,6 +417,32 @@ def get_content_type(conn, value: str) -> tuple:
     return row[0], row[1] == "brotli"
 
 
+FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
+
+
+def fragment_chain(conn, base_path: str) -> list:
+    """Every "<base_path>-<N>" continuation row present, as (n, path) sorted by
+    n - found by LIKE query and parsed suffix rather than by probing
+    constructed paths, so it does not matter what N the chain starts at.
+
+    Probing "<base_path>-1" first (what reassembly used to do) silently returns
+    a truncated stream for an ADFA-5171 chain numbered from -2, which then
+    fails to decompress and looks indistinguishable from an already-migrated
+    row. The LIKE pattern deliberately over-matches - `_` and `%` in a path are
+    wildcards, and the suffix is not constrained to digits - so the regex
+    re-check below is what makes the result exact. Never build a DELETE or
+    UPDATE straight off that pattern.
+    """
+    rows = conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{base_path}-%",)).fetchall()
+    chain = []
+    for (path,) in rows:
+        match = FRAGMENT_SUFFIX_RE.match(path)
+        if match and match.group(1) == base_path:
+            chain.append((int(match.group(2)), path))
+    chain.sort(key=lambda item: item[0])
+    return chain
+
+
 def insert_chunked_content(conn, path: str, language_id: int, content_type_id: int, template_id: int,
                             data: bytes, chunked_log: list) -> None:
     """Inserts `data` (already fully compressed, if applicable - chunking
@@ -282,13 +475,13 @@ def insert_chunked_content(conn, path: str, language_id: int, content_type_id: i
 
 
 def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
-                 chunked_log: list, pngquant_path: str) -> bool:
+                 chunked_log: list, pngquant_path: str, compressor: "DictionaryCompressor") -> bool:
     """Inserts one raw (templateId 0) file's bytes as a Content row (chunked
     via insert_chunked_content if needed). name is only used to look up its
     content type by extension. Returns False (and skips it, with a warning)
     for an extension not in EXTENSION_TO_CONTENT_TYPE instead of guessing at
     a content type. PNGs are run through pngquant first - the only content
-    type it's compatible with - before the usual brotli compression."""
+    type it's compatible with - before the usual dictionary-Brotli compression."""
     content_type_value = EXTENSION_TO_CONTENT_TYPE.get(Path(name).suffix.lower())
     if content_type_value is None:
         print(f"warning: no known content type for {name!r}; skipping", file=sys.stderr)
@@ -300,7 +493,7 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
     if content_type_value == PNGQUANT_CONTENT_TYPE:
         data = compress_png_with_pngquant(data, pngquant_path, name)
     if compress:
-        data = brotli.compress(data)
+        data = compressor.compress(data)
     insert_chunked_content(conn, db_path, language_id, content_type_id, 0, data, chunked_log)
     return True
 
@@ -604,43 +797,54 @@ def main():
 
         chunked_log = []
 
-        for page in pages:
-            path = f"{page['id']}.html"
-            blob = brotli.compress(json.dumps(page, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
-            insert_chunked_content(conn, path, language_id, page_content_type_id, page_template_id, blob, chunked_log)
-
+        # Serialized once and reused both as this run's dictionary-training
+        # samples (only spent if CompressionDictionary doesn't exist yet, see
+        # load_or_create_dictionary) and as the actual bytes to compress
+        # below, rather than re-running json.dumps for the same page twice.
+        page_json_bytes = [
+            json.dumps(page, separators=(",", ":"), ensure_ascii=False).encode("utf-8") for page in pages
+        ]
         # The server (see layout.pebble) parses each Content row's JSON as an
         # object and hands its top-level fields to Pebble directly as the
         # model - a bare JSON array wouldn't parse that way at all, so the
         # tree goes under a "tree" key here, matching nav.peb's top-level
         # "{% for node in tree %}".
-        nav_document = {"tree": nav_tree}
-        nav_blob = brotli.compress(json.dumps(nav_document, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
-        insert_chunked_content(conn, NAV_CONTENT_PATH, language_id, page_content_type_id, nav_template_id, nav_blob,
-                                chunked_log)
+        nav_json_bytes = json.dumps({"tree": nav_tree}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
-        content_type_cache = {}
-        images_inserted = 0
-        with zipfile.ZipFile(args.images_zip) as zf:
-            # Keyed by bare filename, matching image_index_db above (and so
-            # the "/k/html/images/<basename>" references baked into every
-            # page at conversion time) rather than the zip's own entry name,
-            # which is the same string for a flat zip and the right one for
-            # a nested one.
-            for base, entry in sorted(image_entry_by_name.items()):
-                db_path = f"{IMAGES_DB_PATH_PREFIX}{base}"
-                if insert_file(conn, zf.read(entry), base, db_path, language_id, content_type_cache, chunked_log,
-                                pngquant_path):
-                    images_inserted += 1
+        dictionary_data = load_or_create_dictionary(conn, page_json_bytes + [nav_json_bytes])
+        with DictionaryCompressor(dictionary_data) as compressor:
+            for page, json_bytes in zip(pages, page_json_bytes):
+                path = f"{page['id']}.html"
+                blob = compressor.compress(json_bytes)
+                insert_chunked_content(conn, path, language_id, page_content_type_id, page_template_id, blob,
+                                        chunked_log)
 
-        assets_inserted = 0
-        for asset_path in sorted(assets_dir.iterdir()):
-            if not asset_path.is_file():
-                continue
-            db_path = f"assets/{asset_path.name}"
-            if insert_file(conn, asset_path.read_bytes(), asset_path.name, db_path, language_id, content_type_cache,
-                            chunked_log, pngquant_path):
-                assets_inserted += 1
+            nav_blob = compressor.compress(nav_json_bytes)
+            insert_chunked_content(conn, NAV_CONTENT_PATH, language_id, page_content_type_id, nav_template_id,
+                                    nav_blob, chunked_log)
+
+            content_type_cache = {}
+            images_inserted = 0
+            with zipfile.ZipFile(args.images_zip) as zf:
+                # Keyed by bare filename, matching image_index_db above (and
+                # so the "/k/html/images/<basename>" references baked into
+                # every page at conversion time) rather than the zip's own
+                # entry name, which is the same string for a flat zip and the
+                # right one for a nested one.
+                for base, entry in sorted(image_entry_by_name.items()):
+                    db_path = f"{IMAGES_DB_PATH_PREFIX}{base}"
+                    if insert_file(conn, zf.read(entry), base, db_path, language_id, content_type_cache, chunked_log,
+                                    pngquant_path, compressor):
+                        images_inserted += 1
+
+            assets_inserted = 0
+            for asset_path in sorted(assets_dir.iterdir()):
+                if not asset_path.is_file():
+                    continue
+                db_path = f"assets/{asset_path.name}"
+                if insert_file(conn, asset_path.read_bytes(), asset_path.name, db_path, language_id,
+                                content_type_cache, chunked_log, pngquant_path, compressor):
+                    assets_inserted += 1
 
         conn.commit()
     except Exception:

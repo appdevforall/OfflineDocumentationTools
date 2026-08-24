@@ -27,20 +27,12 @@ record -- along with all of that tooltip's other TooltipButtons rows, dead or
 not -- is deleted too, since TooltipButtons has no ON DELETE CASCADE and a
 dangling tooltipId would otherwise be left behind.
 
-Compression follows whatever the target database uses. From schema version
-2.0.0 (ADFA-5153) every "brotli" Content row is compressed against the shared
-raw LZ77 dictionary in the CompressionDictionary table, and a plain-Brotli
-blob written into such a database is simply undecodable by the server -- so
-this script reads that dictionary and compresses against it whenever the
-table is present, falling back to plain Brotli only for older databases that
-predate it. It never creates or retrains a dictionary: an existing one is the
-only thing the rows already in that database can be decoded with.
-
 A timestamped backup of the database is made before anything is modified.
 """
 import argparse
 import atexit
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -52,6 +44,11 @@ from pathlib import Path
 import brotli
 
 PREFIXES = ["k/kotlin-stdlib", "k/kotlin-reflect", "k/kotlin-test"]
+
+# Refuse to run if this fraction or more of the matched rows resolve to no source
+# file. A Dokka upgrade that changes the emitted layout makes *every* lookup miss,
+# and the only signal would be "Done: updated 0, deleted N" on a gutted database.
+MAX_DELETE_FRACTION = 0.5
 
 # Must match WebServer.kt's "contentChunkSize" (1024 * 1024) and
 # populate_db.py's CHUNK_SIZE exactly. The server decides a row is fragmented
@@ -78,100 +75,6 @@ def backup_database(db_path):
     return backup_path
 
 
-def relative_target_path(content_path):
-    """'k/kotlin-stdlib/kotlin.text/index.html' -> 'kotlin-stdlib/kotlin.text/index.json'
-    'k/kotlin-stdlib/package-list' -> 'kotlin-stdlib/package-list' (no extension to swap)"""
-    without_prefix = content_path[len("k/"):]
-    if without_prefix.endswith(".html"):
-        return without_prefix[: -len(".html")] + ".json"
-    return without_prefix
-
-
-class DictionaryCompressor:
-    """Compresses bytes against a fixed raw Brotli dictionary by shelling out
-    to the `brotli` CLI's -D flag. The installed Python `brotli` package has
-    no dictionary parameter at all, and brotlicffi dropped the custom-
-    dictionary API in 1.2, so the CLI is the only route available here.
-
-    Deliberately mirrors the DictionaryCompressor in
-    ProcessKotlinWebsiteJSON/populate_db.py (ADFA-5153): same -D invocation,
-    same one-temp-file-per-instance lifetime, so the two converge trivially
-    if this ever moves into a module both can import.
-
-    A dictionary-compressed stream and a plain one are not interchangeable in
-    either direction - decoding one as the other fails - which is exactly why
-    writing plain Brotli into a dictionary database corrupts it."""
-
-    def __init__(self, dictionary_data):
-        self._brotli_path = shutil.which("brotli")
-        if self._brotli_path is None:
-            raise RuntimeError(
-                "this database uses dictionary-compressed content (CompressionDictionary), which needs the "
-                "`brotli` CLI to read or write; install it (e.g. `apt install brotli` / `brew install brotli`) "
-                "and retry"
-            )
-        self._work_dir = Path(tempfile.mkdtemp(prefix="brotli-dict-"))
-        self._dict_path = self._work_dir / "dictionary.bin"
-        self._dict_path.write_bytes(dictionary_data)
-        atexit.register(self.close)
-
-    def _run(self, *extra_args, data):
-        result = subprocess.run(
-            [self._brotli_path, "-D", str(self._dict_path), *extra_args, "-c"],
-            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
-        return result.stdout
-
-    def compress(self, data):
-        return self._run(data=data)
-
-    def decompress(self, data):
-        return self._run("-d", data=data)
-
-    def close(self):
-        shutil.rmtree(self._work_dir, ignore_errors=True)
-
-
-def load_dictionary(conn):
-    """Returns this database's CompressionDictionary bytes, or None for a
-    database that predates schema 2.0.0 and so has no dictionary at all.
-
-    Never creates or trains one. Whatever is already stored here is the only
-    thing the rows already in this database can be decoded against, so
-    inventing a dictionary would orphan every one of them - and this script
-    only ever rewrites a subset of an existing corpus, so there is no case
-    where it should be the one deciding what the dictionary is."""
-    exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
-    ).fetchone()
-    if not exists:
-        return None
-    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
-    return row[0] if row else None
-
-
-def compress_for(compression, raw_bytes, path, compressor=None):
-    """Compresses raw_bytes for storage under the given ContentTypes.
-    compression policy. `compressor`, when set, is a DictionaryCompressor for
-    databases whose brotli rows use the shared dictionary; without one,
-    "brotli" means plain Brotli (pre-2.0.0 databases only)."""
-    if compression == "brotli":
-        return compressor.compress(raw_bytes) if compressor else brotli.compress(raw_bytes)
-    if compression == "none":
-        return raw_bytes
-    raise ValueError(f"Unknown compression '{compression}' needed for {path}")
-
-
-def like_escape(value):
-    r"""Escapes LIKE's own wildcards ("%" and "_") plus the escape character
-    itself, for use with a `LIKE ? ESCAPE '\'` clause - a path containing
-    either would otherwise match more rows than intended ("_" matches any
-    single character)."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def is_fragment_path(path, all_paths):
     """True when path is a "<base>-<N>" chunk continuation row whose base is
     also present - the fragmentation convention populate_db.py writes and
@@ -181,12 +84,34 @@ def is_fragment_path(path, all_paths):
     return sep == "-" and suffix.isdigit() and base in all_paths
 
 
+FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
+
+
+def fragment_paths(conn, path):
+    """Every "<path>-<N>" continuation row present, ordered by N.
+
+    Deliberately mirrors populate_db.fragment_chain, including why it works
+    this way. Probing "<path>-1" and stopping at the first gap misses a chain
+    numbered from -2 (the ADFA-5171 case) and silently leaves those rows
+    behind. The LIKE pattern instead over-matches on purpose - "_" is a
+    single-character wildcard and "-%" doesn't constrain the tail to digits -
+    and the regex re-check below is what makes the result exact. Never build
+    a DELETE straight off that pattern: deleting a row that merely resembles
+    a continuation is permanent."""
+    chain = []
+    for (candidate,) in conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{path}-%",)).fetchall():
+        match = FRAGMENT_SUFFIX_RE.match(candidate)
+        if match and match.group(1) == path:
+            chain.append((int(match.group(2)), candidate))
+    chain.sort(key=lambda item: item[0])
+    return [candidate for _number, candidate in chain]
+
+
 def delete_content_with_fragments(cur, content_id, path):
     """Deletes a Content row along with any chunk continuation rows it owns."""
     cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
-    cur.execute(
-        "DELETE FROM Content WHERE path LIKE ? ESCAPE '\\'", (f"{like_escape(path)}-%",)
-    )
+    for fragment_path in fragment_paths(cur, path):
+        cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
 def write_content(cur, content_id, path, blob, language_id, content_type_id, template_id, chunked_log):
@@ -201,15 +126,17 @@ def write_content(cur, content_id, path, blob, language_id, content_type_id, tem
     continuations, each carrying the original row's languageID/contentTypeID/
     templateId. Appends (path, total size, chunk count) to chunked_log for
     anything that needed more than one row."""
-    stale_fragments = "DELETE FROM Content WHERE path LIKE ? ESCAPE '\\'"
+    stale = fragment_paths(cur, path)
 
     if len(blob) <= CHUNK_SIZE:
         cur.execute("UPDATE Content SET content = ? WHERE id = ?", (blob, content_id))
-        cur.execute(stale_fragments, (f"{like_escape(path)}-%",))
+        for fragment_path in stale:
+            cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
         return
 
     cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
-    cur.execute(stale_fragments, (f"{like_escape(path)}-%",))
+    for fragment_path in stale:
+        cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
     insert = ("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
               "VALUES (?, ?, ?, ?, ?)")
@@ -222,6 +149,68 @@ def write_content(cur, content_id, path, blob, language_id, content_type_id, tem
         offset += CHUNK_SIZE
         fragment_number += 1
     chunked_log.append((path, len(blob), fragment_number))  # fragment_number == total chunk count here
+
+
+def relative_target_path(content_path):
+    """'k/kotlin-stdlib/kotlin.text/index.html' -> 'kotlin-stdlib/kotlin.text/index.json'
+    'k/kotlin-stdlib/package-list' -> 'kotlin-stdlib/package-list' (no extension to swap)"""
+    without_prefix = content_path[len("k/"):]
+    if without_prefix.endswith(".html"):
+        return without_prefix[: -len(".html")] + ".json"
+    return without_prefix
+
+
+def load_compression_dictionary(conn):
+    """This database's shared Brotli dictionary (ADFA-5153), or None if it has
+    none. Rows written here must be compressed the same way populate_db.py
+    compresses the rest of the database: a plain-Brotli row inside a dictionary
+    database forfeits the dictionary's compression entirely (readers cope with
+    it -- WebServer.kt and docdb-studio both fall back to a plain decode -- but
+    the bytes stay large for no reason)."""
+    table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
+    ).fetchone()
+    if table is None:
+        return None
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    return row[0] if row and row[0] else None
+
+
+class DictionaryBrotli:
+    """Compresses against a raw Brotli dictionary by shelling out to the
+    `brotli` CLI - the Python `brotli` package exposes no dictionary parameter.
+    Mirrors populate_db.DictionaryCompressor, kept local because that module
+    lives in a different tree and this script is standalone."""
+
+    def __init__(self, dictionary_data):
+        path = shutil.which("brotli")
+        if path is None:
+            raise RuntimeError(
+                "this database uses a shared Brotli dictionary (ADFA-5153), which needs the "
+                "`brotli` command-line tool; install it (apt install brotli) and retry"
+            )
+        self._brotli = path
+        self._dir = Path(tempfile.mkdtemp(prefix="sync-kdoc-brotli-dict-"))
+        self._dict_path = self._dir / "dictionary.bin"
+        self._dict_path.write_bytes(dictionary_data)
+        atexit.register(lambda: shutil.rmtree(self._dir, ignore_errors=True))
+
+    def compress(self, data):
+        result = subprocess.run(
+            [self._brotli, "-D", str(self._dict_path), "-c"],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
+        return result.stdout
+
+
+def compress_for(compression, raw_bytes, path, compressor=None):
+    if compression == "brotli":
+        return compressor.compress(raw_bytes) if compressor is not None else brotli.compress(raw_bytes)
+    if compression == "none":
+        return raw_bytes
+    raise ValueError(f"Unknown compression '{compression}' needed for {path}")
 
 
 def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run):
@@ -292,19 +281,6 @@ def main():
 
     compression_by_type = dict(cur.execute("SELECT id, compression FROM ContentTypes"))
 
-    # Schema >= 2.0.0 stores every brotli row against a shared dictionary;
-    # older databases have no CompressionDictionary table and use plain
-    # Brotli. Either way this follows what the database already does rather
-    # than imposing a choice - writing the wrong one produces rows the server
-    # cannot decode at all.
-    dictionary_data = load_dictionary(conn)
-    compressor = DictionaryCompressor(dictionary_data) if dictionary_data else None
-    print(
-        f"Compression: dictionary-based ({len(dictionary_data):,}-byte CompressionDictionary)."
-        if compressor else
-        "Compression: plain Brotli (no CompressionDictionary table; database predates schema 2.0.0)."
-    )
-
     where_clause = " OR ".join(["path = ? OR path LIKE ?"] * len(PREFIXES))
     params = []
     for prefix in PREFIXES:
@@ -319,7 +295,7 @@ def main():
     # base row's content, not pages in their own right - handled wholesale by
     # write_content below - so drop them from the work list. Left in, each
     # would be looked up as its own source file, never found (there's no
-    # "index.html-1" in the plugin output), and deleted individually.
+    # "index.html-1" in the plugin output), and counted as a deletion.
     all_paths = {row[1] for row in all_rows}
     rows = [row for row in all_rows if not is_fragment_path(row[1], all_paths)]
     fragments = len(all_rows) - len(rows)
@@ -331,6 +307,30 @@ def main():
     deleted = 0
     deleted_paths = []
     chunked_log = []
+
+    dictionary_data = load_compression_dictionary(conn)
+    compressor = DictionaryBrotli(dictionary_data) if dictionary_data else None
+    print(
+        "Compressing brotli rows against this database's shared dictionary."
+        if compressor else
+        "This database has no CompressionDictionary; writing plain Brotli.",
+        file=sys.stderr,
+    )
+
+    # Resolve every source file before touching anything, so a wholesale miss
+    # aborts instead of deleting the rows one at a time (see MAX_DELETE_FRACTION).
+    missing = [row[1] for row in rows
+               if not os.path.isfile(os.path.join(args.plugin_output_root, relative_target_path(row[1])))]
+    if rows and len(missing) >= max(1, int(len(rows) * MAX_DELETE_FRACTION)):
+        print(
+            f"error: {len(missing)} of {len(rows)} matched Content rows resolve to no file under "
+            f"{args.plugin_output_root!r}. That is a layout mismatch, not {len(missing)} deletions - "
+            f"refusing to delete them. Check the Dokka output tree, then re-run. Examples: "
+            f"{', '.join(missing[:3])}",
+            file=sys.stderr,
+        )
+        conn.close()
+        sys.exit(1)
 
     try:
         conn.execute("BEGIN")
@@ -344,10 +344,10 @@ def main():
 
                 # An unresolvable contentTypeID means this row's declared
                 # type isn't in ContentTypes at all, so there's no way to
-                # know whether the server will try to brotli-decompress what
-                # gets written here. Guessing "uncompressed" and committing
-                # anyway is how a row ends up serving bytes that don't match
-                # its own declared type - fail instead.
+                # know whether the server will try to decompress what gets
+                # written here. Guessing "uncompressed" and committing anyway
+                # is how a row ends up serving bytes that contradict its own
+                # declared type - fail instead.
                 compression = compression_by_type.get(content_type_id)
                 if compression is None:
                     raise RuntimeError(
