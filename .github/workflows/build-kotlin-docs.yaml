@@ -1,0 +1,378 @@
+name: Build Kotlin Docs
+
+# CI counterpart of ProcessDocs/ProcessKotlinDocs/run_e2e_pipeline_test.sh -
+# same five steps (find_missing_assets -> populate_db -> insert_optimized_media
+# -> build-stdlib-json-docs -> sync_kdoc_json_to_db), same ADFA-4737 blacklist,
+# but sourcing its inputs from fresh git checkouts instead of a developer's
+# local machine, and reading/writing the real database on Google Drive
+# (GOOGLE_DRIVE_FILE_ID) instead of a local SOURCE_DB copy.
+#
+# KNOWN LIMITATION: populate_db.py requires Writerside's own image export
+# ("webHelpImages.zip"), which JetBrains only produces via IntelliJ IDEA's
+# Writerside plugin build/export action - there is no headless/CLI way to
+# generate it (see ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/README.md,
+# "Inputs you need before starting"). So this workflow downloads it from
+# Google Drive rather than generating it itself; someone has to run that IDE
+# export, upload the zip to Drive, and supply its file ID (see
+# images_zip_file_id / GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID below) before
+# triggering a run that touches the website docs. Use skip_website_docs to
+# bypass this entirely and only refresh the kotlin-stdlib/-reflect/-test
+# JSON content.
+#
+# Required secrets (already configured - see docdb-regression-test.yaml for
+# their other use in this repo):
+#   GCP_WIF_PROVIDER        - Workload Identity Federation provider name
+#   GCP_WIF_SERVICE_ACCOUNT - Service account email for WIF (needs read
+#                              access to the images-zip file below, and
+#                              write access - not just view - to the
+#                              database file, since this workflow
+#                              overwrites it)
+#   GOOGLE_DRIVE_FILE_ID     - File ID of the production documentation.db
+#                              (stored on Drive as a zip)
+#
+# Optional secret (falls back to the images_zip_file_id input if unset; see
+# also the hard-coded TEST_*_FILE_ID overrides below for one-off testing):
+#   GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID - File ID of Writerside's webHelpImages.zip export
+#
+# Optional secret (Slack notifications are skipped with a warning if unset):
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, since this workflow mutates a
+#                        single shared Drive file).
+
+permissions:
+  contents: read
+  id-token: write
+
+# This workflow overwrites a single shared Drive file - never let two runs
+# race to upload against each other.
+concurrency:
+  group: build-kotlin-docs
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      kotlin_web_site_ref:
+        description: >-
+          Branch/tag/commit of JetBrains/kotlin-web-site to check out for the
+          "docs" tree (topics/, images/, kr.tree, v.list). Leave empty to use
+          the repo's default branch.
+        required: false
+        default: ''
+      kotlin_ref:
+        description: >-
+          Branch/tag/commit of JetBrains/kotlin to check out for the
+          kotlin-stdlib-docs build. Leave empty to use the repo's default
+          branch. Pin this to a real release tag for a reproducible build.
+        required: false
+        default: ''
+      images_zip_file_id:
+        description: >-
+          Google Drive file ID for Writerside's webHelpImages.zip export
+          matching kotlin_web_site_ref (see KNOWN LIMITATION above). Falls
+          back to the GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID secret if left empty.
+          Ignored if skip_website_docs is true.
+        required: false
+        default: ''
+      skip_website_docs:
+        description: 'Skip the kotlin-web-site steps and only refresh kotlin-stdlib/-reflect/-test JSON content.'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT upload the result
+          back to Google Drive - the production database is left untouched.
+          Set to false only once you trust a given ref/URL combination (see
+          this workflow's testing notes).
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-kotlin-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      KOTLIN_WEB_SITE_REF: ${{ inputs.kotlin_web_site_ref }}
+      KOTLIN_REF: ${{ inputs.kotlin_ref }}
+      DB_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_FILE_ID }}
+      IMAGES_ZIP_FILE_ID_INPUT: ${{ inputs.images_zip_file_id }}
+      IMAGES_ZIP_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID }}
+      # --- Hard-coded overrides for one-off manual testing -----------------
+      # Fill in either of these with a literal Google Drive file ID to
+      # bypass the secret/input resolution above for a quick, repeatable
+      # test run (e.g. against scratch copies of the database/images zip on
+      # Drive). Leave both empty ('') for normal operation.
+      TEST_DB_FILE_ID: ''
+      TEST_IMAGES_ZIP_FILE_ID: ''
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve Google Drive file IDs
+        run: |
+          DB_FILE_ID="${TEST_DB_FILE_ID:-$DB_FILE_ID_SECRET}"
+          IMG_FILE_ID="${TEST_IMAGES_ZIP_FILE_ID:-${IMAGES_ZIP_FILE_ID_INPUT:-$IMAGES_ZIP_FILE_ID_SECRET}}"
+          if [ -z "$DB_FILE_ID" ]; then
+            echo "Error: no database file ID resolved - set the GOOGLE_DRIVE_FILE_ID secret, or TEST_DB_FILE_ID above for a test run" >&2
+            exit 1
+          fi
+          echo "Resolved DB_FILE_ID: ${DB_FILE_ID:+(set)}"
+          echo "Resolved IMG_FILE_ID: ${IMG_FILE_ID:+(set)}"
+          echo "DB_FILE_ID=$DB_FILE_ID" >> "$GITHUB_ENV"
+          echo "IMG_FILE_ID=$IMG_FILE_ID" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (for the kdoc-to-json / kotlin-stdlib-docs Gradle builds)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # kdoc-to-json's own Gradle wrapper is pinned to Gradle 9.1.0, which
+          # needs JDK 17+. Bump this if the kotlin checkout's own wrapper
+          # (invoked by build-stdlib-json-docs.sh against kotlin-stdlib-docs)
+          # turns out to need something newer - verify on first real run.
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y pngquant unzip zip sqlite3
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # markdown-it-py/scour/cairosvg: ProcessKotlinWebsiteJSON's own
+          # requirements (see its README), not in the root requirements.txt.
+          # google-api-python-client & friends: Drive download/upload, same
+          # libraries check-tools/download_database.py already depends on.
+          pip install markdown-it-py scour cairosvg \
+            google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Authenticate to Google Cloud using Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/drive.file
+
+      - name: Download current documentation.db from Google Drive
+        run: |
+          python3 check-tools/download_database.py "$DB_FILE_ID" documentation.zip
+          unzip -o documentation.zip
+          if [ ! -f documentation.db ]; then
+            found="$(find . -maxdepth 2 -name documentation.db | head -n1)"
+            [ -n "$found" ] && mv "$found" documentation.db
+          fi
+          test -f documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          rm -f documentation.zip
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      - name: 'Notify Slack: build started'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: Clone kotlin-web-site
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_WEB_SITE_REF" ] && ARGS+=(--branch "$KOTLIN_WEB_SITE_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site
+
+      - name: Download Writerside image export from Google Drive
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          if [ -z "$IMG_FILE_ID" ]; then
+            echo "Error: no images-zip file ID resolved - set images_zip_file_id, the GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID secret, or TEST_IMAGES_ZIP_FILE_ID above (see KNOWN LIMITATION in this workflow's header comment). Required unless skip_website_docs is true." >&2
+            exit 1
+          fi
+          # download_database.py is a generic Drive-file-by-ID downloader
+          # despite its name - reused here rather than duplicating the
+          # WIF/Drive-API download logic for a second file type.
+          python3 check-tools/download_database.py "$IMG_FILE_ID" webHelpImages.zip
+
+      - name: 'Step 1/5: find_missing_assets.py (source QA report)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
+            kotlin-web-site/docs missing-assets-report.md
+
+      - name: Upload missing-assets report
+        if: ${{ !inputs.skip_website_docs }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: missing-assets-report
+          path: missing-assets-report.md
+
+      - name: 'Step 2/5: populate_db.py (convert docs, prune blacklist, insert into db)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          # Same three blacklist entries as run_e2e_pipeline_test.sh
+          # (ADFA-4737) - re-derive these from kotlin-web-site/docs/kr.tree
+          # if its nav structure has changed since this was written.
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
+            kotlin-web-site/docs \
+            ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/config.json \
+            webHelpImages.zip \
+            documentation.db \
+            --blacklisted-element-titles \
+              'Development\/Web development' \
+              'Interoperability\/Swift/Objective-C and C interop' \
+              'Interoperability\/JavaScript interop'
+
+      - name: 'Step 3/5: insert_optimized_media.py (re-optimize + reinsert images)'
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          # --webp requires an "image/webp" ContentTypes row, which this
+          # database doesn't ship with by default (idempotent).
+          sqlite3 documentation.db \
+            "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
+          mkdir -p media
+          unzip -q webHelpImages.zip -d media
+          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
+            media documentation.db \
+            --jpeg-quality 85 --webp --webp-quality 90 --verbose
+
+      - name: Clone kotlin (for kotlin-stdlib-docs)
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_REF" ] && ARGS+=(--branch "$KOTLIN_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin.git kotlin-repo
+
+      - name: 'Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdlib/-reflect/-test JSON)'
+        id: stdlib_docs
+        run: |
+          OUTPUT="$(Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh kotlin-repo stdlib-json-build)"
+          echo "Generated JSON docs at $OUTPUT"
+          echo "all_libs_dir=$OUTPUT" >> "$GITHUB_OUTPUT"
+
+      - name: 'Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
+        run: |
+          python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
+            "${{ steps.stdlib_docs.outputs.all_libs_dir }}" --db documentation.db
+
+      - name: Summary
+        run: |
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3
+          import sys
+
+          conn = sqlite3.connect(sys.argv[1])
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          print(f"Database: {sys.argv[1]}")
+          print(f"  k/html/*             rows: {count('path LIKE ?', ('k/html/%',))}")
+          print(f"  k/html/images/*      rows: {count('path LIKE ?', ('k/html/images/%',))}")
+          print(f"  k/html/images/*.webp rows: {count('path LIKE ?', ('k/html/images/%.webp%',))}")
+          print(f"  k/kotlin-stdlib/*    rows: {count('path LIKE ? OR path = ?', ('k/kotlin-stdlib/%', 'k/kotlin-stdlib'))}")
+          print(f"  k/kotlin-reflect/*   rows: {count('path LIKE ? OR path = ?', ('k/kotlin-reflect/%', 'k/kotlin-reflect'))}")
+          print(f"  k/kotlin-test/*      rows: {count('path LIKE ? OR path = ?', ('k/kotlin-test/%', 'k/kotlin-test'))}")
+          conn.close()
+          PYEOF
+
+      - name: Blacklist pruning verification
+        if: ${{ !inputs.skip_website_docs }}
+        run: |
+          python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
+            'Development\/Web development' \
+            'Interoperability\/Swift/Objective-C and C interop' \
+            'Interoperability\/JavaScript interop' <<'PYEOF'
+          import sqlite3
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          process_dir, docs_root, db_path, *blacklist_raw = sys.argv[1:]
+          sys.path.insert(0, process_dir)
+          import populate_db  # noqa: E402
+
+          root = ET.parse(Path(docs_root) / "kr.tree").getroot()
+          blacklisted_paths = {populate_db.parse_blacklist_path(raw) for raw in blacklist_raw}
+          blacklisted_stems, unmatched_paths = populate_db.prune_blacklisted_elements(root, blacklisted_paths)
+
+          conn = sqlite3.connect(db_path)
+          leftover = []
+          for stem in sorted(blacklisted_stems):
+              path = f"k/html/{stem}.html"
+              if conn.execute("SELECT 1 FROM Content WHERE path = ?", (path,)).fetchone():
+                  leftover.append(path)
+          conn.close()
+
+          print(f"Blacklisted toc-element path(s) checked: {len(blacklisted_paths)}")
+          for path in sorted(blacklisted_paths):
+              status = "unmatched (no such element in kr.tree)" if path in unmatched_paths else "matched"
+              print(f"  {' > '.join(path)}: {status}")
+          print(f"Topic page(s) expected removed: {len(blacklisted_stems)}")
+
+          if unmatched_paths:
+              print(f"FAIL: {len(unmatched_paths)} blacklist path(s) never matched a <toc-element>.")
+              sys.exit(1)
+          if leftover:
+              print(f"FAIL: {len(leftover)} blacklisted page(s) still present in the database:")
+              for path in leftover:
+                  print(f"  {path}")
+              sys.exit(1)
+
+          print(f"PASS: all {len(blacklisted_stems)} blacklisted topic page(s) confirmed absent from {db_path}.")
+          PYEOF
+
+      - name: Upload built database as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db-${{ github.run_number }}
+          path: documentation.db
+          retention-days: 14
+
+      - name: Zip updated database for upload
+        if: ${{ !inputs.dry_run }}
+        run: zip -j documentation.zip documentation.db
+
+      - name: Upload updated database to Google Drive
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          from google.auth import default
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          file_id = os.environ["DB_FILE_ID"]
+          credentials, _ = default()
+          service = build("drive", "v3", credentials=credentials)
+          media = MediaFileUpload("documentation.zip", mimetype="application/zip", resumable=True)
+          updated = service.files().update(
+              fileId=file_id, media_body=media, fields="id, modifiedTime, md5Checksum"
+          ).execute()
+          print(f"Uploaded new revision of {file_id}: {updated}")
+          PYEOF
+
+      - name: 'Notify Slack: build complete'
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Updated Kotlin documentation. Dropping baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi

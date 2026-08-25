@@ -1,0 +1,138 @@
+{#
+  Renders a single documentation page from the JSON produced by md_to_json.py.
+
+  Expected context variables (== top-level keys of one docs-json/topics/**/*.json file):
+    id         - string, e.g. "enum-classes" or "ksp/ksp-overview"
+    sourceFile - string, e.g. "topics/enum-classes.md"
+    title      - string or null
+    blocks     - list of block objects, see md_to_json.py's module docstring for the schema
+    prev, next - optional {"id": ..., "title": ...} nav neighbors (see RenderDocs.java,
+                 which derives these from nav.json's document order - the same
+                 source Writerside's own prev/next footer is built from)
+
+  Load the JSON into the model under these same names, e.g. with Jackson:
+    Map<String, Object> page = objectMapper.readValue(jsonFile, Map.class);
+    engine.getTemplate("page.peb").evaluate(writer, page);
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if title %}{{ title }} | {% endif %}Kotlin Docs</title>
+{% if sourceFile %}<meta name="source-file" content="{{ sourceFile }}">{% endif %}
+<link rel="stylesheet" href="/assets/docs.css">
+</head>
+<body>
+<button type="button" class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar"></button>
+<div class="nav-backdrop" id="nav-backdrop"></div>
+<div class="docs-layout">
+  <aside class="docs-sidebar" id="sidebar">
+    {% include "nav.html" %}
+  </aside>
+  <main class="docs-content" id="page-{{ id }}">
+    <article>
+      {% if title %}<h1>{{ title }}</h1>{% endif %}
+      {% for block in blocks %}{{ renderBlock(block) }}
+      {% endfor %}
+    </article>
+    {% if prev is not empty or next is not empty %}
+    <nav class="docs-pager">
+      {% if prev is not empty %}<a class="docs-pager__prev" href="/{{ prev.id }}.html">{{ prev.title }}</a>{% endif %}
+      {% if next is not empty %}<a class="docs-pager__next" href="/{{ next.id }}.html">{{ next.title }}</a>{% endif %}
+    </nav>
+    {% endif %}
+  </main>
+</div>
+<script src="/assets/tabs.js" defer></script>
+<script src="/assets/sidebar.js" defer></script>
+</body>
+</html>
+
+{#
+  Recursive block renderer. Macros only see the variables passed to them, so
+  every block that can nest other blocks (blockquote, note/tip/warning, list
+  items, table cells, tabs) passes its children back through renderBlock().
+  Macros defined in a template are directly visible to themselves and to each
+  other within that same template, so no self-import is needed for recursion.
+#}
+{% macro renderBlock(b) %}
+{% if b.type == "heading" %}
+<h{{ b.level }} id="{{ b.id }}">{{ b.html|raw }}</h{{ b.level }}>
+
+{% elseif b.type == "paragraph" %}
+<p>{{ b.html|raw }}</p>
+
+{% elseif b.type == "code" %}
+<pre class="code-block"{% if b.attrs.id %} id="{{ b.attrs.id }}"{% endif %}{% if b.lang %} data-lang="{{ b.lang }}"{% endif %}{% for entry in b.attrs %}{% if entry.key != "id" %} data-{{ entry.key }}="{{ entry.value }}"{% endif %}{% endfor %}><code{% if b.lang %} class="language-{{ b.lang }}"{% endif %}>{{ b.code }}</code></pre>
+
+{% elseif b.type == "blockquote" %}
+<blockquote class="blockquote{% if b.attrs.style %} admonition {{ b.attrs.style }}{% endif %}">
+{% if b.attrs.title %}<p class="admonition-title">{{ b.attrs.title }}</p>{% endif %}
+{% for child in b.blocks %}{{ renderBlock(child) }}
+{% endfor %}</blockquote>
+
+{% elseif b.type == "note" or b.type == "tip" or b.type == "warning" %}
+<div class="admonition {{ b.type }}">
+{% if b.attrs.title %}<p class="admonition-title">{{ b.attrs.title }}</p>{% endif %}
+{% for child in b.blocks %}{{ renderBlock(child) }}
+{% endfor %}</div>
+
+{% elseif b.type == "list" %}
+{% if b.ordered %}<ol>{% else %}<ul>{% endif %}
+{% for item in b.items %}<li>{% for child in item.blocks %}{{ renderBlock(child) }}{% endfor %}</li>
+{% endfor %}{% if b.ordered %}</ol>{% else %}</ul>{% endif %}
+
+{% elseif b.type == "table" %}
+<table>
+{% if b.headers is not empty %}<thead>
+<tr>{% for h in b.headers %}<th>{{ h|raw }}</th>{% endfor %}</tr>
+</thead>{% endif %}
+<tbody>
+{% for row in b.rows %}<tr>{% for cell in row %}<td>{{ cell|raw }}</td>{% endfor %}</tr>
+{% endfor %}</tbody>
+</table>
+
+{% elseif b.type == "image" %}
+<img src="{{ b.src }}" alt="{{ b.alt|default('') }}">
+
+{% elseif b.type == "hr" %}
+<hr>
+
+{% elseif b.type == "tabs" and b.tabs is not empty %}
+{#
+  Tab switching + the group-key syncing (e.g. picking "Groovy" in one
+  Kotlin/Groovy/Maven tabs block switches every other tabs block sharing the
+  same data-group on the page, matching Writerside's data-sync-tabs
+  behavior) is implemented in assets/tabs.js. md_to_json.py's
+  _finalize_container always gives every "tabs" block a non-empty "tabs"
+  list (synthesizing one from code-block languages, or dropping the wrapper
+  entirely, when the source had no <tab> children) - the "b.tabs is not
+  empty" guard here is just a defensive backstop against any other producer
+  of this JSON schema making the same mistake, not something this pipeline
+  itself still needs.
+#}
+<div class="tabs"{% if b.attrs.group %} data-group="{{ b.attrs.group }}"{% endif %}>
+  <div class="tab-buttons" role="tablist">
+  {% for tab in b.tabs %}{% set tabKey = tab.attrs["group-key"]|default(tab.title)|default(loop.index) %}<button type="button" class="tab-button{% if loop.first %} tab-button--active{% endif %}" role="tab" aria-selected="{% if loop.first %}true{% else %}false{% endif %}" data-group-key="{{ tabKey }}">{{ tab.title }}</button>
+  {% endfor %}</div>
+  {% for tab in b.tabs %}{% set tabKey = tab.attrs["group-key"]|default(tab.title)|default(loop.index) %}<div class="tab-panel{% if loop.first %} tab-panel--active{% endif %}" role="tabpanel" data-group-key="{{ tabKey }}"{% if not loop.first %} hidden{% endif %}>
+  {% for child in tab.blocks %}{{ renderBlock(child) }}
+  {% endfor %}</div>
+  {% endfor %}
+</div>
+
+{% elseif b.type == "html" %}
+{{ b.html|raw }}
+
+{% elseif b.type == "tab" %}
+{# A lone <tab> not wrapped in <tabs> (e.g. seen in eap.json's HTML-table
+   compatibility layout); render its children rather than dropping them. #}
+{% for child in b.blocks %}{{ renderBlock(child) }}
+{% endfor %}
+
+{% else %}
+{% if b.html %}{{ b.html|raw }}{% endif %}
+
+{% endif %}
+{% endmacro %}

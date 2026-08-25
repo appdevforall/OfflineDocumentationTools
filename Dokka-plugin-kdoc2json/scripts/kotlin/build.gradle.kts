@@ -46,7 +46,14 @@ allprojects {
         // 3. Maven Central (Keep this for standard standard stable libraries like Gson/Coroutines)
         mavenCentral()
 
-        // ALL REMOTE JETBRAINS SNAPSHOT SERVERS HAVE BEEN REMOVED!
+        // 4. Dokka's own dev-snapshot server - required by plugins:dokka-samples-transformer-plugin
+        // and plugins:dokka-version-filter-plugin (both included by kotlin-stdlib-docs'
+        // settings.gradle.kts and pulled onto the build graph by its dokka-convention plugin),
+        // which pin to a Dokka dev build rather than a Maven Central release. Same property +
+        // default kotlin-stdlib-docs' own settings.gradle.kts uses, so this only ever points
+        // wherever that project already expects it to.
+        maven(url = providers.gradleProperty("dokka_repository")
+            .getOrElse("https://redirector.kotlinlang.org/maven/dokka-dev"))
     }
 
     // --- ADDED THIS EXCLUSION BLOCK ---
