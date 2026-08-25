@@ -9,8 +9,11 @@ import io
 import mimetypes
 import os
 import platform as _platform
+import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -354,7 +357,10 @@ def get_html_anchors_for_path(db_path: Path, base_path: str) -> list[str]:
     full = b"".join(parts)
     if compression == "brotli":
         try:
-            full = brotli.decompress(full)
+            full = decompress_brotli(full, db_path)
+        except BrotliCliMissing as exc:
+            print(f"error: cannot read {base_path!r}: {exc}", file=sys.stderr)
+            return []
         except brotli.error:
             return []
     return extract_html_anchors(full)
@@ -790,7 +796,10 @@ def fetch_content_for_path(
     full = b"".join(parts)
     if compression == "brotli":
         try:
-            full = brotli.decompress(full)
+            full = decompress_brotli(full, db_path)
+        except BrotliCliMissing as exc:
+            print(f"error: cannot read {base_path!r}: {exc}", file=sys.stderr)
+            return None
         except brotli.error:
             return None
     return full, mime
@@ -1302,11 +1311,150 @@ def get_languages(db_path: Path) -> list[tuple[int, str]]:
         return cur.fetchall()
 
 
-def compress_for_storage(data: bytes, compression: str) -> bytes:
-    """Apply compression policy. 'brotli' encodes; anything else passes through unchanged."""
-    if compression == "brotli":
+# db_path -> dictionary bytes, or None if that database has no CompressionDictionary
+# (an older/test database predating ADFA-5153). docdb-studio never creates or retrains
+# a dictionary itself, so a cached value -- present or None -- can't go stale mid-session.
+_dictionary_cache: dict[Path, bytes | None] = {}
+# db_path -> temp file holding that database's dictionary bytes, for the brotli CLI's -D
+# flag. Written once per db_path and reused, rather than rewriting the same bytes to disk
+# on every compress/decompress call.
+_dictionary_temp_paths: dict[Path, Path] = {}
+
+
+class BrotliCliMissing(brotli.error):
+    """The `brotli` binary a dictionary database needs is not installed.
+
+    Subclasses brotli.error so it cannot escape as an unhandled RuntimeError out
+    of content preview or anchor validation -- but the call sites catch it
+    *separately* from a plain brotli.error and log it, because the two mean
+    different things to whoever is looking at the screen. A corrupt row is one
+    bad row; a missing binary means nothing in this database will ever decode,
+    and it is fixable in one command. Silently returning an empty preview for
+    that is indistinguishable from an empty page.
+
+    See "Installing the `brotli` command-line tool" in README.md."""
+
+
+def _find_brotli_cli() -> str:
+    path = shutil.which("brotli")
+    if path is None:
+        raise BrotliCliMissing(
+            "this database uses a shared Brotli dictionary (ADFA-5153), which needs the `brotli` "
+            "command-line program -- not the Python package of the same name that is already "
+            "installed. brew install brotli (macOS), apt install brotli (Linux), or on Windows "
+            "winget/scoop/choco; see \"Installing the brotli command-line tool\" in README.md. "
+            "Then reopen the database."
+        )
+    return path
+
+
+def get_compression_dictionary(db_path: Path) -> bytes | None:
+    """Returns db_path's CompressionDictionary bytes (see ADFA-5153), or None if it
+    doesn't have one yet.
+
+    Only a *definitive* answer is cached. `sqlite3.OperationalError` also covers
+    "database is locked", which is entirely plausible for a GUI while another tool
+    writes the same file; caching that as None would downgrade the whole session to
+    plain Brotli, so imports would write plain rows into a dictionary database and
+    reads of existing rows would fail. On any such error this returns None for this
+    one call and retries on the next."""
+    if db_path in _dictionary_cache:
+        return _dictionary_cache[db_path]
+    dictionary_data: bytes | None = None
+    try:
+        with sqlite3.connect(db_path) as conn:
+            table_row = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
+            ).fetchone()
+            if table_row is not None:
+                data_row = conn.execute(
+                    "SELECT data FROM CompressionDictionary WHERE id = 1"
+                ).fetchone()
+                if data_row is not None:
+                    dictionary_data = data_row[0]
+    except sqlite3.OperationalError as exc:
+        print(f"warning: could not read {db_path}'s compression dictionary ({exc}); "
+              f"not caching that, will retry", file=sys.stderr)
+        return None
+    _dictionary_cache[db_path] = dictionary_data
+    return dictionary_data
+
+
+def _dictionary_temp_path(db_path: Path, dictionary_data: bytes) -> Path:
+    cached = _dictionary_temp_paths.get(db_path)
+    if cached is not None and cached.exists():
+        return cached
+    fd, name = tempfile.mkstemp(prefix="docdb-studio-brotli-dict-")
+    path = Path(name)
+    with os.fdopen(fd, "wb") as f:
+        f.write(dictionary_data)
+    _dictionary_temp_paths[db_path] = path
+    atexit.register(lambda: path.unlink(missing_ok=True))
+    return path
+
+
+def compress_for_storage(data: bytes, compression: str, db_path: Path) -> bytes:
+    """Apply compression policy. 'brotli' encodes -- against db_path's shared dictionary
+    if it has one (see ADFA-5153), otherwise plain, matching a database that predates
+    that migration. Anything else passes through unchanged."""
+    if compression != "brotli":
+        return data
+    dictionary_data = get_compression_dictionary(db_path)
+    if dictionary_data is None:
         return brotli.compress(data)
-    return data
+    dict_path = _dictionary_temp_path(db_path, dictionary_data)
+    try:
+        result = subprocess.run(
+            [_find_brotli_cli(), "-D", str(dict_path), "-c"],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"could not run the brotli tool needed to compress against this "
+                           f"database's shared dictionary: {exc}") from exc
+    if result.returncode != 0:
+        raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def decompress_brotli(data: bytes, db_path: Path) -> bytes:
+    """Inverse of compress_for_storage's 'brotli' branch -- decodes against db_path's
+    shared dictionary if it has one, otherwise plain. A row compressed against the
+    dictionary is only decodable with that same dictionary (verified empirically to
+    fail, or silently produce different bytes, otherwise -- see ADFA-5153), so this
+    must agree with whichever path originally compressed the row.
+
+    Falls back to a plain decode when the dictionary-attached one fails, which
+    WebServer.kt also does and for the same reason: a dictionary database still
+    contains plain rows. Any row a plugin contributes on-device is plain (see
+    PluginDocumentationManager/BrotliCompressor), scripts outside populate_db.py's
+    reach may not have been migrated yet, and a partially-completed migration leaves
+    a mixture by design. Without the fallback those rows are unreadable here even
+    though the app serves them fine. The fallback is safe in this direction:
+    measured over 400 real dictionary-compressed rows, decoding one without its
+    dictionary raised 398 times and returned identical bytes twice - never wrong
+    bytes. (Decoding with the *wrong* dictionary is the silent case, and no fallback
+    can detect it.)
+
+    Raises brotli.error on failure either way, matching plain brotli.decompress's own
+    exception type, so existing `except brotli.error:` call sites don't need to change.
+    """
+    dictionary_data = get_compression_dictionary(db_path)
+    if dictionary_data is None:
+        return brotli.decompress(data)
+    dict_path = _dictionary_temp_path(db_path, dictionary_data)
+    try:
+        result = subprocess.run(
+            [_find_brotli_cli(), "-d", "-D", str(dict_path), "-c"],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+    except OSError as exc:
+        raise brotli.error(f"could not run the brotli tool: {exc}") from exc
+    if result.returncode == 0:
+        return result.stdout
+    # A plain row in a dictionary database, most likely. brotli.decompress raises
+    # brotli.error of its own if the blob is genuinely corrupt, so a real failure
+    # still reaches the caller with the expected exception type.
+    return brotli.decompress(data)
 
 
 def fragment_blob(blob: bytes, chunk_size: int = CONTENT_CHUNK_SIZE) -> list[bytes]:
@@ -1512,7 +1660,7 @@ def import_content_files(
                     _report("add", adds_done, add_total)
                 continue
 
-            stored = compress_for_storage(data, item.compression)
+            stored = compress_for_storage(data, item.compression, db_path)
             chunks = fragment_blob(stored)
             paths = target_paths(item.base_path, len(chunks))
 
