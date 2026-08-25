@@ -41,7 +41,19 @@ Block shapes:
   {"type": "hr"}
   {"type": "tabs", "attrs": {"group": "build-system"},
    "tabs": [{"title": "Gradle", "attrs": {"group-key": "gradle"}, "blocks": [...]}]}
+  {"type": "note"|"tip"|"warning", "attrs": {...}, "blocks": [...]}
+    - Writerside's block-level admonition tags. Only the block form (the tag
+      alone on its own line) becomes one of these; the single-line
+      "<note>text</note>" form stays a raw "html" block - see the known
+      limitations below. Note that a `> quoted {style="note"}` blockquote is
+      a *different* shape: that stays "blockquote" with attrs.style.
   {"type": "html", "html": "<raw passthrough for anything unrecognized>"}
+
+A "tab" normally never appears as a block type of its own: group_containers
+nests it inside its parent "tabs" block's "tabs" list (above). The exception
+is a <tab> written outside any <tabs> - malformed source, which comes through
+as a bare {"type": "tab", "attrs": ..., "blocks": [...]} block that a template
+written only against the shapes above will not render.
 
 There is no standalone "image" block type - CommonMark only ever produces
 "image" as an inline token nested inside a paragraph/heading/etc., so a
@@ -82,6 +94,14 @@ Known limitations (fine for a first pass, worth revisiting before production use
     algorithms diverge on a case not yet seen in the corpus (inline code or
     punctuation in the heading, duplicate heading text) - not currently
     detected.
+  - "html" blocks are raw CommonMark passthrough and are NOT guaranteed to
+    be individually well-formed - e.g. a hand-written <table> whose rows
+    span multiple blank-line-separated chunks comes through as several
+    "html" blocks, each containing a structurally unbalanced fragment
+    (measured on the live corpus: 194 of 624 "html" blocks). Concatenating
+    consecutive "html" blocks verbatim reproduces the original markup
+    correctly; a template that wraps each block in its own element
+    (instead of concatenating verbatim) will shred tables like this one.
 """
 import argparse
 import json
@@ -96,6 +116,9 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
 TITLE_RE = re.compile(r"^\[//\]:\s*#\s*\(title:\s*(.*?)\)\s*$", re.MULTILINE)
+# A ``` or ~~~ fence opener/closer, matched against an already-lstrip()ped
+# line. Used by fenced_spans to keep extract_title out of code samples.
+FENCE_LINE_RE = re.compile(r"^(`{3,}|~{3,})")
 ATTR_LINE_RE = re.compile(r"^\{(.*)\}$")
 TRAILING_ATTR_GROUPS_RE = re.compile(r"\s*((?:\{[^{}]*\})+)\s*$")
 
@@ -107,13 +130,28 @@ TRAILING_ATTR_GROUPS_RE = re.compile(r"\s*((?:\{[^{}]*\})+)\s*$")
 IMAGE_ATTR_GROUP_RE = re.compile(r"\{([^{}]*)\}")
 ATTR_PAIR_RE = re.compile(r'([\w-]+)\s*=\s*(?:"([^"]*)"|(\S+))')
 VAR_RE = re.compile(r"%([\w.-]+)%")
-MD_LINK_RE = re.compile(r"^([\w.-]+)\.md(#.*)?$")
+# Leading "(?:[\w.-]+/)*" absorbs (and discards) any path prefix instead of
+# just failing to match - a link like "tour/hello.md" is still resolved by
+# its bare filename per Writerside's convention (see module docstring), the
+# same way build_topic_index looks pages up; without it, a path-containing
+# ".md" link neither resolved nor got classified as "broken" (classify_href
+# uses this same pattern) - it shipped verbatim with no warning at all.
+MD_LINK_RE = re.compile(r"^(?:[\w.-]+/)*([\w.-]+)\.md(#.*)?$")
 EXTERNAL_HREF_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//|^mailto:", re.I)
 LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
 STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
 IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.I)
 IMG_SRC_RE = re.compile(r'src="([^"]*)"')
-COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$")
+# Only the hex lengths CSS actually defines (#rgb, #rgba, #rrggbb, #rrggbbaa)
+# plus a bare color keyword. A flat {3,8} also admitted #12345 and #1234567,
+# which no browser accepts - the validator is what keeps this value safe to
+# interpolate into a style="" attribute (see load_config), so it should mean
+# what it says rather than waving through lengths that only look plausible.
+COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$|^[a-zA-Z]+$")
+
+# Fallback base for a heading whose text slugifies to nothing at all (e.g.
+# "## ..."), so it still gets a linkable anchor instead of id="".
+EMPTY_HEADING_ID_BASE = "section"
 
 # TAG_RE is built from this set (rather than hardcoding the same five names
 # twice) so the two can't silently diverge. The (?![\w-]) after the
@@ -199,18 +237,59 @@ def parse_attrs(attr_str: str) -> dict:
     return attrs
 
 
+def fenced_spans(raw_text: str) -> list:
+    """(start, end) character ranges of every ``` / ~~~ fenced code block,
+    including the fence lines themselves. An unterminated fence runs to the
+    end of the document, which is what CommonMark does too."""
+    spans = []
+    pos = 0
+    open_at = None
+    open_fence = None
+    for line in raw_text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        m = FENCE_LINE_RE.match(stripped)
+        if m:
+            fence = m.group(1)
+            if open_at is None:
+                open_at, open_fence = pos, fence
+            # A closing fence must be the same character and at least as long
+            # as the opener - "````" inside a ``` block is content, not a
+            # close, and a shorter run never closes a longer one.
+            elif fence[0] == open_fence[0] and len(fence) >= len(open_fence):
+                spans.append((open_at, pos + len(line)))
+                open_at = open_fence = None
+        pos += len(line)
+    if open_at is not None:
+        spans.append((open_at, len(raw_text)))
+    return spans
+
+
 def extract_title(raw_text: str):
-    m = TITLE_RE.search(raw_text)
-    if not m:
-        return None, raw_text
-    title = m.group(1).strip()
-    remaining = raw_text[: m.start()] + raw_text[m.end():]
-    return title, remaining
+    """Pulls Writerside's `[//]: # (title: ...)` comment out of the source.
+
+    Skips any match inside a fenced code block: a page documenting Writerside
+    syntax shows that comment as a code sample, and taking it would both set a
+    bogus title and delete the line out of the sample being shown."""
+    spans = None
+    for m in TITLE_RE.finditer(raw_text):
+        if spans is None:                      # only pay for this if a match exists
+            spans = fenced_spans(raw_text)
+        if any(start <= m.start() < end for start, end in spans):
+            continue
+        title = m.group(1).strip()
+        return title, raw_text[: m.start()] + raw_text[m.end():]
+    return None, raw_text
 
 
 def slugify(text: str) -> str:
-    slug = re.sub(r"[^\w\s-]", "", text.lower()).strip()
-    return re.sub(r"[\s_]+", "-", slug)
+    """Deletes-vs-hyphenates matters: dropping punctuation entirely (the
+    previous behavior) merges "package.json" into "packagejson", diverging
+    from Writerside's own anchor algorithm (which hyphenates it) on every
+    heading with a "." "/" ":" etc. - measured at 209 dead #anchor links
+    across the real kotlin-web-site corpus. Hyphenating punctuation instead
+    keeps this aligned with those hand-written anchors in the common case."""
+    slug = re.sub(r"[^\w\s-]", "-", text.lower())
+    return re.sub(r"[\s_-]+", "-", slug).strip("-")
 
 
 class Node:
@@ -232,7 +311,18 @@ def build_tree(tokens) -> list:
             stack[-1].append(node)
             stack.append(node.children)
         elif tok.nesting == -1:
-            stack.pop()
+            # markdown-it always emits balanced nesting, so this guard is
+            # defensive rather than a case seen in the corpus - but popping
+            # the root off an already-empty stack turns a malformed token
+            # stream (a plugin, or a future markdown-it change) into an
+            # "IndexError: pop from empty list" with nothing pointing at the
+            # cause. Ignoring the stray closer keeps the tree usable and
+            # names the problem instead.
+            if len(stack) > 1:
+                stack.pop()
+            else:
+                print(f"warning: unbalanced token stream: stray closing {tok.type!r} at top level",
+                      file=sys.stderr)
         else:
             stack[-1].append(Node(tok))
     return root
@@ -269,12 +359,60 @@ class Converter:
         the source's own #anchor), so two headings sharing a slug would
         make any link to the second one land on the first instead."""
         base = slug = slugify(text)
+        if not base:
+            # A heading whose text is entirely punctuation ("## ...") slugifies
+            # to "", and id="" is both invalid HTML and impossible to link to.
+            # Fall back to a positional name so it still gets a usable anchor;
+            # the de-dup loop below numbers subsequent ones.
+            base = slug = EMPTY_HEADING_ID_BASE
         n = 2
         while slug in self.seen_heading_ids:
             slug = f"{base}-{n}"
             n += 1
         self.seen_heading_ids.add(slug)
         return slug
+
+    def reserve_explicit_heading_ids(self, tokens) -> None:
+        """Registers every explicit `{id="..."}` on the page *before* any
+        heading is converted, so an auto-slugified heading can never take an
+        id that an explicit one further down the page also claims.
+
+        Registering them lazily as each heading was reached only protected
+        explicit ids from *later* auto-slugs. In the other order -
+        `## Custom anchor` followed by `## Something {id="custom-anchor"}` -
+        the auto-slug got there first and both headings ended up with
+        id="custom-anchor", so any link to the explicit one landed on the
+        auto one instead. Explicit ids are the intentional, presumably-stable
+        anchors, so they win in both directions and the auto-slug moves.
+
+        Read-only: this inspects `inline.content` rather than going through
+        extract_trailing_attrs, which mutates the token children it parses.
+        """
+        previous = None
+        for tok in tokens:
+            # Only an inline directly inside a heading - markdown-it emits
+            # heading_open / inline / heading_close. A paragraph that merely
+            # ends in "{id=...}" is not a heading anchor and must not reserve
+            # one (nothing reads a trailing attr group off a paragraph).
+            is_heading_inline = tok.type == "inline" and previous == "heading_open"
+            previous = tok.type
+            if not is_heading_inline or not tok.content:
+                continue
+            m = TRAILING_ATTR_GROUPS_RE.search(tok.content)
+            if not m:
+                continue
+            attrs = {}
+            for group in re.findall(r"\{([^{}]*)\}", m.group(1)):
+                attrs.update(parse_attrs(group))
+            explicit = attrs.get("id")
+            if explicit:
+                if explicit in self.seen_heading_ids:
+                    print(f"warning: duplicate explicit heading id {explicit!r} in {self.current_source!r}",
+                          file=sys.stderr)
+                    self.warnings.append(
+                        {"kind": "heading-id", "source": self.current_source, "reference": explicit}
+                    )
+                self.seen_heading_ids.add(explicit)
 
     def resolve_href(self, href: str):
         """"other-page.md#anchor" -> "/<page-id>.html#anchor", or None to leave href untouched."""
@@ -290,10 +428,19 @@ class Converter:
         return f"/{page_id}.html{anchor or ''}"
 
     def resolve_image_src(self, src: str):
-        """"foo.png" -> "<image_url_prefix><path-within-images>", or None to leave src untouched."""
-        if not src or "://" in src or src.startswith("/") or "/" in src:
+        """"foo.png", optionally with a relative path prefix (e.g.
+        "sub/foo.png" - resolved by bare filename anywhere under images/,
+        same Writerside convention as resolve_href for topics; a path
+        prefix used to bail out here with no warning, unlike the
+        bare-filename miss below) -> "<image_url_prefix><path-within-images>",
+        or None to leave src untouched (already-absolute "/..." paths and
+        "scheme://..." URLs are left alone - "/" in src is redundant with
+        startswith("/") once a relative path prefix is allowed through, so
+        it's dropped rather than kept as dead code)."""
+        if not src or "://" in src or src.startswith("/"):
             return None
-        rel = self.image_index.get(src)
+        name = src.rsplit("/", 1)[-1]
+        rel = self.image_index.get(name)
         if rel is None:
             print(f"warning: image not found: {src!r}", file=sys.stderr)
             self.warnings.append({"kind": "image", "source": self.current_source, "reference": src})
@@ -369,18 +516,25 @@ class Converter:
 
     def fold_image_attrs(self, tokens) -> list:
         """Folds one or more `{...}` attribute-text groups immediately
-        following an image (e.g. `![alt](x.png){width="500"}{type="joined"}`
-        - CommonMark has no syntax for this, so it otherwise tokenizes as a
-        literal "{width=..}{type=..}" text run right after the image) into
-        that image's own HTML attributes instead of leaving it as visible
-        text. Only the leading `{...}` group(s) are consumed - anything
-        after them (a second attribute group is fine, but so is unrelated
-        prose the author just happened to write right after the image) is
-        kept as ordinary visible text rather than silently discarded along
-        with the attribute groups."""
+        following an image or a link (e.g. `![alt](x.png){width="500"}{type="joined"}`
+        or `[text](url){target="_blank"}` - CommonMark has no syntax for
+        this, so it otherwise tokenizes as a literal "{width=..}{type=..}"
+        text run right after the image/link) into that element's own HTML
+        attributes instead of leaving it as visible text. Only the leading
+        `{...}` group(s) are consumed - anything after them (a second
+        attribute group is fine, but so is unrelated prose the author just
+        happened to write right after the image/link) is kept as ordinary
+        visible text rather than silently discarded along with the
+        attribute groups."""
         result = []
         for tok in tokens:
-            if tok.type == "text" and result and result[-1].type == "image":
+            target = None
+            if tok.type == "text" and result:
+                if result[-1].type == "image":
+                    target = result[-1]
+                elif result[-1].type == "link_close":
+                    target = self._find_link_open(result)
+            if target is not None:
                 content = tok.content.strip()
                 pos = 0
                 folded_any = False
@@ -388,7 +542,17 @@ class Converter:
                     m = IMAGE_ATTR_GROUP_RE.match(content, pos)
                     if not m:
                         break
-                    result[-1].attrs.update(parse_attrs(m.group(1)))
+                    parsed = parse_attrs(m.group(1))
+                    # Stop (rather than fold-and-discard) on a brace group
+                    # that parses to nothing - e.g. "{.rounded}" or
+                    # "{ this is prose }" - so it survives as visible text
+                    # instead of silently vanishing along with any groups
+                    # already folded. Mirrors the same guard
+                    # merge_attr_lines and extract_trailing_attrs already
+                    # apply to their own "{...}" folding.
+                    if not parsed:
+                        break
+                    target.attrs.update(parsed)
                     pos = m.end()
                     folded_any = True
                 if folded_any:
@@ -401,6 +565,24 @@ class Converter:
                 tok.children = self.fold_image_attrs(tok.children)
             result.append(tok)
         return result
+
+    @staticmethod
+    def _find_link_open(result: list):
+        """Finds the "link_open" token matching the "link_close" at the end
+        of `result` - CommonMark links don't nest, so this is just the
+        nearest preceding "link_open" (the depth counter is defensive, not
+        load-bearing for any case in the real corpus). result[-1] is that
+        terminating "link_close" itself, so the scan starts at result[-2]
+        rather than re-counting it as a nested close to skip past."""
+        depth = 0
+        for tok in reversed(result[:-1]):
+            if tok.type == "link_close":
+                depth += 1
+            elif tok.type == "link_open":
+                if depth == 0:
+                    return tok
+                depth -= 1
+        return None
 
     def extract_trailing_attrs(self, children) -> dict:
         """Strips trailing `{...}` attribute group(s) off the last text
@@ -468,6 +650,10 @@ class Converter:
                 # renamed into colliding with it, but not itself renamed
                 # even if two headings happen to specify the same one.
                 heading_id = heading_attrs["id"]
+                # Already registered by reserve_explicit_heading_ids (which
+                # also warns about a genuine explicit/explicit duplicate);
+                # re-adding is a harmless no-op that keeps this correct even
+                # if convert_node is ever driven directly in a test.
                 self.seen_heading_ids.add(heading_id)
             else:
                 # heading_attrs being non-empty (just with no "id" key, e.g.
@@ -544,9 +730,16 @@ class Converter:
             raw_run = []
 
             def flush_raw():
-                if raw_run:
+                # Only emit a run that has some actual content. A run of
+                # nothing but blank lines - e.g. the "\n\n" between a
+                # "<tabs>" line and its "</tabs>" - is truthy as a list and
+                # produced an {"type": "html", "html": ""} block carrying
+                # nothing. Blank lines *within* a run that has content are
+                # still preserved by the "\n".join below, which is what
+                # keeps <pre>/<script> bodies intact.
+                if any(line.strip() for line in raw_run):
                     result.append({"type": "html", "html": self.rewrite_urls("\n".join(raw_run))})
-                    raw_run.clear()
+                raw_run.clear()
 
             for line in t.content.splitlines():
                 m = TAG_RE.match(line.strip())
@@ -569,7 +762,14 @@ class Converter:
                             "tag": tag,
                             "attrs": attrs,
                         })
-                elif line.strip():
+                else:
+                    # Every non-tag-marker line, blank ones included - a
+                    # blank line inside a raw run (e.g. between two rows of
+                    # a hand-written <table>, or inside <pre>/<script>,
+                    # which CommonMark's html_block rules let span blank
+                    # lines) is real content and used to be dropped here
+                    # instead of preserved in the joined "\n".join(raw_run)
+                    # below.
                     raw_run.append(line)
             flush_raw()
             return result
@@ -639,6 +839,20 @@ class Converter:
                         del stack[match_depth:]
                 continue
             stack[-1]["blocks"].append(b)
+
+        if len(stack) > 1:
+            # A container tag left open at EOF (missing closer, with no
+            # matching close marker at all) - the sibling "unmatched
+            # closer" branch above always warns since that's always a sign
+            # of malformed source; this is the same signal from the other
+            # end, so it should warn the same way rather than silently
+            # nesting the rest of the page inside the still-open container.
+            unclosed = [frame["type"] for frame in stack[1:]]
+            print(f"warning: unclosed {', '.join(f'<{t}>' for t in unclosed)} at end of {self.current_source!r}",
+                  file=sys.stderr)
+            self.warnings.append(
+                {"kind": "tag", "source": self.current_source, "reference": f"<{unclosed[-1]}> (unclosed at EOF)"}
+            )
 
         return Converter._finalize_list(root["blocks"])
 
@@ -734,6 +948,9 @@ class Converter:
         raw = substitute_vars(raw, self.variables)
         title, body = extract_title(raw)
         tokens = self.md.parse(body)
+        # Before any heading is converted, so an auto-slug can't take an id
+        # that an explicit {id="..."} further down the page also claims.
+        self.reserve_explicit_heading_ids(tokens)
         tree = build_tree(tokens)
         blocks = self.convert_nodes(tree)
         return {
@@ -787,6 +1004,23 @@ def _copy_if_changed(src, dst, *, follow_symlinks=True):
     return shutil.copy2(src, dst, follow_symlinks=follow_symlinks)
 
 
+def _prune_stale_files(dest_dir: Path, keep_rel_paths: set) -> None:
+    """Removes any file under dest_dir whose path (relative to dest_dir,
+    forward-slashed) isn't in keep_rel_paths, then any directory left
+    empty by those removals. copytree(dirs_exist_ok=True) only ever
+    adds/overwrites - without a pass like this, a file deleted upstream
+    keeps shipping in the output forever."""
+    for path in list(dest_dir.rglob("*")):
+        if path.is_file() and path.relative_to(dest_dir).as_posix() not in keep_rel_paths:
+            path.unlink()
+    # Deepest-first so removing a child directory can make its
+    # now-empty parent eligible for removal in the same pass.
+    dirs = sorted((p for p in dest_dir.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True)
+    for path in dirs:
+        if not any(path.iterdir()):
+            path.rmdir()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("docs_root", type=Path, help="Path to kotlin-web-site/docs")
@@ -821,6 +1055,17 @@ def main():
     md_files = sorted(topics_dir.rglob("*.md"))
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Guard against output_dir aliasing docs_root before anything below
+    # writes into (theme.json) or deletes from (the topics_out_dir rmtree)
+    # the output tree - this used to run only right before that rmtree, so
+    # the run that correctly refused to proceed had already dropped
+    # theme.json into the source checkout by the time it did.
+    topics_out_dir = args.output_dir / args.topics_subdir
+    if topics_out_dir.is_dir() and topics_out_dir.resolve() == topics_dir.resolve():
+        print(f"error: output topics dir {topics_out_dir} is the source topics dir {topics_dir}",
+              file=sys.stderr)
+        sys.exit(1)
+
     # menu-no-link-color applies to the sidebar, which build_nav.py builds
     # separately from nav.json/kr.tree - it reads this back from the output
     # directory it's already given, rather than needing its own copy of the
@@ -831,18 +1076,15 @@ def main():
 
     if images_dir.is_dir():
         shutil.copytree(images_dir, args.output_dir / "images", dirs_exist_ok=True, copy_function=_copy_if_changed)
+        keep = {p.relative_to(images_dir).as_posix() for p in images_dir.rglob("*") if p.is_file()}
+        _prune_stale_files(args.output_dir / "images", keep)
     else:
         print(f"warning: {images_dir} not found; image references will 404", file=sys.stderr)
 
     # Clear out whatever a previous run wrote here first - otherwise a topic
     # deleted upstream since then keeps its stale JSON (and keeps shipping)
     # forever, since nothing else here ever removes a file on its own.
-    topics_out_dir = args.output_dir / args.topics_subdir
     if topics_out_dir.is_dir():
-        if topics_out_dir.resolve() == topics_dir.resolve():
-            print(f"error: output topics dir {topics_out_dir} is the source topics dir {topics_dir}",
-                  file=sys.stderr)
-            sys.exit(1)
         shutil.rmtree(topics_out_dir)
 
     count = 0
