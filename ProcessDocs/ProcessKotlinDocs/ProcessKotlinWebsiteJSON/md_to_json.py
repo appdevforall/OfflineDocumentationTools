@@ -41,7 +41,19 @@ Block shapes:
   {"type": "hr"}
   {"type": "tabs", "attrs": {"group": "build-system"},
    "tabs": [{"title": "Gradle", "attrs": {"group-key": "gradle"}, "blocks": [...]}]}
+  {"type": "note"|"tip"|"warning", "attrs": {...}, "blocks": [...]}
+    - Writerside's block-level admonition tags. Only the block form (the tag
+      alone on its own line) becomes one of these; the single-line
+      "<note>text</note>" form stays a raw "html" block - see the known
+      limitations below. Note that a `> quoted {style="note"}` blockquote is
+      a *different* shape: that stays "blockquote" with attrs.style.
   {"type": "html", "html": "<raw passthrough for anything unrecognized>"}
+
+A "tab" normally never appears as a block type of its own: group_containers
+nests it inside its parent "tabs" block's "tabs" list (above). The exception
+is a <tab> written outside any <tabs> - malformed source, which comes through
+as a bare {"type": "tab", "attrs": ..., "blocks": [...]} block that a template
+written only against the shapes above will not render.
 
 There is no standalone "image" block type - CommonMark only ever produces
 "image" as an inline token nested inside a paragraph/heading/etc., so a
@@ -104,6 +116,9 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
 TITLE_RE = re.compile(r"^\[//\]:\s*#\s*\(title:\s*(.*?)\)\s*$", re.MULTILINE)
+# A ``` or ~~~ fence opener/closer, matched against an already-lstrip()ped
+# line. Used by fenced_spans to keep extract_title out of code samples.
+FENCE_LINE_RE = re.compile(r"^(`{3,}|~{3,})")
 ATTR_LINE_RE = re.compile(r"^\{(.*)\}$")
 TRAILING_ATTR_GROUPS_RE = re.compile(r"\s*((?:\{[^{}]*\})+)\s*$")
 
@@ -127,7 +142,16 @@ LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
 STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
 IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.I)
 IMG_SRC_RE = re.compile(r'src="([^"]*)"')
-COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$")
+# Only the hex lengths CSS actually defines (#rgb, #rgba, #rrggbb, #rrggbbaa)
+# plus a bare color keyword. A flat {3,8} also admitted #12345 and #1234567,
+# which no browser accepts - the validator is what keeps this value safe to
+# interpolate into a style="" attribute (see load_config), so it should mean
+# what it says rather than waving through lengths that only look plausible.
+COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$|^[a-zA-Z]+$")
+
+# Fallback base for a heading whose text slugifies to nothing at all (e.g.
+# "## ..."), so it still gets a linkable anchor instead of id="".
+EMPTY_HEADING_ID_BASE = "section"
 
 # TAG_RE is built from this set (rather than hardcoding the same five names
 # twice) so the two can't silently diverge. The (?![\w-]) after the
@@ -213,13 +237,48 @@ def parse_attrs(attr_str: str) -> dict:
     return attrs
 
 
+def fenced_spans(raw_text: str) -> list:
+    """(start, end) character ranges of every ``` / ~~~ fenced code block,
+    including the fence lines themselves. An unterminated fence runs to the
+    end of the document, which is what CommonMark does too."""
+    spans = []
+    pos = 0
+    open_at = None
+    open_fence = None
+    for line in raw_text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        m = FENCE_LINE_RE.match(stripped)
+        if m:
+            fence = m.group(1)
+            if open_at is None:
+                open_at, open_fence = pos, fence
+            # A closing fence must be the same character and at least as long
+            # as the opener - "````" inside a ``` block is content, not a
+            # close, and a shorter run never closes a longer one.
+            elif fence[0] == open_fence[0] and len(fence) >= len(open_fence):
+                spans.append((open_at, pos + len(line)))
+                open_at = open_fence = None
+        pos += len(line)
+    if open_at is not None:
+        spans.append((open_at, len(raw_text)))
+    return spans
+
+
 def extract_title(raw_text: str):
-    m = TITLE_RE.search(raw_text)
-    if not m:
-        return None, raw_text
-    title = m.group(1).strip()
-    remaining = raw_text[: m.start()] + raw_text[m.end():]
-    return title, remaining
+    """Pulls Writerside's `[//]: # (title: ...)` comment out of the source.
+
+    Skips any match inside a fenced code block: a page documenting Writerside
+    syntax shows that comment as a code sample, and taking it would both set a
+    bogus title and delete the line out of the sample being shown."""
+    spans = None
+    for m in TITLE_RE.finditer(raw_text):
+        if spans is None:                      # only pay for this if a match exists
+            spans = fenced_spans(raw_text)
+        if any(start <= m.start() < end for start, end in spans):
+            continue
+        title = m.group(1).strip()
+        return title, raw_text[: m.start()] + raw_text[m.end():]
+    return None, raw_text
 
 
 def slugify(text: str) -> str:
@@ -252,7 +311,18 @@ def build_tree(tokens) -> list:
             stack[-1].append(node)
             stack.append(node.children)
         elif tok.nesting == -1:
-            stack.pop()
+            # markdown-it always emits balanced nesting, so this guard is
+            # defensive rather than a case seen in the corpus - but popping
+            # the root off an already-empty stack turns a malformed token
+            # stream (a plugin, or a future markdown-it change) into an
+            # "IndexError: pop from empty list" with nothing pointing at the
+            # cause. Ignoring the stray closer keeps the tree usable and
+            # names the problem instead.
+            if len(stack) > 1:
+                stack.pop()
+            else:
+                print(f"warning: unbalanced token stream: stray closing {tok.type!r} at top level",
+                      file=sys.stderr)
         else:
             stack[-1].append(Node(tok))
     return root
@@ -289,12 +359,60 @@ class Converter:
         the source's own #anchor), so two headings sharing a slug would
         make any link to the second one land on the first instead."""
         base = slug = slugify(text)
+        if not base:
+            # A heading whose text is entirely punctuation ("## ...") slugifies
+            # to "", and id="" is both invalid HTML and impossible to link to.
+            # Fall back to a positional name so it still gets a usable anchor;
+            # the de-dup loop below numbers subsequent ones.
+            base = slug = EMPTY_HEADING_ID_BASE
         n = 2
         while slug in self.seen_heading_ids:
             slug = f"{base}-{n}"
             n += 1
         self.seen_heading_ids.add(slug)
         return slug
+
+    def reserve_explicit_heading_ids(self, tokens) -> None:
+        """Registers every explicit `{id="..."}` on the page *before* any
+        heading is converted, so an auto-slugified heading can never take an
+        id that an explicit one further down the page also claims.
+
+        Registering them lazily as each heading was reached only protected
+        explicit ids from *later* auto-slugs. In the other order -
+        `## Custom anchor` followed by `## Something {id="custom-anchor"}` -
+        the auto-slug got there first and both headings ended up with
+        id="custom-anchor", so any link to the explicit one landed on the
+        auto one instead. Explicit ids are the intentional, presumably-stable
+        anchors, so they win in both directions and the auto-slug moves.
+
+        Read-only: this inspects `inline.content` rather than going through
+        extract_trailing_attrs, which mutates the token children it parses.
+        """
+        previous = None
+        for tok in tokens:
+            # Only an inline directly inside a heading - markdown-it emits
+            # heading_open / inline / heading_close. A paragraph that merely
+            # ends in "{id=...}" is not a heading anchor and must not reserve
+            # one (nothing reads a trailing attr group off a paragraph).
+            is_heading_inline = tok.type == "inline" and previous == "heading_open"
+            previous = tok.type
+            if not is_heading_inline or not tok.content:
+                continue
+            m = TRAILING_ATTR_GROUPS_RE.search(tok.content)
+            if not m:
+                continue
+            attrs = {}
+            for group in re.findall(r"\{([^{}]*)\}", m.group(1)):
+                attrs.update(parse_attrs(group))
+            explicit = attrs.get("id")
+            if explicit:
+                if explicit in self.seen_heading_ids:
+                    print(f"warning: duplicate explicit heading id {explicit!r} in {self.current_source!r}",
+                          file=sys.stderr)
+                    self.warnings.append(
+                        {"kind": "heading-id", "source": self.current_source, "reference": explicit}
+                    )
+                self.seen_heading_ids.add(explicit)
 
     def resolve_href(self, href: str):
         """"other-page.md#anchor" -> "/<page-id>.html#anchor", or None to leave href untouched."""
@@ -532,6 +650,10 @@ class Converter:
                 # renamed into colliding with it, but not itself renamed
                 # even if two headings happen to specify the same one.
                 heading_id = heading_attrs["id"]
+                # Already registered by reserve_explicit_heading_ids (which
+                # also warns about a genuine explicit/explicit duplicate);
+                # re-adding is a harmless no-op that keeps this correct even
+                # if convert_node is ever driven directly in a test.
                 self.seen_heading_ids.add(heading_id)
             else:
                 # heading_attrs being non-empty (just with no "id" key, e.g.
@@ -608,9 +730,16 @@ class Converter:
             raw_run = []
 
             def flush_raw():
-                if raw_run:
+                # Only emit a run that has some actual content. A run of
+                # nothing but blank lines - e.g. the "\n\n" between a
+                # "<tabs>" line and its "</tabs>" - is truthy as a list and
+                # produced an {"type": "html", "html": ""} block carrying
+                # nothing. Blank lines *within* a run that has content are
+                # still preserved by the "\n".join below, which is what
+                # keeps <pre>/<script> bodies intact.
+                if any(line.strip() for line in raw_run):
                     result.append({"type": "html", "html": self.rewrite_urls("\n".join(raw_run))})
-                    raw_run.clear()
+                raw_run.clear()
 
             for line in t.content.splitlines():
                 m = TAG_RE.match(line.strip())
@@ -819,6 +948,9 @@ class Converter:
         raw = substitute_vars(raw, self.variables)
         title, body = extract_title(raw)
         tokens = self.md.parse(body)
+        # Before any heading is converted, so an auto-slug can't take an id
+        # that an explicit {id="..."} further down the page also claims.
+        self.reserve_explicit_heading_ids(tokens)
         tree = build_tree(tokens)
         blocks = self.convert_nodes(tree)
         return {

@@ -711,3 +711,244 @@ def test_main_refuses_before_writing_theme_json_into_the_source(tmp_path):
     result = _run_main(docs_root, docs_root, config)
     assert result.returncode == 1
     assert not (docs_root / "theme.json").exists()
+
+
+# --- heading ids: an explicit {id=...} must win in BOTH directions ------
+
+def _heading_ids(src, conv=None):
+    """Runs the same reserve-then-convert sequence convert_file does."""
+    md = m.make_markdown_it()
+    conv = conv or m.Converter(md, {})
+    conv.current_source = "t.md"
+    tokens = md.parse(src)
+    conv.reserve_explicit_heading_ids(tokens)
+    blocks = conv.convert_nodes(m.build_tree(tokens))
+    return [b["id"] for b in blocks if b["type"] == "heading"]
+
+
+def test_explicit_heading_id_after_a_colliding_auto_slug_does_not_duplicate():
+    """Explicit ids were registered lazily as each heading was reached, so
+    they were only protected from a *later* auto-slug. In this order the
+    auto-slug got there first and both headings came out with
+    id="custom-anchor" - any link to the explicit one landed on the auto
+    one instead."""
+    ids = _heading_ids('## Custom anchor\n\n## Something else {id="custom-anchor"}\n')
+    assert ids == ["custom-anchor-2", "custom-anchor"]
+    assert len(set(ids)) == len(ids)
+
+
+def test_explicit_heading_id_before_an_auto_slug_still_wins():
+    ids = _heading_ids('## Something else {id="custom-anchor"}\n\n## Custom anchor\n')
+    assert ids == ["custom-anchor", "custom-anchor-2"]
+
+
+def test_two_explicit_heading_ids_that_collide_are_reported():
+    """Two hand-written ids that are genuinely the same is a source bug this
+    can't silently fix - both are kept as authored, and it warns."""
+    conv = m.Converter(m.make_markdown_it(), {})
+    ids = _heading_ids('## A {id="dup"}\n\n## B {id="dup"}\n', conv)
+    assert ids == ["dup", "dup"]
+    assert conv.warnings == [{"kind": "heading-id", "source": "t.md", "reference": "dup"}]
+
+
+def test_paragraph_trailing_attr_group_does_not_reserve_a_heading_id():
+    """Only an inline directly inside a heading reserves an id - a paragraph
+    that merely ends in "{id=...}" is not an anchor, and reserving from it
+    would push an unrelated heading's slug to "-2" for no reason."""
+    assert _heading_ids('Text {id="para-thing"}\n\n## Para thing\n') == ["para-thing"]
+
+
+def test_punctuation_only_heading_gets_a_usable_id():
+    """slugify("...") is "", and id="" is invalid HTML and unlinkable."""
+    assert _heading_ids("## ...\n\n## ???\n") == ["section", "section-2"]
+
+
+# --- extract_title: must not match inside a fenced code block -----------
+
+def test_extract_title_ignores_a_title_comment_inside_a_fence():
+    """A page documenting Writerside syntax shows the title comment as a code
+    sample; matching it both set a bogus title and deleted the line out of
+    the sample being displayed."""
+    src = "# Page\n\n```\n[//]: # (title: Not a title)\n```\n"
+    title, body = m.extract_title(src)
+    assert title is None
+    assert "[//]: # (title: Not a title)" in body
+
+
+def test_extract_title_still_finds_a_real_title_alongside_a_fenced_one():
+    src = '[//]: # (title: Real)\n\n```\n[//]: # (title: Nope)\n```\n'
+    title, body = m.extract_title(src)
+    assert title == "Real"
+    assert "[//]: # (title: Nope)" in body      # the sample is left intact
+    assert "[//]: # (title: Real)" not in body  # the real one is consumed
+
+
+def test_extract_title_handles_tilde_and_nested_longer_fences():
+    assert m.extract_title("~~~\n[//]: # (title: Nope)\n~~~\n")[0] is None
+    # A ``` run inside a ```` block is content, not a close.
+    assert m.extract_title("````\n```\n[//]: # (title: Nope)\n```\n````\n")[0] is None
+
+
+def test_extract_title_unterminated_fence_runs_to_end_of_document():
+    assert m.extract_title("```\n[//]: # (title: Nope)\n")[0] is None
+
+
+def test_fenced_spans_reports_no_spans_for_fence_free_text():
+    assert m.fenced_spans("just prose\n\nmore prose\n") == []
+
+
+# --- html_block: a blank-only raw run is not a block --------------------
+
+def test_blank_only_raw_run_emits_no_empty_html_block():
+    """The "\\n\\n" between "<tabs>" and "</tabs>" is a truthy list of empty
+    strings, so it produced an {"type": "html", "html": ""} block carrying
+    nothing at all."""
+    node = m.Node(FakeToken("html_block", content="<tabs>\n\n</tabs>"))
+    result = make_converter().convert_node(node)
+    assert [b["type"] for b in result] == ["tag_marker", "tag_marker"]
+
+
+def test_blank_lines_inside_a_real_raw_run_are_still_preserved():
+    node = m.Node(FakeToken("html_block", content="<pre>\na\n\nb\n</pre>"))
+    assert make_converter().convert_node(node) == [{"type": "html", "html": "<pre>\na\n\nb\n</pre>"}]
+
+
+# --- COLOR_RE: only the hex lengths CSS actually defines ----------------
+
+@pytest.mark.parametrize("value", ["#cc0000", "#fff", "#ffff", "#ffffffff", "red", "rebeccapurple"])
+def test_color_re_accepts_valid_css_colors(value):
+    assert m.COLOR_RE.match(value)
+
+
+@pytest.mark.parametrize("value", ["#12345", "#1234567", "#gg0000", "rgb(1,2,3)", "red;x", ""])
+def test_color_re_rejects_invalid_colors(value):
+    """A flat {3,8} waved through #12345 and #1234567, which no browser
+    accepts - this value is interpolated into a style="" attribute, so the
+    validator should mean what it says."""
+    assert not m.COLOR_RE.match(value)
+
+
+# --- build_tree: a stray closer must not pop the root -------------------
+
+def test_build_tree_tolerates_a_stray_closing_token(capsys):
+    """Popping an already-empty stack turned a malformed token stream into
+    "IndexError: pop from empty list" with nothing naming the cause."""
+    class Tok:
+        def __init__(self, nesting):
+            self.nesting, self.type, self.content, self.children = nesting, "stray", "", None
+
+    tree = m.build_tree([Tok(-1), Tok(0)])
+    assert len(tree) == 1
+    assert "unbalanced token stream" in capsys.readouterr().err
+
+
+# --- coverage gaps flagged in review: features with no test at all ------
+
+def test_variable_substitution_replaces_known_names_and_leaves_others(tmp_path):
+    """%variables% substitution is a documented feature that reaches every
+    rendered string, and had no test."""
+    assert m.substitute_vars("Kotlin %v% and %unknown%", {"v": "2.0"}) == "Kotlin 2.0 and %unknown%"
+    assert m.substitute_vars("", {"v": "2.0"}) == ""
+
+
+def test_load_variables_reads_v_list(tmp_path):
+    (tmp_path / "v.list").write_text(
+        '<?xml version="1.0"?>\n<vars>\n  <var name="kv" value="2.0.20"/>\n</vars>\n'
+    )
+    assert m.load_variables(tmp_path) == {"kv": "2.0.20"}
+
+
+def test_load_variables_missing_v_list_is_empty(tmp_path):
+    assert m.load_variables(tmp_path) == {}
+
+
+def test_variables_are_substituted_before_parsing(tmp_path):
+    """Substituting post-render would miss the title and would have to fight
+    markdown-it percent-encoding "%" inside link URLs."""
+    src = tmp_path / "p.md"
+    src.write_text('[//]: # (title: Kotlin %kv%)\n\nUse %kv% today.\n')
+    conv = m.Converter(m.make_markdown_it(), {"kv": "2.0.20"})
+    page = conv.convert_file(src, "p", "topics/p.md")
+    assert page["title"] == "Kotlin 2.0.20"
+    assert "2.0.20" in page["blocks"][0]["html"]
+
+
+def test_block_level_note_becomes_a_note_block():
+    """<note>/<tip>/<warning> block tags are a documented block type that no
+    test exercised end-to-end - and the live corpus only uses the
+    single-line form, so nothing covered this path at all."""
+    src = '<note>\n\nWatch out.\n\n</note>\n'
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    conv.current_source = "t.md"
+    blocks = conv.convert_nodes(m.build_tree(md.parse(src)))
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "note"
+    assert [b["type"] for b in blocks[0]["blocks"]] == ["paragraph"]
+    assert conv.warnings == []
+
+
+def test_single_line_note_stays_a_raw_html_block():
+    """The inline form inside hand-written HTML tables (all 5 uses in the
+    live corpus) is documented to pass through untouched."""
+    node = m.Node(FakeToken("html_block", content="<note>inline text</note>"))
+    result = make_converter().convert_node(node)
+    assert result == [{"type": "html", "html": "<note>inline text</note>"}]
+
+
+def test_bare_tabs_of_adjacent_code_fences_synthesizes_tabs():
+    """A <tabs> wrapping only fenced code with no <tab> tags used to render a
+    tabs shell with no "tabs" key, silently dropping every code block."""
+    src = '<tabs>\n\n```kotlin\nval a = 1\n```\n\n```groovy\ndef a = 1\n```\n\n</tabs>\n'
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    conv.current_source = "t.md"
+    blocks = conv.convert_nodes(m.build_tree(md.parse(src)))
+    assert len(blocks) == 1 and blocks[0]["type"] == "tabs"
+    assert [t["title"] for t in blocks[0]["tabs"]] == ["Kotlin", "Groovy"]
+    assert [t["attrs"]["group-key"] for t in blocks[0]["tabs"]] == ["kotlin", "groovy"]
+    assert [t["blocks"][0]["type"] for t in blocks[0]["tabs"]] == ["code", "code"]
+
+
+def test_bare_tabs_with_nothing_tab_like_splices_content_in_place():
+    """Dropping the wrapper beats emitting a "tabs" block with no "tabs" key,
+    which page.peb renders as an empty <div> with the content gone."""
+    src = '<tabs>\n\nJust prose.\n\n</tabs>\n'
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    conv.current_source = "t.md"
+    blocks = conv.convert_nodes(m.build_tree(md.parse(src)))
+    assert [b["type"] for b in blocks] == ["paragraph"]
+
+
+def test_blockquote_list_table_and_hr_shapes():
+    """The blockquote/list/table/hr converters had no direct test."""
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    conv.current_source = "t.md"
+    src = "> quoted\n\n- one\n- two\n\n1. first\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n---\n"
+    blocks = conv.convert_nodes(m.build_tree(md.parse(src)))
+    by_type = {b["type"]: b for b in blocks}
+    assert set(by_type) == {"blockquote", "list", "table", "hr"}
+    assert by_type["blockquote"]["blocks"][0]["type"] == "paragraph"
+    assert by_type["table"]["headers"] == ["a", "b"]
+    assert by_type["table"]["rows"] == [["1", "2"]]
+    # the source has a bullet list and an ordered list, in that order
+    assert [b["ordered"] for b in blocks if b["type"] == "list"] == [False, True]
+
+
+def test_table_with_an_empty_cell_does_not_crash():
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    blocks = conv.convert_nodes(m.build_tree(md.parse("| a | b |\n|---|---|\n|   | y |\n")))
+    assert blocks[0]["rows"] == [["", "y"]]
+
+
+def test_no_raw_key_survives_into_output():
+    """"_raw" is an internal marker merge_attr_lines consumes; it must never
+    reach the JSON."""
+    md = m.make_markdown_it()
+    conv = m.Converter(md, {})
+    conv.current_source = "t.md"
+    src = 'Para.\n\n{style="note"}\n\n> quoted\n\n- item\n\n  nested\n'
+    assert '"_raw"' not in json.dumps(conv.convert_nodes(m.build_tree(md.parse(src))))
