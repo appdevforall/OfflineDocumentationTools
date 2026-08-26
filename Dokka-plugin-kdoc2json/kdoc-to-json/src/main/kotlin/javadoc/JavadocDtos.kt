@@ -172,6 +172,10 @@ data class JdClassPage(
     val qualifiedName: String,
     val packageName: String,
     val moduleName: String? = null,
+    /** Link to this type's module page, relative to this page. Null for a non-modular run. */
+    val moduleUrl: String? = null,
+    /** Link to this type's package page, relative to this page. */
+    val packageUrl: String? = null,
     /**
      * This page's own path, relative to the output root. Note the asymmetry with every *link*
      * URL in these DTOs, which is relative to the page it appears on, the way javadoc links are.
@@ -240,6 +244,8 @@ data class JdPackagePage(
     val page: String = "package",
     val name: String,
     val moduleName: String? = null,
+    /** Link to this package's module page, relative to this page. Null for a non-modular run. */
+    val moduleUrl: String? = null,
     /** This page's own path, relative to the output root -- see [JdClassPage.url]. */
     val url: String,
     val description: String? = null,

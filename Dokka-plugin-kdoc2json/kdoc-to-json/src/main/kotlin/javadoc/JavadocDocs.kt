@@ -40,7 +40,41 @@ class JavadocDocBundle(
  *   for a target this run doesn't document, in which case the link degrades to plain text rather
  *   than becoming a dead `href`.
  */
-class JavadocDocs(private val resolveLink: (DRI) -> String?) {
+class JavadocDocs(
+    private val resolveLink: (DRI) -> String?,
+    /**
+     * What `{@docRoot}` expands to on the page being rendered -- the relative path back to the
+     * documentation root. JDK comments use it inside raw `<a href="{@docRoot}/...">` markup, which
+     * Dokka hands over as a literal attribute value, so it has to be substituted here or the link
+     * ships with the tag still in it.
+     */
+    private val docRoot: String = ".",
+    /**
+     * Rebases a *relative* href written by hand in a doc comment (`<a href="Vector.html">`).
+     *
+     * Such an href is relative to the page that *declares* the comment. When the same comment is
+     * shown somewhere else -- a summary on an index page -- it has to be re-expressed relative to
+     * the page it now appears on, or it points at nothing. The identity default is correct while
+     * rendering a declaration on its own page.
+     */
+    private val rebaseRelativeHref: (String) -> String = { it }
+) {
+
+    /** Applies [rebaseRelativeHref] to an `href` attribute, leaving every other attribute alone. */
+    private fun rebased(params: Map<String, String>): Map<String, String> {
+        val href = params["href"] ?: return params
+        if (!isRelative(href)) return params
+        return params.toMutableMap().apply { put("href", rebaseRelativeHref(href)) }
+    }
+
+    /** True for an href that resolves against the current page rather than a root or a host. */
+    private fun isRelative(href: String): Boolean =
+        href.isNotBlank() &&
+            !href.startsWith("#") &&
+            !href.startsWith("/") &&
+            !href.contains("://") &&
+            !href.startsWith("mailto:") &&
+            !href.startsWith(DOC_ROOT_TAG)
 
     /**
      * Picks the doc comment to render. Javadoc has no notion of source sets, so where Dokka has
@@ -116,10 +150,10 @@ class JavadocDocs(private val resolveLink: (DRI) -> String?) {
             is Text -> escapeHtmlText(tag.body)
             is Br -> "<br/>"
             is HorizontalRule -> "<hr/>"
-            is Img -> "<img${attributes(tag.params)}/>"
-            is CodeBlock -> "<pre><code${attributes(tag.params)}>$children</code></pre>"
-            is CodeInline -> "<code${attributes(tag.params)}>$children</code>"
-            is A -> "<a${attributes(tag.params)}>$children</a>"
+            is Img -> "<img${attributes(tag.params, docRoot)}/>"
+            is CodeBlock -> "<pre><code${attributes(tag.params, docRoot)}>$children</code></pre>"
+            is CodeInline -> "<code${attributes(tag.params, docRoot)}>$children</code>"
+            is A -> "<a${attributes(rebased(tag.params), docRoot)}>$children</a>"
             is DocumentationLink -> {
                 val href = resolveLink(tag.dri)
                 // An unresolvable {@link} degrades to its own text rather than an href to nowhere:
@@ -130,7 +164,7 @@ class JavadocDocs(private val resolveLink: (DRI) -> String?) {
             is CustomDocTag -> children
             else -> {
                 val htmlName = HTML_TAG_NAMES[tag::class.java.simpleName]
-                if (htmlName == null) children else "<$htmlName${attributes(tag.params)}>$children</$htmlName>"
+                if (htmlName == null) children else "<$htmlName${attributes(tag.params, docRoot)}>$children</$htmlName>"
             }
         }
     }
@@ -169,11 +203,17 @@ class JavadocDocs(private val resolveLink: (DRI) -> String?) {
             return if (inner.contains("<p>", ignoreCase = true)) trimmed else inner.trim()
         }
 
+        private const val DOC_ROOT_TAG = "{@docRoot}"
+
         /** Renders a tag's attributes back into HTML, in the order Dokka recorded them. */
-        private fun attributes(params: Map<String, String>): String =
+        private fun attributes(params: Map<String, String>, docRoot: String): String =
             params.entries.joinToString("") { (key, value) ->
-                " $key=\"${escapeHtmlAttribute(value)}\""
+                " $key=\"${escapeHtmlAttribute(expandDocRoot(value, docRoot))}\""
             }
+
+        /** Substitutes javadoc's `{@docRoot}` in a raw attribute value. */
+        fun expandDocRoot(value: String, docRoot: String): String =
+            if (DOC_ROOT_TAG in value) value.replace(DOC_ROOT_TAG, docRoot) else value
 
         private fun escapeHtmlText(value: String): String =
             value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

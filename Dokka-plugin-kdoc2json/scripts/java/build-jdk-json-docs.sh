@@ -92,6 +92,19 @@ if [[ ! -d "$GENERATED" ]]; then
     exit 1
 fi
 
+# Dokka only writes JSON, so the staged doc-files/ directories have to be carried across
+# separately. The HTML renderer copies every non-JSON file through untouched, so putting them in
+# the JSON tree is enough to get them into the rendered output too.
+echo "==> Copying doc-files/ alongside the generated JSON"
+doc_file_count=0
+while IFS= read -r dir; do
+    rel="${dir#"$STAGING_DIR"/}"
+    mkdir -p "$GENERATED/$rel"
+    cp -R "$dir"/. "$GENERATED/$rel"/
+    doc_file_count=$((doc_file_count + 1))
+done < <(find "$STAGING_DIR" -type d -name doc-files)
+echo "    $doc_file_count doc-files directory/ies"
+
 echo "==> Copying output to $OUTPUT_DIR"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$(dirname "$OUTPUT_DIR")"

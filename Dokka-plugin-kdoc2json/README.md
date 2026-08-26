@@ -430,3 +430,71 @@ Both were found running the JDK through it, and both are in Dokka rather than in
   `-PdokkaWorkerHeap` / `-PdokkaWorkerStack` if needed.
 - Use a JDK whose version matches the docs you are reproducing. Source and docs from different
   update releases differ in small ways that are real, not bugs.
+
+---
+
+## 12. Rendering the JSON to HTML (`pebble-renderer`)
+
+`pebble-renderer/` turns a javadoc-mode JSON tree into browsable HTML using Pebble templates that
+follow the official javadoc page structure. It is the reference consumer of the JSON: if a field
+is in the JSON, a template here shows it.
+
+```bash
+# After scripts/java/build-jdk-json-docs.sh
+pebble-renderer/render.sh scripts/java/build-output/api scripts/java/build-output/html
+
+# Then browse it
+(cd scripts/java/build-output/html && python3 -m http.server 8000)
+```
+
+### How links work
+
+The HTML tree mirrors the JSON tree file-for-file, `Foo.json` becoming `Foo.html` in the same
+directory. Every link in the JSON is already relative to the page it appears on, so **the path is
+correct as-is and only the extension needs changing**. Two Pebble filters do that:
+
+| Filter | Use | What it does |
+| --- | --- | --- |
+| `href` | `{{ type.url \| href }}` | rewrites one URL's trailing `.json` to `.html`, preserving any `#anchor` |
+| `doc` | `{{ description \| doc }}` | rewrites every `href` *inside* a block of documentation HTML, and marks it safe so it isn't escaped |
+
+Doc text needs the second filter because a javadoc comment's body is HTML that can itself contain
+links. Autoescaping stays on everywhere else, so names and signatures are escaped by default.
+
+### Templates
+
+One per page kind, selected by the JSON's `page` field:
+
+| `page` | Template | Renders |
+| --- | --- | --- |
+| `class` | `class.peb` | class/interface/enum/annotation/exception page |
+| `package` | `package-summary.peb` | package page |
+| `module` | `module-summary.peb` | module page, including the JPMS tables |
+| `overview` | `overview.peb` | `index.html` |
+| `all-classes` / `all-packages` | `all-classes.peb` / `all-packages.peb` | the global indexes |
+| `deprecated-list` | `deprecated-list.peb` | deprecated API |
+| `constant-values` | `constant-values.peb` | constant field values |
+| `index` | `index-page.peb` | one A-Z index page |
+
+`base.peb` holds the shared skeleton and navigation; `macros.peb` holds the fragments (type links,
+signatures, notes, member details). Class names follow the official javadoc output (`top-nav`,
+`summary-table`, `col-first`, `member-signature`, `notes`, `inheritance`, …), and
+`static/stylesheet.css` styles those names -- it is a readable approximation of javadoc's look,
+written here rather than copied from the JDK.
+
+Two Pebble details worth knowing before editing a template, because both fail *silently*:
+
+- `{% import "macros" %}` pulls macros into the importing template's own namespace. Call them by
+  bare name (`{{ typeLink(ref) }}`); a Jinja/Twig-style `macros.typeLink(...)` renders nothing.
+- `loop.index` is **0-based**, unlike Jinja's.
+
+### Measured result (JDK 17)
+
+Rendering all 4,988 pages takes about two seconds. Of the **450,575** internal links in the
+output, **99.88% resolve**; the 555 that don't break down as:
+
+| Count | Cause |
+| --- | --- |
+| 251 | `doc-files/` pages -- javadoc copies these from the JDK's build repository, and `src.zip` does not ship them, so they cannot be produced from this source at all |
+| 227 | links out of `api/` into `specs/` and `legal/`, which are siblings of `api/` in the official docs and outside what this pipeline generates |
+| 77 | hand-written relative links in doc comments that are still rebased imperfectly when a summary sentence is shown on a different page than the one that declares it |

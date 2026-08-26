@@ -136,6 +136,14 @@ def stage(
             files = [f for f in source_package.iterdir() if f.suffix == ".java" and f.is_file()]
             for java_file in files:
                 copy_source(java_file, target_package / java_file.name, rewrite_inherit_doc)
+            # javadoc copies each package's doc-files/ directory into the output verbatim --
+            # supplementary pages the comments link to (java.lang/doc-files/ValueBased.html and
+            # the like). They are staged here so the build can copy them through, or those links
+            # land on nothing.
+            doc_files = source_package / "doc-files"
+            if doc_files.is_dir():
+                shutil.copytree(doc_files, target_package / "doc-files", dirs_exist_ok=True)
+
             staged_packages += 1
             staged_files += len(files)
 

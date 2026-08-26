@@ -58,7 +58,45 @@ class JavadocMapper(
     /** A single output file, and everything that has to be resolved relative to it. */
     inner class PageScope(private val fromFile: String) {
 
-        val docs = JavadocDocs { dri -> linkFor(dri) }
+        val docs = JavadocDocs(resolveLink = { dri -> linkFor(dri) }, docRoot = pathToRoot())
+
+        /**
+         * A renderer for a comment that *belongs* to the page at [declaringFile] but is being
+         * shown on this one -- a summary sentence on an index page. Hand-written relative links
+         * inside it are rebased from that page's directory to this one's.
+         */
+        fun docsFrom(declaringFile: String): JavadocDocs {
+            if (declaringFile == fromFile) return docs
+            return JavadocDocs(
+                resolveLink = { dri -> linkFor(dri) },
+                docRoot = pathToRoot(),
+                rebaseRelativeHref = { href -> rebase(declaringFile, href) }
+            )
+        }
+
+        /** Re-expresses [href], written relative to [declaringFile], relative to this page. */
+        private fun rebase(declaringFile: String, href: String): String {
+            val anchorAt = href.indexOf('#')
+            val path = if (anchorAt < 0) href else href.substring(0, anchorAt)
+            val anchor = if (anchorAt < 0) "" else href.substring(anchorAt)
+            if (path.isEmpty()) return href
+            val declaringDir = declaringFile.substringBeforeLast('/', "")
+            val absolute = normalize(if (declaringDir.isEmpty()) path else "$declaringDir/$path")
+            return index.paths.relativeUrl(fromFile, absolute) + anchor
+        }
+
+        /** Collapses `.` and `..` segments so the result can be compared against page paths. */
+        private fun normalize(path: String): String {
+            val parts = mutableListOf<String>()
+            path.split('/').forEach { segment ->
+                when (segment) {
+                    "", "." -> Unit
+                    ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.size - 1)
+                    else -> parts += segment
+                }
+            }
+            return parts.joinToString("/")
+        }
 
         /** Output-relative path [targetFile], expressed relative to this page. */
         fun url(targetFile: String, anchor: String? = null): String {
@@ -205,6 +243,9 @@ class JavadocMapper(
             qualifiedName = type.qualifiedName,
             packageName = type.packageName,
             moduleName = type.moduleName,
+            moduleUrl = moduleUrlFor(type.moduleName, scope),
+            packageUrl = index.packages.firstOrNull { it.name == type.packageName }
+                ?.let { scope.url(it.filePath) },
             url = type.filePath,
             modifiers = modifiers,
             signature = classSignature(type, modifiers, generics, superclassRef, superinterfaceRefs, scope),
@@ -240,7 +281,7 @@ class JavadocMapper(
             annotationElements = members.annotationElements,
             inheritedFields = members.inheritedFields,
             inheritedMethods = members.inheritedMethods,
-            inheritedNestedTypes = emptyList()
+            inheritedNestedTypes = inheritedNestedTypes(type, scope)
         )
     }
 
@@ -257,6 +298,7 @@ class JavadocMapper(
         return JdPackagePage(
             name = pkg.name,
             moduleName = pkg.moduleName,
+            moduleUrl = moduleUrlFor(pkg.moduleName, scope),
             url = pkg.filePath,
             description = bundle.description,
             firstSentence = JavadocDocs.firstSentence(bundle.description),
@@ -371,7 +413,7 @@ class JavadocMapper(
     // ------------------------------------------------------------- summaries
 
     fun typeSummary(type: JdType, scope: PageScope): JdTypeSummary {
-        val bundle = scope.docs.bundleFor(type.documentable)
+        val bundle = scope.docsFrom(type.filePath).bundleFor(type.documentable)
         return JdTypeSummary(
             name = type.classNames,
             qualifiedName = type.qualifiedName,
@@ -651,7 +693,7 @@ class JavadocMapper(
         owner: JdType? = null,
         anchor: String? = null
     ): String? {
-        val raw = scope.docs.bundleFor(doc).description
+        val raw = scope.docsFrom(owner?.filePath ?: "").bundleFor(doc).description
         val resolved =
             if (owner != null && anchor != null) {
                 resolveInheritDoc(raw ?: INHERIT_DOC_MARKER, owner, anchor, scope) { it.description }
@@ -659,6 +701,54 @@ class JavadocMapper(
                 raw
             }
         return JavadocDocs.firstSentence(resolved)
+    }
+
+    /**
+     * Link to a module's page, relative to [scope]'s page.
+     *
+     * Where the module page sits depends on whether the run uses module directories, so the link
+     * is resolved from the index rather than assembled from the module name in a template.
+     */
+    private fun moduleUrlFor(moduleName: String?, scope: PageScope): String? {
+        if (moduleName == null) return null
+        return index.modules.firstOrNull { it.name == moduleName }?.let { scope.url(it.filePath) }
+    }
+
+    /**
+     * javadoc's "Nested classes/interfaces declared in class X" groups.
+     *
+     * Unlike fields and methods, Dokka does not copy a supertype's nested types down onto the
+     * subtype, so there is no `InheritedMember` to read: the groups are walked out of the
+     * hierarchy directly. A nested type the subtype redeclares under the same simple name shadows
+     * the inherited one and is left out, as it is in javadoc.
+     */
+    private fun inheritedNestedTypes(type: JdType, scope: PageScope): List<JdInheritedMembers> {
+        val shadowed = type.documentable.classlikes.mapNotNull { it.name }.toMutableSet()
+        val alreadyListed = mutableSetOf<String>()
+
+        return (index.superclassChain(type.key) + index.allSuperinterfaces(type.key))
+            .mapNotNull { index.typeForKey(it) }
+            .mapNotNull { ancestor ->
+                val nested = ancestor.documentable.classlikes
+                    .mapNotNull { index.typeFor(it.dri) }
+                    .filter { it.simpleName !in shadowed && alreadyListed.add(it.qualifiedName) }
+                    .sortedBy { it.simpleName }
+                if (nested.isEmpty()) {
+                    null
+                } else {
+                    JdInheritedMembers(
+                        declaringType = scope.typeRefForKey(ancestor.key),
+                        members = nested.map { inner ->
+                            JdMemberRef(
+                                name = inner.classNames,
+                                signature = inner.classNames,
+                                url = scope.url(inner.filePath),
+                                declaringType = scope.typeRefForKey(ancestor.key)
+                            )
+                        }
+                    )
+                }
+            }
     }
 
     private fun clean(text: String): String? = text.trim().ifBlank { null }
@@ -711,7 +801,9 @@ class JavadocMapper(
         val (overrides, specifiedBy) =
             if (isConstructor) null to emptyList() else overrideInfo(owner, anchor, scope)
 
-        val description = resolveInheritDoc(bundle.description, owner, anchor, scope) { it.description }
+        // A method that documents only its tags -- or has no comment at all -- still shows the
+        // overridden method's description in javadoc, so an absent description inherits too.
+        val description = inheritIfAbsent(bundle.description, owner, anchor, scope) { it.description }
 
         return JdExecutable(
             name = if (isConstructor) owner.simpleName else function.name,
@@ -1029,13 +1121,32 @@ class JavadocMapper(
         return methods.count { "abstract" in it.modifiers || ("default" !in it.modifiers && "static" !in it.modifiers) } == 1
     }
 
+    /**
+     * The DRI a type *use* should link to.
+     *
+     * An array links to its element type, which is what javadoc does -- `BodyPublisher[]` links to
+     * `BodyPublisher`. Dokka models an array as `kotlin.Array`, a type nothing documents, so
+     * without this unwrapping every array-typed parameter and return renders as dead text.
+     */
     private fun boundDri(bound: Bound): DRI? = when (bound) {
-        is GenericTypeConstructor -> bound.dri
+        is GenericTypeConstructor ->
+            if (JavadocModelIndex.keyOf(bound.dri) == "kotlin.Array") {
+                bound.projections.firstOrNull()?.let { projectionBound(it) }?.let { boundDri(it) }
+            } else {
+                bound.dri
+            }
         is FunctionalTypeConstructor -> bound.dri
         is TypeParameter -> null
         is Nullable -> boundDri(bound.inner)
         is DefinitelyNonNullable -> boundDri(bound.inner)
         is TypeAliased -> boundDri(bound.typeAlias)
+        else -> null
+    }
+
+    /** The bound inside a projection, or null for a star projection. */
+    private fun projectionBound(projection: Projection): Bound? = when (projection) {
+        is Bound -> projection
+        is Variance<*> -> projection.inner
         else -> null
     }
 
