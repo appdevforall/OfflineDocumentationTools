@@ -110,6 +110,7 @@ dokka {
 | `classDiscriminator` | String | `"kind"` | The JSON key used to discriminate between polymorphic `Documentable` types (e.g., `"kind": "class"`). Must not collide with an existing DTO field name (e.g. `"type"` or `"name"`), or serialization will fail. |
 | `prettyPrint` | Boolean | `false` | If `true`, formats the written JSON files with indentation for human readability instead of compact single-line output. |
 | `sourceSetWhitelist` | List | `[]` | A list of source set names (matching the values that appear in the output `sourceSets` field, e.g. `["jvm"]`). If non-empty, any Documentable that isn't present in at least one whitelisted source set has its output file omitted, and a message is logged with the symbol's name and its `sourceSets`. Leave empty to disable filtering (default: all source sets included). |
+| `javadoc-mode` | Boolean | `false` | If `true`, emit **javadoc-shaped** JSON mirroring the `api/` tree of the `javadoc` tool instead of Dokka-shaped JSON. See [§10](#10-javadoc-mode). Note the kebab-case key -- it is spelled that way in the config, unlike every other option here. |
 
 > **`omitNulls` also strips *empty* values, not just `null`.** Despite the name, `omitNulls: true` removes a key whenever its value is `null`, `""`, `[]`, or `{}` (see the filter in `JsonRenderer.filterJson`) — so with it enabled, `"functions": []` doesn't appear at all rather than appearing as an empty array. Consumers must treat a **missing** key as equivalent to its empty value (e.g. `functions is defined and functions is not empty`, as in the Pebble example in §8), not assume every key is always present.
 
@@ -207,3 +208,131 @@ For example, to render a table of functions for a class:
 This writes HTML output to `<output-dir>/html/latest/all-libs` and JSON output to `<output-dir>/json/latest/all-libs` (`output-dir` defaults to `scripts/kotlin/build-output`).
 
 > **Provenance / staleness warning:** `scripts/kotlin/build.gradle.kts` was derived from the `kotlin-stdlib-docs/build.gradle.kts` in JetBrains' `kotlin` repo as of commit [`cfcb49fd0113`](https://github.com/JetBrains/kotlin/commit/cfcb49fd0113d2300a2b677c4fc2e16dddff7df5) ("[stdlib] Update Dokka to 2.2.0-Beta and migrate to DGPv2"). That upstream file is not under our control and can change — new source sets, Dokka API changes, or a different doc-build structure could all require re-diffing our modifications against a newer upstream version. If `build-kotlin-stdlib.sh` starts failing against a newer `kotlin` checkout, compare `scripts/kotlin/build.gradle.kts` against the current upstream `kotlin-stdlib-docs/build.gradle.kts` and re-apply the `useJsonPlugin`/`dokkaGenerateModuleJson` additions by hand.
+
+---
+
+## 10. Javadoc Mode
+
+Setting `"javadoc-mode": true` replaces the plugin's whole output with JSON that mirrors what the
+`javadoc` tool produces under its `api/` directory -- same file layout, same page sections, same
+member anchors. It is intended for documenting **Java** sources (the JDK's own API docs being the
+motivating case) where the downstream templates expect javadoc's structure rather than Dokka's.
+
+Only JSON is written. The one non-JSON file is `element-list`, which javadoc itself emits as a
+plain-text manifest and external tooling reads to resolve links into the output. No HTML pages are
+produced -- rendering stays the job of the downstream template engine.
+
+> The key is spelled `javadoc-mode`, not `javadocMode`. Every other option in this block is
+> camelCase; this one is deliberately kebab-case.
+
+### Output layout
+
+```
+index.json                                   overview: the run's modules and packages
+element-list                                 javadoc's plain-text manifest (not JSON)
+allclasses-index.json                        every documented type
+allpackages-index.json                       every documented package
+deprecated-list.json                         deprecated elements, grouped by kind
+constant-values.json                         static final fields, grouped by package then type
+index-files/index-N.json                     the A-Z index, one file per letter
+<module>/module-summary.json                 module page
+<module>/<pkg/as/path>/package-summary.json  package page
+<module>/<pkg/as/path>/<Outer.Nested>.json   type page
+```
+
+The leading `<module>/` segment appears only when a single Dokka run genuinely contains more than
+one module, matching javadoc's own split between modular and non-modular builds. A single-module
+run also writes `module-summary.json` at the root: javadoc omits a module page entirely for a
+non-modular build, but Dokka always has a module, and its documentation would otherwise be dropped.
+
+#### Multi-module builds, and what that means for JPMS
+
+Be aware of how Dokka structures a multi-module Gradle build, because it decides which of the two
+layouts above you get:
+
+- **One Dokka run, one module** (all sources in a single project) -- packages are written flat at
+  the output root, and all the global index files cover the whole run. This is the layout the
+  tests exercise.
+- **One Dokka run per module** (a Gradle subproject each) -- Dokka runs the renderer separately
+  for each module, into that module's own output directory, and then makes an aggregating pass.
+  Each per-module run therefore sees one module, writes its packages flat inside its own
+  directory, and writes global index files *scoped to that module*. The aggregating pass sees only
+  module references, and writes just the overview `index.json` linking to each module.
+
+  The net tree matches javadoc's `<module>/<package>/...` shape, but the index files are per-module
+  rather than run-wide, and cross-module links are not resolved -- each run only knows its own
+  types. Merging those per-module indexes into run-wide ones is a downstream step this plugin does
+  not perform.
+
+Note also that **Dokka has no JPMS model**: a Dokka "module" is a build-level grouping. Reproducing
+the JDK's own `java.base/`, `java.desktop/` … directories therefore requires the documentation
+build to be organised with one Dokka module per JPMS module; it cannot be inferred from
+`module-info.java`.
+
+All links between pages are **relative to the page they appear on** (`../lang/Object.json`), as
+javadoc's are, so the tree can be served from any prefix. This includes links inside rendered doc
+comments. A link to something the run does not document resolves to `null` (or, inside a comment,
+degrades to plain text) rather than becoming a dead `href`.
+
+### Page shape
+
+Type pages carry the sections a javadoc class page has: the type signature and its parts
+(`modifiers`, `typeParameters`, `superclass`, `superinterfaces`), the hierarchy closures
+(`inheritance`, `allImplementedInterfaces`, `allSuperinterfaces`, `directKnownSubclasses`,
+`allKnownSubinterfaces`, `allKnownImplementingClasses`), the doc comment and its block tags
+(`description`, `since`, `seeAlso`, `authors`, `versions`, `deprecated`, `tags`), the member
+tables (`nestedTypes`, `enumConstants`, `fields`, `constructors`, `methods`, `annotationElements`)
+and the inherited-member groups (`inheritedFields`, `inheritedMethods`).
+
+Structured data is primary: types, modifiers, parameters, throws clauses and override
+relationships are all discrete fields. Each declaration also carries a flat `signature` string
+(`public default Shape<U> scaled(double factor) throws IllegalArgumentException`) as a
+convenience -- ignore it if you would rather compose signatures in the template.
+
+Member `anchor` values follow javadoc's scheme: a bare name for a field, `name(erasedParamTypes)`
+for an executable, and `<init>(...)` for a constructor -- so `toArray(java.lang.Object[])`, not
+`toArray(T[])`. `overrides` and `specifiedBy` are derived from those same erased signatures.
+
+Doc-comment text is HTML, because a javadoc comment's body already is (`<p>`, `<code>`, `<table>`,
+`<dl>`). That matches the convention the default output mode already uses.
+
+### Recommended Dokka settings
+
+javadoc documents public **and protected** members by default; Dokka documents only public. For
+parity, set this on the consuming project:
+
+```kotlin
+dokka {
+    dokkaSourceSets.configureEach {
+        documentedVisibilities.set(setOf(VisibilityModifier.Public, VisibilityModifier.Protected))
+    }
+}
+```
+
+`examples/example-java-library` is a working Java example wired up this way; `tests/test_javadoc_mode.sh`
+drives it.
+
+### Known limitations
+
+These are places where Dokka's model does not carry something a real javadoc page shows. Each is a
+missing *input*, not a gap in the mapping:
+
+| Limitation | Effect |
+| --- | --- |
+| Dokka has no JPMS model | `JdModulePage.requires`/`uses`/`provides` are always empty, and a package's "exported to" is unavailable. A Dokka "module" is a build-level grouping, not a JPMS module. |
+| Dokka does not record annotation-element defaults | Annotation elements are reported as one `annotationElements` list rather than being split into javadoc's Required/Optional tables. `defaultValue` is populated only when Dokka does supply it. |
+| Dokka has no `record` class kind | Java records are documented as classes; `recordComponents` stays empty. |
+| Dokka merges a private field and its accessors into one property | Unfolded back into methods so `getWidth()` is a method and the private field is not documented, as javadoc has it. Note this means a *public* field that happens to have a same-named accessor pair is reported through its accessors. |
+| Inherited members depend on Dokka's inheritance propagation | If Dokka does not attach `InheritedMember`, those members appear as declared rather than in an inherited group. |
+
+### What Javadoc mode does not change
+
+`omitFields`, `omitNulls`, `prettyPrint`, `logLevel`, `logFile` and `sourceSetWhitelist` all behave
+as documented in [§3](#3-configuration-options). `replaceHtmlExtension` and `classDiscriminator`
+have no effect: javadoc-mode pages are written with `.json` links throughout and none of its DTOs
+are polymorphic. Javadoc mode also skips the `LinkPostProcessor` pass, since it resolves every link
+itself rather than rewriting Dokka's.
+
+Pages are serialized with `encodeDefaults = true`, so every documented key is present on every page
+even when empty -- a template can test a field without also testing whether it exists. Enabling
+`omitNulls` strips the empty ones back out if you prefer that.
