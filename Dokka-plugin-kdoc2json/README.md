@@ -240,34 +240,36 @@ index-files/index-N.json                     the A-Z index, one file per letter
 <module>/<pkg/as/path>/<Outer.Nested>.json   type page
 ```
 
-The leading `<module>/` segment appears only when a single Dokka run genuinely contains more than
-one module, matching javadoc's own split between modular and non-modular builds. A single-module
-run also writes `module-summary.json` at the root: javadoc omits a module page entirely for a
-non-modular build, but Dokka always has a module, and its documentation would otherwise be dropped.
+#### How modules are determined
 
-#### Multi-module builds, and what that means for JPMS
+Dokka's own model has no notion of JPMS -- a Dokka "module" is a build-level grouping -- so
+Javadoc mode reads `module-info.java` directly instead. Every configured source root is checked
+for one; a root that has one *is* a JPMS module root, which makes this self-validating (an
+ordinary `src/main/java` has no `module-info.java`, so a non-modular project is unaffected).
 
-Be aware of how Dokka structures a multi-module Gradle build, because it decides which of the two
-layouts above you get:
+From each descriptor the plugin takes the module name, its doc comment, and its `requires`,
+`exports`, `opens`, `uses` and `provides` directives -- everything javadoc's module-summary page
+is built from. A package is attributed to the module that declares it, falling back to whichever
+module's source root the declaration's file sits under.
 
-- **One Dokka run, one module** (all sources in a single project) -- packages are written flat at
-  the output root, and all the global index files cover the whole run. This is the layout the
-  tests exercise.
-- **One Dokka run per module** (a Gradle subproject each) -- Dokka runs the renderer separately
-  for each module, into that module's own output directory, and then makes an aggregating pass.
-  Each per-module run therefore sees one module, writes its packages flat inside its own
-  directory, and writes global index files *scoped to that module*. The aggregating pass sees only
-  module references, and writes just the overview `index.json` linking to each module.
+The leading `<module>/` segment appears when the run contains more than one module -- more than
+one JPMS module if the sources are modular, otherwise more than one Dokka module. That mirrors
+javadoc's own split between modular and non-modular builds. A single-module run also writes
+`module-summary.json` at the root: javadoc omits a module page entirely for a non-modular build,
+but the module's documentation would otherwise be dropped.
 
-  The net tree matches javadoc's `<module>/<package>/...` shape, but the index files are per-module
-  rather than run-wide, and cross-module links are not resolved -- each run only knows its own
-  types. Merging those per-module indexes into run-wide ones is a downstream step this plugin does
-  not perform.
+To document a modular codebase, then, give Dokka **one source root per module directory** and let
+the descriptors do the rest -- see `scripts/java/` for a worked example that does this for the
+entire JDK.
 
-Note also that **Dokka has no JPMS model**: a Dokka "module" is a build-level grouping. Reproducing
-the JDK's own `java.base/`, `java.desktop/` … directories therefore requires the documentation
-build to be organised with one Dokka module per JPMS module; it cannot be inferred from
-`module-info.java`.
+#### Multi-module Gradle builds
+
+Separately from JPMS, a *Gradle* multi-module build makes Dokka run the renderer once per
+subproject into that subproject's own output directory, then make an aggregating pass. Each
+per-module run therefore writes global index files scoped to its own module, and the aggregating
+pass writes only the overview `index.json` linking to each. Merging those per-module indexes into
+run-wide ones is a downstream step this plugin does not perform. Documenting a modular codebase
+from a single Dokka run (as `scripts/java/` does) avoids this entirely.
 
 All links between pages are **relative to the page they appear on** (`../lang/Object.json`), as
 javadoc's are, so the tree can be served from any prefix. This includes links inside rendered doc
@@ -319,7 +321,7 @@ missing *input*, not a gap in the mapping:
 
 | Limitation | Effect |
 | --- | --- |
-| Dokka has no JPMS model | `JdModulePage.requires`/`uses`/`provides` are always empty, and a package's "exported to" is unavailable. A Dokka "module" is a build-level grouping, not a JPMS module. |
+| Dokka has no JPMS model | Worked around by parsing `module-info.java` directly (see above), so `requires`/`exports`/`opens`/`uses`/`provides` and the module description *are* populated for modular sources. Without `module-info.java` in a source root those sections are empty. |
 | Dokka does not record annotation-element defaults | Annotation elements are reported as one `annotationElements` list rather than being split into javadoc's Required/Optional tables. `defaultValue` is populated only when Dokka does supply it. |
 | Dokka has no `record` class kind | Java records are documented as classes; `recordComponents` stays empty. |
 | Dokka merges a private field and its accessors into one property | Unfolded back into methods so `getWidth()` is a method and the private field is not documented, as javadoc has it. Note this means a *public* field that happens to have a same-named accessor pair is reported through its accessors. |
@@ -336,3 +338,95 @@ itself rather than rewriting Dokka's.
 Pages are serialized with `encodeDefaults = true`, so every documented key is present on every page
 even when empty -- a template can test a field without also testing whether it exists. Enabling
 `omitNulls` strips the empty ones back out if you prefer that.
+
+---
+
+## 11. Reproducing the JDK API Docs (`scripts/java`)
+
+`scripts/java/` builds the JDK's own API documentation as javadoc-shaped JSON -- the JSON
+counterpart of the `api/` tree in `SourceDocs/JavaDocs/html/api`.
+
+```bash
+# Document the JDK that JAVA_HOME points at (use a JDK 17 to match SourceDocs/JavaDocs)
+scripts/java/build-jdk-json-docs.sh -j /path/to/jdk-17 -o /path/to/output/api
+
+# Quick check on two small modules instead of all 60
+scripts/java/build-jdk-json-docs.sh -j /path/to/jdk-17 -m java.sql,java.transaction.xa
+```
+
+### How it works
+
+1. **`stage_jdk_sources.py`** unpacks the JDK's `lib/src.zip` and keeps only what javadoc
+   documents. javadoc's rule turns out to be exact: a package appears in `api/` if and only if its
+   module `exports` it **unqualified**. For JDK 17's `java.base`, the 53 unqualified exports are
+   precisely the 53 documented packages, with nothing left over on either side. The script also
+   drops the modules the JDK's own docs build filters out (`jdk.internal.*`, `jdk.unsupported*`,
+   `jdk.random`), leaving 60 modules and 224 packages -- exactly what the official docs contain.
+
+   Each module becomes its own directory in the staging tree, with its `module-info.java` copied
+   alongside. Everything left behind still resolves from the JDK on the analysis classpath.
+
+2. **`jdk-docs/`** is a Dokka project that registers each staged module directory as a source root
+   and runs the plugin in javadoc mode. Nothing is compiled -- Dokka only analyses.
+
+3. **`compare_with_javadoc.py`** checks the result against the official HTML, level by level:
+
+   ```bash
+   python3 scripts/java/compare_with_javadoc.py <json-dir> <path-to>/SourceDocs/JavaDocs/html/api
+   python3 scripts/java/compare_with_javadoc.py <json-dir> <api-dir> --members
+   ```
+
+   `--members` compares the member anchors of every type. That is the sharpest of the checks:
+   javadoc's anchor encodes a member's name and its erased parameter types, so a matching anchor
+   set means the two sides agree on the members, their signatures and their overloads -- not
+   merely on the page count.
+
+### Measured result (JDK 17)
+
+A full run takes **about 90 seconds** and writes **4,988 JSON files**. Against the official docs in
+`SourceDocs/JavaDocs/html/api`:
+
+| Level | Result |
+| --- | --- |
+| modules | **60 / 60** — no missing, no extra |
+| packages | **224 / 224** — no missing, no extra |
+| types | **4,672 / 4,672** — no missing, no extra |
+| member anchors | 4,305 / 4,672 types match *exactly* (92%) |
+
+The 367 types whose member sets differ do so for two understood reasons, neither of which is a
+missing page:
+
+- **893 anchors we have that javadoc doesn't** (330 types). javadoc folds an override whose entire
+  doc comment is `{@inheritDoc}` — adding nothing of its own — into the superclass's "Methods
+  declared in…" list instead of giving it a detail section. `java.awt.Frame.setBackground` is a
+  typical case. We document them as the declared members they are, so this is extra data, not lost
+  data.
+- **481 anchors javadoc has that we don't** (37 types). Where a class extends an *undocumented*
+  supertype (a package-private base like `java.awt.AttributeValue`), javadoc pulls that supertype's
+  members up and shows them as if declared. We only document what the source declares.
+
+### Two Dokka problems this works around
+
+Both were found running the JDK through it, and both are in Dokka rather than in this plugin:
+
+1. **Unbounded recursion in `{@inheritDoc}`.** Dokka's `InheritDocTagResolver.resolveThrowsTag` →
+   `PsiElementToHtmlConverter.toInheritDocHtml` recurses until the stack dies, reproducibly, on
+   much of the JDK (`java.io` and `java.util` among others). A bigger stack only buys time:
+   `-Xss64m` fails after 42 s, `-Xss512m` after 3m28s. `stage_jdk_sources.py` therefore rewrites
+   `{@inheritDoc}` to an inert marker before Dokka parses it, and the plugin resolves the marker
+   itself, walking the same supertype chain javadoc walks — so all 3,214 occurrences across the JDK
+   still resolve, and the plugin additionally inherits a *missing* `@param`/`@return`/`@throws` the
+   way javadoc does. Pass `--keep-inherit-doc` to re-check whether a newer Dokka has fixed this.
+2. **Type arguments in DRI parameter types.** Dokka builds a Java DRI from the PSI type's canonical
+   text, which carries type arguments, so a naive anchor comes out as
+   `addAll(java.util.Collection<? extends E>)` where javadoc uses the erasure,
+   `addAll(java.util.Collection)`. `JavadocPaths.eraseGenerics` strips them while keeping array
+   brackets. This alone moved member-anchor parity from 80% to 92%.
+
+### Notes
+
+- Dokka generates in a *worker process*, not the Gradle daemon, so `org.gradle.jvmargs` does not
+  size it — `dokkaGeneratorIsolation` in `jdk-docs/build.gradle.kts` does. Override with
+  `-PdokkaWorkerHeap` / `-PdokkaWorkerStack` if needed.
+- Use a JDK whose version matches the docs you are reproducing. Source and docs from different
+  update releases differ in small ways that are real, not bugs.

@@ -140,6 +140,24 @@ assert_json "$PKG" "[t['name'] for t in d['annotationTypes']]" "['Measured']" "p
 # Shape, AbstractShape, Rectangle, Rectangle.Builder, Square, Corner, Measured, ShapeException.
 assert_json "$PKG" "len(d['allTypes'])" "8" "allTypes lists every type in the package"
 
+# module-summary.json is built from module-info.java, which Dokka's model does not carry at all --
+# these assertions are the guard on that separate parsing path.
+MOD="$JAVA_OUTPUT_DIR/module-summary.json"
+assert_json "$MOD" "d['name']" "com.example.shapes" \
+    "module name comes from module-info.java, not from Dokka's module name"
+assert_json "$MOD" "d['since']" "['1.0']" "the module's @since is captured"
+assert_json "$MOD" "[(r['module'], r['isTransitive'], r['isStatic']) for r in d['requires']]" \
+    "[('java.logging', True, False), ('java.sql', False, True)]" \
+    "requires keeps its transitive/static modifiers"
+assert_json "$MOD" "[(e['packageName'], e['to']) for e in d['exports']]" \
+    "[('com.example.shapes', []), ('com.example.shapes.spi', [])]" "exports directives"
+assert_json "$MOD" "[u['qualifiedName'] for u in d['uses']]" \
+    "['com.example.shapes.spi.ShapeFactory']" "uses resolves to the documented service type"
+assert_json "$MOD" "'<code>module-info.java</code>' in d['description']" "True" \
+    "javadoc inline tags in the module comment are rendered"
+assert_json "$MOD" "sorted(p['name'] for p in d['packages'])" \
+    "['com.example.shapes', 'com.example.shapes.spi']" "module lists its documented packages"
+
 ALL="$JAVA_OUTPUT_DIR/allclasses-index.json"
 # The eight in com.example.shapes plus ShapeFactory in com.example.shapes.spi.
 assert_json "$ALL" "len(d['types'])" "9" "allclasses-index covers every documented type"

@@ -94,10 +94,32 @@ class JavadocPaths(private val useModuleDirs: Boolean) {
      */
     private fun isField(callable: Callable): Boolean = callable.isProperty
 
+    /**
+     * Drops type arguments while keeping array brackets: `List<? extends E>[]` -> `List[]`.
+     *
+     * Dokka builds a Java DRI from the PSI type's canonical text, which carries the type
+     * arguments; javadoc's anchors use the *erasure*, so `addAll(java.util.Collection<? extends
+     * E>)` has to become `addAll(java.util.Collection)` or the anchor won't match a real javadoc
+     * build's.
+     */
+    private fun eraseGenerics(name: String): String {
+        if ('<' !in name) return name
+        val result = StringBuilder(name.length)
+        var depth = 0
+        name.forEach { character ->
+            when (character) {
+                '<' -> depth++
+                '>' -> if (depth > 0) depth--
+                else -> if (depth == 0) result.append(character)
+            }
+        }
+        return result.toString()
+    }
+
     /** Renders one DRI parameter type the way javadoc spells it inside a member anchor. */
     fun erasedTypeName(ref: TypeReference): String = when (ref) {
         is TypeConstructor -> {
-            val fqn = ref.fullyQualifiedName
+            val fqn = eraseGenerics(ref.fullyQualifiedName)
             if (fqn in ARRAY_FQNS) {
                 // A raw `kotlin.Array` with no argument can't be rendered as `X[]`; fall back to
                 // Object[] rather than emitting a bare "[]".
@@ -107,7 +129,7 @@ class JavadocPaths(private val useModuleDirs: Boolean) {
                 fqn
             }
         }
-        is JavaClassReference -> ref.name
+        is JavaClassReference -> eraseGenerics(ref.name)
         // A type variable erases to its leftmost bound, or to Object when unbounded.
         is TypeParam -> ref.bounds.firstOrNull()?.let { erasedTypeName(it) } ?: "java.lang.Object"
         is org.jetbrains.dokka.links.Nullable -> erasedTypeName(ref.wrapped)

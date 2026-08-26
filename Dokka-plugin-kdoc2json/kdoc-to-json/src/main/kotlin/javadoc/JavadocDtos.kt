@@ -268,13 +268,40 @@ data class JdPackageSummary(
     val deprecated: JdDeprecation? = null
 )
 
+/** One `requires` directive on a module page. */
+@Serializable
+data class JdModuleRequires(
+    val module: String,
+    val isTransitive: Boolean = false,
+    val isStatic: Boolean = false,
+    val url: String? = null
+)
+
+/**
+ * One `exports` or `opens` directive. [to] is empty for an unqualified directive; javadoc shows a
+ * populated [to] in its "Exported To" / "Opened To" column, and does not document those packages.
+ */
+@Serializable
+data class JdModuleExport(
+    val packageName: String,
+    val to: List<String> = emptyList(),
+    val url: String? = null
+)
+
+/** One `provides ... with ...` directive. */
+@Serializable
+data class JdModuleProvides(
+    val service: JdTypeRef,
+    val implementations: List<JdTypeRef> = emptyList()
+)
+
 /**
  * One `module-summary.json` page.
  *
- * `requires` / `uses` / `provides` / `exportedTo` are always empty: they come from a JPMS
- * `module-info.java` descriptor, which Dokka's model does not carry (a Dokka "module" is a
- * build-level grouping, not a JPMS module). The fields exist so a consumer's shape matches
- * javadoc's module page and so they can be filled in later without a schema break.
+ * The JPMS sections -- [requires], [exports], [opens], [uses], [provides] -- are read from the
+ * module's `module-info.java`, which Dokka's own model does not carry (a Dokka "module" is a
+ * build-level grouping, not a JPMS module). They are populated whenever the run's source roots
+ * are JPMS module roots, and are empty otherwise.
  */
 @Serializable
 data class JdModulePage(
@@ -288,10 +315,13 @@ data class JdModulePage(
     val seeAlso: List<JdSeeRef> = emptyList(),
     val deprecated: JdDeprecation? = null,
     val tags: List<JdTag> = emptyList(),
+    /** The module's documented packages -- those it exports unqualified. */
     val packages: List<JdPackageSummary> = emptyList(),
-    val requires: List<String> = emptyList(),
-    val uses: List<String> = emptyList(),
-    val provides: List<String> = emptyList()
+    val requires: List<JdModuleRequires> = emptyList(),
+    val exports: List<JdModuleExport> = emptyList(),
+    val opens: List<JdModuleExport> = emptyList(),
+    val uses: List<JdTypeRef> = emptyList(),
+    val provides: List<JdModuleProvides> = emptyList()
 )
 
 /** `index.json` -- javadoc's overview page. */

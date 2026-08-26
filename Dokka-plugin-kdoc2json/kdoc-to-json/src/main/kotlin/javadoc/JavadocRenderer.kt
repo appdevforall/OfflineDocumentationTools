@@ -40,7 +40,12 @@ class JavadocRenderer(
      * The modules of a multi-module Dokka run, as `name to relative output path`. Non-empty only
      * in the aggregating run that Dokka performs after the per-module ones; empty otherwise.
      */
-    private val moduleReferences: List<Pair<String, String>> = emptyList()
+    private val moduleReferences: List<Pair<String, String>> = emptyList(),
+    /**
+     * The run's configured source roots. Scanned for `module-info.java`, which is where the JPMS
+     * module structure javadoc lays its `api/` tree out by actually lives -- Dokka's model has none.
+     */
+    private val sourceRoots: Collection<File> = emptyList()
 ) {
 
     /**
@@ -78,7 +83,7 @@ class JavadocRenderer(
     )
 
     fun render(root: RootPageNode) {
-        val index = JavadocModelIndex.build(root, logger, config.sourceSetWhitelist)
+        val index = JavadocModelIndex.build(root, logger, config.sourceSetWhitelist, sourceRoots)
         if (index.types.isEmpty() && index.packages.isEmpty()) {
             // Dokka's aggregating pass over a multi-module build sees only module references, no
             // documentables -- the real pages were written by the per-module runs. Emit just the
@@ -384,7 +389,9 @@ class JavadocRenderer(
             val anchor: String?,
             val containingElement: String?,
             val documentable: Documentable?,
-            val deprecated: Boolean
+            val deprecated: Boolean,
+            /** Set for a member, so its summary resolves `{@inheritDoc}` as its own page does. */
+            val owner: JdType? = null
         )
 
         val pending = mutableListOf<PendingEntry>()
@@ -414,7 +421,8 @@ class JavadocRenderer(
                 anchor = member.anchor,
                 containingElement = member.owner.qualifiedName,
                 documentable = member.documentable,
-                deprecated = member.deprecated != null
+                deprecated = member.deprecated != null,
+                owner = member.owner
             )
         }
 
@@ -435,8 +443,9 @@ class JavadocRenderer(
                     kind = entry.kind,
                     url = scope.url(entry.filePath, entry.anchor),
                     containingElement = entry.containingElement,
-                    firstSentence = entry.documentable
-                        ?.let { JavadocDocs.firstSentence(scope.docs.bundleFor(it).description) },
+                    firstSentence = entry.documentable?.let {
+                        mapper.summaryFor(it, scope, entry.owner, entry.anchor)
+                    },
                     deprecated = entry.deprecated
                 )
             }
@@ -482,7 +491,13 @@ class JavadocRenderer(
             val filtered = JsonFilters.filterJson(element, config.omitFields, config.omitNulls)
             val file = File(outputDir, relativePath)
             file.parentFile?.mkdirs()
-            file.writeText(json.encodeToString(JsonElement.serializer(), filtered))
+            // Belt and braces: the {@inheritDoc} stand-in is resolved wherever it is meant to be,
+            // but one leaking into published output would be visible corruption, so any straggler
+            // is dropped here rather than shipped.
+            file.writeText(
+                json.encodeToString(JsonElement.serializer(), filtered)
+                    .replace(JavadocMapper.INHERIT_DOC_MARKER, "")
+            )
             logger.debug("javadoc-mode: wrote $relativePath")
         } catch (e: Exception) {
             logger.warn("javadoc-mode: failed to write $relativePath: ${e.message}")

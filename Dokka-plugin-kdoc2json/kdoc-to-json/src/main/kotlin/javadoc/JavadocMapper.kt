@@ -28,6 +28,27 @@ class JavadocMapper(
         private val NON_JAVA_MODIFIERS = setOf("", "open", "empty", "final_kotlin")
 
         private const val OBJECT_SIMPLE_NAME = "Object"
+
+        /** A javadoc inline tag: `{@code x}`, `{@link a.B#c label}`, `{@docRoot}`. */
+        private val INLINE_TAG = Regex("""\{@(\w+)\s*([^}]*)\}""")
+
+        /**
+         * Stand-in for `{@inheritDoc}`, substituted into the sources before analysis.
+         *
+         * Dokka's own `{@inheritDoc}` resolver recurses without bound on parts of the JDK
+         * (`InheritDocTagResolver.resolveThrowsTag` -> `toInheritDocHtml`) and takes the whole run
+         * down with a StackOverflowError. Rewriting the tag to an inert text marker before Dokka
+         * sees it sidesteps that, and this mapper resolves the marker itself -- walking the same
+         * supertype chain "Overrides:" and "Specified by:" are derived from, which is what javadoc
+         * does. See scripts/java/stage_jdk_sources.py.
+         */
+        const val INHERIT_DOC_MARKER = "ADFAINHERITDOC"
+
+        /** Depth cap for chained `{@inheritDoc}`, in case a hierarchy is cyclic after merging. */
+        private const val MAX_INHERIT_DEPTH = 16
+
+        /** The stand-in occupying a paragraph of its own, the usual way `{@inheritDoc}` is written. */
+        private val MARKER_PARAGRAPH = Regex("""<p>\s*$INHERIT_DOC_MARKER\s*</p>""")
     }
 
     // Anchors of the members each type declares itself, used to derive Overrides/Specified by.
@@ -75,6 +96,30 @@ class JavadocMapper(
                 url = type?.let { url(it.filePath) },
                 kind = type?.kind
             )
+        }
+
+        /**
+         * Resolves a javadoc reference written as text -- `java.sql.Driver`, `Connection#close()`
+         * -- to a URL, or null when this run doesn't document it. Used for the inline tags in
+         * comment text the plugin parsed itself.
+         */
+        fun linkForReference(reference: String): String? {
+            val typePart = reference.substringBefore('#').trim().trimEnd('.')
+            val memberPart = reference.substringAfter('#', "").trim()
+            val type = index.typeForKey(typePart)
+                // A bare `#member` reference, or a simple name, can't be resolved without a
+                // context type; only fully qualified references are linked.
+                ?: return null
+            if (memberPart.isEmpty()) return url(type.filePath)
+            // The text form carries the *declared* parameter types, which are not necessarily the
+            // erased ones the anchor uses, so only the no-arg form is linked precisely.
+            return url(type.filePath, memberPart)
+        }
+
+        /** A relative path from this page back to the output root, for `{@docRoot}`. */
+        fun pathToRoot(): String {
+            val depth = fromFile.count { it == '/' }
+            return if (depth == 0) "." else List(depth) { ".." }.joinToString("/")
         }
 
         fun seeRefs(bundle: JavadocDocBundle): List<JdSeeRef> = bundle.seeAlso.map { (name, address, text) ->
@@ -236,17 +281,91 @@ class JavadocMapper(
             .firstOrNull { it.description != null || it.other.isNotEmpty() }
             ?: JavadocDocBundle()
 
+        val jpms = module.jpms
+        // A JPMS module's documentation lives in module-info.java, which Dokka does not read, so
+        // it is preferred over whatever the Dokka module happens to carry (usually nothing).
+        val description = jpms?.description?.let { renderJavadocText(it, scope) } ?: bundle.description
+        val documentedPackages = packagesInModule.map { packageSummary(it, scope) }
+        val documentedByName = documentedPackages.associateBy { it.name }
+
         return JdModulePage(
             name = module.name,
             url = module.filePath,
-            description = bundle.description,
-            firstSentence = JavadocDocs.firstSentence(bundle.description),
-            since = bundle.since,
+            description = description,
+            firstSentence = JavadocDocs.firstSentence(description),
+            since = jpms?.since?.takeIf { it.isNotEmpty() } ?: bundle.since,
             seeAlso = scope.seeRefs(bundle),
             deprecated = module.documentables.firstNotNullOfOrNull { deprecationOf(it, bundle) },
-            tags = bundle.other,
-            packages = packagesInModule.map { packageSummary(it, scope) }
+            tags = jpms?.tags?.takeIf { it.isNotEmpty() } ?: bundle.other,
+            packages = documentedPackages,
+            requires = jpms?.requires.orEmpty().map { requires ->
+                JdModuleRequires(
+                    module = requires.module,
+                    isTransitive = requires.isTransitive,
+                    isStatic = requires.isStatic,
+                    url = index.modules.firstOrNull { it.name == requires.module }
+                        ?.let { scope.url(it.filePath) }
+                )
+            },
+            exports = jpms?.exports.orEmpty().map { export ->
+                JdModuleExport(
+                    packageName = export.packageName,
+                    to = export.to,
+                    // A qualified export is not documented, so it has no page to link to.
+                    url = documentedByName[export.packageName]?.url
+                )
+            },
+            opens = jpms?.opens.orEmpty().map { opens ->
+                JdModuleExport(
+                    packageName = opens.packageName,
+                    to = opens.to,
+                    url = documentedByName[opens.packageName]?.url
+                )
+            },
+            uses = jpms?.uses.orEmpty().map { scope.typeRefForKey(it) },
+            provides = jpms?.provides.orEmpty().map { provides ->
+                JdModuleProvides(
+                    service = scope.typeRefForKey(provides.service),
+                    implementations = provides.implementations.map { scope.typeRefForKey(it) }
+                )
+            }
         )
+    }
+
+    /**
+     * Renders raw javadoc comment text -- text this plugin read itself rather than getting from
+     * Dokka, i.e. `module-info.java`'s doc comment.
+     *
+     * Only the inline tags are handled: block-level HTML in a javadoc comment is already HTML and
+     * passes through untouched. An `{@link}` whose target this run does not document degrades to
+     * `<code>` rather than becoming a dead link, matching what [JavadocDocs] does for the doc
+     * trees Dokka hands over.
+     */
+    private fun renderJavadocText(raw: String, scope: PageScope): String {
+        var result = INLINE_TAG.replace(raw) { match ->
+            val tag = match.groupValues[1]
+            val body = match.groupValues[2].trim()
+            when (tag) {
+                "code", "literal" -> {
+                    val escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    if (tag == "code") "<code>$escaped</code>" else escaped
+                }
+                "link", "linkplain" -> {
+                    val target = body.substringBefore(' ').trim()
+                    val label = body.substringAfter(' ', "").trim().ifBlank { target.substringAfterLast('.') }
+                    val href = scope.linkForReference(target)
+                    val text = if (tag == "link") "<code>$label</code>" else label
+                    if (href == null) text else "<a href=\"$href\">$text</a>"
+                }
+                // {@docRoot} is a path back to the documentation root, which is exactly what a
+                // relative link from this page to the root looks like.
+                "docRoot" -> scope.pathToRoot()
+                else -> body
+            }
+        }
+        // Collapse the blank lines a stripped block-tag section can leave behind.
+        result = result.trim()
+        return result
     }
 
     // ------------------------------------------------------------- summaries
@@ -449,6 +568,101 @@ class JavadocMapper(
         )
     }
 
+    /**
+     * The nearest ancestor declaring the same erased signature, and its declaration -- the method
+     * `{@inheritDoc}` inherits from. Superclasses are searched before interfaces, as javadoc does.
+     */
+    private fun inheritedFrom(owner: JdType, anchor: String): Pair<JdType, DFunction>? {
+        val ancestors = index.superclassChain(owner.key) + index.allSuperinterfaces(owner.key)
+        ancestors.forEach { key ->
+            val type = index.typeForKey(key) ?: return@forEach
+            val declaration = splitMembers(type).declaredMethods.firstOrNull {
+                index.paths.memberAnchor(it.dri, isConstructor = false) == anchor
+            }
+            if (declaration != null) return type to declaration
+        }
+        return null
+    }
+
+    /**
+     * Replaces [INHERIT_DOC_MARKER] in [text] with the corresponding text from the method this one
+     * overrides, recursing when the ancestor's own comment inherits in turn. [select] picks which
+     * part of the ancestor's comment to pull in, so one walk serves the description, `@return`,
+     * `@param` and `@throws`.
+     */
+    private fun resolveInheritDoc(
+        text: String?,
+        owner: JdType,
+        anchor: String,
+        scope: PageScope,
+        depth: Int = 0,
+        select: (JavadocDocBundle) -> String?
+    ): String? {
+        if (text == null || !text.contains(INHERIT_DOC_MARKER)) return text
+        if (depth >= MAX_INHERIT_DEPTH) return clean(text.replace(INHERIT_DOC_MARKER, ""))
+
+        val parent = inheritedFrom(owner, anchor)
+        val inherited = parent?.let { (parentType, declaration) ->
+            // Rendered in the *current* page's scope, so links in the inherited prose resolve
+            // relative to the page it is being shown on.
+            resolveInheritDoc(
+                select(scope.docs.bundleFor(declaration)), parentType, anchor, scope, depth + 1, select
+            )
+        }
+        val block = inherited.orEmpty()
+        // Where the marker occupies a paragraph of its own -- `{@inheritDoc}` on its own line,
+        // which is how javadoc comments almost always write it -- that whole paragraph is
+        // replaced by the inherited block, wrapper included. Splicing inside the existing <p>
+        // would nest paragraphs whenever the inherited prose runs to more than one.
+        var result = MARKER_PARAGRAPH.replace(text) { block }
+        // Any marker left is inline within a sentence, so the inherited fragment's own enclosing
+        // <p> comes off before it is spliced in.
+        if (result.contains(INHERIT_DOC_MARKER)) {
+            result = result.replace(INHERIT_DOC_MARKER, JavadocDocs.unwrapParagraph(block))
+        }
+        return clean(result)
+    }
+
+    /**
+     * As [resolveInheritDoc], but an *absent* value is treated as an implicit `{@inheritDoc}`.
+     *
+     * javadoc inherits a missing `@param`/`@return`/`@throws` from the overridden method even
+     * without the tag being written out, so a method that documents only some of its parameters
+     * still shows text for the rest.
+     */
+    private fun inheritIfAbsent(
+        text: String?,
+        owner: JdType,
+        anchor: String,
+        scope: PageScope,
+        select: (JavadocDocBundle) -> String?
+    ): String? = resolveInheritDoc(text ?: INHERIT_DOC_MARKER, owner, anchor, scope, select = select)
+
+    /**
+     * The summary sentence for a declaration as it should read on [scope]'s page.
+     *
+     * Global index pages re-render summaries against their own location; passing [owner] and
+     * [anchor] for a member runs the same `{@inheritDoc}` resolution there as on the member's own
+     * page, instead of leaking an unresolved marker into the index.
+     */
+    fun summaryFor(
+        doc: Documentable,
+        scope: PageScope,
+        owner: JdType? = null,
+        anchor: String? = null
+    ): String? {
+        val raw = scope.docs.bundleFor(doc).description
+        val resolved =
+            if (owner != null && anchor != null) {
+                resolveInheritDoc(raw ?: INHERIT_DOC_MARKER, owner, anchor, scope) { it.description }
+            } else {
+                raw
+            }
+        return JavadocDocs.firstSentence(resolved)
+    }
+
+    private fun clean(text: String): String? = text.trim().ifBlank { null }
+
     private fun executable(
         function: DFunction,
         owner: JdType,
@@ -474,12 +688,20 @@ class JavadocMapper(
             JdParameter(
                 name = parameter.name.orEmpty(),
                 type = scope.typeRef(parameter.type),
-                description = parameter.name?.let { bundle.params[it] }?.ifBlank { null },
+                description = inheritIfAbsent(
+                    parameter.name?.let { bundle.params[it] }?.ifBlank { null }, owner, anchor, scope
+                ) { parent -> parent.params[parameter.name.orEmpty()] },
                 annotations = annotationNamesOf(parameter)
             )
         }
 
-        val declaredThrows = scope.throwsList(bundle)
+        val declaredThrows = scope.throwsList(bundle).map { thrown ->
+            thrown.copy(
+                description = inheritIfAbsent(thrown.description, owner, anchor, scope) { parent ->
+                    parent.throws.firstOrNull { it.first.substringAfterLast('.') == thrown.type.display }?.third
+                }
+            )
+        }
         val kind = when {
             isConstructor -> "constructor"
             owner.kind == "annotation" -> "annotationElement"
@@ -488,6 +710,8 @@ class JavadocMapper(
 
         val (overrides, specifiedBy) =
             if (isConstructor) null to emptyList() else overrideInfo(owner, anchor, scope)
+
+        val description = resolveInheritDoc(bundle.description, owner, anchor, scope) { it.description }
 
         return JdExecutable(
             name = if (isConstructor) owner.simpleName else function.name,
@@ -503,9 +727,9 @@ class JavadocMapper(
                 modifiers, function.generics, returnType, parameters, declaredThrows, scope
             ),
             url = scope.url(owner.filePath, anchor),
-            description = bundle.description,
-            firstSentence = JavadocDocs.firstSentence(bundle.description),
-            returns = bundle.returns,
+            description = description,
+            firstSentence = JavadocDocs.firstSentence(description),
+            returns = inheritIfAbsent(bundle.returns, owner, anchor, scope) { it.returns },
             specifiedBy = specifiedBy,
             overrides = overrides,
             since = bundle.since,
@@ -513,7 +737,13 @@ class JavadocMapper(
             deprecated = deprecationOf(function, bundle),
             annotations = annotationNamesOf(function),
             defaultValue = defaultValueOf(function),
-            tags = bundle.other
+            tags = bundle.other.map { tag ->
+                tag.copy(
+                    text = resolveInheritDoc(tag.text, owner, anchor, scope) { parent ->
+                        parent.other.firstOrNull { it.name == tag.name }?.text
+                    }.orEmpty()
+                )
+            }
         )
     }
 

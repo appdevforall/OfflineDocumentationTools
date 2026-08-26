@@ -13,7 +13,9 @@ import org.jetbrains.dokka.model.DPackage
 import org.jetbrains.dokka.model.Documentable
 import org.jetbrains.dokka.model.WithSupertypes
 import org.jetbrains.dokka.pages.PageNode
+import org.jetbrains.dokka.model.WithSources
 import org.jetbrains.dokka.pages.WithDocumentables
+import java.io.File
 
 /** A type this documentation run covers, plus everything the renderer needs to place it. */
 class JdType(
@@ -39,7 +41,9 @@ class JdPackage(
 class JdModule(
     val name: String,
     val documentables: List<DModule>,
-    val filePath: String
+    val filePath: String,
+    /** The JPMS descriptor this module was built from, when the sources are modular. */
+    val jpms: JpmsModuleInfo? = null
 )
 
 /**
@@ -62,6 +66,8 @@ class JavadocModelIndex private constructor(
     val modules: List<JdModule>,
     val packages: List<JdPackage>,
     val types: List<JdType>,
+    /** True when page paths carry a leading `<module>/` segment. */
+    val useModuleDirs: Boolean,
     private val byKey: Map<String, JdType>,
     private val superclassByKey: Map<String, String>,
     private val interfacesByKey: Map<String, List<String>>,
@@ -86,22 +92,53 @@ class JavadocModelIndex private constructor(
         fun build(
             root: PageNode,
             logger: PluginLogger,
-            sourceSetWhitelist: List<String>
+            sourceSetWhitelist: List<String>,
+            sourceRoots: Collection<File> = emptyList()
         ): JavadocModelIndex {
             val collected = collectDocumentables(root)
 
             val moduleDocs = collected.filterIsInstance<DModule>()
-            // Module directories only when this run genuinely spans several modules -- javadoc
+            val jpmsModules = JpmsModuleScanner.scan(sourceRoots, logger)
+
+            // Module directories when the run genuinely spans several modules -- JPMS modules read
+            // off module-info.java if the sources are modular, Dokka modules otherwise. javadoc
             // likewise flattens packages to the output root for a non-modular build.
-            val useModuleDirs = moduleDocs.distinctBy { it.name }.size > 1
+            val useModuleDirs =
+                if (jpmsModules.isNotEmpty()) jpmsModules.size > 1
+                else moduleDocs.distinctBy { it.name }.size > 1
             val paths = JavadocPaths(useModuleDirs)
 
+            // A package belongs to whichever module declares it, which module-info.java states
+            // outright. Qualified exports count too: the package is still *in* that module even
+            // though javadoc won't document it.
             val moduleOfPackage = mutableMapOf<String, String>()
-            moduleDocs.forEach { module ->
-                module.packages.forEach { pkg ->
-                    moduleOfPackage.putIfAbsent(pkg.dri.packageName.orEmpty(), module.name)
+            jpmsModules.forEach { module ->
+                (module.exports + module.opens).forEach { export ->
+                    moduleOfPackage.putIfAbsent(export.packageName, module.name)
                 }
             }
+            if (jpmsModules.isEmpty()) {
+                moduleDocs.forEach { module ->
+                    module.packages.forEach { pkg ->
+                        moduleOfPackage.putIfAbsent(pkg.dri.packageName.orEmpty(), module.name)
+                    }
+                }
+            }
+
+            // Fallback for a modular project that documents a package its module never exports:
+            // the source file still sits under exactly one module's source root.
+            val moduleRoots = jpmsModules.map { it.sourceRoot.absolutePath.trimEnd(File.separatorChar) to it.name }
+            fun moduleForSourcePath(path: String?): String? {
+                if (path.isNullOrBlank() || moduleRoots.isEmpty()) return null
+                val normalized = File(path).absolutePath
+                return moduleRoots.firstOrNull { (rootPath, _) ->
+                    normalized.startsWith(rootPath + File.separatorChar)
+                }?.second
+            }
+
+            fun moduleFor(packageName: String, doc: Documentable): String? =
+                moduleOfPackage[packageName]
+                    ?: moduleForSourcePath((doc as? WithSources)?.sources?.values?.firstOrNull()?.path)
 
             fun passesWhitelist(doc: Documentable): Boolean {
                 if (sourceSetWhitelist.isEmpty()) return true
@@ -120,7 +157,7 @@ class JavadocModelIndex private constructor(
                 if (byKey.containsKey(key)) return@forEach
                 val packageName = doc.dri.packageName.orEmpty()
                 val classNames = doc.dri.classNames ?: doc.name ?: return@forEach
-                val moduleName = moduleOfPackage[packageName]
+                val moduleName = moduleFor(packageName, doc)
                 val type = JdType(
                     documentable = doc,
                     key = key,
@@ -215,17 +252,36 @@ class JavadocModelIndex private constructor(
             }
 
             // --- Packages and modules ---
+            // A package with no exports entry falls back to whichever module its own types
+            // resolved to, so the two never disagree about where the package page belongs.
+            val moduleOfTypePackage = types.groupBy { it.packageName }
+                .mapValues { (_, inPackage) -> inPackage.firstNotNullOfOrNull { it.moduleName } }
+
             val packages = collected.filterIsInstance<DPackage>()
                 .groupBy { it.dri.packageName.orEmpty() }
                 .map { (name, docs) ->
-                    val moduleName = moduleOfPackage[name]
+                    val moduleName = moduleOfPackage[name] ?: moduleOfTypePackage[name]
                     JdPackage(name, moduleName, docs, paths.packageFile(name, moduleName))
                 }
                 .sortedBy { it.name }
 
-            val modules = moduleDocs.groupBy { it.name }
-                .map { (name, docs) -> JdModule(name, docs, paths.moduleFile(name)) }
-                .sortedBy { it.name }
+            val modules = if (jpmsModules.isNotEmpty()) {
+                val dokkaModuleByName = moduleDocs.groupBy { it.name }
+                jpmsModules
+                    .map { jpms ->
+                        JdModule(
+                            name = jpms.name,
+                            documentables = dokkaModuleByName[jpms.name].orEmpty(),
+                            filePath = paths.moduleFile(jpms.name),
+                            jpms = jpms
+                        )
+                    }
+                    .sortedBy { it.name }
+            } else {
+                moduleDocs.groupBy { it.name }
+                    .map { (name, docs) -> JdModule(name, docs, paths.moduleFile(name)) }
+                    .sortedBy { it.name }
+            }
 
             logger.info(
                 "javadoc-mode: indexed ${types.size} types, ${packages.size} packages, " +
@@ -237,6 +293,7 @@ class JavadocModelIndex private constructor(
                 modules = modules,
                 packages = packages,
                 types = types.sortedBy { it.qualifiedName },
+                useModuleDirs = useModuleDirs,
                 byKey = byKey,
                 superclassByKey = superclassByKey,
                 interfacesByKey = interfacesByKey,

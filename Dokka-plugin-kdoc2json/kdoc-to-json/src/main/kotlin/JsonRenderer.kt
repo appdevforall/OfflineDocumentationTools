@@ -58,7 +58,8 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
                 outputDir = context.configuration.outputDir,
                 moduleReferences = context.configuration.modules.map {
                     it.name to it.relativePathToOutputDirectory.invariantSeparatorsPath
-                }
+                },
+                sourceRoots = context.configuration.sourceSets.flatMap { it.sourceRoots }.distinct()
             ).render(root)
             logger.info("JSON rendering completed (javadoc mode).")
             return
