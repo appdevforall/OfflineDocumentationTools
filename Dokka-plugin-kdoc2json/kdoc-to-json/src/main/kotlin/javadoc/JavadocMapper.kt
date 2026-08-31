@@ -350,18 +350,22 @@ class JavadocMapper(
                 )
             },
             exports = jpms?.exports.orEmpty().map { export ->
+                val documented = documentedByName[export.packageName]
                 JdModuleExport(
                     packageName = export.packageName,
                     to = export.to,
                     // A qualified export is not documented, so it has no page to link to.
-                    url = documentedByName[export.packageName]?.url
+                    url = documented?.url,
+                    firstSentence = documented?.firstSentence
                 )
             },
             opens = jpms?.opens.orEmpty().map { opens ->
+                val documented = documentedByName[opens.packageName]
                 JdModuleExport(
                     packageName = opens.packageName,
                     to = opens.to,
-                    url = documentedByName[opens.packageName]?.url
+                    url = documented?.url,
+                    firstSentence = documented?.firstSentence
                 )
             },
             indirectRequires = indirectlyReadable(module).map { name ->
@@ -466,10 +470,15 @@ class JavadocMapper(
             .map { scope.docs.bundleFor(it) }
             .firstOrNull { it.description != null }
             ?: JavadocDocBundle()
+        // As on the module page itself, module-info.java's own comment is the real source of a
+        // module's description -- Dokka's module carries none -- so the overview's Description
+        // column is empty without this.
+        val description = module.jpms?.description?.let { renderJavadocText(it, scope) }
+            ?: bundle.description
         return JdModuleSummary(
             name = module.name,
             url = scope.url(module.filePath),
-            firstSentence = JavadocDocs.firstSentence(bundle.description)
+            firstSentence = JavadocDocs.firstSentence(description)
         )
     }
 

@@ -291,7 +291,9 @@ data class JdModuleRequires(
 data class JdModuleExport(
     val packageName: String,
     val to: List<String> = emptyList(),
-    val url: String? = null
+    val url: String? = null,
+    /** The exported package's summary sentence, which javadoc shows in this table's last column. */
+    val firstSentence: String? = null
 )
 
 /**
