@@ -235,7 +235,9 @@ data class JdTypeSummary(
     val moduleName: String? = null,
     val url: String? = null,
     val firstSentence: String? = null,
-    val deprecated: JdDeprecation? = null
+    val deprecated: JdDeprecation? = null,
+    /** The type's own modifiers, so a consumer can index only the public API as javadoc does. */
+    val modifiers: List<String> = emptyList()
 )
 
 /** One `package-summary.json` page. */
@@ -254,6 +256,8 @@ data class JdPackagePage(
     val seeAlso: List<JdSeeRef> = emptyList(),
     val deprecated: JdDeprecation? = null,
     val tags: List<JdTag> = emptyList(),
+    /** The parent, child and sibling packages javadoc lists under "Related Packages". */
+    val relatedPackages: List<JdPackageSummary> = emptyList(),
     val interfaces: List<JdTypeSummary> = emptyList(),
     val classes: List<JdTypeSummary> = emptyList(),
     val enums: List<JdTypeSummary> = emptyList(),

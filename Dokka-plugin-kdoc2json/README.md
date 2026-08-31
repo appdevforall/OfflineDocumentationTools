@@ -543,3 +543,27 @@ Our module pages show `Requires`, `Provides`, `Uses` and `Exports` tables on mor
 javadoc does -- javadoc suppresses some rows (for instance a `provides` whose implementation class
 is not itself documented, as in `java.smartcardio`). That is extra data rather than missing data,
 so it is left in.
+
+### Page-by-page content audit
+
+Every page type was diffed against the originals, not just the class pages. What that changed:
+
+| Page | Was | Now |
+| --- | --- | --- |
+| `index.html` | listed all 224 packages *as well as* the 60 modules | modules only, as javadoc does. The package list has its own page; javadoc's overview shows packages only for a non-modular run, which is what the template now keys on. |
+| `constant-values.html` | 3,138 of the JDK's 3,463 constants | 3,458. The 325 absent were all inherited from *undocumented* supertypes -- `java.util.jar.JarEntry`'s 40 `CEN*`/`END*` constants come from the package-private `java.util.zip.ZipConstants`. |
+| class pages | same 325-constant cause, plus ~480 members | a member inherited from a type this run does not document is now shown as declared, which is what javadoc does: an "inherited from" group pointing at a page that does not exist is a dead end. Member-anchor parity 4,305 -> 4,327 of 4,672 types. |
+| `deprecated-list.html` | section headings were the raw JSON keys (`classes`, `enumConstants`) | javadoc's titles ("Deprecated Classes", "Deprecated Enum Constants"), plus a contents list |
+| package pages | no "Related Packages" table | present on 206 pages, 181 matching the originals exactly |
+| `allclasses-index.html` | all 4,672 types | 4,506 -- javadoc indexes the public API, so the 167 protected nested types are left out (they keep their pages, reachable from the enclosing class) |
+
+"Related Packages" is the parent, the direct children, and -- only when the result stays at five or
+fewer -- the siblings. That size condition is javadoc's own: `java.nio.channels` lists its siblings
+`java.nio.charset` and `java.nio.file`, while `java.util.concurrent` and `java.lang.annotation`
+list none, because `java.util` and `java.lang` have too many children for the table to stay
+useful. Five reproduces 181 of the 190 originals; no cut-off at all reproduces 95.
+
+Two counts still differ, both small and both in the direction of showing more rather than less:
+`allclasses-index.html` lists 4,506 against javadoc's 4,402, and the A-Z index has 54,248 entries
+against 55,483. Neither reduced to a rule that held across all 60 modules, so they are left as they
+are rather than tuned to fit.

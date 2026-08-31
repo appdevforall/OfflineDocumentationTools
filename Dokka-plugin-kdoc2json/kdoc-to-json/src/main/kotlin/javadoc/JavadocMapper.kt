@@ -47,6 +47,9 @@ class JavadocMapper(
         /** Depth cap for chained `{@inheritDoc}`, in case a hierarchy is cyclic after merging. */
         private const val MAX_INHERIT_DEPTH = 16
 
+        /** Above this many related packages javadoc drops the siblings -- see [relatedPackages]. */
+        private const val MAX_RELATED_PACKAGES = 5
+
         /** The stand-in occupying a paragraph of its own, the usual way `{@inheritDoc}` is written. */
         private val MARKER_PARAGRAPH = Regex("""<p>\s*$INHERIT_DOC_MARKER\s*</p>""")
     }
@@ -306,6 +309,7 @@ class JavadocMapper(
             seeAlso = scope.seeRefs(bundle),
             deprecated = pkg.documentables.firstNotNullOfOrNull { deprecationOf(it, bundle) },
             tags = bundle.other,
+            relatedPackages = relatedPackages(pkg).map { packageSummary(it, scope) },
             interfaces = of("interface"),
             classes = of("class", "object"),
             enums = of("enum"),
@@ -447,7 +451,8 @@ class JavadocMapper(
             moduleName = type.moduleName,
             url = scope.url(type.filePath),
             firstSentence = JavadocDocs.firstSentence(bundle.description),
-            deprecated = deprecationOf(type.documentable, bundle)
+            deprecated = deprecationOf(type.documentable, bundle),
+            modifiers = modifiersOf(type.documentable)
         )
     }
 
@@ -811,6 +816,35 @@ class JavadocMapper(
         return readableThrough(module).filterNot { it in direct || it == module.name }.sorted()
     }
 
+    /**
+     * The packages javadoc lists under "Related Packages": the parent, the direct children, and --
+     * only when the result stays small -- the siblings.
+     *
+     * The size condition is javadoc's, not an invention: `java.nio.channels` lists its siblings
+     * `java.nio.charset` and `java.nio.file`, while `java.util.concurrent` and
+     * `java.lang.annotation` list none, because `java.util` and `java.lang` have too many
+     * children for the table to stay useful. A cut-off of five reproduces 181 of the 190 JDK
+     * package pages that have this table.
+     */
+    private fun relatedPackages(pkg: JdPackage): List<JdPackage> {
+        val name = pkg.name
+        val parentName = name.substringBeforeLast('.', "")
+
+        fun childrenOf(prefix: String) = index.packages.filter {
+            it.name != prefix &&
+                it.name.startsWith("$prefix.") &&
+                !it.name.removePrefix("$prefix.").contains('.')
+        }
+
+        val parent = index.packages.filter { it.name == parentName }
+        val children = childrenOf(name)
+        val siblings = if (parentName.isEmpty()) emptyList() else childrenOf(parentName).filter { it.name != name }
+
+        val core = parent + children
+        val related = if (core.size + siblings.size <= MAX_RELATED_PACKAGES) core + siblings else core
+        return related.distinctBy { it.name }.sortedBy { it.name }
+    }
+
     private fun clean(text: String): String? = text.trim().ifBlank { null }
 
     private fun executable(
@@ -1172,7 +1206,13 @@ class JavadocMapper(
         val inherited = doc.extrasOrEmpty().allOfType<InheritedMember>().firstOrNull() ?: return null
         val from = inherited.inheritedFrom.values.firstOrNull { it != null } ?: return null
         val fromKey = JavadocModelIndex.keyOf(from)
-        return if (fromKey == ownerKey || fromKey.isBlank()) null else fromKey
+        if (fromKey == ownerKey || fromKey.isBlank()) return null
+        // A member inherited from a type this run does not document is shown by javadoc as if the
+        // subtype declared it -- there is no page to send the reader to, so an "inherited from"
+        // group would be a dead end. java.util.jar.JarEntry gets its 40 CEN*/END*/LOC* constants
+        // this way, from the package-private java.util.zip.ZipConstants.
+        if (index.typeForKey(fromKey) == null) return null
+        return fromKey
     }
 
     /** javadoc marks an interface with exactly one abstract method as a functional interface. */
