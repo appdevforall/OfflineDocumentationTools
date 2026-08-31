@@ -364,6 +364,27 @@ class JavadocMapper(
                     url = documentedByName[opens.packageName]?.url
                 )
             },
+            indirectRequires = indirectlyReadable(module).map { name ->
+                JdModuleRequires(module = name, isTransitive = true, url = moduleUrlFor(name, scope))
+            },
+            indirectExports = readableThrough(module)
+                .mapNotNull { name -> index.modules.firstOrNull { it.name == name } }
+                .filter { it.jpms?.exportedPackages?.isNotEmpty() == true }
+                .sortedBy { it.name }
+                .map { readable ->
+                    JdIndirectExport(
+                        module = readable.name,
+                        moduleUrl = scope.url(readable.filePath),
+                        packages = readable.jpms?.exportedPackages.orEmpty().sorted().map { packageName ->
+                            JdPackageSummary(
+                                name = packageName,
+                                moduleName = readable.name,
+                                url = index.packages.firstOrNull { it.name == packageName }
+                                    ?.let { scope.url(it.filePath) }
+                            )
+                        }
+                    )
+                },
             uses = jpms?.uses.orEmpty().map { scope.typeRefForKey(it) },
             provides = jpms?.provides.orEmpty().map { provides ->
                 JdModuleProvides(
@@ -749,6 +770,36 @@ class JavadocMapper(
                     )
                 }
             }
+    }
+
+    /**
+     * Every module a consumer of [module] also gets to read: the `requires transitive` closure.
+     *
+     * Only `transitive` edges carry readability onward, so a plain `requires` is not followed and
+     * the walk is seeded with the transitive requires alone -- seeding it with *all* direct
+     * requires is what makes the result disagree with javadoc. Checked against every JDK module
+     * page that has one of these tables.
+     */
+    private fun readableThrough(module: JdModule): Set<String> {
+        val result = LinkedHashSet<String>()
+        val seed = module.jpms?.requires.orEmpty().filter { it.isTransitive }.map { it.module }
+        val seen = seed.toMutableSet()
+        val work = ArrayDeque(seed)
+        while (work.isNotEmpty()) {
+            val current = work.removeFirst()
+            if (current == module.name) continue
+            result += current
+            index.modules.firstOrNull { it.name == current }?.jpms?.requires.orEmpty()
+                .filter { it.isTransitive }
+                .forEach { if (seen.add(it.module)) work += it.module }
+        }
+        return result
+    }
+
+    /** [readableThrough] minus what this module already requires directly. */
+    private fun indirectlyReadable(module: JdModule): List<String> {
+        val direct = module.jpms?.requires.orEmpty().map { it.module }.toSet()
+        return readableThrough(module).filterNot { it in direct || it == module.name }.sorted()
     }
 
     private fun clean(text: String): String? = text.trim().ifBlank { null }

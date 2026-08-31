@@ -294,6 +294,17 @@ data class JdModuleExport(
     val url: String? = null
 )
 
+/**
+ * One row of a module page's "Indirect Exports" table: a module readable through this one, and the
+ * packages it exports.
+ */
+@Serializable
+data class JdIndirectExport(
+    val module: String,
+    val moduleUrl: String? = null,
+    val packages: List<JdPackageSummary> = emptyList()
+)
+
 /** One `provides ... with ...` directive. */
 @Serializable
 data class JdModuleProvides(
@@ -324,7 +335,17 @@ data class JdModulePage(
     /** The module's documented packages -- those it exports unqualified. */
     val packages: List<JdPackageSummary> = emptyList(),
     val requires: List<JdModuleRequires> = emptyList(),
+    /**
+     * Modules a consumer of this one also reads, reached through `requires transitive` but not
+     * required directly -- javadoc's "Indirect Requires" table.
+     */
+    val indirectRequires: List<JdModuleRequires> = emptyList(),
     val exports: List<JdModuleExport> = emptyList(),
+    /**
+     * Packages that become part of this module's API surface because it re-exports the modules
+     * providing them -- javadoc's "Indirect Exports" table.
+     */
+    val indirectExports: List<JdIndirectExport> = emptyList(),
     val opens: List<JdModuleExport> = emptyList(),
     val uses: List<JdTypeRef> = emptyList(),
     val provides: List<JdModuleProvides> = emptyList()

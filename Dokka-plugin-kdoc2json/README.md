@@ -498,3 +498,48 @@ output, **99.88% resolve**; the 555 that don't break down as:
 | 251 | `doc-files/` pages -- javadoc copies these from the JDK's build repository, and `src.zip` does not ship them, so they cannot be produced from this source at all |
 | 227 | links out of `api/` into `specs/` and `legal/`, which are siblings of `api/` in the official docs and outside what this pipeline generates |
 | 77 | hand-written relative links in doc comments that are still rebased imperfectly when a summary sentence is shown on a different page than the one that declares it |
+
+### Comparison against the official docs
+
+Beyond the counts above, the rendered HTML was diffed section by section against
+`SourceDocs/JavaDocs/html/api`. What that turned up, and where it stands:
+
+**Fixed**
+
+| Gap | Scale | Now |
+| --- | --- | --- |
+| `module-graph.svg` missing entirely | all 60 module pages | Generated from the JSON's `requires`. All 60 have node sets identical to the originals; 57/60 also match edge counts (graphviz applies a transitive reduction we don't). |
+| Inherited nested types never emitted | ~700 groups | `inheritedNestedTypes` is now computed from the hierarchy -- Dokka, unlike for fields and methods, does not copy nested types down, so there is no `InheritedMember` to read. |
+| "Indirect Exports" table | 16 module pages | Added as `indirectExports`. |
+| "Indirect Requires" table | 3 module pages | Added as `indirectRequires`. |
+| Block tags shown by their source name | ~2,400 notes | `@apiNote` now renders as "API Note:", `@implSpec` as "Implementation Requirements:", and so on, as javadoc does. The data was always in the JSON's `tags`. |
+| "Enclosing class:" on a nested interface | 111 pages | Uses the enclosing type's own kind. |
+
+The module graph rules were derived by checking candidates against all 60 originals rather than
+assumed. Both turned out to be narrower than they look: the graph draws the **`requires transitive`
+closure plus `java.base`** (a plain `requires` does not propagate readability -- `java.naming`
+plainly requires `java.security.sasl` and its graph shows neither), and `java.base` is drawn even
+though no `module-info.java` declares it. Same for the tables: **Indirect Requires** is that
+closure minus the direct requires (3/3 exact), **Indirect Exports** is the exporting modules in it
+(16/16 exact).
+
+**Not reproducible from this source**
+
+| Gap | Scale | Why |
+| --- | --- | --- |
+| `doc-files/` pages and images | 93 files, 251 links | javadoc copies these from the JDK's build repository. `src.zip` does not contain them, so no pipeline reading `src.zip` can produce them. |
+| `serialVersionUID` values | 1,174 | Shown only on `serialized-form.html`, and read from private fields Dokka does not model. |
+
+**Out of scope (page kinds this pipeline does not generate)**
+
+`class-use/` (4,672 pages), `package-use` (224), `package-tree`/`overview-tree` (225),
+`serialized-form`, `system-properties`, `help-doc`, `new-list`, `preview-list`, `search` and its
+`.js` index. These are cross-reference and navigation pages rather than API data; everything they
+present is derivable from the JSON already emitted.
+
+**Deliberate differences**
+
+Our module pages show `Requires`, `Provides`, `Uses` and `Exports` tables on more modules than
+javadoc does -- javadoc suppresses some rows (for instance a `provides` whose implementation class
+is not itself documented, as in `java.smartcardio`). That is extra data rather than missing data,
+so it is left in.

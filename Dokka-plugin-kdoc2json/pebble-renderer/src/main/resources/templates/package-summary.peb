@@ -1,0 +1,67 @@
+{% extends "base" %}
+{% import "macros" %}
+
+{% block title %}{{ name }}{% endblock %}
+{% block bodyClass %}package-declaration-page{% endblock %}
+
+{% block subnav %}
+<div class="sub-nav"><div class="nav-content"><ol class="sub-nav-list">
+{% if moduleName is not empty %}<li>{% if moduleUrl is not empty %}<a href="{{ moduleUrl | href }}">{{ moduleName }}</a>{% else %}{{ moduleName }}{% endif %}</li>{% endif %}
+<li>{{ name }}</li>
+</ol></div></div>
+{% endblock %}
+
+{% macro typeTable(caption, rows) %}
+{% if rows is not empty %}
+<div class="caption"><span>{{ caption }}</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Class</div>
+<div class="table-header col-last">Description</div>
+{% for row in rows %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ row.url | href }}">{{ row.name }}</a></div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ row.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="header">
+{% if moduleName is not empty %}
+<div class="sub-title"><span class="module-label-in-package">Module</span>&nbsp;{% if moduleUrl is not empty %}<a href="{{ moduleUrl | href }}">{{ moduleName }}</a>{% else %}{{ moduleName }}{% endif %}</div>
+{% endif %}
+<h1 title="Package {{ name }}" class="title">Package {{ name }}</h1>
+</div>
+
+<section class="package-description" id="package-description">
+<div class="package-signature">package <span class="element-name">{{ name }}</span></div>
+{% if description is not empty %}<div class="block">{{ description | doc }}</div>{% endif %}
+{% if deprecated is not empty %}
+<div class="deprecation-block"><span class="deprecated-label">Deprecated.</span>
+{% if deprecated.comment is not empty %}<div class="deprecation-comment">{{ deprecated.comment | doc }}</div>{% endif %}</div>
+{% endif %}
+{% if since is not empty or seeAlso is not empty or tags is not empty %}
+<dl class="notes">
+{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% for tag in tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | doc }}</dd>{% endfor %}
+{% if seeAlso is not empty %}<dt>See Also:</dt><dd><ul class="see-list">{% for see in seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url | href }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>{% endif %}
+</dl>
+{% endif %}
+</section>
+
+<section class="summary">
+<ul class="summary-list">
+<li>
+<div id="class-summary">
+<h2>Package Contents</h2>
+{{ typeTable("Interfaces", interfaces) }}
+{{ typeTable("Classes", classes) }}
+{{ typeTable("Enum Classes", enums) }}
+{{ typeTable("Record Classes", records) }}
+{{ typeTable("Exception Classes", exceptions) }}
+{{ typeTable("Annotation Interfaces", annotationTypes) }}
+</div>
+</li>
+</ul>
+</section>
+{% endblock %}

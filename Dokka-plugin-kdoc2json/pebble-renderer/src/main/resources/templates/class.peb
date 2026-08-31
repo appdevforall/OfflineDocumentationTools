@@ -1,0 +1,298 @@
+{% extends "base" %}
+{% import "macros" %}
+
+{% block title %}{{ name }} ({{ moduleName | default('API') }}){% endblock %}
+{% block bodyClass %}class-declaration-page{% endblock %}
+
+{% block subnav %}
+<div class="sub-nav">
+<div class="nav-content">
+<ol class="sub-nav-list">
+{% if moduleName is not empty %}<li>{% if moduleUrl is not empty %}<a href="{{ moduleUrl | href }}">{{ moduleName }}</a>{% else %}{{ moduleName }}{% endif %}</li>{% endif %}
+<li><a href="{{ packageUrl | default('package-summary.json') | href }}">{{ packageName }}</a></li>
+<li>{{ name }}</li>
+</ol>
+</div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+{% if packageName is not empty %}
+<div class="sub-title"><span class="package-label-in-type">Package</span>&nbsp;<a href="{{ packageUrl | default('package-summary.json') | href }}">{{ packageName }}</a></div>
+{% endif %}
+<h1 title="{{ kind }} {{ name }}" class="title">{{ kind | capitalize }} {{ name }}{% if typeParameters is not empty %}&lt;{% for t in typeParameters %}{{ t.name }}{% if not loop.last %},{% endif %}{% endfor %}&gt;{% endif %}</h1>
+</div>
+
+<div class="class-uses-title"></div>
+<section class="class-description" id="class-description">
+
+{# The inheritance tree, indented one step per level, exactly as javadoc draws it. #}
+{% if inheritance is not empty and inheritance | length > 1 %}
+{# javadoc nests one div per level so each generation indents further than the last. The final
+   entry is this class itself, shown as plain text rather than a link to the page you are on. #}
+<div class="inheritance" title="Inheritance Tree">
+{%- for ancestor in inheritance -%}
+<div class="inheritance">{% if loop.last %}{{ ancestor.qualifiedName }}{% else %}{{ typeLink(ancestor) }}{% endif %}
+{%- endfor -%}
+{%- for ancestor in inheritance -%}</div>{%- endfor -%}
+</div>
+{% endif %}
+
+{% if typeParameters is not empty and typeParameters | first is not null %}
+{% set documentedTypeParams = false %}
+{% for t in typeParameters %}{% if t.description is not empty %}{% set documentedTypeParams = true %}{% endif %}{% endfor %}
+{% if documentedTypeParams %}
+<dl class="notes">
+<dt>Type Parameters:</dt>
+{% for t in typeParameters %}{% if t.description is not empty %}<dd><code>{{ t.name }}</code> - {{ t.description | doc }}</dd>{% endif %}{% endfor %}
+</dl>
+{% endif %}
+{% endif %}
+
+{% if allImplementedInterfaces is not empty %}
+<dl class="notes"><dt>All Implemented Interfaces:</dt><dd>{{ typeList(allImplementedInterfaces) }}</dd></dl>
+{% endif %}
+{% if allSuperinterfaces is not empty %}
+<dl class="notes"><dt>All Superinterfaces:</dt><dd>{{ typeList(allSuperinterfaces) }}</dd></dl>
+{% endif %}
+{% if allKnownSubinterfaces is not empty %}
+<dl class="notes"><dt>All Known Subinterfaces:</dt><dd>{{ typeList(allKnownSubinterfaces) }}</dd></dl>
+{% endif %}
+{% if allKnownImplementingClasses is not empty %}
+<dl class="notes"><dt>All Known Implementing Classes:</dt><dd>{{ typeList(allKnownImplementingClasses) }}</dd></dl>
+{% endif %}
+{% if directKnownSubclasses is not empty %}
+<dl class="notes"><dt>Direct Known Subclasses:</dt><dd>{{ typeList(directKnownSubclasses) }}</dd></dl>
+{% endif %}
+{% if enclosingType is not empty %}
+<dl class="notes"><dt>Enclosing {{ enclosingType.kind | default('class') }}:</dt><dd>{{ typeLink(enclosingType) }}</dd></dl>
+{% endif %}
+{% if isFunctionalInterface %}
+<dl class="notes"><dt>Functional Interface:</dt><dd>This is a functional interface and can therefore be used as the assignment target for a lambda expression or method reference.</dd></dl>
+{% endif %}
+
+<hr>
+<div class="type-signature">{{ signature }}</div>
+{% if description is not empty %}<div class="block">{{ description | doc }}</div>{% endif %}
+{% if deprecated is not empty %}
+<div class="deprecation-block"><span class="deprecated-label">Deprecated{% if deprecated.forRemoval %}, for removal: This API element is subject to removal in a future version{% endif %}.</span>
+{% if deprecated.since is not empty %}<span class="deprecated-label">Since {{ deprecated.since }}.</span>{% endif %}
+{% if deprecated.comment is not empty %}<div class="deprecation-comment">{{ deprecated.comment | doc }}</div>{% endif %}
+</div>
+{% endif %}
+{% if since is not empty or seeAlso is not empty or tags is not empty or authors is not empty or versions is not empty %}
+<dl class="notes">
+{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% for tag in tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | doc }}</dd>{% endfor %}
+{% if authors is not empty %}<dt>Author:</dt><dd>{{ authors | join(', ') }}</dd>{% endif %}
+{% if versions is not empty %}<dt>Version:</dt><dd>{{ versions | join(', ') }}</dd>{% endif %}
+{% if seeAlso is not empty %}
+<dt>See Also:</dt>
+<dd><ul class="see-list">{% for see in seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url | href }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>
+{% endif %}
+</dl>
+{% endif %}
+</section>
+
+<section class="summary">
+<ul class="summary-list">
+
+{% if nestedTypes is not empty or inheritedNestedTypes is not empty %}
+<li>
+<section class="nested-class-summary" id="nested-class-summary">
+<h2>Nested Class Summary</h2>
+{% if nestedTypes is not empty %}
+<div class="caption"><span>Nested Classes</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Class</div>
+<div class="table-header col-last">Description</div>
+{% for nested in nestedTypes %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>{{ nested.modifiers | join(' ') }} {{ nested.kind }}</code></div>
+<div class="col-second {{ rowColor(loop.index) }}"><code><a href="{{ nested.url | href }}">{{ nested.name }}</a></code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ nested.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+{% endif %}
+{% for group in inheritedNestedTypes %}
+<div class="inherited-list">
+<h3>Nested classes/interfaces declared in {{ group.declaringType.kind | default('class') }}&nbsp;{{ typeLink(group.declaringType) }}</h3>
+<code>{% for member in group.members %}{{ memberLink(member) }}{% if not loop.last %}, {% endif %}{% endfor %}</code>
+</div>
+{% endfor %}
+</section>
+</li>
+{% endif %}
+
+{% if enumConstants is not empty %}
+<li>
+<section class="constants-summary" id="enum-constant-summary">
+<h2>Enum Constant Summary</h2>
+<div class="caption"><span>Enum Constants</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Enum Constant</div>
+<div class="table-header col-last">Description</div>
+{% for field in enumConstants %}
+<div class="col-first {{ rowColor(loop.index) }}"><code><a href="#{{ field.anchor }}" class="member-name-link">{{ field.name }}</a></code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ field.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if fields is not empty or inheritedFields is not empty %}
+<li>
+<section class="field-summary" id="field-summary">
+<h2>Field Summary</h2>
+{% if fields is not empty %}
+<div class="caption"><span>Fields</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Field</div>
+<div class="table-header col-last">Description</div>
+{% for field in fields %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>{{ field.modifiers | join(' ') }}&nbsp;{{ typeLink(field.type) }}</code></div>
+<div class="col-second {{ rowColor(loop.index) }}"><code><a href="#{{ field.anchor }}" class="member-name-link">{{ field.name }}</a></code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ field.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+{% endif %}
+{% for group in inheritedFields %}
+<div class="inherited-list">
+<h3>Fields declared in {{ group.declaringType.kind | default('class') }}&nbsp;{{ typeLink(group.declaringType) }}</h3>
+<code>{% for member in group.members %}{{ memberLink(member) }}{% if not loop.last %}, {% endif %}{% endfor %}</code>
+</div>
+{% endfor %}
+</section>
+</li>
+{% endif %}
+
+{% if constructors is not empty %}
+<li>
+<section class="constructor-summary" id="constructor-summary">
+<h2>Constructor Summary</h2>
+<div class="caption"><span>Constructors</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Constructor</div>
+<div class="table-header col-last">Description</div>
+{% for ctor in constructors %}
+<div class="col-constructor-name {{ rowColor(loop.index) }}"><code><a href="#{{ ctor.anchor }}" class="member-name-link">{{ ctor.name }}</a>{{ parameters(ctor.parameters) }}</code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ ctor.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if annotationElements is not empty %}
+<li>
+<section class="member-summary" id="annotation-interface-element-summary">
+<h2>Element Summary</h2>
+<div class="caption"><span>Elements</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Element</div>
+<div class="table-header col-last">Description</div>
+{% for element in annotationElements %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>{{ typeLink(element.returnType) }}</code></div>
+<div class="col-second {{ rowColor(loop.index) }}"><code><a href="#{{ element.anchor }}" class="member-name-link">{{ element.name }}</a></code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ element.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if methods is not empty or inheritedMethods is not empty %}
+<li>
+<section class="method-summary" id="method-summary">
+<h2>Method Summary</h2>
+{% if methods is not empty %}
+<div class="caption"><span>All Methods</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Method</div>
+<div class="table-header col-last">Description</div>
+{% for method in methods %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>{{ method.modifiers | join(' ') }}&nbsp;{{ typeLink(method.returnType) }}</code></div>
+<div class="col-second {{ rowColor(loop.index) }}"><code><a href="#{{ method.anchor }}" class="member-name-link">{{ method.name }}</a>{{ parameters(method.parameters) }}</code></div>
+<div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ method.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+{% endif %}
+{% for group in inheritedMethods %}
+<div class="inherited-list">
+<h3>Methods declared in {{ group.declaringType.kind | default('class') }}&nbsp;{{ typeLink(group.declaringType) }}</h3>
+<code>{% for member in group.members %}{{ memberLink(member) }}{% if not loop.last %}, {% endif %}{% endfor %}</code>
+</div>
+{% endfor %}
+</section>
+</li>
+{% endif %}
+
+</ul>
+</section>
+
+<section class="details">
+<ul class="details-list">
+
+{% if enumConstants is not empty %}
+<li>
+<section class="constant-details" id="enum-constant-detail">
+<h2>Enum Constant Details</h2>
+<ul class="member-list">
+{% for field in enumConstants %}{{ fieldDetail(field) }}{% endfor %}
+</ul>
+</section>
+</li>
+{% endif %}
+
+{% if fields is not empty %}
+<li>
+<section class="field-details" id="field-detail">
+<h2>Field Details</h2>
+<ul class="member-list">
+{% for field in fields %}{{ fieldDetail(field) }}{% endfor %}
+</ul>
+</section>
+</li>
+{% endif %}
+
+{% if constructors is not empty %}
+<li>
+<section class="constructor-details" id="constructor-detail">
+<h2>Constructor Details</h2>
+<ul class="member-list">
+{% for ctor in constructors %}{{ executableDetail(ctor) }}{% endfor %}
+</ul>
+</section>
+</li>
+{% endif %}
+
+{% if annotationElements is not empty %}
+<li>
+<section class="member-details" id="annotation-interface-element-detail">
+<h2>Element Details</h2>
+<ul class="member-list">
+{% for element in annotationElements %}{{ executableDetail(element) }}{% endfor %}
+</ul>
+</section>
+</li>
+{% endif %}
+
+{% if methods is not empty %}
+<li>
+<section class="method-details" id="method-detail">
+<h2>Method Details</h2>
+<ul class="member-list">
+{% for method in methods %}{{ executableDetail(method) }}{% endfor %}
+</ul>
+</section>
+</li>
+{% endif %}
+
+</ul>
+</section>
+{% endblock %}
