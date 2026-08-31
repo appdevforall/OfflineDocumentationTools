@@ -130,10 +130,11 @@ def delete_content(conn, path: str) -> None:
 
 def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
                            chunked_log: list, compressor: DictionaryCompressor) -> bool:
-    """Inserts one already-optimized file's bytes as-is. Unlike
-    populate_db.py's own insert_file, this does not run pngquant itself -
-    optimize_media.py already did, and running it again here would just
-    re-quantize an already-quantized image for no benefit. Returns False
+    """Inserts one already-optimized file's bytes as-is - optimize_media.py
+    (run just above) owns every optimization decision in this pipeline, and
+    re-quantizing an already-quantized image here would only lose quality for
+    no size win. populate_db.py's own insert_file inserts raw bytes for the
+    same reason: this step replaces every image row it wrote. Returns False
     (skipping the file, with a warning) for an extension with no known
     content type."""
     content_type_value = IMAGE_EXTENSION_TO_CONTENT_TYPE.get(Path(name).suffix.lower())

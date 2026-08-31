@@ -76,8 +76,36 @@ on:
           Ignored if skip_website_docs is true.
         required: false
         default: ''
+      kotlin_libs_version:
+        description: >-
+          Version of the published kotlin-stdlib/-reflect/-test artifacts to
+          document (Gradle -PdeployVersion). kotlin_big extracts the real
+          binaries at this version rather than requiring a local build of the
+          whole kotlin repo, which is what the checkout's own
+          defaultSnapshotVersion would otherwise demand. Keep this in step with
+          kotlin_ref. Set empty to fall back to that snapshot default, which
+          only resolves if you have built the kotlin repo yourself.
+        required: false
+        default: '2.4.10'
+      kotlin_libs_repo:
+        description: >-
+          Maven repository to resolve those artifacts from (Gradle
+          -PkotlinLibsRepo). kotlin_big already declares mavenCentral(), so a
+          released kotlin_libs_version needs nothing here; set it to point at a
+          private or snapshot repository instead.
+        required: false
+        default: ''
       skip_website_docs:
         description: 'Skip the kotlin-web-site steps and only refresh kotlin-stdlib/-reflect/-test JSON content.'
+        required: false
+        default: false
+        type: boolean
+      skip_stdlib_docs:
+        description: >-
+          Skip the kotlin-stdlib/-reflect/-test steps (cloning JetBrains/kotlin,
+          the Dokka JSON build, and the sync into the database) and only refresh
+          the kotlin-web-site content. The mirror image of skip_website_docs -
+          setting both leaves nothing for the run to do and is rejected.
         required: false
         default: false
         type: boolean
@@ -108,12 +136,34 @@ jobs:
       # Drive). Leave both empty ('') for normal operation.
       TEST_DB_FILE_ID: ''
       TEST_IMAGES_ZIP_FILE_ID: ''
+      SKIP_WEBSITE_DOCS: ${{ inputs.skip_website_docs }}
+      KOTLIN_LIBS_VERSION: ${{ inputs.kotlin_libs_version }}
+      KOTLIN_LIBS_REPO: ${{ inputs.kotlin_libs_repo }}
+      SKIP_STDLIB_DOCS: ${{ inputs.skip_stdlib_docs }}
+      # The ADFA-4737 blacklist, defined once and consumed by both the
+      # populate_db.py step and the verification step that checks its effect.
+      # Previously spelled out separately in each, which let the verification
+      # drift onto a different list than the one actually applied and still
+      # report PASS. run_e2e_pipeline_test.sh already had it right (a single
+      # BLACKLIST array expanded at both call sites); this matches that.
+      # One entry per line, read back with `mapfile -t`. Re-derive these from
+      # kotlin-web-site/docs/kr.tree if its nav structure has changed.
+      # "|-" (not "|") so there's no trailing blank line to become a 4th,
+      # empty array element.
+      BLACKLISTED_ELEMENT_TITLES: |-
+        Development\/Web development
+        Interoperability\/Swift/Objective-C and C interop
+        Interoperability\/JavaScript interop
     steps:
       - name: Checkout OfflineDocumentationTools
         uses: actions/checkout@v4
 
       - name: Resolve Google Drive file IDs
         run: |
+          if [ "$SKIP_WEBSITE_DOCS" = "true" ] && [ "$SKIP_STDLIB_DOCS" = "true" ]; then
+            echo "Error: skip_website_docs and skip_stdlib_docs are both true - that skips every step that changes the database, leaving nothing for this run to do" >&2
+            exit 1
+          fi
           DB_FILE_ID="${TEST_DB_FILE_ID:-$DB_FILE_ID_SECRET}"
           IMG_FILE_ID="${TEST_IMAGES_ZIP_FILE_ID:-${IMAGES_ZIP_FILE_ID_INPUT:-$IMAGES_ZIP_FILE_ID_SECRET}}"
           if [ -z "$DB_FILE_ID" ]; then
@@ -226,18 +276,15 @@ jobs:
       - name: 'Step 2/5: populate_db.py (convert docs, prune blacklist, insert into db)'
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          # Same three blacklist entries as run_e2e_pipeline_test.sh
-          # (ADFA-4737) - re-derive these from kotlin-web-site/docs/kr.tree
-          # if its nav structure has changed since this was written.
+          # BLACKLISTED_ELEMENT_TITLES is defined once in this job's env: block
+          # (ADFA-4737); the verification step below reads the same variable.
+          mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
           python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
             kotlin-web-site/docs \
             ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/config.json \
             webHelpImages.zip \
             documentation.db \
-            --blacklisted-element-titles \
-              'Development\/Web development' \
-              'Interoperability\/Swift/Objective-C and C interop' \
-              'Interoperability\/JavaScript interop'
+            --blacklisted-element-titles "${BLACKLIST[@]}"
 
       - name: 'Step 3/5: insert_optimized_media.py (re-optimize + reinsert images)'
         if: ${{ !inputs.skip_website_docs }}
@@ -254,19 +301,26 @@ jobs:
             --jpeg-quality 85 --webp --webp-quality 90 --verbose
 
       - name: Clone kotlin (for kotlin-stdlib-docs)
+        if: ${{ !inputs.skip_stdlib_docs }}
         run: |
           ARGS=(--depth 1)
           [ -n "$KOTLIN_REF" ] && ARGS+=(--branch "$KOTLIN_REF")
           git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin.git kotlin-repo
 
       - name: 'Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdlib/-reflect/-test JSON)'
+        if: ${{ !inputs.skip_stdlib_docs }}
         id: stdlib_docs
         run: |
-          OUTPUT="$(Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh kotlin-repo stdlib-json-build)"
+          ARGS=()
+          [ -n "$KOTLIN_LIBS_VERSION" ] && ARGS+=(--kotlin-libs-version "$KOTLIN_LIBS_VERSION")
+          [ -n "$KOTLIN_LIBS_REPO" ] && ARGS+=(--kotlin-libs-repo "$KOTLIN_LIBS_REPO")
+          OUTPUT="$(Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh \
+            "${ARGS[@]}" kotlin-repo stdlib-json-build)"
           echo "Generated JSON docs at $OUTPUT"
           echo "all_libs_dir=$OUTPUT" >> "$GITHUB_OUTPUT"
 
       - name: 'Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
+        if: ${{ !inputs.skip_stdlib_docs }}
         run: |
           python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
             "${{ steps.stdlib_docs.outputs.all_libs_dir }}" --db documentation.db
@@ -295,10 +349,12 @@ jobs:
       - name: Blacklist pruning verification
         if: ${{ !inputs.skip_website_docs }}
         run: |
+          # Same BLACKLISTED_ELEMENT_TITLES the populate_db.py step above
+          # applied - read from the job env rather than restated here, so this
+          # check can't silently verify a different list than the one used.
+          mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
           python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
-            'Development\/Web development' \
-            'Interoperability\/Swift/Objective-C and C interop' \
-            'Interoperability\/JavaScript interop' <<'PYEOF'
+            "${BLACKLIST[@]}" <<'PYEOF'
           import sqlite3
           import sys
           import xml.etree.ElementTree as ET

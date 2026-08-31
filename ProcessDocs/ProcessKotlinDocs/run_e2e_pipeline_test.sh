@@ -64,6 +64,19 @@ TEST_DB="$(dirname "$SOURCE_DB")/documentation.test.db"
 JPEG_QUALITY=85
 WEBP_QUALITY=90
 
+# Which published kotlin-stdlib/-reflect/-test artifacts step 4/5 documents.
+# kotlin_big (inside kotlin-stdlib-docs) extracts the real binaries from a
+# Maven repo; left unset it looks for "<kotlin-root>/build/repo" at the
+# checkout's own defaultSnapshotVersion, i.e. artifacts that only exist if you
+# have built the whole kotlin repo locally. Naming a released version instead
+# resolves them straight from Maven Central. Keep it in step with the ref your
+# STDLIB_DOCS_DIR checkout is on; set empty to use the checkout's own default.
+KOTLIN_LIBS_VERSION=2.4.10
+# Maven repo to resolve them from. Empty is fine for a released
+# KOTLIN_LIBS_VERSION (kotlin_big already declares mavenCentral()); set this
+# only to point at a private or snapshot repository.
+KOTLIN_LIBS_REPO=""
+
 # Full toc-title path (top-level -> ... -> target), joined with "\/" per
 # populate_db.py's --blacklisted-element-titles convention. These are the
 # concrete cases named in ADFA-4737; add more "path" entries here to prune
@@ -138,8 +151,11 @@ echo "== Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdli
 # resolve kotlin_root inside the injected build.gradle.kts) is exactly three
 # levels up, matching that build.gradle.kts's own "../../../" convention.
 KOTLIN_ROOT="$(cd "$STDLIB_DOCS_DIR/../../.." && pwd)"
+STDLIB_ARGS=()
+[ -n "$KOTLIN_LIBS_VERSION" ] && STDLIB_ARGS+=(--kotlin-libs-version "$KOTLIN_LIBS_VERSION")
+[ -n "$KOTLIN_LIBS_REPO" ] && STDLIB_ARGS+=(--kotlin-libs-repo "$KOTLIN_LIBS_REPO")
 STDLIB_ALL_LIBS="$("$REPO_ROOT/Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh" \
-    "$KOTLIN_ROOT" "$WORKDIR/stdlib-json")"
+    ${STDLIB_ARGS[@]+"${STDLIB_ARGS[@]}"} "$KOTLIN_ROOT" "$WORKDIR/stdlib-json")"
 echo "Generated JSON docs at $STDLIB_ALL_LIBS"
 
 echo

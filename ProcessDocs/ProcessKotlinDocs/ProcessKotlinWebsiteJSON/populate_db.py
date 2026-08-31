@@ -34,6 +34,9 @@ a backslash.
 <db-path> defaults to "documentation.db". A safety backup (via SQLite's
 "VACUUM INTO", which is safe even against a live/WAL-mode database) is
 written next to it before any changes: "<db-path>.backup-<timestamp>".
+It is taken late - after conversion, which is the last step that can still
+refuse to proceed - so a run that bails without writing doesn't leave a
+full-size copy of the database behind for nothing.
 
 <images-zip> is Writerside's own official image output for this doc set
 (e.g. "webHelpImages.zip", found next to kr.tree) - a flat archive with no
@@ -178,10 +181,16 @@ EXTENSION_TO_CONTENT_TYPE = {
     ".js": "text/javascript",
 }
 
-# pngquant is a lossy PNG-only compressor; it can't touch svg/gif/jpeg, so
-# this is the only content type run through it before insertion.
-PNGQUANT_CONTENT_TYPE = "image/png"
-PNGQUANT_QUALITY = "65-80"
+# Images are inserted here as-is. This script used to run every PNG through
+# pngquant on the way in, but insert_optimized_media.py (step 3/5, which both
+# run_e2e_pipeline_test.sh and .github/workflows/build-kotlin-docs*.yaml always
+# run straight after this) re-optimizes the same source images and replaces
+# every one of those rows - measured on the live corpus, 0 of the PNG rows this
+# script writes survive that step (161 become .webp, and the 51 remaining image
+# rows are .svg/.gif, which pngquant can't touch anyway). So the pngquant pass
+# here was pure discarded work. Anything that wants optimized media in the
+# database should run insert_optimized_media.py, which owns that decision and
+# has the full option surface (--jpeg-quality/--webp/--pngquant-speed/...) for it.
 
 # Single-row table: the whole documentation.db has exactly one shared Brotli
 # dictionary, embedded here so it always ships in sync with the content
@@ -201,39 +210,10 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 DEFAULT_DICT_SIZE = 256 * 1024
 
 
-def find_pngquant() -> str:
-    """Locates the pngquant executable on PATH. Raises if it's missing,
-    rather than silently inserting uncompressed PNGs - that'd be a silent
-    regression in output size that's easy to miss."""
-    path = shutil.which("pngquant")
-    if path is None:
-        raise RuntimeError("pngquant not found on PATH; install it (e.g. `apt install pngquant`) and retry")
-    return path
-
-
-def compress_png_with_pngquant(data: bytes, pngquant_path: str, name: str) -> bytes:
-    """Runs pngquant on a single PNG's raw bytes (stdin -> stdout, no temp
-    files), returning the compressed bytes. Falls back to the original bytes
-    unchanged if pngquant declines to compress this particular image (e.g.
-    its exit code 99 means the result would fall below --quality's floor) or
-    otherwise fails, since a slightly larger PNG beats a missing/corrupt one."""
-    result = subprocess.run(
-        [pngquant_path, "--quality", PNGQUANT_QUALITY, "--strip", "--force", "--output", "-", "-"],
-        input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
-    if result.returncode != 0 or not result.stdout:
-        print(
-            f"warning: pngquant declined to compress {name!r} "
-            f"(exit {result.returncode}: {result.stderr.decode(errors='replace').strip()}); keeping original",
-            file=sys.stderr,
-        )
-        return data
-    return result.stdout
-
-
 def find_tool(name: str) -> str:
     """Locates an executable on PATH. Raises if it's missing, rather than
-    silently falling back to some other behavior - see find_pngquant."""
+    silently falling back to some other behavior, which would turn a missing
+    tool into a wrong-output bug much further downstream."""
     path = shutil.which(name)
     if path is None:
         raise RuntimeError(f"{name} not found on PATH; install it and retry")
@@ -475,13 +455,14 @@ def insert_chunked_content(conn, path: str, language_id: int, content_type_id: i
 
 
 def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
-                 chunked_log: list, pngquant_path: str, compressor: "DictionaryCompressor") -> bool:
+                 chunked_log: list, compressor: "DictionaryCompressor") -> bool:
     """Inserts one raw (templateId 0) file's bytes as a Content row (chunked
     via insert_chunked_content if needed). name is only used to look up its
     content type by extension. Returns False (and skips it, with a warning)
     for an extension not in EXTENSION_TO_CONTENT_TYPE instead of guessing at
-    a content type. PNGs are run through pngquant first - the only content
-    type it's compatible with - before the usual dictionary-Brotli compression."""
+    a content type. Bytes go in as given, apart from the usual
+    dictionary-Brotli compression - image optimization belongs to
+    insert_optimized_media.py (see the note by EXTENSION_TO_CONTENT_TYPE)."""
     content_type_value = EXTENSION_TO_CONTENT_TYPE.get(Path(name).suffix.lower())
     if content_type_value is None:
         print(f"warning: no known content type for {name!r}; skipping", file=sys.stderr)
@@ -490,8 +471,6 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
         content_type_cache[content_type_value] = get_content_type(conn, content_type_value)
     content_type_id, compress = content_type_cache[content_type_value]
 
-    if content_type_value == PNGQUANT_CONTENT_TYPE:
-        data = compress_png_with_pngquant(data, pngquant_path, name)
     if compress:
         data = compressor.compress(data)
     insert_chunked_content(conn, db_path, language_id, content_type_id, 0, data, chunked_log)
@@ -634,12 +613,6 @@ def main():
         print(f"error: {args.db_path} does not exist", file=sys.stderr)
         sys.exit(1)
 
-    pngquant_path = find_pngquant()
-
-    print(f"Backing up {args.db_path}...", file=sys.stderr)
-    backup_path = backup_database(args.db_path)
-    print(f"Backup written to {backup_path}", file=sys.stderr)
-
     config = load_config(args.config)
     variables = load_variables(docs_root)
     topic_index = build_topic_index(topics_dir)  # stem -> nested id, e.g. "tour/kotlin-tour-hello-world"
@@ -739,6 +712,17 @@ def main():
         )
         sys.exit(1)
 
+    # Backed up only once everything that can still refuse to proceed has had
+    # its say - conversion is the last of those, and it happens entirely in
+    # memory. Taking the backup up front (where it used to be) meant every run
+    # that then bailed on a conversion failure still left a full copy of the
+    # database behind: ~250MB per failed attempt against the production file,
+    # none of it ever needed, since a run that refuses to write has nothing to
+    # roll back to.
+    print(f"Backing up {args.db_path}...", file=sys.stderr)
+    backup_path = backup_database(args.db_path)
+    print(f"Backup written to {backup_path}", file=sys.stderr)
+
     # kr.tree's start-page is home.topic, not a .md file, so it never goes
     # through the conversion loop above - nav ends up linking to
     # k/html/home.html with no page actually there. Insert an empty
@@ -834,7 +818,7 @@ def main():
                 for base, entry in sorted(image_entry_by_name.items()):
                     db_path = f"{IMAGES_DB_PATH_PREFIX}{base}"
                     if insert_file(conn, zf.read(entry), base, db_path, language_id, content_type_cache, chunked_log,
-                                    pngquant_path, compressor):
+                                    compressor):
                         images_inserted += 1
 
             assets_inserted = 0
@@ -843,7 +827,7 @@ def main():
                     continue
                 db_path = f"assets/{asset_path.name}"
                 if insert_file(conn, asset_path.read_bytes(), asset_path.name, db_path, language_id,
-                                content_type_cache, chunked_log, pngquant_path, compressor):
+                                content_type_cache, chunked_log, compressor):
                     assets_inserted += 1
 
         conn.commit()

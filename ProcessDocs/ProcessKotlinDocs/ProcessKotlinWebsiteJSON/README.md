@@ -19,7 +19,7 @@ straight into a `documentation.db`-schema SQLite database.
 ## Requirements
 
 - Python 3.10+ and [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — every command below is run as `uv run --with-requirements <repo-root>/requirements.txt <script>.py ...`, which installs `markdown-it-py`, `Pillow`, `scour`, `cairosvg`, `brotli`, and the rest of the repo's dependencies into an ephemeral environment; there's no separate `pip install` step.
-- `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
+- `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`. `populate_db.py` does *not* need it: it inserts the Writerside export's images as-is, since `insert_optimized_media.py` (step 3) re-optimizes and replaces every one of those rows straight afterwards.
 
 `populate_db.py` also expects, relative to its own location, and already
 included in this directory:
@@ -99,7 +99,7 @@ uv run --with-requirements ../../../requirements.txt populate_db.py <docs-root> 
 ```
 
 - `db-path` defaults to `documentation.db` in the current directory, and must already exist with the expected schema (`Languages`, `ContentTypes`, `Templates` tables populated).
-- A timestamped backup (`<db-path>.backup-<timestamp>`) is written before any changes, via SQLite's `VACUUM INTO`.
+- A timestamped backup (`<db-path>.backup-<timestamp>`) is written before any changes, via SQLite's `VACUUM INTO`. It is taken after conversion — the last step that can still refuse to proceed — so a run that bails (e.g. on a conversion failure, without `--allow-conversion-failures`) doesn't leave a full-size copy of the database behind for nothing.
 - Everything under `k/html/` and `assets/` is deleted and re-inserted in a single transaction (rolled back on error), then the database is `VACUUM`ed.
 
 ### Pruning documentation you don't want (ADFA-4737)
