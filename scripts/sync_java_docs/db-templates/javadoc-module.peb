@@ -1,0 +1,312 @@
+{#
+  The page skeleton every javadoc page shares: the two navigation bars, the flex wrapper, and the
+  footer. Class names follow the official javadoc output (top-nav, sub-nav, flex-content, header,
+  ...) so the accompanying stylesheet and the real one describe the same structure.
+#}<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ pathToRoot }}stylesheet.css">
+</head>
+<body class="module-declaration-page">
+<div class="flex-box">
+<header role="banner">
+<nav role="navigation">
+<div class="top-nav">
+<div class="nav-content">
+<ul class="nav-list" title="Navigation">
+<li><a href="{{ pathToRoot }}index.html">Overview</a></li>
+<li><a href="{{ pathToRoot }}allpackages-index.html">All&nbsp;Packages</a></li>
+<li><a href="{{ pathToRoot }}allclasses-index.html">All&nbsp;Classes</a></li>
+<li><a href="{{ pathToRoot }}deprecated-list.html">Deprecated</a></li>
+<li><a href="{{ pathToRoot }}constant-values.html">Constant&nbsp;Field&nbsp;Values</a></li>
+<li><a href="{{ pathToRoot }}index-files/index-1.html">Index</a></li>
+</ul>
+</div>
+</div>
+
+<div class="sub-nav"><div class="nav-content"><ol class="sub-nav-list"><li>{{ name }}</li></ol></div></div>
+
+</nav>
+</header>
+<div class="flex-content">
+<main role="main">
+
+<div class="header">
+<h1 title="Module {{ name }}" class="title">Module {{ name }}</h1>
+</div>
+
+<section class="module-description" id="module-description">
+{% if description is not empty %}<div class="block">{{ description | raw }}</div>{% endif %}
+{% if hasModuleGraph %}
+<dl class="notes">
+<dt>Module Graph:</dt>
+<dd><a class="module-graph" href="module-graph.svg"><img style="vertical-align:top" alt="Module graph for {{ name }}" src="module-graph.svg" height="100"><span><img style="border: solid lightgray 1px; vertical-align:top" alt="Module graph for {{ name }}" src="module-graph.svg"></span></a></dd>
+</dl>
+{% endif %}
+{% if since is not empty or tags is not empty or seeAlso is not empty %}
+<dl class="notes">
+{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% for tag in tags %}{% if tag.name != 'moduleGraph' and tag.name != 'uses' and tag.name != 'provides' %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endif %}{% endfor %}
+{% if seeAlso is not empty %}<dt>See Also:</dt><dd><ul class="see-list">{% for see in seeAlso %}<li><code>{{ see.label }}</code></li>{% endfor %}</ul></dd>{% endif %}
+</dl>
+{% endif %}
+</section>
+
+<section class="summary">
+<ul class="summary-list">
+
+{% if requires is not empty %}
+<li>
+<section class="modules-summary" id="modules-summary">
+<h2>Modules</h2>
+<div class="caption"><span>Requires</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier</div>
+<div class="table-header col-second">Module</div>
+<div class="table-header col-last">Description</div>
+{% for req in requires %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if req.isTransitive %}transitive{% endif %}{% if req.isStatic %}static{% endif %}</code></div>
+<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if req.url is not empty %}<a href="{{ req.url  }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if indirectRequires is not empty %}
+<li>
+<section class="modules-summary" id="indirect-requires-summary">
+{% if requires is empty %}<h2>Modules</h2>{% endif %}
+<div class="caption"><span>Indirect Requires</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier</div>
+<div class="table-header col-second">Module</div>
+<div class="table-header col-last">Description</div>
+{% for req in indirectRequires %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>transitive</code></div>
+<div class="col-second {{ rowColor(loop.index) }}">{% if req.url is not empty %}<a href="{{ req.url  }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
+<div class="col-last {{ rowColor(loop.index) }}"></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if exports is not empty %}
+<li>
+<section class="packages-summary" id="packages-summary">
+<h2>Packages</h2>
+<div class="caption"><span>Exports</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Package</div>
+<div class="table-header col-second">Exported To Modules</div>
+<div class="table-header col-last">Description</div>
+{% for export in exports %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.url is not empty %}<a href="{{ export.url  }}">{{ export.packageName }}</a>{% else %}{{ export.packageName }}{% endif %}</div>
+<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.to is not empty %}{{ export.to | join(', ') }}{% else %}All Modules{% endif %}</div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ export.firstSentence | raw }}</div></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if indirectExports is not empty %}
+<li>
+<section class="packages-summary" id="indirect-exports-summary">
+<div class="caption"><span>Indirect Exports</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">From</div>
+<div class="table-header col-last">Packages</div>
+{% for entry in indirectExports %}
+<div class="col-first {{ rowColor(loop.index) }}">{% if entry.moduleUrl is not empty %}<a href="{{ entry.moduleUrl  }}">{{ entry.module }}</a>{% else %}{{ entry.module }}{% endif %}</div>
+<div class="col-last {{ rowColor(loop.index) }}">{% for pkg in entry.packages %}{% if pkg.url is not empty %}<a href="{{ pkg.url  }}">{{ pkg.name }}</a>{% else %}{{ pkg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if opens is not empty %}
+<li>
+<section class="packages-summary" id="opens-summary">
+<h2>Opens</h2>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Package</div>
+<div class="table-header col-last">Opened To Modules</div>
+{% for open in opens %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.url is not empty %}<a href="{{ open.url  }}">{{ open.packageName }}</a>{% else %}{{ open.packageName }}{% endif %}</div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.to is not empty %}{{ open.to | join(', ') }}{% else %}All Modules{% endif %}</div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if uses is not empty or provides is not empty %}
+<li>
+<section class="services-summary" id="services-summary">
+<h2>Services</h2>
+{% if uses is not empty %}
+<div class="caption"><span>Uses</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Type</div>
+<div class="table-header col-last">Description</div>
+{% for use in uses %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(use) }}</code></div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+{% endfor %}
+</div>
+{% endif %}
+{% if provides is not empty %}
+<div class="caption"><span>Provides</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Type</div>
+<div class="table-header col-last">Implementations</div>
+{% for provide in provides %}
+<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(provide.service) }}</code></div>
+<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% for impl in provide.implementations %}{{ typeLink(impl) }}{% if not loop.last %}, {% endif %}{% endfor %}</code></div>
+{% endfor %}
+</div>
+{% endif %}
+</section>
+</li>
+{% endif %}
+
+</ul>
+</section>
+
+</main>
+<footer role="contentinfo">
+<hr>
+<p class="legal-copy"><small>Generated from javadoc-mode JSON by kdoc-to-json's Pebble renderer.</small></p>
+</footer>
+</div>
+</div>
+</body>
+</html>
+
+
+{% macro tagLabel(name) %}
+{%- if name == 'apiNote' -%}API Note:
+{%- elseif name == 'implSpec' -%}Implementation Requirements:
+{%- elseif name == 'implNote' -%}Implementation Note:
+{%- elseif name == 'jls' -%}See Java Language Specification:
+{%- elseif name == 'jvms' -%}See Java Virtual Machine Specification:
+{%- elseif name == 'serialData' -%}Serial Data:
+{%- elseif name == 'serialField' -%}Serial Field:
+{%- elseif name == 'serial' -%}Serial:
+{%- elseif name == 'toolGuide' -%}Tool Guides:
+{%- elseif name == 'revised' -%}Revised:
+{%- elseif name == 'spec' -%}External Specifications:
+{%- else -%}{{ name }}:
+{%- endif -%}
+{% endmacro %}
+{% macro typeLink(ref) %}
+{%- if ref is not empty -%}
+{%- if ref.url is not empty -%}
+<a href="{{ ref.url  }}" title="{{ ref.kind | default('type') }} {{ ref.qualifiedName | default('') }}">{{ ref.display }}</a>
+{%- else -%}
+{{ ref.display }}
+{%- endif -%}
+{%- endif -%}
+{% endmacro %}
+{% macro typeList(refs) %}
+{%- for ref in refs -%}{{ typeLink(ref) }}{% if not loop.last %}, {% endif %}{%- endfor -%}
+{% endmacro %}
+{% macro memberLink(ref) %}
+{%- if ref.url is not empty -%}<a href="{{ ref.url  }}">{{ ref.name }}</a>{%- else -%}{{ ref.name }}{%- endif -%}
+{% endmacro %}
+{% macro note(label, body) %}
+<dt>{{ label }}</dt>
+<dd>{{ body | raw }}</dd>
+{% endmacro %}
+{% macro modifiers(list) %}
+{%- if list is not empty %}<span class="modifiers">{{ list | join(' ') }}</span>&nbsp;{% endif -%}
+{% endmacro %}
+{% macro parameters(params) %}
+<wbr><span class="parameters">({%- for p in params -%}{{ typeLink(p.type) }}&nbsp;{{ p.name }}{% if not loop.last %},&nbsp;{% endif %}{%- endfor -%})</span>
+{% endmacro %}
+{% macro throwsClause(exceptions) %}
+{%- if exceptions is not empty %}<span class="throws-clause">&nbsp;throws&nbsp;{% for e in exceptions %}{{ typeLink(e.type) }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif -%}
+{% endmacro %}
+{% macro rowColor(index) %}{% if index is odd %}odd-row-color{% else %}even-row-color{% endif %}{% endmacro %}
+{% macro commonNotes(item) %}
+{% if item.deprecated is not empty %}
+<div class="deprecation-block"><span class="deprecated-label">Deprecated{% if item.deprecated.forRemoval %}, for removal: This API element is subject to removal in a future version{% endif %}.</span>
+{% if item.deprecated.since is not empty %}<span class="deprecated-label">Since {{ item.deprecated.since }}.</span>{% endif %}
+{% if item.deprecated.comment is not empty %}<div class="deprecation-comment">{{ item.deprecated.comment | raw }}</div>{% endif %}
+</div>
+{% endif %}
+{% if item.since is not empty or item.seeAlso is not empty or item.tags is not empty or item.authors is not empty or item.versions is not empty %}
+<dl class="notes">
+{% if item.since is not empty %}<dt>Since:</dt><dd>{{ item.since | join(', ') }}</dd>{% endif %}
+{% for tag in item.tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endfor %}
+{% if item.authors is not empty %}<dt>Author:</dt><dd>{{ item.authors | join(', ') }}</dd>{% endif %}
+{% if item.versions is not empty %}<dt>Version:</dt><dd>{{ item.versions | join(', ') }}</dd>{% endif %}
+{% if item.seeAlso is not empty %}
+<dt>See Also:</dt>
+<dd><ul class="see-list">{% for see in item.seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url  }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>
+{% endif %}
+</dl>
+{% endif %}
+{% endmacro %}
+{% macro fieldDetail(field) %}
+<li>
+<section class="detail" id="{{ field.anchor }}">
+<h3>{{ field.name }}</h3>
+<div class="member-signature">{{ modifiers(field.modifiers) }}<span class="return-type">{{ typeLink(field.type) }}</span>&nbsp;<span class="element-name">{{ field.name }}</span></div>
+{% if field.description is not empty %}<div class="block">{{ field.description | raw }}</div>{% endif %}
+{{ commonNotes(field) }}
+{% if field.constantValue is not empty %}
+<dl class="notes"><dt>Constant Field Value:</dt><dd><code>{{ field.constantValue }}</code></dd></dl>
+{% endif %}
+</section>
+</li>
+{% endmacro %}
+{% macro executableDetail(member) %}
+<li>
+<section class="detail" id="{{ member.anchor }}">
+<h3>{{ member.name }}</h3>
+<div class="member-signature">{{ modifiers(member.modifiers) }}{% if member.typeParameters is not empty %}<span class="type-parameters">&lt;{% for t in member.typeParameters %}{{ t.name }}{% if not loop.last %},{% endif %}{% endfor %}&gt;</span>&nbsp;{% endif %}{% if member.returnType is not empty %}<span class="return-type">{{ typeLink(member.returnType) }}</span>&nbsp;{% endif %}<span class="element-name">{{ member.name }}</span>{{ parameters(member.parameters) }}{{ throwsClause(member.exceptions) }}</div>
+{% if member.description is not empty %}<div class="block">{{ member.description | raw }}</div>{% endif %}
+{% if member.specifiedBy is not empty or member.overrides is not empty or member.typeParameters is not empty or member.parameters is not empty or member.returns is not empty or member.exceptions is not empty %}
+<dl class="notes">
+{% for spec in member.specifiedBy %}
+<dt>Specified by:</dt>
+<dd><code>{{ memberLink(spec) }}</code>&nbsp;in {{ spec.declaringType.kind | default('interface') }}&nbsp;<code>{{ typeLink(spec.declaringType) }}</code></dd>
+{% endfor %}
+{% if member.overrides is not empty %}
+<dt>Overrides:</dt>
+<dd><code>{{ memberLink(member.overrides) }}</code>&nbsp;in {{ member.overrides.declaringType.kind | default('class') }}&nbsp;<code>{{ typeLink(member.overrides.declaringType) }}</code></dd>
+{% endif %}
+{% set hasTypeParamDocs = false %}
+{% for t in member.typeParameters %}{% if t.description is not empty %}{% set hasTypeParamDocs = true %}{% endif %}{% endfor %}
+{% if hasTypeParamDocs %}
+<dt>Type Parameters:</dt>
+{% for t in member.typeParameters %}{% if t.description is not empty %}<dd><code>{{ t.name }}</code> - {{ t.description | raw }}</dd>{% endif %}{% endfor %}
+{% endif %}
+{% set hasParamDocs = false %}
+{% for p in member.parameters %}{% if p.description is not empty %}{% set hasParamDocs = true %}{% endif %}{% endfor %}
+{% if hasParamDocs %}
+<dt>Parameters:</dt>
+{% for p in member.parameters %}{% if p.description is not empty %}<dd><code>{{ p.name }}</code> - {{ p.description | raw }}</dd>{% endif %}{% endfor %}
+{% endif %}
+{% if member.returns is not empty %}<dt>Returns:</dt><dd>{{ member.returns | raw }}</dd>{% endif %}
+{% if member.exceptions is not empty %}
+<dt>Throws:</dt>
+{% for e in member.exceptions %}<dd><code>{{ typeLink(e.type) }}</code>{% if e.description is not empty %} - {{ e.description | raw }}{% endif %}</dd>{% endfor %}
+{% endif %}
+</dl>
+{% endif %}
+{% if member.defaultValue is not empty %}
+<dl class="notes"><dt>Default:</dt><dd><code>{{ member.defaultValue }}</code></dd></dl>
+{% endif %}
+{{ commonNotes(member) }}
+</section>
+</li>
+{% endmacro %}
