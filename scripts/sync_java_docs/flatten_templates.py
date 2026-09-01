@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""Flattens the pebble-renderer templates into standalone templates for documentation.db.
+"""Builds the single Pebble template that documentation.db serves the Java API docs from.
 
 The renderer in `pebble-renderer/` and the reader that serves documentation.db run Pebble in two
 different environments, and the database's is the narrower one:
 
-  * Templates are stored one per row in `Templates`, with no loader that can resolve
-    `{% extends "base" %}` or `{% import "macros" %}` by name. Every template already in the
-    database (page.peb, nav.peb, layout.pebble) is self-contained, so that is the contract.
-  * Only Pebble's built-in filters are available. The renderer's `href` and `doc` filters are Java
-    classes that ship with it and are not there.
+  * The reader loads **one template per page** and cannot resolve `{% extends "base" %}` or
+    `{% import "macros" %}` by name, so the template has to be self-contained.
+  * A `Content` row names exactly one template, and the reader can only read one at a time, so all
+    nine page kinds have to share it and pick their markup from the JSON's own `page` field.
+  * Only Pebble's built-in filters exist. The renderer's `href` and `doc` filters are Java classes
+    that ship with it and are not there.
 
-Rather than maintain a second, divergent copy of the templates by hand, this generates them:
+Rather than maintain a second, hand-written copy of the templates, this composes them:
 
-  * `{% extends %}` is resolved by substituting the child's `{% block %}` bodies into the parent.
-  * `{% import %}` is resolved by appending the imported macro definitions.
-  * `| href` is dropped and `| doc` becomes `| raw`. Both are safe because sync_javadoc_json_to_db.py
-    rewrites the JSON's `.json` links to `.html` before insertion, which is the only thing those
-    filters did beyond marking documentation HTML as trusted.
+  * The base skeleton is emitted once, with each `{% block %}` replaced by an if/elseif chain over
+    `page` -- so `{% block content %}` becomes "if page == 'class' … elseif page == 'module' …".
+    A page kind that doesn't override a block falls back to the base's own body for it.
+  * Every macro is emitted once. The page templates and macros.peb share no macro names, which
+    this checks rather than assumes.
+  * `| href` is dropped and `| doc` becomes `| raw`. Both are safe because
+    sync_javadoc_json_to_db.py rewrites the JSON's `.json` links to `.html` before insertion, which
+    is all those filters did beyond marking documentation HTML as trusted.
 
 Run it whenever the pebble-renderer templates change.
 """
@@ -31,9 +35,11 @@ from pathlib import Path
 BLOCK_RE = re.compile(r"\{%-?\s*block\s+(\w+)\s*-?%\}(.*?)\{%-?\s*endblock\s*-?%\}", re.DOTALL)
 EXTENDS_RE = re.compile(r"\{%-?\s*extends\s+\"([^\"]+)\"\s*-?%\}")
 IMPORT_RE = re.compile(r"\{%-?\s*import\s+\"([^\"]+)\"\s*-?%\}")
-MACRO_RE = re.compile(r"\{%-?\s*macro\s+\w+.*?\{%-?\s*endmacro\s*-?%\}", re.DOTALL)
+MACRO_RE = re.compile(r"\{%-?\s*macro\s+(\w+).*?\{%-?\s*endmacro\s*-?%\}", re.DOTALL)
 
-# page kind (the JSON's `page` field) -> source template
+OUTPUT_NAME = "javadoc.peb"
+
+# The JSON's `page` field -> the renderer template holding that page's markup.
 PAGES = {
     "class": "class",
     "package": "package-summary",
@@ -51,47 +57,91 @@ def load(directory: Path, name: str) -> str:
     return (directory / f"{name}.peb").read_text(encoding="utf-8")
 
 
-def flatten(directory: Path, name: str) -> str:
-    source = load(directory, name)
+def blocks_of(source: str) -> dict[str, str]:
+    return {name: body for name, body in BLOCK_RE.findall(source)}
 
-    imported_macros: list[str] = []
-    for imported in IMPORT_RE.findall(source):
-        imported_macros.extend(MACRO_RE.findall(load(directory, imported)))
-    source = IMPORT_RE.sub("", source)
 
-    extends = EXTENDS_RE.search(source)
-    if extends:
-        parent = load(directory, extends.group(1))
-        blocks = {n: b for n, b in BLOCK_RE.findall(source)}
-        # The parent's own block bodies are the defaults for blocks the child doesn't override.
-        parent = BLOCK_RE.sub(lambda m: blocks.get(m.group(1), m.group(2)), parent)
-        # Anything outside a block in a child template is discarded by Pebble, and macros the
-        # child defines itself must survive, so they are carried over explicitly.
-        own_macros = MACRO_RE.findall(EXTENDS_RE.sub("", source))
-        source = parent + "\n" + "\n".join(own_macros)
+def macros_of(source: str) -> list[tuple[str, str]]:
+    return [(m.group(1), m.group(0)) for m in MACRO_RE.finditer(source)]
 
-    source = "\n".join([source, *imported_macros])
 
-    # The two renderer-only filters. `href` did nothing but swap the extension, which the sync
-    # script now does to the data itself; `doc` additionally marked the value as trusted HTML,
-    # which is Pebble's built-in `raw`.
-    source = re.sub(r"\|\s*href\b", "", source)
-    source = re.sub(r"\|\s*doc\b", "| raw", source)
+def build(directory: Path) -> str:
+    base = load(directory, "base")
+    base_blocks = blocks_of(base)
 
-    if re.search(r"\{%-?\s*(extends|import|include)\b", source):
-        raise SystemExit(f"{name}: template still references another template after flattening")
-    if re.search(r"\|\s*(href|doc)\b", source):
-        raise SystemExit(f"{name}: template still uses a renderer-only filter after flattening")
-    return source
+    page_blocks: dict[str, dict[str, str]] = {}
+    macros: dict[str, str] = {}
+
+    for macro_name, macro_source in macros_of(load(directory, "macros")):
+        macros[macro_name] = macro_source
+
+    for kind, template in PAGES.items():
+        source = load(directory, template)
+        page_blocks[kind] = blocks_of(source)
+        for macro_name, macro_source in macros_of(source):
+            if macro_name in macros and macros[macro_name] != macro_source:
+                raise SystemExit(
+                    f"macro '{macro_name}' is defined differently in {template}.peb and elsewhere; "
+                    "the single template can only hold one definition"
+                )
+            macros[macro_name] = macro_source
+
+    def dispatch(block_name: str) -> str:
+        """An if/elseif chain over `page` for one block, defaulting to the base's own body."""
+        branches = []
+        for kind in PAGES:
+            body = page_blocks[kind].get(block_name)
+            if body is None:
+                continue
+            keyword = "if" if not branches else "elseif"
+            branches.append(f'{{% {keyword} page == "{kind}" %}}{body}')
+        if not branches:
+            return base_blocks.get(block_name, "")
+        default = base_blocks.get(block_name, "")
+        return "".join(branches) + f"{{% else %}}{default}{{% endif %}}"
+
+    composed = BLOCK_RE.sub(lambda m: dispatch(m.group(1)), base)
+    composed = IMPORT_RE.sub("", EXTENDS_RE.sub("", composed))
+
+    header = (
+        "{#\n"
+        "  The Java API documentation template for documentation.db.\n"
+        "\n"
+        "  GENERATED by scripts/sync_java_docs/flatten_templates.py from the templates in\n"
+        "  Dokka-plugin-kdoc2json/pebble-renderer/src/main/resources/templates -- edit those and\n"
+        "  re-run it rather than editing this file.\n"
+        "\n"
+        "  One template covers every page kind because the reader loads a single template per page\n"
+        "  and a Content row names exactly one. Each section below picks its markup from the JSON's\n"
+        "  own `page` field: class, package, module, overview, all-classes, all-packages,\n"
+        "  deprecated-list, constant-values, index.\n"
+        "\n"
+        "  Context: the page's JSON, plus `pathToRoot`, which sync_javadoc_json_to_db.py injects.\n"
+        "#}\n"
+    )
+    composed = header + composed + "\n" + "\n".join(macros[name] for name in sorted(macros))
+
+    composed = re.sub(r"\|\s*href\b", "", composed)
+    composed = re.sub(r"\|\s*doc\b", "| raw", composed)
+
+    for pattern, complaint in (
+        (r"\{%-?\s*(extends|import|include)\b", "still references another template"),
+        (r"\|\s*(href|doc)\b", "still uses a renderer-only filter"),
+        (r"\{%-?\s*block\b", "still contains an unresolved block"),
+    ):
+        if re.search(pattern, composed):
+            raise SystemExit(f"{OUTPUT_NAME}: {complaint}")
+    return composed
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--templates", type=Path,
-                        default=Path(__file__).resolve().parents[2] / "Dokka-plugin-kdoc2json/pebble-renderer/src/main/resources/templates",
-                        help="the pebble-renderer template directory to flatten")
+                        default=Path(__file__).resolve().parents[2]
+                        / "Dokka-plugin-kdoc2json/pebble-renderer/src/main/resources/templates",
+                        help="the pebble-renderer template directory to compose from")
     parser.add_argument("--out", type=Path, default=Path(__file__).resolve().parent / "db-templates",
-                        help="where to write the flattened templates")
+                        help="where to write the composed template")
     args = parser.parse_args()
 
     if not args.templates.is_dir():
@@ -99,12 +149,10 @@ def main() -> int:
         return 2
 
     args.out.mkdir(parents=True, exist_ok=True)
-    for kind, name in sorted(PAGES.items()):
-        flattened = flatten(args.templates, name)
-        target = args.out / f"javadoc-{kind}.peb"
-        target.write_text(flattened, encoding="utf-8")
-        print(f"  {target.name:32s} {len(flattened):6d} bytes   (page kind '{kind}')")
-    print(f"Wrote {len(PAGES)} template(s) to {args.out}")
+    composed = build(args.templates)
+    target = args.out / OUTPUT_NAME
+    target.write_text(composed, encoding="utf-8")
+    print(f"Wrote {target} ({len(composed)} bytes) covering {len(PAGES)} page kinds.")
     return 0
 
 

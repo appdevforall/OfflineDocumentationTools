@@ -24,7 +24,8 @@ filters (documentation.db's reader has none, and none of the templates already i
     renderer's `doc` filter did.
   - `pathToRoot` is injected, since the templates need it for the stylesheet and the top nav and
     the reader passes nothing but the JSON itself.
-  - `page` selects the template, so the mapping lives here rather than in the reader.
+  - `page` is left in the JSON, because the single template branches on it: the reader can only
+    load one template per page, so all nine page kinds share one and choose their markup from it.
 
 A timestamped backup is taken before anything is written.
 """
@@ -49,18 +50,23 @@ PREFIX = "j/html/api/"
 # the Java docs and report it as a clean run.
 MAX_DELETE_FRACTION = 0.35
 
-# The JSON's `page` field -> the template that renders it. Names match flatten_templates.py.
-TEMPLATE_FOR_PAGE = {
-    "class": "javadoc-class.peb",
-    "package": "javadoc-package.peb",
-    "module": "javadoc-module.peb",
-    "overview": "javadoc-overview.peb",
-    "all-classes": "javadoc-all-classes.peb",
-    "all-packages": "javadoc-all-packages.peb",
-    "deprecated-list": "javadoc-deprecated-list.peb",
-    "constant-values": "javadoc-constant-values.peb",
-    "index": "javadoc-index.peb",
-}
+# The one template every Java page uses; it branches on the JSON's `page` field. Matches
+# flatten_templates.OUTPUT_NAME.
+TEMPLATE_NAME = "javadoc.peb"
+
+# Page kinds that template knows how to render. A row whose JSON says anything else is left alone
+# rather than pointed at a template that would not produce a page.
+KNOWN_PAGES = frozenset({
+    "class", "package", "module", "overview", "all-classes",
+    "all-packages", "deprecated-list", "constant-values", "index",
+})
+
+# Templates this script installed before it used a single one. Removed on sight so a stale row
+# cannot go on being referenced.
+SUPERSEDED_TEMPLATES = tuple(f"javadoc-{kind}.peb" for kind in [
+    "class", "package", "module", "overview", "all-classes",
+    "all-packages", "deprecated-list", "constant-values", "index",
+])
 
 # `.json` at the end of a string, or followed by a quote or a fragment. Applied to *parsed* JSON
 # strings, so the quote here is a real one rather than a backslash-escaped one in the raw text.
@@ -142,7 +148,7 @@ def main() -> int:
     parser.add_argument("json_root", help="the javadoc-mode JSON tree (the api/ directory)")
     parser.add_argument("--db", default="documentation.db", help="path to documentation.db")
     parser.add_argument("--templates", type=Path, default=Path(__file__).resolve().parent / "db-templates",
-                        help="directory of flattened templates to install")
+                        help="directory holding the composed javadoc.peb")
     parser.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
     parser.add_argument("--delete-missing", action="store_true",
                         help="also delete rows with no JSON counterpart (class-use/, package-use, "
@@ -174,22 +180,30 @@ def main() -> int:
     compressor = DictionaryBrotli(dictionary) if dictionary else None
     print(f"Compression: {'shared-dictionary Brotli' if compressor else 'plain Brotli'}")
 
-    # --- templates -------------------------------------------------------
-    template_ids: dict[str, int] = {}
-    for page_kind, filename in sorted(TEMPLATE_FOR_PAGE.items()):
-        source = (args.templates / filename).read_text(encoding="utf-8")
-        existing = cur.execute("SELECT id FROM Templates WHERE name = ?", (filename,)).fetchone()
+    # --- template --------------------------------------------------------
+    source = (args.templates / TEMPLATE_NAME).read_text(encoding="utf-8")
+    existing = cur.execute("SELECT id FROM Templates WHERE name = ?", (TEMPLATE_NAME,)).fetchone()
+    if args.dry_run:
+        template_id = existing[0] if existing else -1
+        print(f"  [{'UPDATE' if existing else 'INSERT'} TEMPLATE] {TEMPLATE_NAME} ({len(source)} bytes)")
+    elif existing:
+        cur.execute("UPDATE Templates SET content = ? WHERE id = ?", (source.encode(), existing[0]))
+        template_id = existing[0]
+    else:
+        cur.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (TEMPLATE_NAME, source.encode()))
+        template_id = cur.lastrowid
+    print(f"Installed template '{TEMPLATE_NAME}' ({len(source)} bytes) for all page kinds.")
+
+    stale = [row[0] for row in cur.execute(
+        f"SELECT name FROM Templates WHERE name IN ({','.join('?' * len(SUPERSEDED_TEMPLATES))})",
+        SUPERSEDED_TEMPLATES,
+    )]
+    if stale:
         if args.dry_run:
-            template_ids[page_kind] = existing[0] if existing else -1
-            print(f"  [{'UPDATE' if existing else 'INSERT'} TEMPLATE] {filename} ({len(source)} bytes)")
-            continue
-        if existing:
-            cur.execute("UPDATE Templates SET content = ? WHERE id = ?", (source.encode(), existing[0]))
-            template_ids[page_kind] = existing[0]
+            print(f"  [DELETE TEMPLATE] {len(stale)} superseded per-page template(s): {', '.join(sorted(stale))}")
         else:
-            cur.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (filename, source.encode()))
-            template_ids[page_kind] = cur.lastrowid
-    print(f"Installed {len(TEMPLATE_FOR_PAGE)} template(s).")
+            cur.executemany("DELETE FROM Templates WHERE name = ?", [(n,) for n in stale])
+            print(f"Removed {len(stale)} superseded per-page template(s).")
 
     html_type = cur.execute("SELECT id FROM ContentTypes WHERE value = 'text/html'").fetchone()[0]
 
@@ -226,7 +240,7 @@ def main() -> int:
 
         document = json.loads(source_file.read_text(encoding="utf-8"))
         page_kind = document.get("page")
-        if page_kind not in TEMPLATE_FOR_PAGE:
+        if page_kind not in KNOWN_PAGES:
             unknown_pages.add(str(page_kind))
             kept += 1
             continue
@@ -239,7 +253,7 @@ def main() -> int:
         if not args.dry_run:
             cur.execute(
                 "UPDATE Content SET content = ?, contentTypeID = ?, templateId = ? WHERE id = ?",
-                (blob, html_type, template_ids[page_kind], row_id),
+                (blob, html_type, template_id, row_id),
             )
         updated += 1
 
@@ -253,7 +267,7 @@ def main() -> int:
             continue
         document = json.loads(source_file.read_text(encoding="utf-8"))
         page_kind = document.get("page")
-        if page_kind not in TEMPLATE_FOR_PAGE:
+        if page_kind not in KNOWN_PAGES:
             continue
         document = rewrite_links(document)
         document["pathToRoot"] = path_to_root(content_path)
@@ -263,7 +277,7 @@ def main() -> int:
             cur.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (content_path, language_id, blob, html_type, template_ids[page_kind]),
+                (content_path, language_id, blob, html_type, template_id),
             )
         added += 1
 

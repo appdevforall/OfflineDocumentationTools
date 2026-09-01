@@ -7,7 +7,7 @@ plugin's Javadoc mode produces, and installs the Pebble templates that render it
 # 1. Generate the JSON (see Dokka-plugin-kdoc2json/scripts/java)
 Dokka-plugin-kdoc2json/scripts/java/build-jdk-json-docs.sh -j /path/to/jdk-17
 
-# 2. Flatten the renderer's templates into standalone ones for the database
+# 2. Compose the renderer's templates into the single one the database serves from
 python3 scripts/sync_java_docs/flatten_templates.py
 
 # 3. Look at what would change, then do it
@@ -25,18 +25,26 @@ because the pieces disagree with each other at first glance:
 | `path` | `j/html/api/…/ArrayList.html` | unchanged — it is the URL a browser asks for |
 | `content` | **JSON**, shared-dictionary Brotli | the data; the template turns it into a page |
 | `contentTypeID` | `text/html` | the type of the *served* page, not of the blob |
-| `templateId` | one of the nine `javadoc-*.peb` rows | chosen from the JSON's `page` field |
+| `templateId` | the one `javadoc.peb` row | it branches on the JSON's `page` field |
 
-## Why the templates are flattened
+## Why there is one template, and why it is generated
 
 `pebble-renderer/` and the database's reader run Pebble in different environments, and the
-database's is narrower: templates are stored one per row with no loader that resolves
-`{% extends %}` / `{% import %}` by name, and only Pebble's built-in filters exist. Every template
-already in the database is self-contained, so that is the contract.
+database's is narrower on three counts:
 
-`flatten_templates.py` therefore generates the database copies from the renderer's rather than
-having a second set maintained by hand: it inlines the parent template and the imported macros,
-drops the `href` filter and turns `doc` into the built-in `raw`.
+- The reader **loads a single template per page** and a `Content` row names exactly one, so all
+  nine page kinds have to share it.
+- There is no loader that resolves `{% extends %}` / `{% import %}` by name, so it must be
+  self-contained. Every template already in the database is.
+- Only Pebble's built-in filters exist; the renderer's `href` and `doc` are Java classes that ship
+  with it.
+
+`flatten_templates.py` therefore composes `javadoc.peb` from the renderer's templates rather than
+leaving a second set to be maintained by hand. It emits the base skeleton once with every
+`{% block %}` replaced by an if/elseif chain over `page`, emits each macro once (checking the page
+templates share no macro names rather than assuming it), drops the `href` filter and turns `doc`
+into the built-in `raw`. Editing the database copy directly is a mistake -- edit the renderer's
+templates and re-run.
 
 Three things are rewritten into the JSON on the way in, all so the templates need nothing beyond
 what the reader already passes:
