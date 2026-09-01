@@ -1348,7 +1348,7 @@ def _find_brotli_cli() -> str:
     return path
 
 
-def get_compression_dictionary(db_path: Path) -> bytes | None:
+def get_compression_dictionary(db_path: Path, *, strict: bool = False) -> bytes | None:
     """Returns db_path's CompressionDictionary bytes (see ADFA-5153), or None if it
     doesn't have one yet.
 
@@ -1357,7 +1357,15 @@ def get_compression_dictionary(db_path: Path) -> bytes | None:
     writes the same file; caching that as None would downgrade the whole session to
     plain Brotli, so imports would write plain rows into a dictionary database and
     reads of existing rows would fail. On any such error this returns None for this
-    one call and retries on the next."""
+    one call and retries on the next.
+
+    `strict=True` raises instead of returning None on that indeterminate case.
+    Callers that are about to *write* must pass it: a None they cannot tell apart
+    from "no dictionary" makes them store a plain-Brotli row in a dictionary
+    database, which nothing detects afterwards - the row simply fails to decode
+    later. Read paths can afford the lenient answer, because decoding a
+    dictionary row without the dictionary raises loudly rather than returning
+    wrong bytes."""
     if db_path in _dictionary_cache:
         return _dictionary_cache[db_path]
     dictionary_data: bytes | None = None
@@ -1373,6 +1381,12 @@ def get_compression_dictionary(db_path: Path) -> bytes | None:
                 if data_row is not None:
                     dictionary_data = data_row[0]
     except sqlite3.OperationalError as exc:
+        if strict:
+            raise RuntimeError(
+                f"could not determine whether {db_path} has a shared compression dictionary ({exc}); "
+                "refusing to guess, because writing a plain-Brotli row into a dictionary database "
+                "produces content that cannot be decoded later"
+            ) from exc
         print(f"warning: could not read {db_path}'s compression dictionary ({exc}); "
               f"not caching that, will retry", file=sys.stderr)
         return None
@@ -1399,7 +1413,12 @@ def compress_for_storage(data: bytes, compression: str, db_path: Path) -> bytes:
     that migration. Anything else passes through unchanged."""
     if compression != "brotli":
         return data
-    dictionary_data = get_compression_dictionary(db_path)
+    # strict: a lock-induced None here would be read as "no dictionary" and
+    # silently store a plain row in a dictionary database (see ADFA-5153).
+    # Reachable from import_content_files itself, whose phase-1 orphan DELETE
+    # holds a write transaction on one connection while this opens another
+    # against the same file.
+    dictionary_data = get_compression_dictionary(db_path, strict=True)
     if dictionary_data is None:
         return brotli.compress(data)
     dict_path = _dictionary_temp_path(db_path, dictionary_data)
@@ -1443,8 +1462,26 @@ def decompress_brotli(data: bytes, db_path: Path) -> bytes:
         return brotli.decompress(data)
     dict_path = _dictionary_temp_path(db_path, dictionary_data)
     try:
+        # BrotliCliMissing subclasses brotli.error, not OSError, so resolving the
+        # CLI inside the argv list below let it escape the except: a *plain* row
+        # in a dictionary database became unreadable without the CLI, even though
+        # brotli.decompress handles it fine and did before. Those are exactly the
+        # rows the fallback at the end exists for - plugin-contributed content and
+        # partly-migrated databases.
+        #
+        # Only that case falls through, though. If plain decoding also fails the
+        # row really is dictionary-compressed and the CLI really is required, so
+        # re-raise and let the call sites print where to get it - telling someone
+        # to install brotli is right there and useless on a plain row.
+        brotli_cli = _find_brotli_cli()
+    except BrotliCliMissing as cli_missing:
+        try:
+            return brotli.decompress(data)
+        except brotli.error:
+            raise cli_missing from None
+    try:
         result = subprocess.run(
-            [_find_brotli_cli(), "-d", "-D", str(dict_path), "-c"],
+            [brotli_cli, "-d", "-D", str(dict_path), "-c"],
             input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
     except OSError as exc:

@@ -21,13 +21,20 @@ For every existing Content row whose path starts with "k/kotlin-stdlib",
 Existing "<path>-N" continuation rows are not treated as pages of their own:
 they belong to their base row and are rewritten or removed along with it.
 
-Any TooltipButtons row whose `uri` (ignoring a trailing "#fragment") matches one
-of the deleted Content paths is now a dead link. Its entire parent Tooltips
+Any TooltipButtons row whose `uri` (ignoring a "?query" and/or "#fragment",
+matching docdb-studio's own URI normalizer) matches one of the deleted Content
+paths is now a dead link. Its entire parent Tooltips
 record -- along with all of that tooltip's other TooltipButtons rows, dead or
 not -- is deleted too, since TooltipButtons has no ON DELETE CASCADE and a
 dangling tooltipId would otherwise be left behind.
 
-A timestamped backup of the database is made before anything is modified.
+A timestamped backup of the database is made before anything is modified - taken
+after the prechecks, so a run that refuses to proceed doesn't leave one behind.
+The database is VACUUMed at the end to reclaim the space freed by the rewrite.
+
+Pages present in the plugin output with no existing Content row are reported but
+not inserted: this script only ever updates or deletes rows it found in the
+database.
 """
 import argparse
 import atexit
@@ -213,6 +220,49 @@ def compress_for(compression, raw_bytes, path, compressor=None):
     raise ValueError(f"Unknown compression '{compression}' needed for {path}")
 
 
+def content_path_for_source(plugin_output_root, source_file):
+    """Inverse of relative_target_path: the Content.path a Dokka output file
+    would populate. '<root>/kotlin-stdlib/kotlin.text/index.json' ->
+    'k/kotlin-stdlib/kotlin.text/index.html'."""
+    rel = os.path.relpath(source_file, plugin_output_root)
+    rel = rel.replace(os.sep, "/")
+    if rel.endswith(".json"):
+        rel = rel[: -len(".json")] + ".html"
+    return "k/" + rel
+
+
+def unmatched_source_pages(plugin_output_root, known_paths):
+    """Dokka output files that map to no existing Content row, sorted.
+
+    This script can only UPDATE or DELETE: its loop iterates rows read from the
+    database, so a page Dokka newly emits has nothing to match and is silently
+    dropped. Bumping --kotlin-libs-version to a release that adds stdlib API is
+    exactly that case, and the refreshed pages link to those missing pages, so
+    every such link 404s in the app. Reporting them is the minimum; actually
+    inserting them needs contentTypeID/templateId decisions this script has no
+    basis to make on its own."""
+    found = []
+    for dirpath, _dirnames, filenames in os.walk(plugin_output_root):
+        for name in filenames:
+            if not (name.endswith(".json") or name == "package-list"):
+                continue
+            candidate = content_path_for_source(plugin_output_root, os.path.join(dirpath, name))
+            if candidate not in known_paths:
+                found.append(candidate)
+    return sorted(found)
+
+
+def _content_path_for_uri(uri):
+    """The Content.path a TooltipButtons.uri addresses: everything before the
+    first '?' or '#'. Mirrors docdb-studio's _uri_path_for_content_lookup."""
+    u = uri or ""
+    if "?" in u:
+        u = u.split("?", 1)[0]
+    if "#" in u:
+        u = u.split("#", 1)[0]
+    return u
+
+
 def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run):
     """Delete any Tooltips (and all their TooltipButtons) that reference a
     now-deleted Content path via a TooltipButtons.uri. Returns (tooltips_removed,
@@ -231,8 +281,14 @@ def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run):
         f"SELECT tooltipId, uri FROM TooltipButtons WHERE {where_clause}", params
     ).fetchall()
 
+    # Strip ?query as well as #fragment, matching this repo's canonical
+    # normalizer (docdb-studio's _uri_path_for_content_lookup). Splitting on
+    # "#" alone left a "...html?v=2" button pointing at a row this run just
+    # deleted - exactly the dangling state this cleanup exists to prevent, and
+    # one docdb-studio's "Validate URIs" audit then flags.
     orphaned_tooltip_ids = sorted(
-        {tooltip_id for tooltip_id, uri in candidate_buttons if uri.split("#", 1)[0] in deleted_path_set}
+        {tooltip_id for tooltip_id, uri in candidate_buttons
+         if _content_path_for_uri(uri) in deleted_path_set}
     )
     if not orphaned_tooltip_ids:
         return 0, 0
@@ -272,9 +328,6 @@ def main():
 
     if args.dry_run:
         print("Dry run: no backup will be made and no changes will be written.")
-    else:
-        backup_path = backup_database(args.db)
-        print(f"Backed up database to: {backup_path}")
 
     conn = sqlite3.connect(args.db)
     cur = conn.cursor()
@@ -331,6 +384,24 @@ def main():
         )
         conn.close()
         sys.exit(1)
+
+    # Reported, not inserted - see unmatched_source_pages. Printed before the
+    # transaction so it shows up even on a dry run.
+    unmatched = unmatched_source_pages(args.plugin_output_root, {row[0] for row in all_rows})
+    if unmatched:
+        print(
+            f"warning: {len(unmatched)} page(s) in {args.plugin_output_root!r} have no Content row and "
+            f"will NOT be inserted; links to them will 404. Examples: {', '.join(unmatched[:3])}",
+            file=sys.stderr,
+        )
+
+    # Backed up only once every check that can still refuse to run has passed -
+    # the MAX_DELETE_FRACTION precheck above is the last of them. Taking it
+    # earlier meant a run that correctly aborted on a layout mismatch still left
+    # a full-size copy of the database behind, for nothing.
+    if not args.dry_run:
+        backup_path = backup_database(args.db)
+        print(f"Backed up database to: {backup_path}")
 
     try:
         conn.execute("BEGIN")
@@ -399,6 +470,22 @@ def main():
         raise
     finally:
         conn.close()
+
+    # SQLite only ever moves freed pages onto its internal freelist; the file
+    # itself never shrinks. This script rewrites every k/kotlin-stdlib* blob and
+    # deletes Content, Tooltips and TooltipButtons rows, so a run that replaces
+    # large pages with smaller ones leaves the difference as dead space. It is
+    # step 5/5 of the pipeline, so nothing downstream reclaims it and the bloat
+    # ships in the on-device database. Same trailing VACUUM as populate_db.py,
+    # insert_optimized_media.py and renumber_misnumbered_fragments.py, on its
+    # own connection because SQLite refuses to VACUUM inside a transaction.
+    if not args.dry_run:
+        print("Vacuuming database to reclaim freed space...")
+        vacuum_conn = sqlite3.connect(args.db)
+        try:
+            vacuum_conn.execute("VACUUM")
+        finally:
+            vacuum_conn.close()
 
 
 if __name__ == "__main__":

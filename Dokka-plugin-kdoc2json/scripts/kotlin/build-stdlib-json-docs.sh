@@ -103,7 +103,11 @@ fi
 # rather than through this repo's own version catalog, so it has to be
 # supplied explicitly - pulled from the same catalog entry the rest of the
 # kotlin repo's Dokka usage is pinned to, so it never drifts out of sync.
-DOKKA_VERSION="$(grep -m1 '^dokka[[:space:]]*=' "$KOTLIN_ROOT/gradle/libs.versions.toml" | sed -E 's/^dokka[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/')"
+# "|| true": under `set -e` a command substitution whose pipeline exits
+# non-zero kills the script outright, so a catalog with no 'dokka =' entry
+# (a kotlin ref that renamed the key) aborted "Step 4/5" with exit 1 and no
+# output at all - the friendly message below was unreachable.
+DOKKA_VERSION="$(grep -m1 '^dokka[[:space:]]*=' "$KOTLIN_ROOT/gradle/libs.versions.toml" | sed -E 's/^dokka[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/' || true)"
 if [ -z "$DOKKA_VERSION" ]; then
     log "error: couldn't find a 'dokka = \"...\"' entry in $KOTLIN_ROOT/gradle/libs.versions.toml"
     exit 1
@@ -122,7 +126,12 @@ restore_build_gradle() {
     cp "$ORIGINAL_BUILD_GRADLE" "$STDLIB_DOCS_DIR/build.gradle.kts"
     rm -f "$ORIGINAL_BUILD_GRADLE"
 }
-trap restore_build_gradle EXIT
+# INT/TERM/HUP as well as EXIT: a bare EXIT trap doesn't run on an untrapped
+# fatal signal, so Ctrl-C during the long Gradle build left the swapped-in
+# build.gradle.kts sitting in the developer's kotlin clone and orphaned the
+# mktemp copy - contradicting this script's promise above that the checkout is
+# left exactly as it was found.
+trap restore_build_gradle EXIT INT TERM HUP
 cp "$SCRIPT_DIR/build.gradle.kts" "$STDLIB_DOCS_DIR/build.gradle.kts"
 
 log "==> [2/2] Generating JSON documentation via kdoc-to-json (dokka $DOKKA_VERSION)..."

@@ -107,16 +107,25 @@ def find_chains(conn, fragment_paths: set) -> tuple:
         if path in fragment_paths:
             continue
         fragments = chain_fragments(conn, path)
-        if not fragments or fragments[0][0] == 1:
+        if not fragments:
+            continue
+        # Contiguity is checked before the start-at-1 early return, not after.
+        # A chain like "p-1, p-2, p-4" starts at 1 and so used to be skipped
+        # here as healthy, leaving operators a clean "0 chain(s) had a real gap"
+        # on a database that silently truncates that page at p-2 - the opposite
+        # of what this script promises. A gap is the more likely shape of a
+        # genuinely missing chunk, given every writer in this pipeline numbers
+        # from -1, so it has to be reported whatever the chain starts at.
+        suffixes = [n for n, _path in fragments]
+        if suffixes != list(range(suffixes[0], suffixes[0] + len(suffixes))):
+            gapped.append((path, fragments))
+            continue
+        if suffixes[0] == 1:
             continue
         # A 0-based chain is repaired, not skipped: WebServer probes "-1" first,
         # finds it, and serves the chain with "-0" silently dropped. Shifting it
         # up is what renumber_chain's parking pass exists to make safe.
-        suffixes = [n for n, _path in fragments]
-        if suffixes == list(range(suffixes[0], suffixes[0] + len(suffixes))):
-            misnumbered.append((path, fragments))
-        else:
-            gapped.append((path, fragments))
+        misnumbered.append((path, fragments))
     return misnumbered, gapped
 
 

@@ -424,15 +424,32 @@ jobs:
           print(f"Uploaded new revision of {file_id}: {updated}")
           PYEOF
 
+      # if: always() - the baton must be dropped even when the build fails,
+        # otherwise the channel shows it held forever by a dead run, which is the
+        # exact failure this convention exists to prevent. Deliberately NOT gated
+        # on dry_run: "build started" above is ungated, and since dry_run defaults
+        # to true an asymmetric gate meant every ordinary run grabbed the baton
+        # and never dropped it. The message reports the outcome instead.
       - name: 'Notify Slack: build complete'
-        if: ${{ !inputs.dry_run }}
+        if: always()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          # The baton is always dropped, so the text has to say what actually
+          # happened rather than always claiming an update.
+          if [ "$JOB_STATUS" != "success" ]; then
+            TEXT="Kotlin documentation build FAILED ($JOB_STATUS) - database unchanged. Dropping baton"
+          elif [ "$DRY_RUN" = "true" ]; then
+            TEXT="Kotlin documentation dry run complete - database unchanged. Dropping baton"
+          else
+            TEXT="Updated Kotlin documentation. Dropping baton"
+          fi
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
             echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
           else
             curl -sS -X POST -H 'Content-type: application/json' \
-              --data '{"text": "Updated Kotlin documentation. Dropping baton"}' \
+              --data "$(printf '{"text": "%s"}' "$TEXT")" \
               "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
           fi

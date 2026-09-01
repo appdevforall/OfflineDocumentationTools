@@ -44,6 +44,7 @@ no-link category header like any other; this script does not read that
 external href at all, so no link is added for it.
 """
 import argparse
+import html
 import json
 import re
 import sys
@@ -61,12 +62,28 @@ def load_page_index(docs_json_dir: Path) -> tuple[dict, dict]:
     """Returns (stem -> id, id -> title) built from every generated page JSON."""
     stem_to_id = {}
     id_to_title = {}
-    for json_path in docs_json_dir.rglob("*.json"):
+    # sorted(), and first-wins below, so a stem that exists in more than one
+    # place resolves the same way on every machine. An unsorted rglob left it to
+    # filesystem order, which made nav output non-reproducible - and disagreed
+    # with md_to_json.build_topic_index, which is first-sorted-wins with a
+    # warning and is what the pages themselves were converted against.
+    for json_path in sorted(docs_json_dir.rglob("*.json")):
         page = json.loads(json_path.read_text(encoding="utf-8"))
+        # Not every *.json under here is a page. main() writes nav.json - a
+        # top-level array - into output_dir, and the documented invocation
+        # passes output_dir as the scan directory too, so a second run reads
+        # its own previous output and used to die on `list.get`. Anything that
+        # isn't a page object is simply not a page.
+        if not isinstance(page, dict):
+            continue
         page_id = page.get("id")
         if not page_id:
             continue
         stem = Path(page_id).name
+        if stem in stem_to_id:
+            print(f"warning: ambiguous page stem {stem!r}: keeping {stem_to_id[stem]}, "
+                  f"ignoring {page_id}", file=sys.stderr)
+            continue
         stem_to_id[stem] = page_id
         id_to_title[page_id] = page.get("title")
     return stem_to_id, id_to_title
@@ -141,16 +158,24 @@ def render_node(node: dict, indent: int = 0) -> str:
     # Kept byte-identical to templates/nav.peb's renderNavNode macro, since
     # RenderDocs.java re-renders nav.peb over nav.json for the live site and
     # this function only produces a standalone preview copy of the same HTML.
+    #
+    # That equivalence is why every interpolation is escaped: Pebble autoescapes
+    # by default, so nav.peb's output already is. Interpolating raw here meant a
+    # toc-title containing a double quote (or "&", or "<") closed the aria-label
+    # attribute early and produced different - and malformed - HTML than the
+    # template it claims to match.
+    title = html.escape(node["title"] or "", quote=True)
+    node_id = html.escape(node["id"] or "", quote=True)
     classes = "nav-item" + (" nav-hidden" if node["hidden"] else "")
     has_children = bool(node["children"])
-    style = f' style="color: {node["noLinkColor"]};"' if node["noLinkColor"] else ""
+    style = f' style="color: {html.escape(str(node["noLinkColor"]), quote=True)};"' if node["noLinkColor"] else ""
     if node["id"]:
-        label = f'<a class="nav-link"{style} href="/{node["id"]}.html" data-nav-id="{node["id"]}">{node["title"]}</a>'
+        label = f'<a class="nav-link"{style} href="/{node_id}.html" data-nav-id="{node_id}">{title}</a>'
     else:
-        label = f'<span class="nav-group-title"{style}>{node["title"]}</span>'
+        label = f'<span class="nav-group-title"{style}>{title}</span>'
     toggle = (
         f'<button type="button" class="nav-toggle-group" aria-expanded="false" '
-        f'aria-label="Toggle {node["title"]} section"></button>'
+        f'aria-label="Toggle {title} section"></button>'
         if has_children else '<span class="nav-spacer" aria-hidden="true"></span>'
     )
     parts = [f'<li class="{classes}">', '<div class="nav-row">', toggle, label, "</div>"]

@@ -743,7 +743,17 @@ def main():
     for w in nav_warnings:
         print(f"warning: {w}", file=sys.stderr)
 
-    flat_nav = flatten_nav_ids(nav_tree)
+    # Only nodes that actually have a Content row can be pager targets.
+    # build_node synthesizes an id for a topic it couldn't resolve to a
+    # converted page (an unconverted "*.topic" such as api-references.topic -
+    # visible in the committed nav.html as data-nav-id="api-references"), so
+    # that the sidebar can still render it. nav.peb colours those as non-links,
+    # but page.peb's prev/next renders whatever it is given as an ordinary
+    # link - so the two neighbours of such a node used to get pager links
+    # straight to a 404. Filtering here keeps the pager and the sidebar
+    # agreeing on what is reachable.
+    real_page_ids = {page["id"] for page in pages}
+    flat_nav = [node for node in flatten_nav_ids(nav_tree) if node["id"] in real_page_ids]
     id_to_index = {}
     for i, node in enumerate(flat_nav):
         id_to_index.setdefault(node["id"], i)

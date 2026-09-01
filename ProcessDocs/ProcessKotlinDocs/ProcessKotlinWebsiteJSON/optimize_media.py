@@ -434,12 +434,59 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     rasterized to PNG/WEBP) - callers that also maintain references to these
     files elsewhere (e.g. insert_optimized_media.py, fixing up image URLs
     stored in a database) use this to know what changed."""
-    renamed = {}
-    for src in sorted(input_dir.rglob("*")):
-        if src.is_dir():
-            continue
+    # Writing into the directory being read destroys the originals: every image
+    # is optimized straight over its own source, and the only error raised is a
+    # copy2 SameFileError on the first *non*-image file, long after the damage.
+    # There is no in-place mode, so treat this as a caller bug rather than
+    # something to muddle through.
+    if input_dir.resolve() == output_dir.resolve():
+        raise ValueError(
+            f"output directory {output_dir} is the input directory {input_dir}; "
+            "optimizing in place would overwrite the originals"
+        )
+
+    # Two sources in one directory whose names differ only by extension
+    # (logo.png + logo.jpg) land on the same output path once the encoder
+    # rewrites the extension (both -> logo.webp), and whichever is processed
+    # second silently clobbers the first: that source image is gone for good and
+    # every page referencing it renders the survivor instead. Neither the loop
+    # below nor insert_optimized_media.py's own seen_names guard can catch it,
+    # because the collision has already happened here in the work dir by the
+    # time either runs.
+    #
+    # optimize_raster/optimize_svg own the choice of final extension, so rather
+    # than predicting it, de-conflict the *stem* up front: within a directory
+    # the first source (in sorted order) keeps its stem and any later one that
+    # shares it folds its original extension in ("logo.jpg" -> "logo-jpg.webp").
+    # Distinct stems cannot collide whatever extension the encoder settles on.
+    # A de-conflicted name shows up in `renamed` like any other rename, so
+    # callers rewriting stored URLs follow it automatically.
+    sources = [p for p in sorted(input_dir.rglob("*")) if not p.is_dir()]
+    dst_rel_for = {}
+    claimed = {}
+    for src in sources:
         rel = src.relative_to(input_dir)
-        dst = output_dir / rel
+        stem = rel.stem
+        candidate = stem
+        if (rel.parent, candidate) in claimed:
+            ext = src.suffix.lstrip(".").lower() or "file"
+            candidate = f"{stem}-{ext}"
+            n = 2
+            while (rel.parent, candidate) in claimed:
+                candidate = f"{stem}-{ext}-{n}"
+                n += 1
+            logger.error(
+                f"warning: {src} would overwrite the output of "
+                f"{claimed[(rel.parent, stem)]} once extensions are rewritten; "
+                f"writing it as {candidate}{src.suffix} instead"
+            )
+        claimed[(rel.parent, candidate)] = src
+        dst_rel_for[src] = rel.parent / f"{candidate}{src.suffix}"
+
+    renamed = {}
+    for src in sources:
+        rel = src.relative_to(input_dir)
+        dst = output_dir / dst_rel_for[src]
         dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger)
         if dst_final is None:
             continue
@@ -549,8 +596,12 @@ def main() -> None:
 
         stats = {"raster": 0, "svg": 0, "svg_rasterized": 0, "copied": 0, "errors": 0, "original_bytes": 0,
                   "optimized_bytes": 0}
-        optimize_directory(cfg["input_dir"], cfg["output_dir"], cfg=cfg, pngquant_path=pngquant_path, logger=logger,
-                            stats=stats)
+        try:
+            optimize_directory(cfg["input_dir"], cfg["output_dir"], cfg=cfg, pngquant_path=pngquant_path,
+                                logger=logger, stats=stats)
+        except ValueError as exc:
+            logger.error(f"error: {exc}")
+            sys.exit(1)
 
         saved = stats["original_bytes"] - stats["optimized_bytes"]
         pct = (saved / stats["original_bytes"] * 100) if stats["original_bytes"] else 0.0

@@ -178,20 +178,24 @@ def reassemble_content(conn, path: str, first_content: bytes) -> bytes:
     """Reassembles a possibly-chunked row's full bytes - mirrors
     WebServer.kt's own reassembly protocol (see CHUNK_SIZE's docstring in
     populate_db.py): a row is fragmented purely when its content is exactly
-    CHUNK_SIZE bytes, in which case "<path>-1", "<path>-2", ... are
-    concatenated until a missing or shorter-than-CHUNK_SIZE row is hit."""
+    CHUNK_SIZE bytes, in which case its continuation rows are concatenated in
+    suffix order.
+
+    Chain membership comes from fragment_chain rather than by probing
+    constructed "<path>-1", "<path>-2", ... paths - the same reason its own
+    docstring gives (populate_db.py): probing from -1 silently truncates an
+    ADFA-5171 chain numbered from -2, the exact shape
+    renumber_misnumbered_fragments.py exists to repair. The truncated stream
+    then fails to decompress and aborts the whole run. delete_content above
+    already uses fragment_chain; this is the same file agreeing with itself."""
     if len(first_content) < CHUNK_SIZE:
         return first_content
     parts = [first_content]
-    n = 1
-    while True:
-        row = conn.execute("SELECT content FROM Content WHERE path = ?", (f"{path}-{n}",)).fetchone()
+    for _n, fragment_path in fragment_chain(conn, path):
+        row = conn.execute("SELECT content FROM Content WHERE path = ?", (fragment_path,)).fetchone()
         if row is None:
             break
         parts.append(row[0])
-        if len(row[0]) < CHUNK_SIZE:
-            break
-        n += 1
     return b"".join(parts)
 
 
@@ -405,8 +409,12 @@ def main() -> None:
         stats = {"raster": 0, "svg": 0, "svg_rasterized": 0, "copied": 0, "errors": 0, "original_bytes": 0,
                   "optimized_bytes": 0}
         logger.info(f"Optimizing media from {cfg['input_dir']} into {work_dir}...")
-        manifest = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
-                                       logger=logger, stats=stats)
+        try:
+            manifest = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
+                                           logger=logger, stats=stats)
+        except ValueError as exc:
+            logger.error(f"error: {exc}")
+            sys.exit(1)
         if stats["errors"]:
             logger.error(
                 f"error: {stats['errors']} file(s) failed to optimize; aborting before touching the database"

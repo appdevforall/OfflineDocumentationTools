@@ -103,7 +103,9 @@ actively depends on them.** Its `/pr/bs` endpoint builds a JSON "bookshelf" payl
 and renders it with the Pebble template engine. More generally, any `Content` row with a non-zero
 `templateId` gets its stored (decompressed) content run through the matching row in `Templates` as
 a Pebble template before being served. This is a real, current feature of the shipped server, not
-a placeholder.
+a placeholder. Note this repo does now write to `Templates`: `populate_db.py` upserts `page.peb`
+and `nav.peb` there (and points every page it inserts at them via `templateId`), so the table is
+no longer read-only from this side.
 
 **Nothing that currently builds or writes to the database in this repository knows about any of
 that — and that's expected.** `Templates`/`Bookshelf`/`BookCategories` are populated by a separate
@@ -179,7 +181,7 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   server behavior. `WebServer.kt` is the real thing.
 - **`Dokka-plugin-kdoc2json/`** — the Dokka `JsonRenderer`/`ModelMapper`/`LinkPostProcessor` plugin,
   its test suite, and the `kotlin-stdlib-docs` build scripts, merged to `main` via `fix/ADFA-4514`
-  (`4c6b8aef`). Consumed by `scripts/kotlin/build-stdlib-json-docs.sh` and
+  (`4c6b8aef`). Consumed by `Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh` and
   `scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py` (ADFA-4739) to generate and load
   kotlin-stdlib/-reflect/-test JSON docs.
 - **`ProcessDocs/`** — HTML-processing pipelines that predate the "build docs as JSON" goal:
@@ -192,11 +194,14 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`DocumentationAnalysis/`, `DocAnalysis/`, `png_optimization/`, `androidxtooltips/`** — Jupyter
   notebooks and one-off scripts for doc-set size analysis, image/PNG compression experiments, and a
   one-time AndroidX tooltip import (ADFA-1419). Not part of the critical build path.
-- **`.github/workflows/`** — three workflows: `automate-kotlin.yaml` (tag-triggered, builds the
+- **`.github/workflows/`** — `automate-kotlin.yaml` (tag-triggered, builds the
   Kotlin HTML doc bundle as a GitHub release asset), `publish-doc-db.yaml` (tag-triggered, runs the
   `scripts/ingest.py` pipeline and releases the resulting `.sqlite`), `docdb-regression-test.yaml`
   (daily cron, downloads the production DB from Google Drive via WIF and runs
-  `check-tools/main.py` against it). None of these have any Slack integration yet.
+  `check-tools/main.py` against it), `build-kotlin-docs.yaml` and its local-filesystem counterpart
+  `build-kotlin-docs-local.yaml` (manual dispatch, the five-step Kotlin docs pipeline — these two
+  are the only ones with Slack notifications), and `python-tests.yaml` (push/PR, runs the pytest
+  suites).
 
 ## Decisions log
 
