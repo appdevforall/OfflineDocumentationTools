@@ -90,6 +90,28 @@ def load_compression_dictionary(conn):
     return row[0] if row and row[0] else None
 
 
+class PlainBrotli:
+    """Compresses without the shared dictionary.
+
+    A row written this way is larger than the rest of the database, but it decodes with nothing
+    but a stock Brotli decoder, which is what makes it the safe choice when the reader cannot
+    attach the dictionary the way the `brotli` CLI's -D expects.
+    """
+
+    def __init__(self):
+        path = shutil.which("brotli")
+        if path is None:
+            raise RuntimeError("needs the `brotli` command-line tool; install it (brew install brotli)")
+        self._brotli = path
+
+    def compress(self, data: bytes) -> bytes:
+        result = subprocess.run([self._brotli, "-c"], input=data,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
+        return result.stdout
+
+
 class DictionaryBrotli:
     """Compresses against a raw Brotli dictionary via the `brotli` CLI -- the Python package
     exposes no dictionary parameter. Mirrors sync_kdoc_json_to_db.DictionaryBrotli."""
@@ -150,6 +172,11 @@ def main() -> int:
     parser.add_argument("--templates", type=Path, default=Path(__file__).resolve().parent / "db-templates",
                         help="directory holding the composed javadoc.peb")
     parser.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
+    parser.add_argument("--plain-brotli", action="store_true",
+                        help="compress without the shared dictionary. Rows come out larger, but a "
+                             "reader that cannot attach the dictionary still decodes them -- "
+                             "readers fall back to a plain decode. Use this if dictionary-"
+                             "compressed rows fail to decode in the app.")
     parser.add_argument("--delete-missing", action="store_true",
                         help="also delete rows with no JSON counterpart (class-use/, package-use, "
                              "the tree pages...). Off by default: those are working pages this "
@@ -176,9 +203,9 @@ def main() -> int:
     conn = sqlite3.connect(args.db)
     cur = conn.cursor()
 
-    dictionary = load_compression_dictionary(conn)
-    compressor = DictionaryBrotli(dictionary) if dictionary else None
-    print(f"Compression: {'shared-dictionary Brotli' if compressor else 'plain Brotli'}")
+    dictionary = None if args.plain_brotli else load_compression_dictionary(conn)
+    compressor = DictionaryBrotli(dictionary) if dictionary else PlainBrotli()
+    print(f"Compression: {'shared-dictionary Brotli' if dictionary else 'plain Brotli'}")
 
     # --- template --------------------------------------------------------
     source = (args.templates / TEMPLATE_NAME).read_text(encoding="utf-8")
@@ -232,7 +259,7 @@ def main() -> int:
         # carries is stored as-is: it is not a page, has no template, and needs no rewriting.
         if source_file.suffix != ".json":
             raw = source_file.read_bytes()
-            blob = compressor.compress(raw) if compressor else raw
+            blob = compressor.compress(raw)
             if not args.dry_run:
                 cur.execute("UPDATE Content SET content = ?, templateId = 0 WHERE id = ?", (blob, row_id))
             passed_through += 1
@@ -248,7 +275,7 @@ def main() -> int:
         document = rewrite_links(document)
         document["pathToRoot"] = path_to_root(path)
         payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
-        blob = compressor.compress(payload) if compressor else payload
+        blob = compressor.compress(payload)
 
         if not args.dry_run:
             cur.execute(
@@ -272,7 +299,7 @@ def main() -> int:
         document = rewrite_links(document)
         document["pathToRoot"] = path_to_root(content_path)
         payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
-        blob = compressor.compress(payload) if compressor else payload
+        blob = compressor.compress(payload)
         if not args.dry_run:
             cur.execute(
                 "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
@@ -297,7 +324,7 @@ def main() -> int:
 
     if not args.dry_run:
         cur.execute("INSERT INTO LastChange (documentationSet, who) VALUES (?, ?)",
-                    ("java", "sync_javadoc_json_to_db.py"))
+                    ("content-j", "sync_javadoc_json_to_db.py"))
         conn.commit()
     conn.close()
 

@@ -67,7 +67,7 @@
 {% if packageName is not empty %}
 <div class="sub-title"><span class="package-label-in-type">Package</span>&nbsp;<a href="{{ packageUrl | default('package-summary.json')  }}">{{ packageName }}</a></div>
 {% endif %}
-<h1 title="{{ kind }} {{ name }}" class="title">{{ kind | capitalize }} {{ name }}{% if typeParameters is not empty %}&lt;{% for t in typeParameters %}{{ t.name }}{% if not loop.last %},{% endif %}{% endfor %}&gt;{% endif %}</h1>
+<h1 title="{{ kind }} {{ name }}" class="title">{% if kind == "interface" %}Interface{% elseif kind == "enum" %}Enum Class{% elseif kind == "annotation" %}Annotation Interface{% elseif kind == "exception" %}Exception Class{% elseif kind == "record" %}Record Class{% else %}Class{% endif %} {{ name }}{% if typeParameters is not empty %}&lt;{% for t in typeParameters %}{{ t.name }}{% if not loop.last %},{% endif %}{% endfor %}&gt;{% endif %}</h1>
 </div>
 
 <div class="class-uses-title"></div>
@@ -129,10 +129,10 @@
 {% endif %}
 {% if since is not empty or seeAlso is not empty or tags is not empty or authors is not empty or versions is not empty %}
 <dl class="notes">
-{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% if since is not empty %}<dt>Since:</dt><dd>{% for joinItem in since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% for tag in tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endfor %}
-{% if authors is not empty %}<dt>Author:</dt><dd>{{ authors | join(', ') }}</dd>{% endif %}
-{% if versions is not empty %}<dt>Version:</dt><dd>{{ versions | join(', ') }}</dd>{% endif %}
+{% if authors is not empty %}<dt>Author:</dt><dd>{% for joinItem in authors %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% if versions is not empty %}<dt>Version:</dt><dd>{% for joinItem in versions %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% if seeAlso is not empty %}
 <dt>See Also:</dt>
 <dd><ul class="see-list">{% for see in seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url  }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>
@@ -155,7 +155,7 @@
 <div class="table-header col-second">Class</div>
 <div class="table-header col-last">Description</div>
 {% for nested in nestedTypes %}
-<div class="col-first {{ rowColor(loop.index) }}"><code>{{ nested.modifiers | join(' ') }} {{ nested.kind }}</code></div>
+<div class="col-first {{ rowColor(loop.index) }}"><code>{% for joinItem in nested.modifiers %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %} {{ nested.kind }}</code></div>
 <div class="col-second {{ rowColor(loop.index) }}"><code><a href="{{ nested.url  }}">{{ nested.name }}</a></code></div>
 <div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ nested.firstSentence | raw }}</div></div>
 {% endfor %}
@@ -199,7 +199,7 @@
 <div class="table-header col-second">Field</div>
 <div class="table-header col-last">Description</div>
 {% for field in fields %}
-<div class="col-first {{ rowColor(loop.index) }}"><code>{{ field.modifiers | join(' ') }}&nbsp;{{ typeLink(field.type) }}</code></div>
+<div class="col-first {{ rowColor(loop.index) }}"><code>{% for joinItem in field.modifiers %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %}&nbsp;{{ typeLink(field.type) }}</code></div>
 <div class="col-second {{ rowColor(loop.index) }}"><code><a href="#{{ field.anchor }}" class="member-name-link">{{ field.name }}</a></code></div>
 <div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ field.firstSentence | raw }}</div></div>
 {% endfor %}
@@ -262,7 +262,7 @@
 <div class="table-header col-second">Method</div>
 <div class="table-header col-last">Description</div>
 {% for method in methods %}
-<div class="col-first {{ rowColor(loop.index) }}"><code>{{ method.modifiers | join(' ') }}&nbsp;{{ typeLink(method.returnType) }}</code></div>
+<div class="col-first {{ rowColor(loop.index) }}"><code>{% for joinItem in method.modifiers %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %}&nbsp;{{ typeLink(method.returnType) }}</code></div>
 <div class="col-second {{ rowColor(loop.index) }}"><code><a href="#{{ method.anchor }}" class="member-name-link">{{ method.name }}</a>{{ parameters(method.parameters) }}</code></div>
 <div class="col-last {{ rowColor(loop.index) }}"><div class="block">{{ method.firstSentence | raw }}</div></div>
 {% endfor %}
@@ -358,7 +358,7 @@
 {% endif %}
 {% if since is not empty or seeAlso is not empty or tags is not empty %}
 <dl class="notes">
-{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% if since is not empty %}<dt>Since:</dt><dd>{% for joinItem in since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% for tag in tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endfor %}
 {% if seeAlso is not empty %}<dt>See Also:</dt><dd><ul class="see-list">{% for see in seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url  }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>{% endif %}
 </dl>
@@ -376,9 +376,9 @@
 <div class="table-header col-second">Package</div>
 <div class="table-header col-last">Description</div>
 {% for pkg in relatedPackages %}
-<div class="col-plain {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
+<div class="col-plain {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 </div>
@@ -412,7 +412,7 @@
 {% endif %}
 {% if since is not empty or tags is not empty or seeAlso is not empty %}
 <dl class="notes">
-{% if since is not empty %}<dt>Since:</dt><dd>{{ since | join(', ') }}</dd>{% endif %}
+{% if since is not empty %}<dt>Since:</dt><dd>{% for joinItem in since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% for tag in tags %}{% if tag.name != 'moduleGraph' and tag.name != 'uses' and tag.name != 'provides' %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endif %}{% endfor %}
 {% if seeAlso is not empty %}<dt>See Also:</dt><dd><ul class="see-list">{% for see in seeAlso %}<li><code>{{ see.label }}</code></li>{% endfor %}</ul></dd>{% endif %}
 </dl>
@@ -432,9 +432,9 @@
 <div class="table-header col-second">Module</div>
 <div class="table-header col-last">Description</div>
 {% for req in requires %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if req.isTransitive %}transitive{% endif %}{% if req.isStatic %}static{% endif %}</code></div>
-<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if req.url is not empty %}<a href="{{ req.url  }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if req.isTransitive %}transitive{% endif %}{% if req.isStatic %}static{% endif %}</code></div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if req.url is not empty %}<a href="{{ req.url  }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"></div>
 {% endfor %}
 </div>
 </section>
@@ -470,9 +470,9 @@
 <div class="table-header col-second">Exported To Modules</div>
 <div class="table-header col-last">Description</div>
 {% for export in exports %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.url is not empty %}<a href="{{ export.url  }}">{{ export.packageName }}</a>{% else %}{{ export.packageName }}{% endif %}</div>
-<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.to is not empty %}{{ export.to | join(', ') }}{% else %}All Modules{% endif %}</div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ export.firstSentence | raw }}</div></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.url is not empty %}<a href="{{ export.url  }}">{{ export.packageName }}</a>{% else %}{{ export.packageName }}{% endif %}</div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.to is not empty %}{% for joinItem in export.to %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}All Modules{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ export.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 </section>
@@ -503,8 +503,8 @@
 <div class="table-header col-first">Package</div>
 <div class="table-header col-last">Opened To Modules</div>
 {% for open in opens %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.url is not empty %}<a href="{{ open.url  }}">{{ open.packageName }}</a>{% else %}{{ open.packageName }}{% endif %}</div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.to is not empty %}{{ open.to | join(', ') }}{% else %}All Modules{% endif %}</div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.url is not empty %}<a href="{{ open.url  }}">{{ open.packageName }}</a>{% else %}{{ open.packageName }}{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.to is not empty %}{% for joinItem in open.to %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}All Modules{% endif %}</div>
 {% endfor %}
 </div>
 </section>
@@ -521,8 +521,8 @@
 <div class="table-header col-first">Type</div>
 <div class="table-header col-last">Description</div>
 {% for use in uses %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(use) }}</code></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(use) }}</code></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"></div>
 {% endfor %}
 </div>
 {% endif %}
@@ -532,8 +532,8 @@
 <div class="table-header col-first">Type</div>
 <div class="table-header col-last">Implementations</div>
 {% for provide in provides %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(provide.service) }}</code></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% for impl in provide.implementations %}{{ typeLink(impl) }}{% if not loop.last %}, {% endif %}{% endfor %}</code></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(provide.service) }}</code></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% for impl in provide.implementations %}{{ typeLink(impl) }}{% if not loop.last %}, {% endif %}{% endfor %}</code></div>
 {% endfor %}
 </div>
 {% endif %}
@@ -555,8 +555,8 @@
 <div class="table-header col-first">Module</div>
 <div class="table-header col-last">Description</div>
 {% for module in modules %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ module.url  }}">{{ module.name }}</a></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ module.firstSentence | raw }}</div></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ module.url  }}">{{ module.name }}</a></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ module.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 </div>
@@ -571,9 +571,9 @@
 <div class="table-header col-second">Package</div>
 <div class="table-header col-last">Description</div>
 {% for pkg in packages %}
-<div class="col-plain {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
+<div class="col-plain {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 </div>
@@ -587,10 +587,10 @@
 <div class="table-header col-first">Class</div>
 <div class="table-header col-second">Package</div>
 <div class="table-header col-last">Description</div>
-{% for type in types %}{% if type.modifiers is empty or type.modifiers contains 'public' %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ type.url  }}">{{ type.name }}</a></div>
-<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{{ type.packageName }}</div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ type.firstSentence | raw }}</div></div>
+{% for type in types %}{% set isPublic = false %}{% for modifier in type.modifiers %}{% if modifier == 'public' %}{% set isPublic = true %}{% endif %}{% endfor %}{% if type.modifiers is empty or isPublic %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ type.url  }}">{{ type.name }}</a></div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{{ type.packageName }}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ type.firstSentence | raw }}</div></div>
 {% endif %}{% endfor %}
 </div>
 </div>
@@ -603,9 +603,9 @@
 <div class="table-header col-second">Package</div>
 <div class="table-header col-last">Description</div>
 {% for pkg in packages %}
-<div class="col-plain {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
+<div class="col-plain {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{{ pkg.moduleName }}</div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ pkg.url  }}">{{ pkg.name }}</a></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ pkg.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 </div>
@@ -623,8 +623,8 @@
 <div class="table-header col-first">Element</div>
 <div class="table-header col-last">Description</div>
 {% for entry in section.value %}
-<div class="col-deprecated-item-name {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">{% if entry.url is not empty %}<a href="{{ entry.url  }}">{{ entry.element }}</a>{% else %}{{ entry.element }}{% endif %}</div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}">
+<div class="col-deprecated-item-name {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if entry.url is not empty %}<a href="{{ entry.url  }}">{{ entry.element }}</a>{% else %}{{ entry.element }}{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">
 {% if entry.forRemoval %}<span class="deprecated-label">Terminally deprecated.</span>{% endif %}
 {% if entry.since is not empty %}<span class="deprecated-label">Since {{ entry.since }}.</span>{% endif %}
 {% if entry.comment is not empty %}<div class="deprecation-comment">{{ entry.comment | raw }}</div>{% endif %}
@@ -646,9 +646,9 @@
 <div class="table-header col-second">Constant Field</div>
 <div class="table-header col-last">Value</div>
 {% for field in type.fields %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ field.modifiers | join(' ') }}&nbsp;{{ field.type.display }}</code></div>
-<div class="col-second {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if field.url is not empty %}<a href="{{ field.url  }}">{{ field.name }}</a>{% else %}{{ field.name }}{% endif %}</code></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ field.value }}</code></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% for joinItem in field.modifiers %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %}&nbsp;{{ field.type.display }}</code></div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if field.url is not empty %}<a href="{{ field.url  }}">{{ field.name }}</a>{% else %}{{ field.name }}{% endif %}</code></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ field.value }}</code></div>
 {% endfor %}
 </div>
 {% endfor %}
@@ -692,10 +692,10 @@
 {% endif %}
 {% if item.since is not empty or item.seeAlso is not empty or item.tags is not empty or item.authors is not empty or item.versions is not empty %}
 <dl class="notes">
-{% if item.since is not empty %}<dt>Since:</dt><dd>{{ item.since | join(', ') }}</dd>{% endif %}
+{% if item.since is not empty %}<dt>Since:</dt><dd>{% for joinItem in item.since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% for tag in item.tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | raw }}</dd>{% endfor %}
-{% if item.authors is not empty %}<dt>Author:</dt><dd>{{ item.authors | join(', ') }}</dd>{% endif %}
-{% if item.versions is not empty %}<dt>Version:</dt><dd>{{ item.versions | join(', ') }}</dd>{% endif %}
+{% if item.authors is not empty %}<dt>Author:</dt><dd>{% for joinItem in item.authors %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% if item.versions is not empty %}<dt>Version:</dt><dd>{% for joinItem in item.versions %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
 {% if item.seeAlso is not empty %}
 <dt>See Also:</dt>
 <dd><ul class="see-list">{% for see in item.seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url  }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>
@@ -762,7 +762,7 @@
 {%- if ref.url is not empty -%}<a href="{{ ref.url  }}">{{ ref.name }}</a>{%- else -%}{{ ref.name }}{%- endif -%}
 {% endmacro %}
 {% macro modifiers(list) %}
-{%- if list is not empty %}<span class="modifiers">{{ list | join(' ') }}</span>&nbsp;{% endif -%}
+{%- if list is not empty %}<span class="modifiers">{% for joinItem in list %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %}</span>&nbsp;{% endif -%}
 {% endmacro %}
 {% macro note(label, body) %}
 <dt>{{ label }}</dt>
@@ -771,7 +771,7 @@
 {% macro parameters(params) %}
 <wbr><span class="parameters">({%- for p in params -%}{{ typeLink(p.type) }}&nbsp;{{ p.name }}{% if not loop.last %},&nbsp;{% endif %}{%- endfor -%})</span>
 {% endmacro %}
-{% macro rowColor(index) %}{% if index is odd %}odd-row-color{% else %}even-row-color{% endif %}{% endmacro %}
+{% macro rowColor(index) %}{% if index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}{% endmacro %}
 {% macro sectionTitle(kind) %}
 {%- if kind == 'classes' -%}Deprecated Classes
 {%- elseif kind == 'interfaces' -%}Deprecated Interfaces
@@ -823,8 +823,8 @@
 <div class="table-header col-first">Class</div>
 <div class="table-header col-last">Description</div>
 {% for row in rows %}
-<div class="col-first {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ row.url  }}">{{ row.name }}</a></div>
-<div class="col-last {% if loop.index is odd %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ row.firstSentence | raw }}</div></div>
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><a href="{{ row.url  }}">{{ row.name }}</a></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ row.firstSentence | raw }}</div></div>
 {% endfor %}
 </div>
 {% endif %}

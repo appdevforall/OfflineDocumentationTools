@@ -56,6 +56,18 @@ what the reader already passes:
   the reader passes nothing but the JSON.
 - The `page` field selects the template, so that mapping lives here and not in the reader.
 
+## Compression: use `--plain-brotli` unless you know the reader attaches the dictionary
+
+The database's other rows are compressed against a shared Brotli dictionary (ADFA-5153), and this
+script will do the same by default. That turned out **not** to work with the app: a row written
+with the `brotli` CLI's `-D` needs the reader to attach the same dictionary the same way, and it
+does not, so the content failed to decode.
+
+`--plain-brotli` writes rows a stock Brotli decoder can read on its own, which is the documented
+fallback — readers fall back to a plain decode for rows that are not dictionary-compressed. It
+costs **+3.5%** on these rows (12.23 MB → 12.66 MB), which is a small price for content that
+actually decodes. Prefer it until someone confirms how the reader attaches the dictionary.
+
 ## What it leaves alone
 
 About half the rows under `j/html/api/` are page kinds this pipeline does not generate —
