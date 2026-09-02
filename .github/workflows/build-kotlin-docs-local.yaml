@@ -1,54 +1,55 @@
-name: Build Kotlin Docs
+name: Build Kotlin Docs (Local)
 
-# CI counterpart of ProcessDocs/ProcessKotlinDocs/run_e2e_pipeline_test.sh -
-# same five steps (find_missing_assets -> populate_db -> insert_optimized_media
-# -> build-stdlib-json-docs -> sync_kdoc_json_to_db), same ADFA-4737 blacklist,
-# but sourcing its inputs from fresh git checkouts instead of a developer's
-# local machine, and reading/writing the real database on Google Drive
-# (GOOGLE_DRIVE_FILE_ID) instead of a local SOURCE_DB copy.
+# Local-filesystem counterpart of build-kotlin-docs.yaml: same five steps
+# (find_missing_assets -> populate_db -> insert_optimized_media ->
+# build-stdlib-json-docs -> sync_kdoc_json_to_db), same ADFA-4737 blacklist,
+# but reads its documentation.db/webHelpImages.zip inputs from paths on the
+# runner's own disk (db_path / images_zip_path) instead of Google Drive, and
+# writes its outputs (the updated database, the missing-assets report) back
+# to disk (output_dir / db_path) instead of uploading them to Drive. No GCP
+# Workload Identity Federation, Drive API, or associated secrets are used
+# anywhere in this file.
+#
+# Since a GitHub-hosted runner is a fresh, disposable VM with no access to
+# anyone's actual local disk, db_path/images_zip_path/output_dir only make
+# sense here against a self-hosted runner, or when this workflow is run
+# locally (e.g. via https://github.com/nektos/act) with those host paths
+# bind-mounted into the job's container at the paths you pass as inputs.
+# run-build-kotlin-docs-with-act.sh at the repo root drives exactly that and
+# is the supported way to run this file locally.
+#
+# CAUTION when invoking act by hand rather than through that script: act does
+# NOT apply workflow_dispatch input defaults. Every "default:" below applies
+# on real GitHub and is simply absent under act, so an input you don't pass
+# arrives empty. That matters most for dry_run, whose default is true: with
+# it unset, "${{ !inputs.dry_run }}" evaluates to true and the final step
+# writes the rebuilt database back over db_path. Always pass
+# --input dry_run=true/false explicitly (the script always does).
 #
 # KNOWN LIMITATION: populate_db.py requires Writerside's own image export
 # ("webHelpImages.zip"), which JetBrains only produces via IntelliJ IDEA's
 # Writerside plugin build/export action - there is no headless/CLI way to
 # generate it (see ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/README.md,
-# "Inputs you need before starting"). So this workflow downloads it from
-# Google Drive rather than generating it itself; someone has to run that IDE
-# export, upload the zip to Drive, and supply its file ID (see
-# images_zip_file_id / GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID below) before
-# triggering a run that touches the website docs. Use skip_website_docs to
-# bypass this entirely and only refresh the kotlin-stdlib/-reflect/-test
-# JSON content.
+# "Inputs you need before starting"). So this workflow expects that export
+# to already exist on disk at images_zip_path rather than generating it
+# itself. Use skip_website_docs to bypass this entirely and only refresh the
+# kotlin-stdlib/-reflect/-test JSON content.
 #
-# Required secrets (already configured - see docdb-regression-test.yaml for
-# their other use in this repo):
-#   GCP_WIF_PROVIDER        - Workload Identity Federation provider name
-#   GCP_WIF_SERVICE_ACCOUNT - Service account email for WIF (needs read
-#                              access to the images-zip file below, and
-#                              write access - not just view - to the
-#                              database file, since this workflow
-#                              overwrites it)
-#   GOOGLE_DRIVE_FILE_ID     - File ID of the production documentation.db
-#                              (stored on Drive as a zip)
-#
-# Optional secret (falls back to the images_zip_file_id input if unset; see
-# also the hard-coded TEST_*_FILE_ID overrides below for one-off testing):
-#   GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID - File ID of Writerside's webHelpImages.zip export
-#
-# Optional secret (Slack notifications are skipped with a warning if unset):
+# Optional secret (Slack notifications are skipped with a warning if unset) -
+# same as build-kotlin-docs.yaml:
 #   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
 #                        below ("Grabbing baton" on start, "...Dropping
 #                        baton" on finish - org shorthand for lock
 #                        acquire/release, since this workflow mutates a
-#                        single shared Drive file).
+#                        single shared local file, db_path).
 
 permissions:
   contents: read
-  id-token: write
 
-# This workflow overwrites a single shared Drive file - never let two runs
-# race to upload against each other.
+# This workflow overwrites a single shared local file (db_path) - never let
+# two runs race to write it at the same time.
 concurrency:
-  group: build-kotlin-docs
+  group: build-kotlin-docs-local
   cancel-in-progress: false
 
 on:
@@ -68,14 +69,27 @@ on:
           branch. Pin this to a real release tag for a reproducible build.
         required: false
         default: ''
-      images_zip_file_id:
+      db_path:
         description: >-
-          Google Drive file ID for Writerside's webHelpImages.zip export
-          matching kotlin_web_site_ref (see KNOWN LIMITATION above). Falls
-          back to the GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID secret if left empty.
-          Ignored if skip_website_docs is true.
+          Path on this runner's disk to the input documentation.db. Read
+          directly (no download/unzip) and, unless dry_run is true, written
+          back to this same path when the run finishes.
+        required: true
+      images_zip_path:
+        description: >-
+          Path on this runner's disk to Writerside's webHelpImages.zip
+          export matching kotlin_web_site_ref (see KNOWN LIMITATION above).
+          Required unless skip_website_docs is true.
         required: false
         default: ''
+      output_dir:
+        description: >-
+          Directory on this runner's disk to write outputs into: the
+          missing-assets QA report and a run-numbered copy of the built
+          database (documentation-db-<run_number>.db). Created if it
+          doesn't already exist.
+        required: false
+        default: 'build-kotlin-docs-output'
       kotlin_libs_version:
         description: >-
           Version of the published kotlin-stdlib/-reflect/-test artifacts to
@@ -111,10 +125,10 @@ on:
         type: boolean
       dry_run:
         description: >-
-          If true, build and verify everything but do NOT upload the result
-          back to Google Drive - the production database is left untouched.
-          Set to false only once you trust a given ref/URL combination (see
-          this workflow's testing notes).
+          If true, build and verify everything but do NOT write the result
+          back to db_path - the input file on disk is left untouched. Set to
+          false only once you trust a given ref/path combination (see this
+          workflow's testing notes).
         required: false
         default: true
         type: boolean
@@ -126,16 +140,9 @@ jobs:
     env:
       KOTLIN_WEB_SITE_REF: ${{ inputs.kotlin_web_site_ref }}
       KOTLIN_REF: ${{ inputs.kotlin_ref }}
-      DB_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_FILE_ID }}
-      IMAGES_ZIP_FILE_ID_INPUT: ${{ inputs.images_zip_file_id }}
-      IMAGES_ZIP_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID }}
-      # --- Hard-coded overrides for one-off manual testing -----------------
-      # Fill in either of these with a literal Google Drive file ID to
-      # bypass the secret/input resolution above for a quick, repeatable
-      # test run (e.g. against scratch copies of the database/images zip on
-      # Drive). Leave both empty ('') for normal operation.
-      TEST_DB_FILE_ID: ''
-      TEST_IMAGES_ZIP_FILE_ID: ''
+      DB_PATH: ${{ inputs.db_path }}
+      IMAGES_ZIP_PATH: ${{ inputs.images_zip_path }}
+      OUTPUT_DIR: ${{ inputs.output_dir }}
       SKIP_WEBSITE_DOCS: ${{ inputs.skip_website_docs }}
       KOTLIN_LIBS_VERSION: ${{ inputs.kotlin_libs_version }}
       KOTLIN_LIBS_REPO: ${{ inputs.kotlin_libs_repo }}
@@ -158,22 +165,30 @@ jobs:
       - name: Checkout OfflineDocumentationTools
         uses: actions/checkout@v4
 
-      - name: Resolve Google Drive file IDs
+      - name: Resolve local file paths
         run: |
           if [ "$SKIP_WEBSITE_DOCS" = "true" ] && [ "$SKIP_STDLIB_DOCS" = "true" ]; then
             echo "Error: skip_website_docs and skip_stdlib_docs are both true - that skips every step that changes the database, leaving nothing for this run to do" >&2
             exit 1
           fi
-          DB_FILE_ID="${TEST_DB_FILE_ID:-$DB_FILE_ID_SECRET}"
-          IMG_FILE_ID="${TEST_IMAGES_ZIP_FILE_ID:-${IMAGES_ZIP_FILE_ID_INPUT:-$IMAGES_ZIP_FILE_ID_SECRET}}"
-          if [ -z "$DB_FILE_ID" ]; then
-            echo "Error: no database file ID resolved - set the GOOGLE_DRIVE_FILE_ID secret, or TEST_DB_FILE_ID above for a test run" >&2
+          if [ ! -f "$DB_PATH" ]; then
+            echo "Error: db_path '$DB_PATH' does not exist on this runner - for a self-hosted runner this must be a path on that machine; for act, bind-mount it into the container so it's visible at this exact path" >&2
             exit 1
           fi
-          echo "Resolved DB_FILE_ID: ${DB_FILE_ID:+(set)}"
-          echo "Resolved IMG_FILE_ID: ${IMG_FILE_ID:+(set)}"
-          echo "DB_FILE_ID=$DB_FILE_ID" >> "$GITHUB_ENV"
-          echo "IMG_FILE_ID=$IMG_FILE_ID" >> "$GITHUB_ENV"
+          if [ "$SKIP_WEBSITE_DOCS" != "true" ]; then
+            if [ -z "$IMAGES_ZIP_PATH" ]; then
+              echo "Error: images_zip_path is required unless skip_website_docs is true" >&2
+              exit 1
+            fi
+            if [ ! -f "$IMAGES_ZIP_PATH" ]; then
+              echo "Error: images_zip_path '$IMAGES_ZIP_PATH' does not exist on this runner" >&2
+              exit 1
+            fi
+          fi
+          mkdir -p "$OUTPUT_DIR"
+          echo "Resolved DB_PATH: $DB_PATH"
+          echo "Resolved IMAGES_ZIP_PATH: ${IMAGES_ZIP_PATH:-(skipped)}"
+          echo "Resolved OUTPUT_DIR: $OUTPUT_DIR"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -196,37 +211,19 @@ jobs:
           # brotli: the CLI, not the Python package. populate_db.py's
           # DictionaryCompressor and sync_kdoc_json_to_db.py shell out to it because
           # no Python binding exposes a custom dictionary (ADFA-5153).
-          sudo apt-get install -y pngquant unzip zip sqlite3 brotli
+          sudo apt-get install -y pngquant unzip sqlite3 brotli
 
       - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
           # markdown-it-py: ProcessKotlinWebsiteJSON's own requirement (see
           # its README); scour/cairosvg are in requirements.txt already.
-          # google-api-python-client & friends: Drive download/upload, same
-          # libraries check-tools/download_database.py already depends on.
-          pip install markdown-it-py \
-            google-api-python-client google-auth-httplib2 google-auth-oauthlib
+          pip install markdown-it-py
 
-      - name: Authenticate to Google Cloud using Workload Identity Federation
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
-          access_token_scopes: |
-            https://www.googleapis.com/auth/drive.file
-
-      - name: Download current documentation.db from Google Drive
+      - name: Copy documentation.db from local disk
         run: |
-          python3 check-tools/download_database.py "$DB_FILE_ID" documentation.zip
-          unzip -o documentation.zip
-          if [ ! -f documentation.db ]; then
-            found="$(find . -maxdepth 2 -name documentation.db | head -n1)"
-            [ -n "$found" ] && mv "$found" documentation.db
-          fi
-          test -f documentation.db
+          cp "$DB_PATH" documentation.db
           sqlite3 documentation.db "SELECT 1;" > /dev/null
-          rm -f documentation.zip
           echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
 
       - name: 'Notify Slack: build started'
@@ -248,17 +245,9 @@ jobs:
           [ -n "$KOTLIN_WEB_SITE_REF" ] && ARGS+=(--branch "$KOTLIN_WEB_SITE_REF")
           git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site
 
-      - name: Download Writerside image export from Google Drive
+      - name: Copy Writerside image export from local disk
         if: ${{ !inputs.skip_website_docs }}
-        run: |
-          if [ -z "$IMG_FILE_ID" ]; then
-            echo "Error: no images-zip file ID resolved - set images_zip_file_id, the GOOGLE_DRIVE_IMAGES_ZIP_FILE_ID secret, or TEST_IMAGES_ZIP_FILE_ID above (see KNOWN LIMITATION in this workflow's header comment). Required unless skip_website_docs is true." >&2
-            exit 1
-          fi
-          # download_database.py is a generic Drive-file-by-ID downloader
-          # despite its name - reused here rather than duplicating the
-          # WIF/Drive-API download logic for a second file type.
-          python3 check-tools/download_database.py "$IMG_FILE_ID" webHelpImages.zip
+        run: cp "$IMAGES_ZIP_PATH" webHelpImages.zip
 
       - name: 'Step 1/5: find_missing_assets.py (source QA report)'
         if: ${{ !inputs.skip_website_docs }}
@@ -266,12 +255,9 @@ jobs:
           python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
             kotlin-web-site/docs missing-assets-report.md
 
-      - name: Upload missing-assets report
+      - name: Write missing-assets report to output_dir
         if: ${{ !inputs.skip_website_docs }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: missing-assets-report
-          path: missing-assets-report.md
+        run: cp missing-assets-report.md "$OUTPUT_DIR/missing-assets-report.md"
 
       - name: 'Step 2/5: populate_db.py (convert docs, prune blacklist, insert into db)'
         if: ${{ !inputs.skip_website_docs }}
@@ -394,35 +380,16 @@ jobs:
           print(f"PASS: all {len(blacklisted_stems)} blacklisted topic page(s) confirmed absent from {db_path}.")
           PYEOF
 
-      - name: Upload built database as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-db-${{ github.run_number }}
-          path: documentation.db
-          retention-days: 14
+      - name: Write built database to output_dir
+        run: |
+          cp documentation.db "$OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+          echo "Wrote $OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
 
-      - name: Zip updated database for upload
-        if: ${{ !inputs.dry_run }}
-        run: zip -j documentation.zip documentation.db
-
-      - name: Upload updated database to Google Drive
+      - name: Write updated database back to db_path
         if: ${{ !inputs.dry_run }}
         run: |
-          python3 - <<'PYEOF'
-          import os
-          from google.auth import default
-          from googleapiclient.discovery import build
-          from googleapiclient.http import MediaFileUpload
-
-          file_id = os.environ["DB_FILE_ID"]
-          credentials, _ = default()
-          service = build("drive", "v3", credentials=credentials)
-          media = MediaFileUpload("documentation.zip", mimetype="application/zip", resumable=True)
-          updated = service.files().update(
-              fileId=file_id, media_body=media, fields="id, modifiedTime, md5Checksum"
-          ).execute()
-          print(f"Uploaded new revision of {file_id}: {updated}")
-          PYEOF
+          cp documentation.db "$DB_PATH"
+          echo "Wrote updated documentation.db back to $DB_PATH"
 
       # if: always() - the baton must be dropped even when the build fails,
         # otherwise the channel shows it held forever by a dead run, which is the

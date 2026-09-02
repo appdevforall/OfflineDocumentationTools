@@ -132,6 +132,36 @@ def read_item(conn, path: str) -> bytes:
     return b"".join(parts)
 
 
+def is_chunked_base(lengths: dict, base_path: str) -> bool:
+    """Whether `base_path` is the head of a chunked item, given a
+    {path: content length} map.
+
+    A path merely *looking* like "<base>-<N>" does not make it a fragment.
+    Chunking only ever splits a blob that exceeded CHUNK_SIZE, so the base row
+    of a chunked item is always exactly CHUNK_SIZE bytes - the same test
+    read_item, WebServer.kt and renumber_misnumbered_fragments.py all use.
+    Without it, two independent pages named "X" and "X-1" read as one chunked
+    item: "X-1" is classified as a fragment, so it is never scanned, never
+    counted and never reported, and write_item then deletes it as surplus.
+
+    Deliberately only the base row's length, not a contiguous walk from "-1":
+    an ADFA-5171 chain numbered from "-2" is still a real chain, and requiring
+    "-1" to exist would misread it as an independent page and migrate it twice.
+    """
+    return lengths.get(base_path) == CHUNK_SIZE
+
+
+def _db_continuation_paths(conn, base_path: str) -> set:
+    """The continuation rows belonging to `base_path`, empty unless it is
+    actually a chunked base (see is_chunked_base). Chain membership itself
+    comes from fragment_chain, which is suffix-agnostic and so handles an
+    ADFA-5171 chain numbered from "-2"."""
+    row = conn.execute("SELECT LENGTH(content) FROM Content WHERE path = ?", (base_path,)).fetchone()
+    if row is None or not is_chunked_base({base_path: row[0]}, base_path):
+        return set()
+    return {fragment_path for _n, fragment_path in fragment_chain(conn, base_path)}
+
+
 def write_item(conn, path: str, language_id: int, content_type_id: int, template_id: int, data: bytes) -> None:
     """Replaces one item's stored bytes in place: UPDATE on the base row, then
     the continuation rows reconciled by exact path (updated, inserted, or
@@ -143,13 +173,16 @@ def write_item(conn, path: str, language_id: int, content_type_id: int, template
     Content.id. Continuation paths end in "-<N>", so they never match those
     triggers and are safe to delete. Nothing here goes through LIKE, so no
     unrelated row can be caught by a `_` wildcard in a path."""
+    # Resolved before the UPDATE below: it is the base row's *current* length
+    # that marks it as chunked, and overwriting it first would lose that.
+    existing = _db_continuation_paths(conn, path)
+
     conn.execute("UPDATE Content SET content = ? WHERE path = ?", (data[:CHUNK_SIZE], path))
 
     wanted = {}
     for number, offset in enumerate(range(CHUNK_SIZE, len(data), CHUNK_SIZE), start=1):
         wanted[f"{path}-{number}"] = data[offset:offset + CHUNK_SIZE]
 
-    existing = {fragment_path for _n, fragment_path in fragment_chain(conn, path)}
     for fragment_path, blob in wanted.items():
         if fragment_path in existing:
             conn.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, fragment_path))
@@ -295,11 +328,16 @@ def load_base_rows(conn) -> list:
         "WHERE C.contentTypeID = CT.id AND CT.compression = 'brotli' "
         "ORDER BY C.path"
     ).fetchall()
-    all_paths = {row[0] for row in conn.execute("SELECT path FROM Content")}
+    # Classifying a row as a continuation purely on its name matching
+    # "<existing path>-<digits>" is not safe: two independent pages named "X"
+    # and "X-1" would make "X-1" invisible here - never scanned, never counted,
+    # never reported - and write_item would then delete it as surplus. Gate on
+    # the actual chunking rule instead (see continuation_paths).
+    lengths = {path: length for path, length in conn.execute("SELECT path, LENGTH(content) FROM Content")}
     base_rows = []
     for row in rows:
         prefix, sep, suffix = row[0].rpartition("-")
-        if sep == "-" and suffix.isdigit() and prefix in all_paths:
+        if sep == "-" and suffix.isdigit() and is_chunked_base(lengths, prefix):
             continue  # a continuation row; handled with its base
         base_rows.append(row)
     return base_rows

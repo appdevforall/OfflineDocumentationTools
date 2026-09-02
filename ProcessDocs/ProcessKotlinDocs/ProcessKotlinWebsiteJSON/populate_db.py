@@ -34,6 +34,9 @@ a backslash.
 <db-path> defaults to "documentation.db". A safety backup (via SQLite's
 "VACUUM INTO", which is safe even against a live/WAL-mode database) is
 written next to it before any changes: "<db-path>.backup-<timestamp>".
+It is taken late - after conversion, which is the last step that can still
+refuse to proceed - so a run that bails without writing doesn't leave a
+full-size copy of the database behind for nothing.
 
 <images-zip> is Writerside's own official image output for this doc set
 (e.g. "webHelpImages.zip", found next to kr.tree) - a flat archive with no
@@ -178,10 +181,16 @@ EXTENSION_TO_CONTENT_TYPE = {
     ".js": "text/javascript",
 }
 
-# pngquant is a lossy PNG-only compressor; it can't touch svg/gif/jpeg, so
-# this is the only content type run through it before insertion.
-PNGQUANT_CONTENT_TYPE = "image/png"
-PNGQUANT_QUALITY = "65-80"
+# Images are inserted here as-is. This script used to run every PNG through
+# pngquant on the way in, but insert_optimized_media.py (step 3/5, which both
+# run_e2e_pipeline_test.sh and .github/workflows/build-kotlin-docs*.yaml always
+# run straight after this) re-optimizes the same source images and replaces
+# every one of those rows - measured on the live corpus, 0 of the PNG rows this
+# script writes survive that step (161 become .webp, and the 51 remaining image
+# rows are .svg/.gif, which pngquant can't touch anyway). So the pngquant pass
+# here was pure discarded work. Anything that wants optimized media in the
+# database should run insert_optimized_media.py, which owns that decision and
+# has the full option surface (--jpeg-quality/--webp/--pngquant-speed/...) for it.
 
 # Single-row table: the whole documentation.db has exactly one shared Brotli
 # dictionary, embedded here so it always ships in sync with the content
@@ -201,39 +210,10 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 DEFAULT_DICT_SIZE = 256 * 1024
 
 
-def find_pngquant() -> str:
-    """Locates the pngquant executable on PATH. Raises if it's missing,
-    rather than silently inserting uncompressed PNGs - that'd be a silent
-    regression in output size that's easy to miss."""
-    path = shutil.which("pngquant")
-    if path is None:
-        raise RuntimeError("pngquant not found on PATH; install it (e.g. `apt install pngquant`) and retry")
-    return path
-
-
-def compress_png_with_pngquant(data: bytes, pngquant_path: str, name: str) -> bytes:
-    """Runs pngquant on a single PNG's raw bytes (stdin -> stdout, no temp
-    files), returning the compressed bytes. Falls back to the original bytes
-    unchanged if pngquant declines to compress this particular image (e.g.
-    its exit code 99 means the result would fall below --quality's floor) or
-    otherwise fails, since a slightly larger PNG beats a missing/corrupt one."""
-    result = subprocess.run(
-        [pngquant_path, "--quality", PNGQUANT_QUALITY, "--strip", "--force", "--output", "-", "-"],
-        input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
-    if result.returncode != 0 or not result.stdout:
-        print(
-            f"warning: pngquant declined to compress {name!r} "
-            f"(exit {result.returncode}: {result.stderr.decode(errors='replace').strip()}); keeping original",
-            file=sys.stderr,
-        )
-        return data
-    return result.stdout
-
-
 def find_tool(name: str) -> str:
     """Locates an executable on PATH. Raises if it's missing, rather than
-    silently falling back to some other behavior - see find_pngquant."""
+    silently falling back to some other behavior, which would turn a missing
+    tool into a wrong-output bug much further downstream."""
     path = shutil.which(name)
     if path is None:
         raise RuntimeError(f"{name} not found on PATH; install it and retry")
@@ -475,13 +455,14 @@ def insert_chunked_content(conn, path: str, language_id: int, content_type_id: i
 
 
 def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
-                 chunked_log: list, pngquant_path: str, compressor: "DictionaryCompressor") -> bool:
+                 chunked_log: list, compressor: "DictionaryCompressor") -> bool:
     """Inserts one raw (templateId 0) file's bytes as a Content row (chunked
     via insert_chunked_content if needed). name is only used to look up its
     content type by extension. Returns False (and skips it, with a warning)
     for an extension not in EXTENSION_TO_CONTENT_TYPE instead of guessing at
-    a content type. PNGs are run through pngquant first - the only content
-    type it's compatible with - before the usual dictionary-Brotli compression."""
+    a content type. Bytes go in as given, apart from the usual
+    dictionary-Brotli compression - image optimization belongs to
+    insert_optimized_media.py (see the note by EXTENSION_TO_CONTENT_TYPE)."""
     content_type_value = EXTENSION_TO_CONTENT_TYPE.get(Path(name).suffix.lower())
     if content_type_value is None:
         print(f"warning: no known content type for {name!r}; skipping", file=sys.stderr)
@@ -490,8 +471,6 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
         content_type_cache[content_type_value] = get_content_type(conn, content_type_value)
     content_type_id, compress = content_type_cache[content_type_value]
 
-    if content_type_value == PNGQUANT_CONTENT_TYPE:
-        data = compress_png_with_pngquant(data, pngquant_path, name)
     if compress:
         data = compressor.compress(data)
     insert_chunked_content(conn, db_path, language_id, content_type_id, 0, data, chunked_log)
@@ -611,6 +590,12 @@ def main():
              "subtree get no nav entry, none of their .md sub-topics get converted/inserted, and any other page's "
              "in-content link to one of those .md files renders as broken",
     )
+    parser.add_argument(
+        "--allow-conversion-failures", action="store_true",
+        help="Insert whatever converted successfully even if some .md files failed, instead of the default of "
+             "refusing to modify the database at all. Failed pages are dropped from nav and every link to them "
+             "renders as broken either way",
+    )
     args = parser.parse_args()
 
     docs_root: Path = args.docs_root
@@ -627,12 +612,6 @@ def main():
     if not args.db_path.is_file():
         print(f"error: {args.db_path} does not exist", file=sys.stderr)
         sys.exit(1)
-
-    pngquant_path = find_pngquant()
-
-    print(f"Backing up {args.db_path}...", file=sys.stderr)
-    backup_path = backup_database(args.db_path)
-    print(f"Backup written to {backup_path}", file=sys.stderr)
 
     config = load_config(args.config)
     variables = load_variables(docs_root)
@@ -657,7 +636,24 @@ def main():
               file=sys.stderr)
 
     image_names = load_zip_image_names(args.images_zip)
-    image_index_db = {name: name for name in image_names}  # flat, matching the zip's own layout
+    # Bare filename -> bare filename: every image is stored at
+    # "k/html/images/<basename>" regardless of where it sat inside the zip,
+    # and Converter.resolve_image_src looks its references up by bare
+    # filename too (src.rsplit("/")[-1]), so both sides agree even if a
+    # future export grows subdirectories. Keeping the full entry name as the
+    # index value instead would silently break every reference in a nested
+    # zip - the lookup key would never match - and would disagree with
+    # insert_optimized_media.py, which flattens to the basename as well.
+    image_index_db = {}
+    image_entry_by_name = {}
+    for name in image_names:
+        base = Path(name).name
+        if base in image_entry_by_name:
+            print(f"warning: {name!r} has the same filename as {image_entry_by_name[base]!r}; "
+                  "keeping the first, skipping this one", file=sys.stderr)
+            continue
+        image_entry_by_name[base] = name
+        image_index_db[base] = base
     md = make_markdown_it()
     converter = Converter(
         md, variables, topic_index_db, image_index_db,
@@ -665,8 +661,21 @@ def main():
         image_url_prefix=IMAGES_URL_PREFIX,
     )
 
-    md_files = [p for p in sorted(topics_dir.rglob("*.md")) if p.stem not in blacklisted_stems]
+    # Every page is stored at "k/html/<stem>", so two same-stem .md files in
+    # different topics/ subdirectories would produce two inserts at one
+    # Content.path - a UNIQUE violation that aborts the whole transaction
+    # partway through. build_topic_index already resolves that ambiguity
+    # (keep the first sorted page id, warn about the rest), so defer to the
+    # choice it already made and drop the losers here instead of crashing on
+    # them: a file is kept only if topic_index maps its stem back to this
+    # exact file. No second warning - build_topic_index printed one already.
+    md_files = [
+        p for p in sorted(topics_dir.rglob("*.md"))
+        if p.stem not in blacklisted_stems
+        and topic_index.get(p.stem) == p.relative_to(topics_dir).with_suffix("").as_posix()
+    ]
     pages = []
+    failed_stems = []
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
         db_id = f"k/html/{md_path.stem}"
@@ -675,9 +684,44 @@ def main():
             page = converter.convert_file(md_path, db_id, source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep converting the rest
             print(f"error converting {md_path}: {exc}", file=sys.stderr)
+            # No Content row will exist at this page's path, so stop
+            # advertising it as a real page: without this, topic_index_db
+            # still resolves the stem and nav renders an ordinary,
+            # normally-styled link straight to a 404 (and any other page's
+            # in-content link to it does the same). Dropping it here is what
+            # the blacklist path already does above, and makes every
+            # reference render as a styled broken link instead.
+            topic_index_db.pop(md_path.stem, None)
+            failed_stems.append(md_path.stem)
             continue
         pages.append(page)
     print(f"Converted {len(pages)}/{len(md_files)} pages", file=sys.stderr)
+    # A failed conversion means a page that currently exists in the database
+    # would be deleted (see the DELETE below) and not replaced. That's a
+    # silent regression in a database this script's callers upload straight
+    # to production, so refuse to write anything rather than shipping a
+    # smaller corpus than the source tree describes. --allow-conversion-
+    # failures opts back into best-effort behaviour, matching the
+    # --allow-failures escape hatch find_missing_assets.py already has.
+    if failed_stems and not args.allow_conversion_failures:
+        print(
+            f"error: {len(failed_stems)} page(s) failed to convert "
+            f"({', '.join(sorted(failed_stems))}); refusing to modify {args.db_path}. "
+            "Fix the source, or pass --allow-conversion-failures to insert the rest anyway.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Backed up only once everything that can still refuse to proceed has had
+    # its say - conversion is the last of those, and it happens entirely in
+    # memory. Taking the backup up front (where it used to be) meant every run
+    # that then bailed on a conversion failure still left a full copy of the
+    # database behind: ~250MB per failed attempt against the production file,
+    # none of it ever needed, since a run that refuses to write has nothing to
+    # roll back to.
+    print(f"Backing up {args.db_path}...", file=sys.stderr)
+    backup_path = backup_database(args.db_path)
+    print(f"Backup written to {backup_path}", file=sys.stderr)
 
     # kr.tree's start-page is home.topic, not a .md file, so it never goes
     # through the conversion loop above - nav ends up linking to
@@ -699,7 +743,17 @@ def main():
     for w in nav_warnings:
         print(f"warning: {w}", file=sys.stderr)
 
-    flat_nav = flatten_nav_ids(nav_tree)
+    # Only nodes that actually have a Content row can be pager targets.
+    # build_node synthesizes an id for a topic it couldn't resolve to a
+    # converted page (an unconverted "*.topic" such as api-references.topic -
+    # visible in the committed nav.html as data-nav-id="api-references"), so
+    # that the sidebar can still render it. nav.peb colours those as non-links,
+    # but page.peb's prev/next renders whatever it is given as an ordinary
+    # link - so the two neighbours of such a node used to get pager links
+    # straight to a 404. Filtering here keeps the pager and the sidebar
+    # agreeing on what is reachable.
+    real_page_ids = {page["id"] for page in pages}
+    flat_nav = [node for node in flatten_nav_ids(nav_tree) if node["id"] in real_page_ids]
     id_to_index = {}
     for i, node in enumerate(flat_nav):
         id_to_index.setdefault(node["id"], i)
@@ -766,10 +820,15 @@ def main():
             content_type_cache = {}
             images_inserted = 0
             with zipfile.ZipFile(args.images_zip) as zf:
-                for name in image_names:
-                    db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
-                    if insert_file(conn, zf.read(name), name, db_path, language_id, content_type_cache, chunked_log,
-                                    pngquant_path, compressor):
+                # Keyed by bare filename, matching image_index_db above (and
+                # so the "/k/html/images/<basename>" references baked into
+                # every page at conversion time) rather than the zip's own
+                # entry name, which is the same string for a flat zip and the
+                # right one for a nested one.
+                for base, entry in sorted(image_entry_by_name.items()):
+                    db_path = f"{IMAGES_DB_PATH_PREFIX}{base}"
+                    if insert_file(conn, zf.read(entry), base, db_path, language_id, content_type_cache, chunked_log,
+                                    compressor):
                         images_inserted += 1
 
             assets_inserted = 0
@@ -778,7 +837,7 @@ def main():
                     continue
                 db_path = f"assets/{asset_path.name}"
                 if insert_file(conn, asset_path.read_bytes(), asset_path.name, db_path, language_id,
-                                content_type_cache, chunked_log, pngquant_path, compressor):
+                                content_type_cache, chunked_log, compressor):
                     assets_inserted += 1
 
         conn.commit()

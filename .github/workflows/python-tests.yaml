@@ -1,0 +1,70 @@
+name: Python tests
+
+# Runs the repo's pytest suites on every push and PR.
+#
+# Added because nothing here executed them: the Kotlin-docs pipeline ships
+# ~1,300 lines of regression tests covering permanent, silent data-loss paths
+# (a migration deleting an unrelated page, an image optimizer collapsing two
+# sources onto one output, a chunk chain reassembling truncated), and until now
+# they only ran when someone remembered to run them locally. Tests that never
+# run in CI rot, and these are exactly the ones whose failure is invisible
+# without them.
+#
+# The suites are separate because their dependencies are: docdb-studio and
+# check-tools each own a pyproject.toml + uv.lock, while ProcessKotlinWebsiteJSON
+# runs against the root requirements.txt.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # pngquant: optimize_media.py shells out to it, and its tests exercise
+          #   the real binary rather than mocking it.
+          # brotli:   the CLI, not the Python package - DictionaryCompressor uses
+          #   it because no Python binding exposes a custom dictionary.
+          # zstd:     train_dictionary uses `zstd --train-fastcover` to build the
+          #   shared dictionary the migration tests need.
+          sudo apt-get install -y pngquant brotli zstd
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt pytest
+
+      - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs'
+        run: |
+          python -m pytest \
+            ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON \
+            scripts/sync_kotlin_stdlib_docs \
+            -q
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: docdb-studio
+        working-directory: docdb-studio
+        run: uv run --frozen -- python -m pytest -q

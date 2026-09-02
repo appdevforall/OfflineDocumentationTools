@@ -1,0 +1,50 @@
+{#
+  Renders the sidebar navigation tree built from kotlin-web-site/docs/kr.tree
+  by build_nav.py.
+
+  Expected context variable:
+    tree - a list of nav node objects (see nav.json), each shaped like:
+      {
+        "title": "Enum classes",
+        "id": "topics/enum-classes",   // null for a pure grouping header with no page of its own
+        "hidden": false,               // true for entries Writerside hides from the primary tree
+        "noLinkColor": null,           // set to config.json's "menu-no-link-color" by build_nav.py
+                                        // when this node doesn't actually lead to a generated page
+                                        // (no id at all, or a home.topic/api-references.topic style
+                                        // id that was never converted from Markdown); null otherwise
+        "children": [ ... ]            // nested nav nodes, possibly empty
+      }
+
+  `id` (when present) matches a docs-json/<id>.json file's own "id" field, so
+  href="/{{ node.id }}.html" lines up with however page.peb's output ends up
+  being served - adjust the URL prefix/extension below to match your router.
+
+  Every node with children renders a .nav-toggle-group button alongside its
+  label/link, and its <ul class="nav-subtree"> starts collapsed (see
+  assets/docs.css - collapse is a pure CSS default, not a Pebble default, so
+  it still works if this partial is ever rendered outside assets/sidebar.js's
+  reach). assets/sidebar.js handles the actual expand/collapse clicks, the
+  swipeable mobile drawer, and auto-expanding/highlighting the current page's
+  ancestor chain on load.
+#}
+<nav class="docs-nav" aria-label="Documentation">
+  <ul class="nav-tree">
+  {% for node in tree %}{{ renderNavNode(node) }}
+  {% endfor %}
+  </ul>
+</nav>
+
+{% macro renderNavNode(node) %}
+<li class="nav-item{% if node.hidden %} nav-hidden{% endif %}">
+<div class="nav-row">
+{% if node.children is not empty %}<button type="button" class="nav-toggle-group" aria-expanded="false" aria-label="Toggle {{ node.title }} section"></button>{% else %}<span class="nav-spacer" aria-hidden="true"></span>{% endif %}
+{% if node.id %}<a class="nav-link"{% if node.noLinkColor %} style="color: {{ node.noLinkColor }};"{% endif %} href="/{{ node.id }}.html" data-nav-id="{{ node.id }}">{{ node.title }}</a>
+{% else %}<span class="nav-group-title"{% if node.noLinkColor %} style="color: {{ node.noLinkColor }};"{% endif %}>{{ node.title }}</span>
+{% endif %}
+</div>
+{% if node.children is not empty %}<ul class="nav-tree nav-subtree">
+{% for child in node.children %}{{ renderNavNode(child) }}
+{% endfor %}</ul>
+{% endif %}
+</li>
+{% endmacro %}
