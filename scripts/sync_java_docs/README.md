@@ -68,6 +68,17 @@ fallback — readers fall back to a plain decode for rows that are not dictionar
 costs **+3.5%** on these rows (12.23 MB → 12.66 MB), which is a small price for content that
 actually decodes. Prefer it until someone confirms how the reader attaches the dictionary.
 
+## What is dropped on the way in
+
+Member-level `signature` and `url` are pruned, because no template reads them: the detail macros
+compose a member's signature from its parts, and a summary table links to a member on the page
+being rendered as `#` + `anchor`. Worth 7.9% of the Java rows.
+
+Not pruned, because they *are* read and cannot be recomputed with the filters the reader has: the
+class page's own `signature`, `JdConstantField.url`, every type reference's `url` (working one out
+needs the target's module and package, which costs more than the string it replaces), and every
+`firstSentence`.
+
 ## What it leaves alone
 
 About half the rows under `j/html/api/` are page kinds this pipeline does not generate —

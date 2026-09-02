@@ -26,6 +26,8 @@ filters (documentation.db's reader has none, and none of the templates already i
     the reader passes nothing but the JSON itself.
   - `page` is left in the JSON, because the single template branches on it: the reader can only
     load one template per page, so all nine page kinds share one and choose their markup from it.
+  - Member-level `signature` and `url` are dropped, because no template reads them -- the detail
+    macros compose a member's signature from its parts and link it by anchor. See PRUNED_* below.
 
 A timestamped backup is taken before anything is written.
 """
@@ -71,6 +73,24 @@ SUPERSEDED_TEMPLATES = tuple(f"javadoc-{kind}.peb" for kind in [
 # `.json` at the end of a string, or followed by a quote or a fragment. Applied to *parsed* JSON
 # strings, so the quote here is a real one rather than a backslash-escaped one in the raw text.
 JSON_EXTENSION = re.compile(r'\.json(?=["#]|$)')
+
+# Fields the template provably never reads, dropped to keep the stored blob small. Worth 7.9% of
+# the Java rows.
+#
+# A member's `signature` is redundant: `fieldDetail` and `executableDetail` compose the signature
+# from `modifiers`, `typeParameters`, `returnType`, `parameters` and `exceptions` themselves. A
+# member's `url` is redundant too: the summary tables link to it as "#" + `anchor`, because the
+# member is on the page being rendered.
+#
+# What is NOT pruned, because it *is* read: the class page's own `signature` (the type-signature
+# block), `JdConstantField.url` (constant-values links to another page), every type reference's
+# `url`, and every `firstSentence` -- a summary sentence cannot be recomputed from `description`
+# with the filters the reader has.
+PRUNED_IN_MEMBER_LISTS = frozenset({"signature", "url"})
+MEMBER_LISTS = frozenset({"methods", "constructors", "annotationElements", "fields", "enumConstants"})
+# JdMemberRef carries a `signature`; memberLink renders `name` and links by `url`.
+PRUNED_IN_REFERENCES = frozenset({"signature"})
+REFERENCE_KEYS = frozenset({"specifiedBy", "members", "overrides"})
 
 
 def backup_database(db_path: str) -> str:
@@ -152,6 +172,20 @@ def rewrite_links(value):
         return [rewrite_links(v) for v in value]
     if isinstance(value, dict):
         return {k: rewrite_links(v) for k, v in value.items()}
+    return value
+
+
+def prune_unread(value, key=None):
+    """Drops the fields listed above, wherever they appear beneath a member list or reference."""
+    if isinstance(value, dict):
+        return {
+            k: prune_unread(v, k)
+            for k, v in value.items()
+            if not (key in MEMBER_LISTS and k in PRUNED_IN_MEMBER_LISTS)
+            and not (key in REFERENCE_KEYS and k in PRUNED_IN_REFERENCES)
+        }
+    if isinstance(value, list):
+        return [prune_unread(v, key) for v in value]
     return value
 
 
@@ -272,7 +306,7 @@ def main() -> int:
             kept += 1
             continue
 
-        document = rewrite_links(document)
+        document = prune_unread(rewrite_links(document))
         document["pathToRoot"] = path_to_root(path)
         payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
         blob = compressor.compress(payload)
@@ -296,7 +330,7 @@ def main() -> int:
         page_kind = document.get("page")
         if page_kind not in KNOWN_PAGES:
             continue
-        document = rewrite_links(document)
+        document = prune_unread(rewrite_links(document))
         document["pathToRoot"] = path_to_root(content_path)
         payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
         blob = compressor.compress(payload)
