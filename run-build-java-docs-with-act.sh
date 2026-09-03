@@ -21,12 +21,26 @@
 #   - a running Docker daemon (act executes each step inside a container)
 #
 # CONTAINER MEMORY: documenting the whole JDK analyses ~4,800 source files in
-# one pass, inside the job container. Docker Desktop and colima both default
-# their VM to a few GB, which may not be enough - if a run dies with an
-# OutOfMemoryError, give the VM more memory, use --modules to document a
-# subset, or set --dokka-worker-heap. That last one is forwarded to Gradle as
-# -PdokkaWorkerHeap and the build logs a "Dokka worker heap" line when it is
-# applied, which is the way to confirm it took effect.
+# one pass, inside the job container, and that does NOT fit a small container
+# VM. Measured on a colima VM with 7.7 GB, --modules unset:
+#
+#   (no flag, 24g ceiling)   exit 137 after 1m17  - kernel SIGKILL: the JVM
+#                                                   grows until the VM is out
+#   --dokka-worker-heap 6g   exit 137 after 2m26  - same
+#   --dokka-worker-heap 5g   exit 137 after 2m33  - same
+#   --dokka-worker-heap 4g   "Java heap space"    - the JVM hit its own cap;
+#                                                   4g is too little for the job
+#
+# So there is no heap setting that works at 7.7 GB: below ~5g the analysis
+# genuinely needs more, and at ~5g and up the process no longer fits alongside
+# the Gradle daemon. Raise the container VM instead (colima start --memory 12,
+# or Docker Desktop's Resources pane) - or use --modules to document a subset,
+# which runs in about a minute and is enough to exercise the whole pipeline.
+#
+# Those two failure modes are also how to tell whether --dokka-worker-heap took
+# effect at all: "Java heap space" means the JVM hit the cap you set, exit 137
+# means it was killed from outside. The build additionally logs a "Dokka worker
+# heap" line whenever the flag is applied.
 #
 # Secrets: none are required. SLACK_WEBHOOK_URL is the only secret this
 # workflow reads, and it is optional - the two "Notify Slack" steps print a
