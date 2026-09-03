@@ -1,0 +1,158 @@
+{#
+  Shared fragments.
+
+  Every macro here is called by BARE NAME, both from inside this file and from the templates that
+  import it. Pebble's {% import %} pulls macros straight into the importing template's namespace --
+  unlike Jinja/Twig, there is no `macros.` prefix. A prefixed call resolves to nothing and renders
+  empty, silently, which is easy to miss.
+ Every one of these is defensive about missing keys: the plugin's `omitNulls`
+  option drops null and empty values entirely, so a template that assumes a key exists breaks
+  depending on how the JSON was generated.
+#}
+
+{#
+  javadoc's display label for a block tag. The JSON carries the tag as written in the source
+  (`apiNote`), because that is the data; javadoc prints a spelled-out heading ("API Note:"). Any
+  tag not listed here falls back to its own name, which is what javadoc does for a custom tag.
+#}
+{% macro tagLabel(name) %}
+{%- if name == 'apiNote' -%}API Note:
+{%- elseif name == 'implSpec' -%}Implementation Requirements:
+{%- elseif name == 'implNote' -%}Implementation Note:
+{%- elseif name == 'jls' -%}See Java Language Specification:
+{%- elseif name == 'jvms' -%}See Java Virtual Machine Specification:
+{%- elseif name == 'serialData' -%}Serial Data:
+{%- elseif name == 'serialField' -%}Serial Field:
+{%- elseif name == 'serial' -%}Serial:
+{%- elseif name == 'toolGuide' -%}Tool Guides:
+{%- elseif name == 'revised' -%}Revised:
+{%- elseif name == 'spec' -%}External Specifications:
+{%- else -%}{{ name }}:
+{%- endif -%}
+{% endmacro %}
+
+{# A type reference: linked when this run documents the type, plain text when it doesn't. #}
+{% macro typeLink(ref) %}
+{%- if ref is not empty -%}
+{%- if ref.url is not empty -%}
+<a href="{{ ref.url | href }}" title="{{ ref.kind | default('type') }} {{ ref.qualifiedName | default('') }}">{{ ref.display }}</a>
+{%- else -%}
+{{ ref.display }}
+{%- endif -%}
+{%- endif -%}
+{% endmacro %}
+
+{# A comma-separated list of type references. #}
+{% macro typeList(refs) %}
+{%- for ref in refs -%}{{ typeLink(ref) }}{% if not loop.last %}, {% endif %}{%- endfor -%}
+{% endmacro %}
+
+{# A member reference, as used by "Overrides:", "Specified by:" and the inherited-member lists. #}
+{% macro memberLink(ref) %}
+{%- if ref.url is not empty -%}<a href="{{ ref.url | href }}">{{ ref.name }}</a>{%- else -%}{{ ref.name }}{%- endif -%}
+{% endmacro %}
+
+{# One "dt/dd" note row, as javadoc renders Since / See Also / Overrides and friends. #}
+{% macro note(label, body) %}
+<dt>{{ label }}</dt>
+<dd>{{ body | raw }}</dd>
+{% endmacro %}
+
+{# The modifier prefix of a signature, e.g. "public static final". #}
+{% macro modifiers(list) %}
+{%- if list is not empty %}<span class="modifiers">{% for joinItem in list %}{{ joinItem }}{% if not loop.last %} {% endif %}{% endfor %}</span>&nbsp;{% endif -%}
+{% endmacro %}
+
+{# The parameter list of an executable, with linked parameter types. #}
+{% macro parameters(params) %}
+<wbr><span class="parameters">({%- for p in params -%}{{ typeLink(p.type) }}&nbsp;{{ p.name }}{% if not loop.last %},&nbsp;{% endif %}{%- endfor -%})</span>
+{% endmacro %}
+
+{# The `throws` clause of a signature. #}
+{% macro throwsClause(exceptions) %}
+{%- if exceptions is not empty %}<span class="throws-clause">&nbsp;throws&nbsp;{% for e in exceptions %}{{ typeLink(e.type) }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif -%}
+{% endmacro %}
+
+{# Zebra striping, which javadoc drives off the row index. #}
+{% macro rowColor(index) %}{% if index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}{% endmacro %}
+
+{# The block tags shared by every documented element: since, see also, deprecation, custom tags. #}
+{% macro commonNotes(item) %}
+{% if item.deprecated is not empty %}
+<div class="deprecation-block"><span class="deprecated-label">Deprecated{% if item.deprecated.forRemoval %}, for removal: This API element is subject to removal in a future version{% endif %}.</span>
+{% if item.deprecated.since is not empty %}<span class="deprecated-label">Since {{ item.deprecated.since }}.</span>{% endif %}
+{% if item.deprecated.comment is not empty %}<div class="deprecation-comment">{{ item.deprecated.comment | doc }}</div>{% endif %}
+</div>
+{% endif %}
+{% if item.since is not empty or item.seeAlso is not empty or item.tags is not empty or item.authors is not empty or item.versions is not empty %}
+<dl class="notes">
+{% if item.since is not empty %}<dt>Since:</dt><dd>{% for joinItem in item.since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% for tag in item.tags %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | doc }}</dd>{% endfor %}
+{% if item.authors is not empty %}<dt>Author:</dt><dd>{% for joinItem in item.authors %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% if item.versions is not empty %}<dt>Version:</dt><dd>{% for joinItem in item.versions %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% if item.seeAlso is not empty %}
+<dt>See Also:</dt>
+<dd><ul class="see-list">{% for see in item.seeAlso %}<li>{% if see.url is not empty %}<a href="{{ see.url | href }}"><code>{{ see.label }}</code></a>{% else %}<code>{{ see.label }}</code>{% endif %}</li>{% endfor %}</ul></dd>
+{% endif %}
+</dl>
+{% endif %}
+{% endmacro %}
+
+{# One field/enum-constant entry in the Details section. #}
+{% macro fieldDetail(field) %}
+<li>
+<section class="detail" id="{{ field.anchor }}">
+<h3>{{ field.name }}</h3>
+<div class="member-signature">{{ modifiers(field.modifiers) }}<span class="return-type">{{ typeLink(field.type) }}</span>&nbsp;<span class="element-name">{{ field.name }}</span></div>
+{% if field.description is not empty %}<div class="block">{{ field.description | doc }}</div>{% endif %}
+{{ commonNotes(field) }}
+{% if field.constantValue is not empty %}
+<dl class="notes"><dt>Constant Field Value:</dt><dd><code>{{ field.constantValue }}</code></dd></dl>
+{% endif %}
+</section>
+</li>
+{% endmacro %}
+
+{# One constructor/method/annotation-element entry in the Details section. #}
+{% macro executableDetail(member) %}
+<li>
+<section class="detail" id="{{ member.anchor }}">
+<h3>{{ member.name }}</h3>
+<div class="member-signature">{{ modifiers(member.modifiers) }}{% if member.typeParameters is not empty %}<span class="type-parameters">&lt;{% for t in member.typeParameters %}{{ t.name }}{% if not loop.last %},{% endif %}{% endfor %}&gt;</span>&nbsp;{% endif %}{% if member.returnType is not empty %}<span class="return-type">{{ typeLink(member.returnType) }}</span>&nbsp;{% endif %}<span class="element-name">{{ member.name }}</span>{{ parameters(member.parameters) }}{{ throwsClause(member.exceptions) }}</div>
+{% if member.description is not empty %}<div class="block">{{ member.description | doc }}</div>{% endif %}
+{% if member.specifiedBy is not empty or member.overrides is not empty or member.typeParameters is not empty or member.parameters is not empty or member.returns is not empty or member.exceptions is not empty %}
+<dl class="notes">
+{% for spec in member.specifiedBy %}
+<dt>Specified by:</dt>
+<dd><code>{{ memberLink(spec) }}</code>&nbsp;in {{ spec.declaringType.kind | default('interface') }}&nbsp;<code>{{ typeLink(spec.declaringType) }}</code></dd>
+{% endfor %}
+{% if member.overrides is not empty %}
+<dt>Overrides:</dt>
+<dd><code>{{ memberLink(member.overrides) }}</code>&nbsp;in {{ member.overrides.declaringType.kind | default('class') }}&nbsp;<code>{{ typeLink(member.overrides.declaringType) }}</code></dd>
+{% endif %}
+{% set hasTypeParamDocs = false %}
+{% for t in member.typeParameters %}{% if t.description is not empty %}{% set hasTypeParamDocs = true %}{% endif %}{% endfor %}
+{% if hasTypeParamDocs %}
+<dt>Type Parameters:</dt>
+{% for t in member.typeParameters %}{% if t.description is not empty %}<dd><code>{{ t.name }}</code> - {{ t.description | doc }}</dd>{% endif %}{% endfor %}
+{% endif %}
+{% set hasParamDocs = false %}
+{% for p in member.parameters %}{% if p.description is not empty %}{% set hasParamDocs = true %}{% endif %}{% endfor %}
+{% if hasParamDocs %}
+<dt>Parameters:</dt>
+{% for p in member.parameters %}{% if p.description is not empty %}<dd><code>{{ p.name }}</code> - {{ p.description | doc }}</dd>{% endif %}{% endfor %}
+{% endif %}
+{% if member.returns is not empty %}<dt>Returns:</dt><dd>{{ member.returns | doc }}</dd>{% endif %}
+{% if member.exceptions is not empty %}
+<dt>Throws:</dt>
+{% for e in member.exceptions %}<dd><code>{{ typeLink(e.type) }}</code>{% if e.description is not empty %} - {{ e.description | doc }}{% endif %}</dd>{% endfor %}
+{% endif %}
+</dl>
+{% endif %}
+{% if member.defaultValue is not empty %}
+<dl class="notes"><dt>Default:</dt><dd><code>{{ member.defaultValue }}</code></dd></dl>
+{% endif %}
+{{ commonNotes(member) }}
+</section>
+</li>
+{% endmacro %}

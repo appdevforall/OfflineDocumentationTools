@@ -3,6 +3,7 @@ package org.appdevforall.dokka.kdoc2json
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.*
 import org.appdevforall.dokka.kdoc2json.dtos.*
+import org.appdevforall.dokka.kdoc2json.javadoc.JavadocRenderer
 import org.jetbrains.dokka.base.DokkaBase
 import org.jetbrains.dokka.model.*
 import org.jetbrains.dokka.pages.PageNode
@@ -42,12 +43,32 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
         val finalConfig = config ?: JsonPluginConfig()
         val logger = PluginLogger(context.logger, finalConfig.logLevel, finalConfig.logFile)
 
+        logger.info("Initializing JSON Renderer with config: $finalConfig")
+
+        if (finalConfig.javadocMode) {
+            // Javadoc mode replaces the whole output: a different file layout, a different page
+            // shape, and its own link resolution -- so it takes over here rather than trying to
+            // post-process the Dokka-shaped output into javadoc's structure. It also has no use
+            // for the location provider, the package-list, or the LinkPostProcessor pass below,
+            // all of which exist to serve Dokka's own page paths.
+            logger.info("javadoc-mode enabled: emitting javadoc-shaped JSON instead of Dokka-shaped JSON.")
+            JavadocRenderer(
+                config = finalConfig,
+                logger = logger,
+                outputDir = context.configuration.outputDir,
+                moduleReferences = context.configuration.modules.map {
+                    it.name to it.relativePathToOutputDirectory.invariantSeparatorsPath
+                },
+                sourceRoots = context.configuration.sourceSets.flatMap { it.sourceRoots }.distinct()
+            ).render(root)
+            logger.info("JSON rendering completed (javadoc mode).")
+            return
+        }
+
         val json = Json {
             prettyPrint = finalConfig.prettyPrint
             classDiscriminator = finalConfig.classDiscriminator
         }
-
-        logger.info("Initializing JSON Renderer with config: $finalConfig")
 
         val locationProvider = context.plugin<DokkaBase>()
             .querySingle { locationProviderFactory }
@@ -220,43 +241,9 @@ class JsonRenderer(private val context: DokkaContext) : Renderer {
         logger.info("JSON rendering completed.")
     }
 
-    // --- RECURSIVE JSON AST FILTER ---
-    private fun filterJson(element: JsonElement, omitFields: List<String>, omitNulls: Boolean): JsonElement {
-        if (omitFields.isEmpty() && !omitNulls) return element
-        
-        return when (element) {
-            is JsonObject -> {
-                val filteredMap = element.entries
-                    .filterNot { omitFields.contains(it.key) }
-                    .mapNotNull { (key, value) ->
-                        val filteredValue = filterJson(value, omitFields, omitNulls)
-                        if (omitNulls && isNullOrEmpty(filteredValue)) {
-                            null
-                        } else {
-                            key to filteredValue
-                        }
-                    }
-                    .toMap()
-                JsonObject(filteredMap)
-            }
-            is JsonArray -> {
-                val mapped = element.map { filterJson(it, omitFields, omitNulls) }
-                if (omitNulls) {
-                    JsonArray(mapped.filterNot { isNullOrEmpty(it) })
-                } else {
-                    JsonArray(mapped)
-                }
-            }
-            else -> element
-        }
-    }
-
-    private fun isNullOrEmpty(element: JsonElement): Boolean {
-        return element is JsonNull ||
-               (element is JsonPrimitive && element.isString && element.content.isEmpty()) ||
-               (element is JsonArray && element.isEmpty()) ||
-               (element is JsonObject && element.isEmpty())
-    }
+    // Delegates to JsonFilters so Javadoc mode applies identical omitFields/omitNulls semantics.
+    private fun filterJson(element: JsonElement, omitFields: List<String>, omitNulls: Boolean): JsonElement =
+        JsonFilters.filterJson(element, omitFields, omitNulls)
 
     private fun passesSourceSetWhitelist(
         sourceSets: Set<org.jetbrains.dokka.DokkaConfiguration.DokkaSourceSet>,

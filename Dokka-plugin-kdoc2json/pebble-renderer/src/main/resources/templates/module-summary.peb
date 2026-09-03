@@ -1,0 +1,157 @@
+{% extends "base" %}
+{% import "macros" %}
+
+{% block title %}{{ name }}{% endblock %}
+{% block bodyClass %}module-declaration-page{% endblock %}
+
+{% block subnav %}
+<div class="sub-nav"><div class="nav-content"><ol class="sub-nav-list"><li>{{ name }}</li></ol></div></div>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+<h1 title="Module {{ name }}" class="title">Module {{ name }}</h1>
+</div>
+
+<section class="module-description" id="module-description">
+{% if description is not empty %}<div class="block">{{ description | doc }}</div>{% endif %}
+{% if hasModuleGraph %}
+<dl class="notes">
+<dt>Module Graph:</dt>
+<dd><a class="module-graph" href="module-graph.svg"><img style="vertical-align:top" alt="Module graph for {{ name }}" src="module-graph.svg" height="100"><span><img style="border: solid lightgray 1px; vertical-align:top" alt="Module graph for {{ name }}" src="module-graph.svg"></span></a></dd>
+</dl>
+{% endif %}
+{% if since is not empty or tags is not empty or seeAlso is not empty %}
+<dl class="notes">
+{% if since is not empty %}<dt>Since:</dt><dd>{% for joinItem in since %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+{% for tag in tags %}{% if tag.name != 'moduleGraph' and tag.name != 'uses' and tag.name != 'provides' %}<dt>{{ tagLabel(tag.name) }}</dt><dd>{{ tag.text | doc }}</dd>{% endif %}{% endfor %}
+{% if seeAlso is not empty %}<dt>See Also:</dt><dd><ul class="see-list">{% for see in seeAlso %}<li><code>{{ see.label }}</code></li>{% endfor %}</ul></dd>{% endif %}
+</dl>
+{% endif %}
+</section>
+
+<section class="summary">
+<ul class="summary-list">
+
+{% if requires is not empty %}
+<li>
+<section class="modules-summary" id="modules-summary">
+<h2>Modules</h2>
+<div class="caption"><span>Requires</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier</div>
+<div class="table-header col-second">Module</div>
+<div class="table-header col-last">Description</div>
+{% for req in requires %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% if req.isTransitive %}transitive{% endif %}{% if req.isStatic %}static{% endif %}</code></div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if req.url is not empty %}<a href="{{ req.url | href }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if indirectRequires is not empty %}
+<li>
+<section class="modules-summary" id="indirect-requires-summary">
+{% if requires is empty %}<h2>Modules</h2>{% endif %}
+<div class="caption"><span>Indirect Requires</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier</div>
+<div class="table-header col-second">Module</div>
+<div class="table-header col-last">Description</div>
+{% for req in indirectRequires %}
+<div class="col-first {{ rowColor(loop.index) }}"><code>transitive</code></div>
+<div class="col-second {{ rowColor(loop.index) }}">{% if req.url is not empty %}<a href="{{ req.url | href }}">{{ req.module }}</a>{% else %}{{ req.module }}{% endif %}</div>
+<div class="col-last {{ rowColor(loop.index) }}"></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if exports is not empty %}
+<li>
+<section class="packages-summary" id="packages-summary">
+<h2>Packages</h2>
+<div class="caption"><span>Exports</span></div>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Package</div>
+<div class="table-header col-second">Exported To Modules</div>
+<div class="table-header col-last">Description</div>
+{% for export in exports %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.url is not empty %}<a href="{{ export.url | href }}">{{ export.packageName }}</a>{% else %}{{ export.packageName }}{% endif %}</div>
+<div class="col-second {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if export.to is not empty %}{% for joinItem in export.to %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}All Modules{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><div class="block">{{ export.firstSentence | doc }}</div></div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if indirectExports is not empty %}
+<li>
+<section class="packages-summary" id="indirect-exports-summary">
+<div class="caption"><span>Indirect Exports</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">From</div>
+<div class="table-header col-last">Packages</div>
+{% for entry in indirectExports %}
+<div class="col-first {{ rowColor(loop.index) }}">{% if entry.moduleUrl is not empty %}<a href="{{ entry.moduleUrl | href }}">{{ entry.module }}</a>{% else %}{{ entry.module }}{% endif %}</div>
+<div class="col-last {{ rowColor(loop.index) }}">{% for pkg in entry.packages %}{% if pkg.url is not empty %}<a href="{{ pkg.url | href }}">{{ pkg.name }}</a>{% else %}{{ pkg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if opens is not empty %}
+<li>
+<section class="packages-summary" id="opens-summary">
+<h2>Opens</h2>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Package</div>
+<div class="table-header col-last">Opened To Modules</div>
+{% for open in opens %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.url is not empty %}<a href="{{ open.url | href }}">{{ open.packageName }}</a>{% else %}{{ open.packageName }}{% endif %}</div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}">{% if open.to is not empty %}{% for joinItem in open.to %}{{ joinItem }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}All Modules{% endif %}</div>
+{% endfor %}
+</div>
+</section>
+</li>
+{% endif %}
+
+{% if uses is not empty or provides is not empty %}
+<li>
+<section class="services-summary" id="services-summary">
+<h2>Services</h2>
+{% if uses is not empty %}
+<div class="caption"><span>Uses</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Type</div>
+<div class="table-header col-last">Description</div>
+{% for use in uses %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(use) }}</code></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"></div>
+{% endfor %}
+</div>
+{% endif %}
+{% if provides is not empty %}
+<div class="caption"><span>Provides</span></div>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Type</div>
+<div class="table-header col-last">Implementations</div>
+{% for provide in provides %}
+<div class="col-first {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{{ typeLink(provide.service) }}</code></div>
+<div class="col-last {% if loop.index % 2 == 1 %}odd-row-color{% else %}even-row-color{% endif %}"><code>{% for impl in provide.implementations %}{{ typeLink(impl) }}{% if not loop.last %}, {% endif %}{% endfor %}</code></div>
+{% endfor %}
+</div>
+{% endif %}
+</section>
+</li>
+{% endif %}
+
+</ul>
+</section>
+{% endblock %}
