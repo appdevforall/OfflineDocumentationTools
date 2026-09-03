@@ -31,11 +31,16 @@
 #   --dokka-worker-heap 4g   "Java heap space"    - the JVM hit its own cap;
 #                                                   4g is too little for the job
 #
-# So there is no heap setting that works at 7.7 GB: below ~5g the analysis
-# genuinely needs more, and at ~5g and up the process no longer fits alongside
-# the Gradle daemon. Raise the container VM instead (colima start --memory 12,
-# or Docker Desktop's Resources pane) - or use --modules to document a subset,
-# which runs in about a minute and is enough to exercise the whole pipeline.
+# So no heap setting works at 7.7 GB: below ~5g the analysis genuinely needs
+# more, and at ~5g and up the process no longer fits alongside the Gradle
+# daemon. Raise the container VM instead. Measured working configuration:
+#
+#   colima start --memory 16     (docker reports 15.6 GB)
+#   --dokka-worker-heap 8g       full JDK, all 60 modules, ~4 minutes:
+#                                2m30 generating, 1m15 syncing
+#
+# Or use --modules to document a subset, which runs in about a minute on the
+# smaller VM and is enough to exercise the whole pipeline.
 #
 # Those two failure modes are also how to tell whether --dokka-worker-heap took
 # effect at all: "Java heap space" means the JVM hit the cap you set, exit 137
