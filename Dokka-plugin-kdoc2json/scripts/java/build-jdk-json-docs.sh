@@ -20,7 +20,8 @@ PROJECT_DIR="$SCRIPT_DIR/jdk-docs"
 
 usage() {
     cat >&2 <<USAGE
-Usage: $0 [-j <jdk-home>] [-o <output-dir>] [-w <work-dir>] [-m <modules>] [--skip-publish]
+Usage: $0 [-j <jdk-home>] [-o <output-dir>] [-w <work-dir>] [-m <modules>]
+          [--dokka-worker-heap <size>] [--skip-publish]
 
   -j  JDK whose lib/src.zip to document. Defaults to \$JDK_SOURCE_HOME, else \$JAVA_HOME.
       Use a JDK matching the docs you want to reproduce -- the docs under
@@ -30,6 +31,14 @@ Usage: $0 [-j <jdk-home>] [-o <output-dir>] [-w <work-dir>] [-m <modules>] [--sk
       Default: $SCRIPT_DIR/build-output/work
   -m  Comma-separated module names to document instead of all of them. Useful for a quick
       check: -m java.sql,java.transaction.xa takes seconds rather than many minutes.
+  --dokka-worker-heap
+      Max heap for Dokka's *worker* process, e.g. 6g. Forwarded to Gradle as
+      -PdokkaWorkerHeap, which jdk-docs/build.gradle.kts reads. It has to be a
+      real Gradle command-line property: the worker is not the Gradle daemon,
+      so neither GRADLE_OPTS nor org.gradle.jvmargs sizes it, and passing it
+      through the environment instead fails silently -- the build just runs at
+      the 24g default and dies wherever that is too much. Default: unset, so
+      build.gradle.kts's own default applies.
   --skip-publish  Don't republish kdoc-to-json to mavenLocal first.
 USAGE
     exit 1
@@ -39,6 +48,7 @@ JDK_HOME="${JDK_SOURCE_HOME:-${JAVA_HOME:-}}"
 OUTPUT_DIR="$SCRIPT_DIR/build-output/api"
 WORK_DIR="$SCRIPT_DIR/build-output/work"
 MODULES=""
+DOKKA_WORKER_HEAP=""
 SKIP_PUBLISH=0
 
 while [[ $# -gt 0 ]]; do
@@ -47,6 +57,7 @@ while [[ $# -gt 0 ]]; do
         -o) OUTPUT_DIR="$2"; shift 2 ;;
         -w) WORK_DIR="$2"; shift 2 ;;
         -m) MODULES="$2"; shift 2 ;;
+        --dokka-worker-heap) DOKKA_WORKER_HEAP="$2"; shift 2 ;;
         --skip-publish) SKIP_PUBLISH=1; shift ;;
         -h|--help) usage ;;
         *) echo "Unknown argument: $1" >&2; usage ;;
@@ -84,7 +95,12 @@ fi
 
 echo "==> Running Dokka in javadoc-mode over the staged sources"
 echo "    (the whole JDK is ~4,800 files across 60 modules; this takes a while)"
-(cd "$PROJECT_DIR" && ./gradlew --console=plain dokkaGenerate -PjdkSources="$STAGING_DIR")
+gradle_args=(--console=plain dokkaGenerate -PjdkSources="$STAGING_DIR")
+if [[ -n "$DOKKA_WORKER_HEAP" ]]; then
+    gradle_args+=(-PdokkaWorkerHeap="$DOKKA_WORKER_HEAP")
+    echo "    Dokka worker heap: $DOKKA_WORKER_HEAP"
+fi
+(cd "$PROJECT_DIR" && ./gradlew "${gradle_args[@]}")
 
 GENERATED="$PROJECT_DIR/build/dokka/html"
 if [[ ! -d "$GENERATED" ]]; then
