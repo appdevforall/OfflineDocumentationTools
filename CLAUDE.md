@@ -35,7 +35,19 @@ edit that database** — it contains no part of the production Android app itsel
 ## Schema: current vs. what this repo expects
 
 The schema below is what `~/documentation.db` (Alex's current production copy) actually contains,
-as of 2026-08-05:
+as of 2026-08-05, with `Templates` and `BookCategories` updated for ADFA-5469 on 2026-09-03.
+
+Two caveats on reading it. It is a *tidied* listing, not a dump: cosmetic quoting has been
+normalised away in places (`Tooltips`' column definitions are all quoted in the real file, for
+instance). And `Content`'s `UNIQUE('path')` below is quoted because it really is — ADFA-5469
+cleared that pattern from `Templates` and `BookCategories` only, and ADFA-5470 tracks the rest
+(`Content`, `Tooltips`, `TooltipButtons`, `TooltipButtonNumbers`). Either way the quotes are
+cosmetic: SQLite resolves a string literal in that position back to the column
+([quirk 3](https://sqlite.org/quirks.html#dblquote)), so the indexes have always covered the
+columns they name. For the verbatim `sqlite_master` text, see `docdb-studio/SCHEMA.md`.
+
+Still missing below, and worth adding next time someone is in here: `DocumentationDatabaseVersion`
+(ADFA-5220) and `CompressionDictionary` (ADFA-5153).
 
 ```sql
 CREATE TABLE Languages (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE);
@@ -58,8 +70,8 @@ CREATE TABLE TooltipButtons (
     FOREIGN KEY(tooltipId) REFERENCES Tooltips(id), FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)
 );
 CREATE TABLE LastChange (documentationSet TEXT, changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, who TEXT);
-CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL, UNIQUE('name'));
-CREATE TABLE BookCategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category STRING, description STRING DEFAULT '', UNIQUE('category'));
+CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL, UNIQUE(name));
+CREATE TABLE BookCategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category STRING, description STRING DEFAULT '', UNIQUE(category));
 CREATE TABLE Bookshelf (contentID INTEGER NOT NULL, title STRING DEFAULT '', description STRING DEFAULT '',
     bookCategoryID INTEGER, FOREIGN KEY (bookCategoryID) REFERENCES BookCategories(id), UNIQUE(title, bookCategoryId));
 -- Triggers keep Bookshelf in sync when a .pdf row is added to/removed from Content.
@@ -90,7 +102,7 @@ consistent with that division of responsibility.) Concretely, relative to the sc
 | Piece | What it thinks the schema is | Consequence |
 | --- | --- | --- |
 | `scripts/DocumentationDatabase.py` (used by `scripts/ingest.py`, and hence by `.github/workflows/publish-doc-db.yaml`) | `Content` / `Languages` / `ContentTypes` only, plus an optional `ide_tooltip_table`. Its constructor explicitly **raises `ValueError`** if it opens a DB containing any table outside that whitelist. | **This will refuse to open the current production `documentation.db` at all** — it will list `Tooltips`, `TooltipCategories`, `TooltipButtons`, `TooltipButtonNumbers`, `LastChange`, `Templates`, `BookCategories`, `Bookshelf`, and every `PUCC_*` table as "unexpected." This is the single biggest blocker to reusing this script as-is. |
-| `docdb-studio/SCHEMA.md` / `AGENTS.md` (states the schema is "locked," no migrations) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, `LastChange` (with a *different* shape: `documentationSet`/`changeTime`/`who` — this part does match current), plus a legacy `ide_tooltip_table`. Missing `templateId`, `Templates`, `BookCategories`, `Bookshelf`, `PUCC_*`. | Closest of the three documented schemas to reality, but still out of date. `docdb_studio.py`'s own "never change the schema" policy is itself now stale, since the live schema has already changed underneath it. |
+| `docdb-studio/SCHEMA.md` / `AGENTS.md` (states the schema is "locked," no migrations) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, `LastChange` (with a *different* shape: `documentationSet`/`changeTime`/`who` — this part does match current), plus a legacy `ide_tooltip_table`. Missing `templateId`, `Templates`, `BookCategories`, `Bookshelf`, `PUCC_*`. | Closest of the three documented schemas to reality, but still out of date — a full regeneration is pending on `task/ADFA-5469-refresh-schema-doc`, which also adds the tables listed as missing here. `docdb_studio.py`'s own "never change the schema" policy is itself now stale, since the live schema has already changed underneath it. |
 | `check-tools/README.md`'s embedded schema (and by extension the mental model behind `check-tools/db_health_checker.py`) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, and a *third* variant of `LastChange` (`now`/`who`). No `Templates`/`Bookshelf`/`BookCategories`/`PUCC_*`. | The health checker's required-table check still passes (it only checks that its known tables exist, not that no others do). Since `Templates`/`Bookshelf`/`BookCategories` are out of scope for this repo (see above), this is not being treated as something to fix right now. |
 
 There also appear to be **two unrelated tooltip storage formats** in this repo's history, and it's
