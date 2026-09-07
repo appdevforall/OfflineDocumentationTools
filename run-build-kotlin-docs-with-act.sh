@@ -22,8 +22,9 @@
 # Secrets: none are required. SLACK_WEBHOOK_URL is the only secret this
 # workflow reads, and it is optional - the two "Notify Slack" steps print a
 # skip notice and continue when it is unset. Export it if you want to see
-# them actually fire ("build complete" additionally needs --live, since it is
-# gated on dry_run being false). GitHub never exposes a stored secret's value
+# them actually fire. Both notifications are ungated - "build complete" runs on
+# if: always(), so it fires on a dry run and on a failed build too, and reports
+# which of those happened. GitHub never exposes a stored secret's value
 # through any API or CLI, so if you do want the real webhook you have to
 # supply your own copy of the value.
 #
@@ -47,9 +48,8 @@
 #                              database. Created if absent.
 #                              (default: ./build-kotlin-docs-output)
 #   --live                     dry_run=false: write the rebuilt database back
-#                              over --db-path when the run finishes. Also
-#                              required for the "build complete" Slack
-#                              notification to fire. Default is dry_run=true.
+#                              over --db-path when the run finishes.
+#                              Default is dry_run=true.
 #   --skip-website-docs        skip_website_docs=true (default: false)
 #   --skip-stdlib-docs         skip_stdlib_docs=true (default: false). Skips
 #                              cloning JetBrains/kotlin and the Dokka JSON
@@ -180,9 +180,9 @@ fi
 
 if [ "$DRY_RUN" = "true" ]; then
   echo "note: dry_run=true - '$DB_PATH' will NOT be modified; the built database is" >&2
-  echo "note: written to '$OUTPUT_DIR' only. The 'build started' Slack notification" >&2
-  echo "note: still fires (if SLACK_WEBHOOK_URL is set) but 'build complete' is gated" >&2
-  echo "note: on dry_run=false. Pass --live to write back and see it." >&2
+  echo "note: written to '$OUTPUT_DIR' only. Both Slack notifications still fire if" >&2
+  echo "note: SLACK_WEBHOOK_URL is set - the baton has to be dropped whatever the" >&2
+  echo "note: outcome - and 'build complete' will say the database was unchanged." >&2
 else
   echo "WARNING: --live - '$DB_PATH' will be OVERWRITTEN in place when the run finishes." >&2
 fi

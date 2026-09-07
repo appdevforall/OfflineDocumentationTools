@@ -113,6 +113,15 @@
   if (navSrc) {
     fetch(navSrc)
       .then(function (response) {
+        // A 404/500 body is still a successful fetch, and its text is HTML or
+        // plain prose. Without this check that error page gets injected into
+        // <aside id="sidebar"> and rendered as the navigation, with nothing in
+        // the console - the .catch below only fires for network-level
+        // failures. Reachable whenever the nav row is missing: populate_db not
+        // run, a partially-migrated database, a decompression failure.
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status + " " + response.statusText);
+        }
         return response.text();
       })
       .then(function (html) {

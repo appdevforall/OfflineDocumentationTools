@@ -37,28 +37,28 @@ second run finds nothing left to fix.
 Usage:
     python3 renumber_misnumbered_fragments.py <db_path>
 """
-import re
 import sqlite3
 import sys
 from pathlib import Path
 
-from populate_db import CHUNK_SIZE, backup_database, fragment_chain
-
-FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
-
+from content_chunking import CHUNK_SIZE, is_continuation_path
+from populate_db import backup_database, fragment_chain
 
 def find_fragment_paths(conn) -> set:
     """Every Content.path that is itself a "<base>-<N>" continuation
     fragment of some other row in this table - lets the scan below skip a
     fragment that would otherwise also look like a candidate base of its
-    own (fragments are never themselves further chunked)."""
-    all_paths = {row[0] for row in conn.execute("SELECT path FROM Content")}
-    fragments = set()
-    for path in all_paths:
-        m = FRAGMENT_SUFFIX_RE.match(path)
-        if m and m.group(1) in all_paths:
-            fragments.add(path)
-    return fragments
+    own (fragments are never themselves further chunked).
+
+    Gated on the base row actually being CHUNK_SIZE bytes, not merely
+    existing. Without that, an ordinary small page at "k/html/guide.html"
+    makes this classify a *genuinely misnumbered chunked page* at
+    "k/html/guide.html-1" as its fragment, so find_chains skips it and the
+    operator gets a clean "Renumbered 0 chain(s)" on a database that still
+    serves that page truncated - the exact repair this script exists for.
+    content_chunking.is_continuation_path is the shared rule."""
+    lengths = {path: length for path, length in conn.execute("SELECT path, LENGTH(content) FROM Content")}
+    return {path for path in lengths if is_continuation_path(lengths, path)}
 
 
 def chain_fragments(conn, base_path: str) -> list:
@@ -67,10 +67,6 @@ def chain_fragments(conn, base_path: str) -> list:
     apart on how a chain is found - two conventions is what let ADFA-5171's
     -2-based chains be silently skipped by the migration."""
     return fragment_chain(conn, base_path)
-
-
-def is_contiguous_from_one(fragments: list) -> bool:
-    return [n for n, _path in fragments] == list(range(1, len(fragments) + 1))
 
 
 def renumber_chain(conn, base_path: str, fragments: list) -> None:

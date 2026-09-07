@@ -72,6 +72,7 @@ from optimize_media import (
     BUILTIN_DEFAULTS, Logger, OPTION_SPECS, add_optimize_arguments, find_pngquant, optimize_directory,
     resolve_config,
 )
+from content_chunking import reassemble
 from populate_db import (
     CHUNK_SIZE, DictionaryCompressor, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX,
     LANGUAGE, PAGE_CONTENT_TYPE, backup_database, fragment_chain, get_content_type, get_id,
@@ -122,9 +123,15 @@ def delete_content(conn, path: str) -> None:
     merely resemble a continuation - and those are never re-inserted, so the
     loss is permanent. populate_db.fragment_chain does the over-matching query
     once and re-checks every candidate's suffix, which is what makes the result
-    exact."""
+    exact.
+
+    The chain is resolved *before* the base row is deleted: ownership is
+    decided by the base row's own length (a row under CHUNK_SIZE was never
+    split, so anything named after it belongs to someone else), and that
+    length is unreadable once the row is gone."""
+    owned = [fragment_path for _number, fragment_path in fragment_chain(conn, path)]
     conn.execute("DELETE FROM Content WHERE path = ?", (path,))
-    for _number, fragment_path in fragment_chain(conn, path):
+    for fragment_path in owned:
         conn.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
@@ -175,28 +182,18 @@ def build_rename_map(manifest: dict, logger: Logger) -> dict:
 
 
 def reassemble_content(conn, path: str, first_content: bytes) -> bytes:
-    """Reassembles a possibly-chunked row's full bytes - mirrors
-    WebServer.kt's own reassembly protocol (see CHUNK_SIZE's docstring in
-    populate_db.py): a row is fragmented purely when its content is exactly
-    CHUNK_SIZE bytes, in which case its continuation rows are concatenated in
-    suffix order.
+    """Reassembles a possibly-chunked row's full bytes exactly as
+    WebServer.kt would serve them - see content_chunking, which owns both
+    halves of that protocol.
 
-    Chain membership comes from fragment_chain rather than by probing
-    constructed "<path>-1", "<path>-2", ... paths - the same reason its own
-    docstring gives (populate_db.py): probing from -1 silently truncates an
-    ADFA-5171 chain numbered from -2, the exact shape
-    renumber_misnumbered_fragments.py exists to repair. The truncated stream
-    then fails to decompress and aborts the whole run. delete_content above
-    already uses fragment_chain; this is the same file agreeing with itself."""
-    if len(first_content) < CHUNK_SIZE:
-        return first_content
-    parts = [first_content]
-    for _n, fragment_path in fragment_chain(conn, path):
-        row = conn.execute("SELECT content FROM Content WHERE path = ?", (fragment_path,)).fetchone()
-        if row is None:
-            break
-        parts.append(row[0])
-    return b"".join(parts)
+    Delegated rather than reimplemented because getting it half-right is
+    worse than either extreme. Probing constructed "<path>-1", "<path>-2",
+    ... truncates an ADFA-5171 chain numbered from -2; but concatenating the
+    whole discovered chain instead - which is what this did briefly - runs
+    past the short-fragment terminator, so on a gapped chain (p-1 full, p-2
+    short, p-4) it reassembles a blob the server never serves, which
+    rewrite_pages would then re-compress and store."""
+    return reassemble(conn, path, first_content)
 
 
 def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id: int, logger: Logger,

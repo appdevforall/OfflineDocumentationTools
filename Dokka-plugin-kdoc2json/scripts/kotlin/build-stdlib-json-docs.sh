@@ -122,7 +122,11 @@ log "==> [1/2] Building and publishing a fresh copy of the kdoc-to-json plugin..
 log "==> Installing kdoc-to-json-enabled build.gradle.kts into $STDLIB_DOCS_DIR"
 ORIGINAL_BUILD_GRADLE="$(mktemp)"
 cp "$STDLIB_DOCS_DIR/build.gradle.kts" "$ORIGINAL_BUILD_GRADLE"
+# Idempotent: the EXIT trap fires after a signal handler has already run, so
+# this executes twice on Ctrl-C. Without the guard the second pass tries to cp
+# the mktemp file the first pass removed, which fails under `set -e`.
 restore_build_gradle() {
+    [ -f "$ORIGINAL_BUILD_GRADLE" ] || return 0
     cp "$ORIGINAL_BUILD_GRADLE" "$STDLIB_DOCS_DIR/build.gradle.kts"
     rm -f "$ORIGINAL_BUILD_GRADLE"
 }
@@ -131,7 +135,15 @@ restore_build_gradle() {
 # build.gradle.kts sitting in the developer's kotlin clone and orphaned the
 # mktemp copy - contradicting this script's promise above that the checkout is
 # left exactly as it was found.
-trap restore_build_gradle EXIT INT TERM HUP
+#
+# The signal handlers must also *exit*. A handler that only restores returns,
+# and bash resumes at the next statement - so Ctrl-C would carry on into the
+# rest of the script with the original build.gradle.kts back in place, running
+# Gradle without the kdoc-to-json plugin and then reporting a baffling
+# "expected output ... but it wasn't created". 130 is the conventional
+# 128+SIGINT exit code.
+trap restore_build_gradle EXIT
+trap 'restore_build_gradle; exit 130' INT TERM HUP
 cp "$SCRIPT_DIR/build.gradle.kts" "$STDLIB_DOCS_DIR/build.gradle.kts"
 
 log "==> [2/2] Generating JSON documentation via kdoc-to-json (dokka $DOKKA_VERSION)..."

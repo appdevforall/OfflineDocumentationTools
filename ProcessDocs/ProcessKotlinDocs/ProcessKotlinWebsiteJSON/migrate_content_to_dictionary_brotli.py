@@ -95,9 +95,9 @@ from pathlib import Path
 
 import brotli
 
+from content_chunking import CHUNK_SIZE, is_chunked_base, owned_fragment_paths, reassemble
 from populate_db import (
-    CHUNK_SIZE, DEFAULT_DICT_SIZE, DictionaryCompressor, backup_database, fragment_chain,
-    load_or_create_dictionary,
+    DEFAULT_DICT_SIZE, DictionaryCompressor, backup_database, load_or_create_dictionary,
 )
 
 DEFAULT_SAMPLE_SIZE = 300
@@ -115,51 +115,22 @@ _thread_local = threading.local()
 
 
 def read_item(conn, path: str) -> bytes:
-    """The full stored bytes of one logical item: its base row plus every
-    continuation row in its chain, in suffix order. Suffix-agnostic (see
-    populate_db.fragment_chain), so an ADFA-5171 chain numbered from -2
-    reassembles correctly rather than truncating."""
+    """The stored bytes of one logical item, exactly as WebServer.kt would
+    serve them - see content_chunking, which owns that protocol (suffix-
+    agnostic discovery, so an ADFA-5171 chain numbered from -2 still
+    reassembles; and a stop at the first short fragment, so a gapped chain
+    doesn't yield bytes the server never had)."""
     row = conn.execute("SELECT content FROM Content WHERE path = ?", (path,)).fetchone()
     if row is None:
         return b""
-    parts = [row[0]]
-    if len(row[0]) < CHUNK_SIZE:
-        return parts[0]
-    for _n, fragment_path in fragment_chain(conn, path):
-        fragment = conn.execute("SELECT content FROM Content WHERE path = ?", (fragment_path,)).fetchone()
-        if fragment is not None:
-            parts.append(fragment[0])
-    return b"".join(parts)
-
-
-def is_chunked_base(lengths: dict, base_path: str) -> bool:
-    """Whether `base_path` is the head of a chunked item, given a
-    {path: content length} map.
-
-    A path merely *looking* like "<base>-<N>" does not make it a fragment.
-    Chunking only ever splits a blob that exceeded CHUNK_SIZE, so the base row
-    of a chunked item is always exactly CHUNK_SIZE bytes - the same test
-    read_item, WebServer.kt and renumber_misnumbered_fragments.py all use.
-    Without it, two independent pages named "X" and "X-1" read as one chunked
-    item: "X-1" is classified as a fragment, so it is never scanned, never
-    counted and never reported, and write_item then deletes it as surplus.
-
-    Deliberately only the base row's length, not a contiguous walk from "-1":
-    an ADFA-5171 chain numbered from "-2" is still a real chain, and requiring
-    "-1" to exist would misread it as an independent page and migrate it twice.
-    """
-    return lengths.get(base_path) == CHUNK_SIZE
+    return reassemble(conn, path, row[0])
 
 
 def _db_continuation_paths(conn, base_path: str) -> set:
-    """The continuation rows belonging to `base_path`, empty unless it is
-    actually a chunked base (see is_chunked_base). Chain membership itself
-    comes from fragment_chain, which is suffix-agnostic and so handles an
-    ADFA-5171 chain numbered from "-2"."""
-    row = conn.execute("SELECT LENGTH(content) FROM Content WHERE path = ?", (base_path,)).fetchone()
-    if row is None or not is_chunked_base({base_path: row[0]}, base_path):
-        return set()
-    return {fragment_path for _n, fragment_path in fragment_chain(conn, base_path)}
+    """The continuation rows belonging to `base_path` - the *ownership*
+    answer, so it includes anything past a short fragment, which write_item
+    below has to reconcile rather than orphan."""
+    return set(owned_fragment_paths(conn, base_path))
 
 
 def write_item(conn, path: str, language_id: int, content_type_id: int, template_id: int, data: bytes) -> None:

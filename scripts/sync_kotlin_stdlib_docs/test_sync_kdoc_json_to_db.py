@@ -24,7 +24,9 @@ from sync_kdoc_json_to_db import (  # noqa: E402
     fragment_paths,
     is_fragment_path,
     load_compression_dictionary,
+    content_path_for_source,
     relative_target_path,
+    unmatched_source_pages,
     write_content,
 )
 
@@ -56,6 +58,13 @@ def conn():
     connection.close()
 
 
+# Only a base row of exactly CHUNK_SIZE bytes owns "<base>-<N>" continuations
+# - that length is what distinguishes a split page from two unrelated pages
+# that happen to share a name prefix. Fixtures chaining fragments off a 3-byte
+# base describe a shape that cannot occur and would pass either way.
+CHUNKED_BASE = b"x" * CHUNK_SIZE
+
+
 def add_row(conn, path, blob=b"old", template_id=7, language_id=1):
     return conn.execute(
         "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, ?, ?, ?, ?)",
@@ -77,21 +86,23 @@ class TestRelativeTargetPath:
 
 class TestIsFragmentPath:
     def test_recognises_a_continuation_row(self):
-        assert is_fragment_path("k/kotlin-stdlib/x.html-1", {"k/kotlin-stdlib/x.html", "k/kotlin-stdlib/x.html-1"})
+        assert is_fragment_path("k/kotlin-stdlib/x.html-1",
+                                {"k/kotlin-stdlib/x.html": CHUNK_SIZE, "k/kotlin-stdlib/x.html-1": 3})
 
     def test_a_base_row_is_not_a_fragment(self):
-        assert not is_fragment_path("k/kotlin-stdlib/x.html", {"k/kotlin-stdlib/x.html"})
+        assert not is_fragment_path("k/kotlin-stdlib/x.html", {"k/kotlin-stdlib/x.html": CHUNK_SIZE})
 
     def test_trailing_digits_without_a_base_are_not_a_fragment(self):
-        assert not is_fragment_path("k/kotlin-stdlib/part-2", {"k/kotlin-stdlib/part-2"})
+        assert not is_fragment_path("k/kotlin-stdlib/part-2", {"k/kotlin-stdlib/part-2": 3})
 
     def test_non_numeric_suffix_is_not_a_fragment(self):
-        assert not is_fragment_path("k/kotlin-stdlib/all-types", {"k/kotlin-stdlib/all", "k/kotlin-stdlib/all-types"})
+        assert not is_fragment_path("k/kotlin-stdlib/all-types",
+                                    {"k/kotlin-stdlib/all": CHUNK_SIZE, "k/kotlin-stdlib/all-types": 3})
 
 
 class TestFragmentPaths:
     def test_finds_the_chain_in_order(self, conn):
-        add_row(conn, "k/kotlin-stdlib/x.html")
+        add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         for n in (2, 1, 3):
             add_row(conn, f"k/kotlin-stdlib/x.html-{n}")
         assert fragment_paths(conn, "k/kotlin-stdlib/x.html") == [
@@ -101,7 +112,7 @@ class TestFragmentPaths:
     def test_finds_a_chain_that_starts_at_two(self, conn):
         # ADFA-5171: probing "-1" first and stopping at the gap would miss
         # these entirely and leave them behind as orphans.
-        add_row(conn, "k/kotlin-stdlib/x.html")
+        add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/x.html-2")
         add_row(conn, "k/kotlin-stdlib/x.html-3")
         assert fragment_paths(conn, "k/kotlin-stdlib/x.html") == [
@@ -109,26 +120,26 @@ class TestFragmentPaths:
         ]
 
     def test_underscore_in_a_path_is_not_treated_as_a_wildcard(self, conn):
-        add_row(conn, "k/kotlin-stdlib/a_b.html")
+        add_row(conn, "k/kotlin-stdlib/a_b.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/a_b.html-1")
         add_row(conn, "k/kotlin-stdlib/aXb.html-1")
         assert fragment_paths(conn, "k/kotlin-stdlib/a_b.html") == ["k/kotlin-stdlib/a_b.html-1"]
 
     def test_lookalike_suffixes_are_excluded(self, conn):
-        add_row(conn, "k/kotlin-stdlib/x.html")
+        add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/x.html-notanumber")
         assert fragment_paths(conn, "k/kotlin-stdlib/x.html") == []
 
 
 class TestWriteContent:
     def test_small_blob_updates_in_place_and_keeps_the_row_id(self, conn):
-        row_id = add_row(conn, "k/kotlin-stdlib/x.html")
+        row_id = add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         write_content(conn, row_id, "k/kotlin-stdlib/x.html", b"new", 1, HTML_TYPE_ID, 7, [])
         assert rows(conn) == {"k/kotlin-stdlib/x.html": b"new"}
         assert conn.execute("SELECT id FROM Content").fetchone()[0] == row_id
 
     def test_small_blob_clears_stale_fragments_from_a_previous_larger_version(self, conn):
-        row_id = add_row(conn, "k/kotlin-stdlib/x.html")
+        row_id = add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/x.html-1")
         add_row(conn, "k/kotlin-stdlib/x.html-2")
         write_content(conn, row_id, "k/kotlin-stdlib/x.html", b"new", 1, HTML_TYPE_ID, 7, [])
@@ -160,21 +171,21 @@ class TestWriteContent:
             assert (language_id, content_type_id, template_id) == (1, HTML_TYPE_ID, 9)
 
     def test_exactly_chunk_size_stays_a_single_row(self, conn):
-        row_id = add_row(conn, "k/kotlin-stdlib/x.html")
+        row_id = add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         write_content(conn, row_id, "k/kotlin-stdlib/x.html", b"z" * CHUNK_SIZE, 1, HTML_TYPE_ID, 7, [])
         assert set(rows(conn)) == {"k/kotlin-stdlib/x.html"}
 
 
 class TestDeleteContentWithFragments:
     def test_removes_the_base_row_and_its_fragments_only(self, conn):
-        row_id = add_row(conn, "k/kotlin-stdlib/x.html")
+        row_id = add_row(conn, "k/kotlin-stdlib/x.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/x.html-1")
         add_row(conn, "k/kotlin-stdlib/y.html")
         delete_content_with_fragments(conn, row_id, "k/kotlin-stdlib/x.html")
         assert set(rows(conn)) == {"k/kotlin-stdlib/y.html"}
 
     def test_does_not_delete_lookalike_rows(self, conn):
-        row_id = add_row(conn, "k/kotlin-stdlib/a_b.html")
+        row_id = add_row(conn, "k/kotlin-stdlib/a_b.html", CHUNKED_BASE)
         add_row(conn, "k/kotlin-stdlib/a_b.html-1")
         add_row(conn, "k/kotlin-stdlib/aXb.html-1")
         delete_content_with_fragments(conn, row_id, "k/kotlin-stdlib/a_b.html")
@@ -267,3 +278,54 @@ class TestBackupDatabase:
             assert restored.execute("SELECT value FROM ContentTypes").fetchone()[0] == "text/html"
         finally:
             restored.close()
+
+
+class TestUnmatchedSourcePages:
+    """F01: this was handed `{row[0] for row in all_rows}` - a set of integer
+    Content ids - so the `candidate in known_paths` test could never match and
+    every source page was reported unmatched, burying the one genuinely new
+    page under tens of thousands of false warnings."""
+
+    def _tree(self, tmp_path):
+        (tmp_path / "kotlin-stdlib" / "kotlin.text").mkdir(parents=True)
+        for name in ("index.json", "brand-new.json"):
+            (tmp_path / "kotlin-stdlib" / "kotlin.text" / name).write_text("{}")
+        return tmp_path
+
+    def test_reports_only_pages_with_no_content_row(self, tmp_path):
+        root = self._tree(tmp_path)
+        known = {"k/kotlin-stdlib/kotlin.text/index.html"}
+        assert unmatched_source_pages(str(root), known) == ["k/kotlin-stdlib/kotlin.text/brand-new.html"]
+
+    def test_row_ids_would_have_matched_nothing(self, tmp_path):
+        """Guards the actual regression: given ids instead of paths, every page
+        comes back unmatched."""
+        root = self._tree(tmp_path)
+        assert len(unmatched_source_pages(str(root), {1, 2, 3})) == 2
+
+    def test_maps_a_source_file_back_to_its_content_path(self, tmp_path):
+        root = self._tree(tmp_path)
+        source = str(root / "kotlin-stdlib" / "kotlin.text" / "index.json")
+        assert content_path_for_source(str(root), source) == "k/kotlin-stdlib/kotlin.text/index.html"
+
+
+class TestFragmentOwnershipRules:
+    """F02/F08: a "<base>-<N>" row belongs to its base only when that base is
+    exactly CHUNK_SIZE bytes. Without the gate an unrelated page is treated as
+    a fragment - invisible to the sync, and deleted along with the base."""
+
+    def test_short_base_owns_no_fragments(self, conn):
+        add_row(conn, "k/kotlin-stdlib/guide.html", b"a small page")
+        add_row(conn, "k/kotlin-stdlib/guide.html-1", b"an unrelated page")
+        assert fragment_paths(conn, "k/kotlin-stdlib/guide.html") == []
+
+    def test_unrelated_lookalike_survives_a_delete(self, conn):
+        row_id = add_row(conn, "k/kotlin-stdlib/guide.html", b"a small page")
+        add_row(conn, "k/kotlin-stdlib/guide.html-1", b"an unrelated page")
+        delete_content_with_fragments(conn, row_id, "k/kotlin-stdlib/guide.html")
+        assert set(rows(conn)) == {"k/kotlin-stdlib/guide.html-1"}
+
+    def test_chunked_base_still_owns_its_chain(self, conn):
+        add_row(conn, "k/kotlin-stdlib/big.html", CHUNKED_BASE)
+        add_row(conn, "k/kotlin-stdlib/big.html-1", b"tail")
+        assert fragment_paths(conn, "k/kotlin-stdlib/big.html") == ["k/kotlin-stdlib/big.html-1"]

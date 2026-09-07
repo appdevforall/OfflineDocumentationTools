@@ -39,7 +39,6 @@ database.
 import argparse
 import atexit
 import os
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -50,21 +49,26 @@ from pathlib import Path
 
 import brotli
 
+# The Content chunking protocol lives in exactly one place, so this script and
+# the ProcessKotlinWebsiteJSON tools cannot drift apart on it again - four
+# divergent re-derivations of the same rules is what produced ADFA-5171's
+# undetected chains and an unrelated page being deleted as a "surplus fragment".
+# This script is otherwise standalone (stdlib + brotli), hence the explicit path
+# rather than a package import.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]
+                       / "ProcessDocs" / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON"))
+from content_chunking import (  # noqa: E402 - must follow the sys.path line above
+    CHUNK_SIZE,
+    is_continuation_path,
+    owned_fragment_paths,
+)
+
 PREFIXES = ["k/kotlin-stdlib", "k/kotlin-reflect", "k/kotlin-test"]
 
 # Refuse to run if this fraction or more of the matched rows resolve to no source
 # file. A Dokka upgrade that changes the emitted layout makes *every* lookup miss,
 # and the only signal would be "Done: updated 0, deleted N" on a gutted database.
 MAX_DELETE_FRACTION = 0.5
-
-# Must match WebServer.kt's "contentChunkSize" (1024 * 1024) and
-# populate_db.py's CHUNK_SIZE exactly. The server decides a row is fragmented
-# purely by its content being exactly this many bytes, then keeps requesting
-# "<path>-1", "<path>-2", ... until it gets a shorter fragment or a missing
-# row - so anything written here that exceeds it has to be split the same way
-# populate_db.py splits it, or the server will serve a truncated page.
-CHUNK_SIZE = 1024 * 1024
-
 
 def backup_database(db_path):
     """Writes a timestamped backup beside db_path. Uses SQLite's own VACUUM
@@ -82,42 +86,40 @@ def backup_database(db_path):
     return backup_path
 
 
-def is_fragment_path(path, all_paths):
-    """True when path is a "<base>-<N>" chunk continuation row whose base is
-    also present - the fragmentation convention populate_db.py writes and
-    WebServer.kt reads. Ambiguous only for a real page literally named
-    "<some-other-page>-<digits>", which the plugin output never produces."""
-    base, sep, suffix = path.rpartition("-")
-    return sep == "-" and suffix.isdigit() and base in all_paths
+def is_fragment_path(path, lengths):
+    """True when path is a "<base>-<N>" chunk continuation row of a genuinely
+    chunked base - i.e. one whose own content is exactly CHUNK_SIZE bytes.
 
-
-FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
+    Takes {path: length}, not just the set of paths: "the base exists" is not
+    sufficient, because two unrelated pages may legitimately be named "X" and
+    "X-1", and treating the second as a fragment makes it invisible to this
+    sync (never updated, never deleted, never reported)."""
+    return is_continuation_path(lengths, path)
 
 
 def fragment_paths(conn, path):
-    """Every "<path>-<N>" continuation row present, ordered by N.
+    """Every continuation row owned by `path`, ordered by suffix.
 
-    Deliberately mirrors populate_db.fragment_chain, including why it works
-    this way. Probing "<path>-1" and stopping at the first gap misses a chain
-    numbered from -2 (the ADFA-5171 case) and silently leaves those rows
-    behind. The LIKE pattern instead over-matches on purpose - "_" is a
-    single-character wildcard and "-%" doesn't constrain the tail to digits -
-    and the regex re-check below is what makes the result exact. Never build
-    a DELETE straight off that pattern: deleting a row that merely resembles
-    a continuation is permanent."""
-    chain = []
-    for (candidate,) in conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{path}-%",)).fetchall():
-        match = FRAGMENT_SUFFIX_RE.match(candidate)
-        if match and match.group(1) == path:
-            chain.append((int(match.group(2)), candidate))
-    chain.sort(key=lambda item: item[0])
-    return [candidate for _number, candidate in chain]
+    Delegates to content_chunking.owned_fragment_paths, which short-circuits
+    on the base row's length before going near the "<path>-%" LIKE. That
+    matters for cost as much as correctness here: this runs once per updated
+    row (tens of thousands for kotlin-stdlib), SQLite's default LIKE is
+    case-insensitive so UNIQUE(path) cannot serve it, and every one of those
+    calls used to scan the whole Content table - for a lookup that can only
+    return rows when the base is exactly CHUNK_SIZE bytes, which these pages
+    essentially never are."""
+    return owned_fragment_paths(conn, path)
 
 
 def delete_content_with_fragments(cur, content_id, path):
-    """Deletes a Content row along with any chunk continuation rows it owns."""
+    """Deletes a Content row along with any chunk continuation rows it owns.
+
+    Ownership is resolved before the base row goes: it is the base's own
+    length that decides whether it owns continuations at all, and that is
+    unreadable once it has been deleted."""
+    owned = fragment_paths(cur, path)
     cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
-    for fragment_path in fragment_paths(cur, path):
+    for fragment_path in owned:
         cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
@@ -340,7 +342,8 @@ def main():
         params.extend([prefix, prefix + "/%"])
 
     all_rows = cur.execute(
-        f"SELECT id, path, contentTypeID, languageID, templateId FROM Content WHERE {where_clause}", params
+        f"SELECT id, path, contentTypeID, languageID, templateId, LENGTH(content) "
+        f"FROM Content WHERE {where_clause}", params
     ).fetchall()
 
     # A chunked page is stored as a base row plus "<path>-1", "<path>-2", ...
@@ -350,7 +353,10 @@ def main():
     # would be looked up as its own source file, never found (there's no
     # "index.html-1" in the plugin output), and counted as a deletion.
     all_paths = {row[1] for row in all_rows}
-    rows = [row for row in all_rows if not is_fragment_path(row[1], all_paths)]
+    # Keyed by length, not just presence: only a base row of exactly
+    # CHUNK_SIZE bytes actually owns "<base>-<N>" continuations.
+    lengths = {row[1]: row[5] for row in all_rows}
+    rows = [row[:5] for row in all_rows if not is_fragment_path(row[1], lengths)]
     fragments = len(all_rows) - len(rows)
 
     print(f"Found {len(rows)} existing Content record(s) under {PREFIXES}"
@@ -387,7 +393,11 @@ def main():
 
     # Reported, not inserted - see unmatched_source_pages. Printed before the
     # transaction so it shows up even on a dry run.
-    unmatched = unmatched_source_pages(args.plugin_output_root, {row[0] for row in all_rows})
+    # all_paths, not {row[0] ...}: row[0] is the integer Content.id, so the
+    # membership test could never match a path string and every source page
+    # was reported unmatched - tens of thousands of false warnings burying the
+    # one signal this check exists to surface.
+    unmatched = unmatched_source_pages(args.plugin_output_root, all_paths)
     if unmatched:
         print(
             f"warning: {len(unmatched)} page(s) in {args.plugin_output_root!r} have no Content row and "

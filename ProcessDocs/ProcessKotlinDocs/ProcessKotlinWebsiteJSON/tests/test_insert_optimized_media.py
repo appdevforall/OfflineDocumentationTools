@@ -15,6 +15,7 @@ from insert_optimized_media import (
     delete_content,
     delete_unreferenced_media,
 )
+from content_chunking import CHUNK_SIZE
 from optimize_media import Logger
 from populate_db import DictionaryCompressor
 
@@ -61,6 +62,14 @@ def conn():
     connection.close()
 
 
+# A base row only owns continuation fragments when it is exactly CHUNK_SIZE
+# bytes - that is what tells the server (and every tool here) the row was
+# split rather than merely sharing a name with an unrelated page. Fixtures
+# that chain fragments off a 1-byte base describe a shape that cannot occur,
+# and would pass whether or not the code honoured that rule.
+CHUNKED_BASE = b"x" * CHUNK_SIZE
+
+
 def add_row(conn, path, blob=b"x", template_id=0):
     conn.execute(
         "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, 1, ?, ?, ?)",
@@ -82,7 +91,7 @@ def page_blob(compressor, *image_names):
 
 class TestDeleteContent:
     def test_removes_the_row_and_its_chunk_fragments(self, conn):
-        add_row(conn, "k/html/images/big.png")
+        add_row(conn, "k/html/images/big.png", CHUNKED_BASE)
         add_row(conn, "k/html/images/big.png-1")
         add_row(conn, "k/html/images/big.png-2")
         add_row(conn, "k/html/images/other.png")
@@ -95,9 +104,9 @@ class TestDeleteContent:
         # "_" in a LIKE pattern matches any single character, so an unescaped
         # "k/html/_nav.html-%" would also match "k/html/Xnav.html-1" and take
         # an unrelated page's chunk fragment with it.
-        add_row(conn, "k/html/_nav.html")
+        add_row(conn, "k/html/_nav.html", CHUNKED_BASE)
         add_row(conn, "k/html/_nav.html-1")
-        add_row(conn, "k/html/Xnav.html")
+        add_row(conn, "k/html/Xnav.html", CHUNKED_BASE)
         add_row(conn, "k/html/Xnav.html-1")
 
         delete_content(conn, "k/html/_nav.html")
@@ -105,7 +114,7 @@ class TestDeleteContent:
         assert paths(conn) == {"k/html/Xnav.html", "k/html/Xnav.html-1"}
 
     def test_percent_is_not_treated_as_a_wildcard(self, conn):
-        add_row(conn, "k/html/images/100%.png")
+        add_row(conn, "k/html/images/100%.png", CHUNKED_BASE)
         add_row(conn, "k/html/images/100%.png-1")
         add_row(conn, "k/html/images/100-other.png-1")
 
@@ -118,7 +127,7 @@ class TestDeleteUnreferencedMedia:
     def test_removes_only_images_no_page_references(self, conn, compressor):
         add_row(conn, "k/html/page.html", page_blob(compressor, "kept.png"), template_id=2)
         add_row(conn, "k/html/images/kept.png")
-        add_row(conn, "k/html/images/orphan.png")
+        add_row(conn, "k/html/images/orphan.png", CHUNKED_BASE)
         add_row(conn, "k/html/images/orphan.png-1")
 
         removed = delete_unreferenced_media(conn, PAGE_TYPE_ID, Logger(None), compressor)

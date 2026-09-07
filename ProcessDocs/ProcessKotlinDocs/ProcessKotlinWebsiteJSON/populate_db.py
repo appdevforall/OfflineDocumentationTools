@@ -122,7 +122,6 @@ chunked is logged by name at the end of the run.
 import argparse
 import atexit
 import json
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -134,6 +133,11 @@ from datetime import datetime
 from pathlib import Path
 
 from build_nav import build_node
+from content_chunking import (  # noqa: F401 - CHUNK_SIZE is re-exported for this package's other modules
+    CHUNK_SIZE,
+    owned_fragment_paths,
+    split_fragment_path,
+)
 from md_to_json import (
     Converter,
     build_topic_index,
@@ -156,11 +160,9 @@ IMAGES_URL_PREFIX = f"/{IMAGES_DB_PATH_PREFIX}"
 # rendered output (text/html), not the JSON it's stored as internally.
 PAGE_CONTENT_TYPE = "text/html"
 
-# Must match WebServer.kt's "contentChunkSize" exactly (1024 * 1024): its
-# request handler decides a row is fragmented purely by the first row's
-# content being exactly this many bytes, so this can't just be "close to
-# 1MB" - it has to be the identical constant on both sides.
-CHUNK_SIZE = 1024 * 1024
+# CHUNK_SIZE and the fragment-chain rules live in content_chunking.py, which
+# is the single place that models what WebServer.kt actually serves. Re-exported
+# here because populate_db is what the rest of the pipeline imports from.
 LANGUAGE = "en-US"
 
 PAGE_PEB_STATIC_ASIDE = '  <aside class="docs-sidebar" id="sidebar">\n    {% include "nav.html" %}\n  </aside>'
@@ -397,30 +399,22 @@ def get_content_type(conn, value: str) -> tuple:
     return row[0], row[1] == "brotli"
 
 
-FRAGMENT_SUFFIX_RE = re.compile(r"^(.*)-(\d+)$")
-
-
 def fragment_chain(conn, base_path: str) -> list:
-    """Every "<base_path>-<N>" continuation row present, as (n, path) sorted by
-    n - found by LIKE query and parsed suffix rather than by probing
-    constructed paths, so it does not matter what N the chain starts at.
+    """Every continuation row owned by `base_path`, as (n, path) sorted by n.
 
-    Probing "<base_path>-1" first (what reassembly used to do) silently returns
-    a truncated stream for an ADFA-5171 chain numbered from -2, which then
-    fails to decompress and looks indistinguishable from an already-migrated
-    row. The LIKE pattern deliberately over-matches - `_` and `%` in a path are
-    wildcards, and the suffix is not constrained to digits - so the regex
-    re-check below is what makes the result exact. Never build a DELETE or
-    UPDATE straight off that pattern.
-    """
-    rows = conn.execute("SELECT path FROM Content WHERE path LIKE ?", (f"{base_path}-%",)).fetchall()
-    chain = []
-    for (path,) in rows:
-        match = FRAGMENT_SUFFIX_RE.match(path)
-        if match and match.group(1) == base_path:
-            chain.append((int(match.group(2)), path))
-    chain.sort(key=lambda item: item[0])
-    return chain
+    Thin wrapper over content_chunking.owned_fragment_paths, kept because
+    several callers here already use this (n, path) shape. That module is
+    where the rules live: a base row only owns continuations when it is
+    exactly CHUNK_SIZE bytes, and discovery is suffix-agnostic so an
+    ADFA-5171 chain numbered from -2 is still found.
+
+    This is the *ownership* answer - it includes anything past a short
+    fragment, which is what a delete or replace needs so an orphaned tail
+    isn't left behind. For reading a page's bytes back, use
+    content_chunking.reassemble / served_fragment_paths instead, which stop
+    where the server stops."""
+    paths = owned_fragment_paths(conn, base_path)
+    return [(split_fragment_path(path)[1], path) for path in paths]
 
 
 def insert_chunked_content(conn, path: str, language_id: int, content_type_id: int, template_id: int,
@@ -743,17 +737,35 @@ def main():
     for w in nav_warnings:
         print(f"warning: {w}", file=sys.stderr)
 
-    # Only nodes that actually have a Content row can be pager targets.
     # build_node synthesizes an id for a topic it couldn't resolve to a
-    # converted page (an unconverted "*.topic" such as api-references.topic -
-    # visible in the committed nav.html as data-nav-id="api-references"), so
-    # that the sidebar can still render it. nav.peb colours those as non-links,
-    # but page.peb's prev/next renders whatever it is given as an ordinary
-    # link - so the two neighbours of such a node used to get pager links
-    # straight to a 404. Filtering here keeps the pager and the sidebar
-    # agreeing on what is reachable.
+    # converted page - an unconverted "*.topic" such as api-references.topic,
+    # visible in the committed nav.html as data-nav-id="api-references". No
+    # Content row is ever written for those, so every route to them 404s.
+    #
+    # Clearing the id (rather than just skipping them in the pager) is what
+    # actually fixes that, because nav.peb branches on `{% if node.id %}`:
+    # with an id it emits a coloured <a href>, i.e. a live link to nothing.
+    # Only without one does it fall to <span class="nav-group-title">, which
+    # is what a node leading nowhere should be. noLinkColor is already set on
+    # them by build_node, so they keep their distinct styling either way.
+    # flatten_nav_ids skips id-less nodes, so this also keeps them out of
+    # prev/next without a second filter.
     real_page_ids = {page["id"] for page in pages}
-    flat_nav = [node for node in flatten_nav_ids(nav_tree) if node["id"] in real_page_ids]
+    unreachable = []
+
+    def drop_unreachable_ids(nodes):
+        for node in nodes:
+            if node["id"] is not None and node["id"] not in real_page_ids:
+                unreachable.append(node["id"])
+                node["id"] = None
+            drop_unreachable_ids(node["children"])
+
+    drop_unreachable_ids(nav_tree)
+    if unreachable:
+        print(f"Rendering {len(unreachable)} nav entry/entries with no page as non-links: "
+              f"{', '.join(sorted(unreachable))}", file=sys.stderr)
+
+    flat_nav = flatten_nav_ids(nav_tree)
     id_to_index = {}
     for i, node in enumerate(flat_nav):
         id_to_index.setdefault(node["id"], i)

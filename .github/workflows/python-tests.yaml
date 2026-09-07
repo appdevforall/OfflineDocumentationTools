@@ -13,6 +13,17 @@ name: Python tests
 # The suites are separate because their dependencies are: docdb-studio and
 # check-tools each own a pyproject.toml + uv.lock, while ProcessKotlinWebsiteJSON
 # runs against the root requirements.txt.
+#
+# check-tools is NOT run here, deliberately. Its suite covers the health checker
+# behind the daily docdb-regression-test.yaml cron and genuinely ought to be
+# wired up - but 6 of its 13 tests already fail on main
+# (test_db_health_checker.py: the checker reports no issues where the tests
+# expect one), in code this PR doesn't touch. Adding the step as-is would make
+# every PR red for an unrelated reason. Fixing those belongs in its own change;
+# adding the step is a one-liner once they pass:
+#   - name: check-tools
+#     working-directory: check-tools
+#     run: uv run --frozen -- python -m pytest -q
 
 on:
   push:
@@ -51,20 +62,18 @@ jobs:
           #   shared dictionary the migration tests need.
           sudo apt-get install -y pngquant brotli zstd
 
-      - name: Install Python dependencies
-        run: |
-          pip install -r requirements.txt pytest
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs'
         run: |
-          python -m pytest \
-            ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON \
-            scripts/sync_kotlin_stdlib_docs \
-            -q
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+          uv run --with-requirements requirements.txt --with pytest -- \
+            python -m pytest \
+              ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON \
+              scripts/sync_kotlin_stdlib_docs \
+              -q
 
       - name: docdb-studio
         working-directory: docdb-studio
         run: uv run --frozen -- python -m pytest -q
+

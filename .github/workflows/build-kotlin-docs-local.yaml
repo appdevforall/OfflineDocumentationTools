@@ -138,6 +138,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
+      # The repo's uv convention, as one string so every step below reads the
+      # same: `$UV_RUN python3 <script>`. Mirrors run_e2e_pipeline_test.sh's
+      # own UV_RUN array. Expanded unquoted on purpose - it is a fixed literal
+      # with no paths or user input in it.
+      UV_RUN: uv run --with-requirements requirements.txt --
       KOTLIN_WEB_SITE_REF: ${{ inputs.kotlin_web_site_ref }}
       KOTLIN_REF: ${{ inputs.kotlin_ref }}
       DB_PATH: ${{ inputs.db_path }}
@@ -195,6 +200,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Set up JDK (for the kdoc-to-json / kotlin-stdlib-docs Gradle builds)
         uses: actions/setup-java@v4
         with:
@@ -213,12 +221,15 @@ jobs:
           # no Python binding exposes a custom dictionary (ADFA-5153).
           sudo apt-get install -y pngquant unzip sqlite3 brotli
 
-      - name: Install Python dependencies
-        run: |
-          pip install -r requirements.txt
-          # markdown-it-py: ProcessKotlinWebsiteJSON's own requirement (see
-          # its README); scour/cairosvg are in requirements.txt already.
-          pip install markdown-it-py
+      # No install step: every Python invocation below runs through $UV_RUN
+      # (see the job env), which resolves requirements.txt into a cached
+      # ephemeral environment per call. That is this repo's convention - uv,
+      # never pip or the `uv pip` shim - and is what ProcessKotlinWebsiteJSON's
+      # README and run_e2e_pipeline_test.sh already document and use.
+      #
+      # The former "pip install markdown-it-py" here was dead work: it is in
+      # requirements.txt (markdown-it-py>=2.0) and was already installed by the
+      # line above it. scour/cairosvg are in there too.
 
       - name: Copy documentation.db from local disk
         run: |
@@ -252,7 +263,7 @@ jobs:
       - name: 'Step 1/5: find_missing_assets.py (source QA report)'
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
+          $UV_RUN python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
             kotlin-web-site/docs missing-assets-report.md
 
       - name: Write missing-assets report to output_dir
@@ -265,7 +276,7 @@ jobs:
           # BLACKLISTED_ELEMENT_TITLES is defined once in this job's env: block
           # (ADFA-4737); the verification step below reads the same variable.
           mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
+          $UV_RUN python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
             kotlin-web-site/docs \
             ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/config.json \
             webHelpImages.zip \
@@ -282,7 +293,7 @@ jobs:
             "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
           mkdir -p media
           unzip -q webHelpImages.zip -d media
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
+          $UV_RUN python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
             media documentation.db \
             --jpeg-quality 85 --webp --webp-quality 90 --verbose
 
@@ -308,12 +319,12 @@ jobs:
       - name: 'Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
         if: ${{ !inputs.skip_stdlib_docs }}
         run: |
-          python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
+          $UV_RUN python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
             "${{ steps.stdlib_docs.outputs.all_libs_dir }}" --db documentation.db
 
       - name: Summary
         run: |
-          python3 - documentation.db <<'PYEOF'
+          $UV_RUN python3 - documentation.db <<'PYEOF'
           import sqlite3
           import sys
 
@@ -339,7 +350,7 @@ jobs:
           # applied - read from the job env rather than restated here, so this
           # check can't silently verify a different list than the one used.
           mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
-          python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
+          $UV_RUN python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
             "${BLACKLIST[@]}" <<'PYEOF'
           import sqlite3
           import sys

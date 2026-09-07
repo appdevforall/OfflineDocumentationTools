@@ -1665,6 +1665,21 @@ def import_content_files(
         if progress_callback is not None and total > 0:
             progress_callback(phase, current, total)
 
+    # Resolve the shared compression dictionary *before* opening the write
+    # connection below, and let the result be cached for the whole import.
+    #
+    # compress_for_storage needs a definitive answer - a plain-Brotli row
+    # written into a dictionary database can never be decoded again, and a
+    # lock-induced None is indistinguishable from "no dictionary". But asking
+    # for it lazily inside the loop meant opening a second connection while
+    # phase 1's orphan DELETE still held a write transaction on the first, so
+    # the import could fail on a lock it had inflicted on itself, rolling back
+    # phase 1 and dying mid-way. Asking here means the calls below are pure
+    # cache lookups, and a lock at this point is a genuine external one, hit
+    # before anything has been deleted.
+    if any(item.compression == "brotli" for item in plan):
+        get_compression_dictionary(db_path, strict=True)
+
     with sqlite3.connect(db_path) as conn:
         # Phase 1: bulk-delete orphans by id. Reports progress per batch so a
         # large orphan list still shows the bar advancing.

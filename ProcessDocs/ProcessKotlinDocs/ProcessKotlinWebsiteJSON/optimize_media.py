@@ -371,9 +371,11 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
     inspecting the return value)."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     suffix = src.suffix.lower()
-    original_size = src.stat().st_size
 
     try:
+        # Inside the try: a source that vanishes or becomes unreadable between
+        # collection and now is one file's error, not the whole run's.
+        original_size = src.stat().st_size
         if suffix == SVG_EXTENSION:
             dst_final, rasterized = optimize_svg(
                 src, dst, precision=cfg["svg_precision"], rasterize_threshold=cfg["svg_rasterize_threshold"],
@@ -425,6 +427,45 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
     return dst_final
 
 
+def possible_output_names(stem: str, suffix: str, cfg: dict) -> set:
+    """Every basename process_file could write for a source named
+    `stem + suffix`.
+
+    A set rather than one name because the SVG branch is genuinely not
+    predictable up front: optimize_svg only rasterizes when the *optimized*
+    SVG comes out over --svg-rasterize-threshold, which isn't known until the
+    work is done. Treating both possibilities as claimed is the conservative
+    choice - it can de-conflict a pair that would not in fact have collided,
+    which costs a rename, where the reverse costs an image."""
+    if suffix.lower() == SVG_EXTENSION:
+        rasterized = ".webp" if cfg["webp"] else ".png"
+        return {f"{stem}{SVG_EXTENSION}", f"{stem}{rasterized}"}
+    if suffix.lower() in RASTER_EXTENSIONS:
+        return {f"{stem}.webp"} if cfg["webp"] else {f"{stem}{suffix}"}
+    return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
+
+
+def collect_sources(input_dir: Path, logger: Logger, stats: dict) -> list:
+    """Every file under input_dir worth processing, sorted.
+
+    `not p.is_dir()` alone is not a "this is a file" test: it is False for a
+    **broken symlink** too, and process_file's first act is to stat the
+    source. That stat raised out of the whole run rather than being counted
+    as one file's error, and insert_optimized_media only catches ValueError -
+    so a single dangling link killed the job with an unhandled traceback
+    instead of the intended "N file(s) failed to optimize" abort."""
+    sources = []
+    for path in sorted(input_dir.rglob("*")):
+        if path.is_dir():
+            continue
+        if not path.is_file():  # broken symlink, socket, fifo, ...
+            stats["errors"] += 1
+            logger.error(f"error: {path} is not a readable regular file; skipping")
+            continue
+        sources.append(path)
+    return sources
+
+
 def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant_path: str, logger: Logger,
                         stats: dict) -> dict:
     """Walks input_dir recursively, optimizing every file into the mirrored
@@ -445,43 +486,55 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
             "optimizing in place would overwrite the originals"
         )
 
-    # Two sources in one directory whose names differ only by extension
-    # (logo.png + logo.jpg) land on the same output path once the encoder
-    # rewrites the extension (both -> logo.webp), and whichever is processed
-    # second silently clobbers the first: that source image is gone for good and
-    # every page referencing it renders the survivor instead. Neither the loop
-    # below nor insert_optimized_media.py's own seen_names guard can catch it,
-    # because the collision has already happened here in the work dir by the
-    # time either runs.
+    # Two sources that end up writing the same output file: the second
+    # silently clobbers the first, that source image is gone for good, and
+    # every page referencing it renders the survivor instead - at exit 0.
+    # Neither the loop below nor insert_optimized_media.py's own seen_names
+    # guard can catch it, because by the time either runs the collision has
+    # already happened here in the work dir.
     #
-    # optimize_raster/optimize_svg own the choice of final extension, so rather
-    # than predicting it, de-conflict the *stem* up front: within a directory
-    # the first source (in sorted order) keeps its stem and any later one that
-    # shares it folds its original extension in ("logo.jpg" -> "logo-jpg.webp").
-    # Distinct stems cannot collide whatever extension the encoder settles on.
-    # A de-conflicted name shows up in `renamed` like any other rename, so
-    # callers rewriting stored URLs follow it automatically.
-    sources = [p for p in sorted(input_dir.rglob("*")) if not p.is_dir()]
+    # Two things decide whether that happens, and both have to be modelled:
+    #
+    #  * **The namespace is flat.** insert_optimized_media addresses every
+    #    image by bare basename ("k/html/images/<name>"), so "sub-a/logo.png"
+    #    and "sub-b/logo.jpg" collide even though they sit in different source
+    #    directories. Keying per-directory missed exactly that case, while
+    #    populate_db.py was already flattening and warning on it - the two
+    #    halves of the pipeline have to model the same namespace.
+    #
+    #  * **Only the *output* name collides.** Without --webp, "logo.png" and
+    #    "logo.jpg" are written unchanged and never collide at all; renaming
+    #    one of them anyway put a bogus entry in `renamed`, which made
+    #    rewrite_pages rewrite every stored URL and delete/reinsert the row for
+    #    a collision that could not occur.
+    #
+    # So de-conflict on the *predicted output basenames* (see
+    # possible_output_names), keyed by basename alone. A source whose possible
+    # outputs are all unclaimed keeps its stem untouched.
+    sources = collect_sources(input_dir, logger, stats)
     dst_rel_for = {}
     claimed = {}
     for src in sources:
         rel = src.relative_to(input_dir)
-        stem = rel.stem
+        stem, suffix = rel.stem, rel.suffix
         candidate = stem
-        if (rel.parent, candidate) in claimed:
-            ext = src.suffix.lstrip(".").lower() or "file"
-            candidate = f"{stem}-{ext}"
-            n = 2
-            while (rel.parent, candidate) in claimed:
-                candidate = f"{stem}-{ext}-{n}"
-                n += 1
-            logger.error(
-                f"warning: {src} would overwrite the output of "
-                f"{claimed[(rel.parent, stem)]} once extensions are rewritten; "
-                f"writing it as {candidate}{src.suffix} instead"
-            )
-        claimed[(rel.parent, candidate)] = src
-        dst_rel_for[src] = rel.parent / f"{candidate}{src.suffix}"
+        attempt = 0
+        while True:
+            names = possible_output_names(candidate, suffix, cfg)
+            clash = next((n for n in sorted(names) if n in claimed), None)
+            if clash is None:
+                break
+            attempt += 1
+            ext = suffix.lstrip(".").lower() or "file"
+            candidate = f"{stem}-{ext}" if attempt == 1 else f"{stem}-{ext}-{attempt}"
+            if attempt == 1:
+                logger.error(
+                    f"warning: {src} would overwrite the output of {claimed[clash]} "
+                    f"(both produce {clash}); writing it under the stem {candidate!r} instead"
+                )
+        for name in names:
+            claimed[name] = src
+        dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
 
     renamed = {}
     for src in sources:
