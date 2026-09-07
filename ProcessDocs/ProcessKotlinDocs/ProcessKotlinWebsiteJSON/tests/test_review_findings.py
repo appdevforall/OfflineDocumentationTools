@@ -319,3 +319,99 @@ def test_broken_symlink_does_not_abort_the_run(tmp_path):
 
     assert stats["errors"] == 1
     assert sorted(p.name for p in out.iterdir()) == ["real.png"]
+
+
+# =============================================================================
+# Third review round. Both of these are defects in the fixes above: the shared
+# chunking module implemented half of its own stated terminator rule, and the
+# dangling-nav-link fix was applied to the database path but not the static one.
+# =============================================================================
+
+from build_nav import build_node, drop_unreachable_ids, render_node  # noqa: E402
+
+
+# --- reassembly must stop at a gap, not just at a short fragment -------------
+
+def test_reassembly_stops_at_a_gap_in_the_numbering(conn):
+    """The server probes consecutive suffixes and stops at the first miss.
+    Jumping the hole appends a tail it never reaches, which insert_optimized_media
+    would then store back or die decompressing."""
+    full = b"a" * CHUNK_SIZE
+    _insert(conn, "p", full)
+    _insert(conn, "p-1", full)
+    _insert(conn, "p-2", full)
+    _insert(conn, "p-4", b"tail the server never reaches")
+
+    assert served_fragment_paths(conn, "p") == ["p-1", "p-2"]
+    assert reassemble_content(conn, "p", full) == full + full + full
+    # ownership is unchanged: a delete still has to take the orphaned tail
+    assert owned_fragment_paths(conn, "p") == ["p-1", "p-2", "p-4"]
+
+
+def test_adfa_5171_chain_from_two_is_still_read_whole(conn):
+    """Contiguity is enforced from wherever the chain starts, not from 1 - the
+    repair and migration tooling has to be able to read a -2 chain whole."""
+    full = b"a" * CHUNK_SIZE
+    _insert(conn, "p", full)
+    _insert(conn, "p-2", full)
+    _insert(conn, "p-3", b"end")
+
+    assert served_fragment_paths(conn, "p") == ["p-2", "p-3"]
+
+
+def test_gap_inside_a_misnumbered_chain_still_terminates(conn):
+    full = b"a" * CHUNK_SIZE
+    _insert(conn, "p", full)
+    _insert(conn, "p-2", full)
+    _insert(conn, "p-5", b"tail")
+
+    assert served_fragment_paths(conn, "p") == ["p-2"]
+
+
+# --- the static nav path must agree with the database one -------------------
+
+def test_render_node_emits_a_group_title_when_the_page_is_missing():
+    """nav.peb and render_node both branch on the id, so a synthesized id for
+    an unconverted *.topic renders as a live <a href> to a URL that 404s."""
+    node = {"title": "Overview", "id": None, "hidden": False,
+            "noLinkColor": "#999999", "children": []}
+    html = render_node(node)
+
+    assert 'class="nav-group-title"' in html
+    assert "<a " not in html
+
+
+def test_unconverted_topic_node_is_stripped_of_its_dangling_id():
+    """End to end over the pass both renderers depend on: build_node hands back
+    a synthesized id for an unconverted *.topic, and nothing generates a page
+    there, so it has to be cleared or the sidebar links to a 404."""
+    import xml.etree.ElementTree as ET
+
+    tree = ET.fromstring(
+        '<toc-element toc-title="API reference">'
+        '<toc-element topic="api-references.topic" toc-title="Overview"/>'
+        '<toc-element topic="real.md" toc-title="Real"/>'
+        '</toc-element>'
+    )
+    warnings = []
+    nav = [build_node(tree, {"real": "k/html/real"}, {}, warnings, "#999999", id_prefix="k/html/")]
+
+    cleared = drop_unreachable_ids(nav, {"k/html/real"})
+
+    assert cleared == ["k/html/api-references"]
+    overview, real = nav[0]["children"]
+    assert overview["id"] is None and "<a " not in render_node(overview)
+    assert real["id"] == "k/html/real" and 'class="nav-link"' in render_node(real)
+
+
+def test_build_node_synthesizes_an_id_for_an_unconverted_topic():
+    """Pins the precondition the fix depends on: build_node does hand back an
+    id here, so callers must clear it against the set of real pages."""
+    import xml.etree.ElementTree as ET
+
+    el = ET.fromstring('<toc-element topic="api-references.topic" toc-title="Overview"/>')
+    warnings = []
+    node = build_node(el, {}, {}, warnings, "#999999", id_prefix="k/html/")
+
+    assert node["id"] == "k/html/api-references"
+    assert node["noLinkColor"] == "#999999"

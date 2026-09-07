@@ -132,7 +132,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from build_nav import build_node
+from build_nav import build_node, drop_unreachable_ids
 from content_chunking import (  # noqa: F401 - CHUNK_SIZE is re-exported for this package's other modules
     CHUNK_SIZE,
     owned_fragment_paths,
@@ -737,30 +737,11 @@ def main():
     for w in nav_warnings:
         print(f"warning: {w}", file=sys.stderr)
 
-    # build_node synthesizes an id for a topic it couldn't resolve to a
-    # converted page - an unconverted "*.topic" such as api-references.topic,
-    # visible in the committed nav.html as data-nav-id="api-references". No
-    # Content row is ever written for those, so every route to them 404s.
-    #
-    # Clearing the id (rather than just skipping them in the pager) is what
-    # actually fixes that, because nav.peb branches on `{% if node.id %}`:
-    # with an id it emits a coloured <a href>, i.e. a live link to nothing.
-    # Only without one does it fall to <span class="nav-group-title">, which
-    # is what a node leading nowhere should be. noLinkColor is already set on
-    # them by build_node, so they keep their distinct styling either way.
-    # flatten_nav_ids skips id-less nodes, so this also keeps them out of
-    # prev/next without a second filter.
-    real_page_ids = {page["id"] for page in pages}
-    unreachable = []
-
-    def drop_unreachable_ids(nodes):
-        for node in nodes:
-            if node["id"] is not None and node["id"] not in real_page_ids:
-                unreachable.append(node["id"])
-                node["id"] = None
-            drop_unreachable_ids(node["children"])
-
-    drop_unreachable_ids(nav_tree)
+    # `pages` is exactly what gets a Content row below, so anything else a nav
+    # node points at is unreachable (see build_nav.drop_unreachable_ids).
+    # Clearing the id also keeps those nodes out of prev/next for free, since
+    # flatten_nav_ids skips id-less nodes.
+    unreachable = drop_unreachable_ids(nav_tree, {page["id"] for page in pages})
     if unreachable:
         print(f"Rendering {len(unreachable)} nav entry/entries with no page as non-links: "
               f"{', '.join(sorted(unreachable))}", file=sys.stderr)

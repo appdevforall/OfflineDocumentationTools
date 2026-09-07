@@ -513,6 +513,11 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     # outputs are all unclaimed keeps its stem untouched.
     sources = collect_sources(input_dir, logger, stats)
     dst_rel_for = {}
+    # Keyed casefolded: the work dir is written on whatever filesystem the run
+    # happens to use, and on a case-insensitive one (APFS, NTFS) "logo.PNG" and
+    # "logo.png" are the same file - so comparing the names as written would
+    # miss a collision that still costs an image. insert_optimized_media's own
+    # seen_names guard is case-sensitive too and would not catch it either.
     claimed = {}
     for src in sources:
         rel = src.relative_to(input_dir)
@@ -521,7 +526,7 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         attempt = 0
         while True:
             names = possible_output_names(candidate, suffix, cfg)
-            clash = next((n for n in sorted(names) if n in claimed), None)
+            clash = next((n for n in sorted(names) if n.lower() in claimed), None)
             if clash is None:
                 break
             attempt += 1
@@ -529,11 +534,11 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
             candidate = f"{stem}-{ext}" if attempt == 1 else f"{stem}-{ext}-{attempt}"
             if attempt == 1:
                 logger.error(
-                    f"warning: {src} would overwrite the output of {claimed[clash]} "
+                    f"warning: {src} would overwrite the output of {claimed[clash.lower()]} "
                     f"(both produce {clash}); writing it under the stem {candidate!r} instead"
                 )
         for name in names:
-            claimed[name] = src
+            claimed[name.lower()] = src
         dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
 
     renamed = {}

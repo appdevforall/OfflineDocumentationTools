@@ -154,6 +154,31 @@ def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: li
     }
 
 
+def drop_unreachable_ids(nodes: list, real_page_ids: set) -> list:
+    """Clears the id of every nav node whose id has no generated page, in
+    place, and returns the ids cleared.
+
+    build_node synthesizes an id for a topic="*.topic" it can't resolve to a
+    converted page (home.topic, api-references.topic) so the entry can still
+    appear in the sidebar. Nothing ever generates a page at that id, so
+    leaving it set makes both renderers - nav.peb's `{% if node.id %}` and
+    render_node's `if node["id"]` below - emit a live <a href> to a URL that
+    404s. Only an id-less node renders as a group title, which is what a node
+    leading nowhere should be; noLinkColor is untouched, so the styling that
+    already marks them out is unchanged.
+
+    Shared with populate_db.py, which runs the same pass against the page rows
+    it is about to write. The static site and the database have to agree on
+    what is reachable, or one of them ships links the other can't satisfy."""
+    cleared = []
+    for node in nodes:
+        if node["id"] is not None and node["id"] not in real_page_ids:
+            cleared.append(node["id"])
+            node["id"] = None
+        cleared.extend(drop_unreachable_ids(node["children"], real_page_ids))
+    return cleared
+
+
 def render_node(node: dict, indent: int = 0) -> str:
     # Kept byte-identical to templates/nav.peb's renderNavNode macro, since
     # RenderDocs.java re-renders nav.peb over nav.json for the live site and
@@ -225,8 +250,15 @@ def main():
     nav_tree = [build_node(el, stem_to_id, id_to_title, warnings, no_link_color) for el in root.findall("toc-element")]
     nav_tree = [node for node in nav_tree if node is not None]
 
+    # stem_to_id holds exactly the pages md_to_json actually generated, so
+    # anything else a nav node points at is unreachable (see the function).
+    unreachable = drop_unreachable_ids(nav_tree, set(stem_to_id.values()))
+
     for w in warnings:
         print(f"warning: {w}", file=sys.stderr)
+    if unreachable:
+        print(f"warning: {len(unreachable)} nav entry/entries have no generated page and are rendered as "
+              f"non-links: {', '.join(sorted(unreachable))}", file=sys.stderr)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "nav.json").write_text(

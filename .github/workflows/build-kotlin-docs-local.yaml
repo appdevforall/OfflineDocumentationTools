@@ -238,6 +238,7 @@ jobs:
           echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
 
       - name: 'Notify Slack: build started'
+        id: slack_started
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -402,14 +403,20 @@ jobs:
           cp documentation.db "$DB_PATH"
           echo "Wrote updated documentation.db back to $DB_PATH"
 
-      # if: always() - the baton must be dropped even when the build fails,
-        # otherwise the channel shows it held forever by a dead run, which is the
-        # exact failure this convention exists to prevent. Deliberately NOT gated
-        # on dry_run: "build started" above is ungated, and since dry_run defaults
-        # to true an asymmetric gate meant every ordinary run grabbed the baton
-        # and never dropped it. The message reports the outcome instead.
+      # The baton must be dropped even when the build fails, otherwise the channel
+      # shows it held forever by a dead run - the exact failure this convention
+      # exists to prevent. Deliberately NOT gated on dry_run: "build started" is
+      # ungated, and since dry_run defaults to true an asymmetric gate meant every
+      # ordinary run grabbed the baton and never dropped it. The message reports
+      # the outcome instead.
+      #
+      # Gated on the acquire having actually happened, though. "build started"
+      # runs after the database is in place, so a run that fails before it (a bad
+      # db_path, a failed download) never grabbed the baton - and a bare always()
+      # would post a release for a lock nobody holds, which is just the original
+      # asymmetry pointing the other way.
       - name: 'Notify Slack: build complete'
-        if: always()
+        if: always() && steps.slack_started.outcome == 'success'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           JOB_STATUS: ${{ job.status }}
