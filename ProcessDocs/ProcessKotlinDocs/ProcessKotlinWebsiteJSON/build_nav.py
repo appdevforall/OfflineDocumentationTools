@@ -179,16 +179,26 @@ def drop_unreachable_ids(nodes: list, real_page_ids: set) -> list:
     return cleared
 
 
-def render_node(node: dict, indent: int = 0) -> str:
-    # Kept byte-identical to templates/nav.peb's renderNavNode macro, since
-    # RenderDocs.java re-renders nav.peb over nav.json for the live site and
-    # this function only produces a standalone preview copy of the same HTML.
+def render_node(node: dict) -> str:
+    # Kept equivalent to templates/nav.peb's renderNavNode macro - same
+    # elements, same attributes, same escaping - since RenderDocs.java
+    # re-renders nav.peb over nav.json for the live site and this function
+    # only produces a standalone preview copy of the same HTML.
     #
-    # That equivalence is why every interpolation is escaped: Pebble autoescapes
-    # by default, so nav.peb's output already is. Interpolating raw here meant a
-    # toc-title containing a double quote (or "&", or "<") closed the aria-label
-    # attribute early and produced different - and malformed - HTML than the
-    # template it claims to match.
+    # Not *byte*-identical, and it was wrong to claim so: nav.peb's tags sit on
+    # their own source lines, so its output carries newlines between them,
+    # while this joins on "". Diffing the two renderings (Pebble 3.2.2 against
+    # this function, same tree) shows that whitespace and nothing else.
+    #
+    # The equivalence that does matter is why every interpolation is escaped:
+    # Pebble autoescapes by default, so nav.peb's output already is.
+    # Interpolating raw here meant a toc-title containing a double quote (or
+    # "&", or "<") closed the aria-label attribute early and produced different
+    # - and malformed - HTML than the template it claims to match. The same
+    # diff confirms both now emit &quot;/&amp; identically.
+    #
+    # (An `indent` parameter used to sit in this signature. Nothing ever passed
+    # it and nothing read it - the output has no indentation to control.)
     title = html.escape(node["title"] or "", quote=True)
     node_id = html.escape(node["id"] or "", quote=True)
     classes = "nav-item" + (" nav-hidden" if node["hidden"] else "")

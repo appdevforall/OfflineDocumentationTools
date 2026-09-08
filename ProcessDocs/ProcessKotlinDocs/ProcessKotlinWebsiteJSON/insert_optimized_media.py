@@ -67,12 +67,13 @@ import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 from optimize_media import (
     BUILTIN_DEFAULTS, Logger, OPTION_SPECS, add_optimize_arguments, find_pngquant, optimize_directory,
     resolve_config,
 )
-from content_chunking import reassemble
+from content_chunking import is_continuation_path, reassemble
 from populate_db import (
     CHUNK_SIZE, DictionaryCompressor, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX,
     LANGUAGE, PAGE_CONTENT_TYPE, backup_database, fragment_chain, get_content_type, get_id,
@@ -196,6 +197,32 @@ def reassemble_content(conn, path: str, first_content: bytes) -> bytes:
     return reassemble(conn, path, first_content)
 
 
+class RewriteResult(NamedTuple):
+    """rewrite_pages' two outputs: how many rows it rewrote, and every image
+    filename it saw referenced along the way (see delete_unreferenced_media,
+    which would otherwise decompress the same rows a second time to find
+    out)."""
+    changed: int
+    referenced: set
+
+
+# Matches a rewritten image src's filename, anchored the same way
+# rewrite_pages' own known-rename substitutions are: resolve_image_src/
+# rewrite_urls only ever embed an image reference as an HTML src="..."
+# attribute, which - JSON-encoded - always has the escaped quote (\") right
+# after it, so this can't accidentally swallow past the end of the filename.
+#
+# That anchoring is a real dependency on the block schema, not just a
+# convenience: an image carried as a bare JSON field ({"type": "image",
+# "src": "..."}) would have no escaped quote after the filename and so would
+# match neither this pattern nor rewrite_pages' substitutions - its
+# references would silently survive a rename. md_to_json.py emits no such
+# block (images are inline-only, rendered into the enclosing block's "html"),
+# and templates/page.peb says the same at the point where a branch for one
+# would go. Widen both patterns first if that ever changes.
+IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
+
+
 def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id: int, logger: Logger,
                    chunked_log: list, compressor: DictionaryCompressor) -> int:
     """Rewrites every k/html/*.html page (and the nav row) that references a
@@ -228,10 +255,18 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
     unrelated, foo.webp -> foo-2.webp), a later replace could re-match text
     an earlier replace just wrote, sending an original foo.png reference to
     foo-2.webp instead of foo.webp. Scanning the untouched original text
-    once makes that impossible."""
-    if not rename_map:
-        return 0
+    once makes that impossible.
 
+    Also returns every image filename it saw referenced, taken from each
+    row's *final* text (post-substitution where a substitution happened), so
+    delete_unreferenced_media can reuse it. That scan is the reason there is
+    no "nothing to rename, return immediately" shortcut here any more: this
+    function and collect_referenced_media were reassembling, and brotli-
+    decompressing, the same page rows one after the other, and a
+    decompression here is a `brotli` subprocess (the shared-dictionary CLI
+    fallback) - one spawn per row. Measured on the real corpus: 268 page
+    rows, 2.3s per pass, so that is what the second pass cost every run. One
+    pass now serves both, whether or not anything is being renamed."""
     rows = conn.execute(
         "SELECT path, content, templateId FROM Content WHERE path LIKE 'k/html/%.html' AND contentTypeID = ? "
         "AND templateId != 0",
@@ -242,30 +277,28 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
         f'{IMAGES_URL_PREFIX}{old_name}\\"': f'{IMAGES_URL_PREFIX}{new_name}\\"'
         for old_name, new_name in rename_map.items()
     }
-    old_ref_pattern = re.compile("|".join(re.escape(old_ref) for old_ref in replacements))
+    # None rather than an empty alternation: "|".join(()) is "", and re.compile("")
+    # matches at every position, so an empty rename_map would report a "hit" on
+    # every row and rewrite the entire corpus to no effect.
+    old_ref_pattern = re.compile("|".join(re.escape(old_ref) for old_ref in replacements)) if replacements else None
 
     changed = 0
+    referenced = set()
     for path, first_content, template_id in rows:
         full = reassemble_content(conn, path, first_content)
         text = compressor.decompress(full).decode("utf-8")
-        hits = len(old_ref_pattern.findall(text))
+        hits = len(old_ref_pattern.findall(text)) if old_ref_pattern else 0
         if not hits:
+            referenced.update(IMAGE_REF_RE.findall(text))
             continue
         new_text = old_ref_pattern.sub(lambda m: replacements[m.group(0)], text)
+        referenced.update(IMAGE_REF_RE.findall(new_text))
         blob = compressor.compress(new_text.encode("utf-8"))
         delete_content(conn, path)
         insert_chunked_content(conn, path, language_id, page_content_type_id, template_id, blob, chunked_log)
         changed += 1
         logger.info(f"[URL FIX] {path}: updated {hits} image reference(s)")
-    return changed
-
-
-# Matches a rewritten image src's filename, anchored the same way
-# rewrite_pages' own known-rename substitutions are: resolve_image_src/
-# rewrite_urls only ever embed an image reference as an HTML src="..."
-# attribute, which - JSON-encoded - always has the escaped quote (\") right
-# after it, so this can't accidentally swallow past the end of the filename.
-IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
+    return RewriteResult(changed=changed, referenced=referenced)
 
 
 def collect_referenced_media(conn, page_content_type_id: int, compressor: DictionaryCompressor) -> set:
@@ -273,7 +306,13 @@ def collect_referenced_media(conn, page_content_type_id: int, compressor: Dictio
     src="/k/html/images/<name>" anywhere across current k/html/*.html page
     content and the nav row - the same row selection/reassembly
     rewrite_pages uses, just extracting every image reference found instead
-    of only substituting the ones in a known rename_map."""
+    of only substituting the ones in a known rename_map.
+
+    rewrite_pages collects the same set as a by-product of its own pass, and
+    main hands that to delete_unreferenced_media rather than calling this, so
+    a full run no longer decompresses every page twice. This remains the
+    reference implementation of "what does a page reference", used when
+    delete_unreferenced_media is called without one."""
     rows = conn.execute(
         "SELECT path, content FROM Content WHERE path LIKE 'k/html/%.html' AND contentTypeID = ? AND templateId != 0",
         (page_content_type_id,),
@@ -292,25 +331,24 @@ def list_stored_media(conn) -> dict:
     collapsing chunked continuation fragments ("<path>-1", "<path>-2", ...)
     back into their base row, since deleting the base via delete_content
     already takes its fragments with it (see CHUNK_SIZE's docstring in
-    populate_db.py for that fragmentation convention). A path is treated as
-    a fragment when stripping a trailing "-<digits>" yields another path
-    that's also present - the same convention this whole pipeline already
-    relies on elsewhere, ambiguous only for a base filename that itself
-    looks like "<other-existing-file>-<digits>", which no real optimized
-    media filename does."""
-    paths = {row[0] for row in conn.execute(
-        "SELECT path FROM Content WHERE path LIKE ?", (f"{IMAGES_DB_PATH_PREFIX}%",)
+    populate_db.py for that fragmentation convention).
+
+    Fragment detection is content_chunking.is_continuation_path: stripping a
+    trailing "-<digits>" has to yield a path that is present *and exactly
+    CHUNK_SIZE bytes*. Presence alone is not enough - an image genuinely
+    named "diagram.png-1" sitting next to an ordinary, un-chunked
+    "diagram.png" read as that page's continuation and was left out of this
+    listing entirely, so delete_unreferenced_media could never see it, let
+    alone remove it."""
+    lengths = {path: length for path, length in conn.execute(
+        "SELECT path, LENGTH(content) FROM Content WHERE path LIKE ?", (f"{IMAGES_DB_PATH_PREFIX}%",)
     )}
-
-    def is_fragment(path: str) -> bool:
-        prefix, sep, suffix = path.rpartition("-")
-        return sep == "-" and suffix.isdigit() and prefix in paths
-
-    return {path[len(IMAGES_DB_PATH_PREFIX):]: path for path in paths if not is_fragment(path)}
+    return {path[len(IMAGES_DB_PATH_PREFIX):]: path
+            for path in lengths if not is_continuation_path(lengths, path)}
 
 
 def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger,
-                               compressor: DictionaryCompressor) -> int:
+                               compressor: DictionaryCompressor, referenced: set = None) -> int:
     """Deletes every currently-stored k/html/images/<name> row (base row and
     any chunked fragments) that no page or the nav row references even once.
     Must run after insertion and rename-rewriting, so it sees the final,
@@ -329,9 +367,16 @@ def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger,
     all. That combination means the reference scan found nothing to compare
     against - most likely because this ran against a database whose k/html/*
     pages populate_db.py hasn't written yet - and deleting the entire image
-    corpus off the back of an empty scan is never the intended outcome."""
+    corpus off the back of an empty scan is never the intended outcome.
+
+    `referenced` is rewrite_pages' own scan, which covers the same rows and
+    is already up to date with the renames it applied; main passes it so
+    those rows are not reassembled and decompressed twice per run. Left
+    unset, this does that scan itself, so calling it standalone still
+    works."""
     stored = list_stored_media(conn)
-    referenced = collect_referenced_media(conn, page_content_type_id, compressor)
+    if referenced is None:
+        referenced = collect_referenced_media(conn, page_content_type_id, compressor)
     if stored and not referenced:
         raise RuntimeError(
             f"refusing to delete unreferenced media: {len(stored)} image(s) are stored but no page references "
@@ -407,8 +452,9 @@ def main() -> None:
                   "optimized_bytes": 0}
         logger.info(f"Optimizing media from {cfg['input_dir']} into {work_dir}...")
         try:
-            manifest = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
-                                           logger=logger, stats=stats)
+            result = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
+                                         logger=logger, stats=stats)
+            manifest = result.renamed
         except ValueError as exc:
             logger.error(f"error: {exc}")
             sys.exit(1)
@@ -467,9 +513,14 @@ def main() -> None:
                             f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})"
                         )
 
-                for out_path in sorted(work_dir.rglob("*")):
-                    if out_path.is_dir():
-                        continue
+                # Driven by what optimize_directory actually wrote, not by
+                # whatever is sitting in work_dir. The work directory is a
+                # documented positional, so reusing one between runs to skip
+                # re-optimizing is supported - and an rglob over it would then
+                # insert files left by an earlier run whose sources have since
+                # been deleted, resurrecting a removed image (or, once
+                # delete_unreferenced_media has had its say, quietly not).
+                for out_path in sorted(result.written):
                     name = out_path.name
                     if name in seen_names:
                         logger.error(
@@ -485,10 +536,12 @@ def main() -> None:
                         if cfg["verbose"]:
                             logger.info(f"[OK] {out_path} -> {db_path}")
 
-                changed_pages = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger,
-                                               chunked_log, compressor)
+                rewritten = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger,
+                                           chunked_log, compressor)
+                changed_pages = rewritten.changed
 
-                unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger, compressor)
+                unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger, compressor,
+                                                                 referenced=rewritten.referenced)
             finally:
                 compressor.close()
 

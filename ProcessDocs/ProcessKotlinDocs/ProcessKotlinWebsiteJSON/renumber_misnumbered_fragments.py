@@ -44,6 +44,7 @@ from pathlib import Path
 from content_chunking import CHUNK_SIZE, is_continuation_path
 from populate_db import backup_database, fragment_chain
 
+
 def find_fragment_paths(conn) -> set:
     """Every Content.path that is itself a "<base>-<N>" continuation
     fragment of some other row in this table - lets the scan below skip a
@@ -125,9 +126,14 @@ def find_chains(conn, fragment_paths: set) -> tuple:
     return misnumbered, gapped
 
 
-def repair(conn) -> dict:
-    fragment_paths = find_fragment_paths(conn)
-    misnumbered, gapped = find_chains(conn, fragment_paths)
+def repair(conn, misnumbered: list = None, gapped: list = None) -> dict:
+    """Applies a scan, running one first if the caller didn't.
+
+    main() passes its own so it can decide whether a backup is warranted
+    before anything is written; callers that just want the whole job done can
+    still call repair(conn)."""
+    if misnumbered is None or gapped is None:
+        misnumbered, gapped = find_chains(conn, find_fragment_paths(conn))
     for base_path, fragments in gapped:
         suffixes = [n for n, _path in fragments]
         print(f"warning: {base_path!r} has a gapped fragment chain (suffixes {suffixes}); left untouched",
@@ -150,14 +156,24 @@ def main() -> None:
         print(f"error: {db_path} does not exist", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Backing up {db_path}...", file=sys.stderr)
-    backup_path = backup_database(db_path)
-    print(f"Backup written to {backup_path}", file=sys.stderr)
-
     conn = sqlite3.connect(db_path)
     try:
+        # Scan first, and back up only if there is actually something to
+        # repair. This script is documented as idempotent, so re-running it
+        # against production finds nothing to do - the common case, not the
+        # exceptional one - and backing up first wrote another ~250MB
+        # VACUUM INTO copy every time. populate_db.py and
+        # sync_kdoc_json_to_db.py were both moved off that pattern in this
+        # same PR; this is the third.
+        fragment_paths = find_fragment_paths(conn)
+        misnumbered, gapped = find_chains(conn, fragment_paths)
+        if misnumbered:
+            print(f"Backing up {db_path}...", file=sys.stderr)
+            backup_path = backup_database(db_path)
+            print(f"Backup written to {backup_path}", file=sys.stderr)
+
         conn.execute("BEGIN")
-        stats = repair(conn)
+        stats = repair(conn, misnumbered, gapped)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -165,12 +181,13 @@ def main() -> None:
     finally:
         conn.close()
 
-    print("Vacuuming database to reclaim freed space...", file=sys.stderr)
-    vacuum_conn = sqlite3.connect(db_path)
-    try:
-        vacuum_conn.execute("VACUUM")
-    finally:
-        vacuum_conn.close()
+    if stats["chains_renumbered"]:
+        print("Vacuuming database to reclaim freed space...", file=sys.stderr)
+        vacuum_conn = sqlite3.connect(db_path)
+        try:
+            vacuum_conn.execute("VACUUM")
+        finally:
+            vacuum_conn.close()
 
     print(
         f"Renumbered {stats['chains_renumbered']} chain(s), moved {stats['fragments_moved']} fragment row(s). "

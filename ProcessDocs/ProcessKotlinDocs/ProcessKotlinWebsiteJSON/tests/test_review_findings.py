@@ -7,13 +7,12 @@ only reason they are worth having: the two criticals in particular were silent,
 exit-0 data loss that truthful-looking statistics actively concealed.
 """
 import json
-import random
 import sqlite3
 import sys
 
 import brotli
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 import optimize_media as om
 from build_nav import load_page_index
@@ -72,7 +71,7 @@ def test_sources_differing_only_by_extension_both_survive(tmp_path):
 
     cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
     renamed = om.optimize_directory(src, out, cfg=cfg, pngquant_path=om.find_pngquant(),
-                                     logger=om.Logger(sys.stdout), stats=_new_stats())
+                                     logger=om.Logger(sys.stdout), stats=_new_stats()).renamed
 
     assert len(list(out.iterdir())) == 2, "one source was clobbered by the other"
     # Both renames are reported, so a caller rewriting stored URLs follows them.
@@ -213,7 +212,6 @@ def test_load_page_index_skips_the_generated_nav_json(tmp_path):
 # =============================================================================
 
 from content_chunking import owned_fragment_paths, served_fragment_paths  # noqa: E402
-from renumber_misnumbered_fragments import find_chains  # noqa: E402
 
 
 # --- F13: a short fragment terminates the chain, as WebServer.kt does --------
@@ -296,7 +294,7 @@ def test_no_rename_when_the_extension_cannot_change(tmp_path):
 
     renamed = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS),
                                      pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
-                                     stats=_new_stats())
+                                     stats=_new_stats()).renamed
 
     assert renamed == {}
     assert sorted(p.name for p in out.iterdir()) == ["logo.jpg", "logo.png", "notes.md", "notes.txt"]
@@ -415,3 +413,364 @@ def test_build_node_synthesizes_an_id_for_an_unconverted_topic():
 
     assert node["id"] == "k/html/api-references"
     assert node["noLinkColor"] == "#999999"
+
+
+# =============================================================================
+# Fourth review round (F26-F34).
+# =============================================================================
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import insert_optimized_media as iom  # noqa: E402
+from insert_optimized_media import (  # noqa: E402
+    delete_unreferenced_media,
+    list_stored_media,
+    rewrite_pages,
+)
+from find_missing_assets import INCLUDE_RE, outside_fences  # noqa: E402
+from md_to_json import Converter, make_markdown_it  # noqa: E402
+from populate_db import DictionaryCompressor, pages_linking_to  # noqa: E402
+
+needs_brotli_cli = pytest.mark.skipif(shutil.which("brotli") is None, reason="brotli CLI not installed")
+
+
+def _animated_gif(path, frames=3, size=(40, 40), loop=None):
+    """An animated GIF, with a NETSCAPE loop block only if `loop` is given -
+    Pillow signals "plays once" by omitting the key entirely.
+
+    Each frame draws a rectangle in a different place: frames that are
+    byte-identical get collapsed on save, which quietly produces a
+    single-frame "animation" that proves nothing."""
+    images = []
+    for i in range(frames):
+        frame = Image.new("RGB", size, (0, 0, 0))
+        ImageDraw.Draw(frame).rectangle([i * 5, i * 5, i * 5 + 10, i * 5 + 10], fill=(255, i * 80, 0))
+        images.append(frame.convert("P"))
+    kwargs = {"save_all": True, "append_images": images[1:], "duration": 80}
+    if loop is not None:
+        kwargs["loop"] = loop
+    images[0].save(path, **kwargs)
+    return path
+
+
+# --- F26: an animated GIF must not be planned as, or replaced by, a .webp ----
+
+def test_animated_gif_survives_a_webp_run(tmp_path):
+    """--webp cannot re-encode an animated GIF (optimize_raster resizes it as
+    a GIF instead), so predicting a ".webp" output for it left the animation
+    stored under a name nothing referenced - and rewrite_pages repointed every
+    page at a .webp that was never written."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    _animated_gif(src / "spin.gif")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert result.renamed == {}, "nothing was renamed, so no page URL should be rewritten"
+    assert [p.name for p in out.iterdir()] == ["spin.gif"]
+    with Image.open(out / "spin.gif") as written:
+        assert getattr(written, "n_frames", 1) == 3
+
+
+def test_still_gif_is_still_converted_to_webp(tmp_path):
+    """The animated-GIF exemption is exactly that: a single-frame GIF keeps
+    converting, so the fix doesn't quietly opt every GIF out of --webp."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("P", (40, 40), 7).save(src / "static.gif")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert [p.name for p in out.iterdir()] == ["static.webp"]
+    assert result.renamed == {"static.gif": "static.webp"}
+
+
+def test_duplicate_basenames_keep_the_first_without_repointing_it(tmp_path):
+    """Two sources with the *same* basename flatten onto one stored image.
+    De-conflicting them (a/logo.png -> logo.png, b/logo.png -> logo-2.png)
+    invented a rename for a file that was never written under the new name;
+    keeping the first and skipping the rest matches what the insert loop
+    downstream does with a duplicate."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    (src / "a").mkdir(parents=True)
+    (src / "b").mkdir(parents=True)
+    out.mkdir()
+    Image.new("RGB", (20, 20), (9, 9, 9)).save(src / "a" / "logo.png")
+    Image.new("RGB", (20, 20), (8, 8, 8)).save(src / "b" / "logo.png")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS),
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    written = [p for p in out.rglob("*") if p.is_file()]
+    assert [p.name for p in written] == ["logo.png"]
+    assert result.renamed == {}, "the skipped duplicate must not repoint the surviving name"
+
+
+# --- F27: the insert loop follows what was written, not what is lying about --
+
+def test_written_lists_only_this_run_s_outputs(tmp_path):
+    """A work directory is a documented positional, so it can hold files from
+    an earlier run whose sources are since gone. Those must not be reported as
+    written - the insert loop reads this list, and an rglob would resurrect
+    them."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("RGB", (20, 20), (1, 2, 3)).save(src / "current.png")
+    (out / "deleted-last-week.png").write_bytes(b"stale")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS),
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert [p.name for p in result.written] == ["current.png"]
+    assert (out / "deleted-last-week.png").exists(), "left alone on disk, just not re-inserted"
+
+
+# --- F31: a play-once GIF must not come back looping forever -----------------
+
+def test_resize_preserves_a_play_once_gif(tmp_path):
+    """info.get("loop", 0) read "plays once" (key absent) and wrote "loops
+    forever" (0), adding a NETSCAPE block the source never had."""
+    src = _animated_gif(tmp_path / "once.gif", size=(300, 300))
+    with Image.open(src) as img:
+        assert "loop" not in img.info
+        resized = om.resize_animated_gif(img, tmp_path / "out.gif", max_width=100)
+    with Image.open(resized) as written:
+        assert "loop" not in written.info
+        assert written.n_frames == 3
+
+
+def test_resize_preserves_an_explicit_loop_count(tmp_path):
+    src = _animated_gif(tmp_path / "thrice.gif", size=(300, 300), loop=3)
+    with Image.open(src) as img:
+        resized = om.resize_animated_gif(img, tmp_path / "out.gif", max_width=100)
+    with Image.open(resized) as written:
+        assert written.info.get("loop") == 3
+
+
+# --- F29: pages converted before a failure still link to the failed page -----
+
+def test_pages_linking_to_finds_the_pre_failure_pages():
+    """Only pages converted before the failed stem was dropped carry the
+    resolved href; ones converted after keep the raw "<stem>.md" and are
+    already styled broken, so they must not be re-converted."""
+    pages = [
+        {"id": "before", "blocks": [{"type": "paragraph", "html": '<a href="/k/html/gone.html">x</a>'}]},
+        {"id": "after", "blocks": [{"type": "paragraph", "html": '<a href="gone.md" style="color:red">x</a>'}]},
+        {"id": "nested", "blocks": [{"type": "blockquote", "blocks": [
+            {"type": "paragraph", "html": '<a href="/k/html/gone.html#anchor">x</a>'}]}]},
+        {"id": "unrelated", "blocks": [{"type": "paragraph", "html": '<a href="/k/html/fine.html">x</a>'}]},
+    ]
+
+    assert pages_linking_to(pages, ["gone"]) == [0, 2]
+    assert pages_linking_to(pages, []) == []
+    assert pages_linking_to(pages, ["never-existed"]) == []
+
+
+# --- F28: page.peb depends on images never being a block type of their own ---
+
+def test_markdown_images_stay_inline_never_a_block():
+    """templates/page.peb has no "image" branch, and IMAGE_REF_RE / rewrite_pages
+    are anchored on src="..." - all three rest on this."""
+    converter = Converter(make_markdown_it(), {}, {}, {"a.png": "a.png"}, image_url_prefix="/k/html/images/")
+    page = converter.convert_file_text if False else None  # convert_file needs a path; use convert_nodes below
+    from md_to_json import build_tree
+    tokens = converter.md.parse("Text with ![alt](a.png) inline.\n\n![alt](a.png)\n")
+    blocks = converter.convert_nodes(build_tree(tokens))
+
+    assert page is None
+    assert all(b["type"] != "image" for b in blocks), "a standalone image block would render as nothing"
+    assert any('src="/k/html/images/a.png"' in b.get("html", "") for b in blocks)
+
+
+# --- F30/F34: reading pages and media back exactly once ----------------------
+
+PAGE_TYPE_ID = 1  # the conn fixture's only ContentType
+DICTIONARY = bytes(range(256)) * 64
+
+
+@pytest.fixture
+def compressor():
+    instance = DictionaryCompressor(DICTIONARY)
+    yield instance
+    instance.close()
+
+
+def _page_blob(compressor, *image_names):
+    """A page row's stored bytes: the JSON md_to_json would produce, with each
+    image referenced the only way it ever is - as an HTML src attribute."""
+    blocks = [{"type": "paragraph", "html": f'<img src="{iom.IMAGES_URL_PREFIX}{name}" alt="">'}
+              for name in image_names]
+    text = json.dumps({"id": "p", "blocks": blocks})
+    return compressor.compress(text.encode("utf-8"))
+
+
+def _add(conn, path, blob=b"x", template_id=0):
+    conn.execute(
+        "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, 1, ?, ?, ?)",
+        (path, blob, PAGE_TYPE_ID, template_id),
+    )
+
+
+@needs_brotli_cli
+def test_pages_are_decompressed_once_per_run(conn, compressor):
+    """rewrite_pages and collect_referenced_media selected the same rows and
+    decompressed each of them independently. Every decompression is a `brotli`
+    subprocess (the shared-dictionary path has no Python binding), so the
+    second pass cost one process spawn per page - 268 of them, 2.3s, on the
+    real corpus, for a set of references the first pass had already seen."""
+    # A real rename, so the old code took both passes: four decompressions to
+    # rewrite, then four more to collect what the rewritten pages reference.
+    for i in range(4):
+        _add(conn, f"k/html/page{i}.html", _page_blob(compressor, "logo.png"), template_id=2)
+    _add(conn, "k/html/images/logo.webp")
+    _add(conn, "k/html/images/orphan.png")
+
+    calls = []
+    real_decompress = compressor.decompress
+    compressor.decompress = lambda data: (calls.append(1), real_decompress(data))[1]
+
+    rewritten = rewrite_pages(conn, {"logo.png": "logo.webp"}, 1, PAGE_TYPE_ID, om.Logger(None), [], compressor)
+    removed = delete_unreferenced_media(conn, PAGE_TYPE_ID, om.Logger(None), compressor,
+                                        referenced=rewritten.referenced)
+
+    assert rewritten.changed == 4
+    assert rewritten.referenced == {"logo.webp"}, "collected post-substitution, as the pages now read"
+    assert removed == 1, "orphan.png is referenced by nothing"
+    assert len(calls) == 4, f"one decompression per page row, got {len(calls)}"
+
+
+@needs_brotli_cli
+def test_an_empty_rename_map_rewrites_nothing(conn, compressor):
+    """Dropping rewrite_pages' "nothing to rename, return now" shortcut (so its
+    single pass can also collect references) must not turn an empty rename_map
+    into a regex that matches everywhere: re.compile("") matches at every
+    position, which would have rewritten every page to no effect."""
+    _add(conn, "k/html/page.html", _page_blob(compressor, "a.png"), template_id=2)
+    before = conn.execute("SELECT content FROM Content WHERE path = 'k/html/page.html'").fetchone()[0]
+
+    rewritten = rewrite_pages(conn, {}, 1, PAGE_TYPE_ID, om.Logger(None), [], compressor)
+
+    assert rewritten.changed == 0
+    assert conn.execute("SELECT content FROM Content WHERE path = 'k/html/page.html'").fetchone()[0] == before
+
+
+def test_an_image_named_like_a_fragment_is_still_listed(conn):
+    """An image genuinely called "diagram.png-1", stored beside an ordinary
+    (not CHUNK_SIZE) "diagram.png", read as that row's continuation and
+    vanished from the listing - so delete_unreferenced_media could neither see
+    it nor remove it. The base row's length is what settles it."""
+    _add(conn, "k/html/images/diagram.png", b"small")
+    _add(conn, "k/html/images/diagram.png-1", b"a separate file that just looks like a fragment")
+
+    assert set(list_stored_media(conn)) == {"diagram.png", "diagram.png-1"}
+
+
+def test_a_real_continuation_is_still_collapsed(conn):
+    """The other direction: a genuinely chunked image is one entry, not two."""
+    _add(conn, "k/html/images/big.png", b"x" * CHUNK_SIZE)
+    _add(conn, "k/html/images/big.png-1", b"tail")
+
+    assert set(list_stored_media(conn)) == {"big.png"}
+
+
+# --- F32: no ~250MB backup for a run that has nothing to repair --------------
+
+def _repair_db(tmp_path, rows):
+    path = tmp_path / "documentation.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA_SQL)
+    conn.execute("INSERT INTO Languages (value) VALUES ('en-US')")
+    conn.execute("INSERT INTO ContentTypes (value, compression) VALUES ('text/html', 'brotli')")
+    for row_path, blob in rows:
+        conn.execute(
+            "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, 1, ?, 1, 0)",
+            (row_path, blob),
+        )
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _run_renumber_main(monkeypatch, db_path):
+    """Runs the script's main() against db_path, reporting whether it took a
+    backup."""
+    import renumber_misnumbered_fragments as rmf
+    backups = []
+    monkeypatch.setattr(rmf, "backup_database", lambda p: (backups.append(p), Path(f"{p}.bak"))[1])
+    monkeypatch.setattr(sys, "argv", ["renumber_misnumbered_fragments.py", str(db_path)])
+    rmf.main()
+    return backups
+
+
+def test_a_clean_database_is_not_backed_up(tmp_path, monkeypatch, capsys):
+    """This script is documented as idempotent, so re-running it against
+    production is the normal case and finds nothing to do. Backing up first
+    wrote another full VACUUM INTO copy of a ~250MB file every single time."""
+    db_path = _repair_db(tmp_path, [("k/html/page.html", b"small"),
+                                    ("k/html/big.html", b"x" * CHUNK_SIZE),
+                                    ("k/html/big.html-1", b"tail")])
+
+    assert _run_renumber_main(monkeypatch, db_path) == []
+    assert "Renumbered 0 chain(s)" in capsys.readouterr().out
+
+
+def test_a_database_needing_repair_is_backed_up(tmp_path, monkeypatch):
+    """The other direction: skipping the backup must not extend to the run
+    that actually rewrites paths."""
+    db_path = _repair_db(tmp_path, [("k/html/big.html", b"x" * CHUNK_SIZE),
+                                    ("k/html/big.html-2", b"tail")])
+
+    assert _run_renumber_main(monkeypatch, db_path) == [db_path]
+
+    conn = sqlite3.connect(db_path)
+    paths = {row[0] for row in conn.execute("SELECT path FROM Content")}
+    conn.close()
+    assert paths == {"k/html/big.html", "k/html/big.html-1"}
+
+
+# --- F35: a flag given no value should say so, not die inside bash -----------
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+@pytest.mark.parametrize("script, flag", [
+    ("run-build-kotlin-docs-with-act.sh", "--db-path"),
+    ("Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh", "--kotlin-libs-version"),
+])
+def test_a_flag_without_a_value_is_reported(script, flag):
+    """Both scripts read $2 unguarded under `set -u`, so a trailing flag exited
+    with bash's own "$2: unbound variable" instead of the usage message that
+    exists for exactly this mistake."""
+    path = REPO_ROOT / script
+    if not path.exists():  # pragma: no cover - only when run outside the repo
+        pytest.skip(f"{script} not found")
+    proc = subprocess.run(["bash", str(path), flag], capture_output=True, text=True)
+
+    assert proc.returncode == 1
+    combined = proc.stdout + proc.stderr
+    assert f"{flag} needs a value" in combined
+    assert "unbound variable" not in combined
+
+
+# --- an <include> shown inside a code sample is not a broken reference -------
+
+@pytest.mark.parametrize("source, expected", [
+    ("before\n~~~\n<include from=\"sample.md\"/>\n~~~\nafter\n", []),
+    ("x\n````\n<include from=\"a.md\"/>\n```\n<include from=\"b.md\"/>\n````\ny\n", []),
+    ("text\n<include from=\"real.md\"/>\n", ["real.md"]),
+    ("```\n<include from=\"sample.md\"/>\n```\n<include from=\"real.md\"/>\n", ["real.md"]),
+])
+def test_includes_inside_any_fence_are_not_scanned(source, expected):
+    """The old pattern was "```.*?```": a ~~~-fenced sample was scanned as real
+    source, and a longer ```` fence wrapping a ``` sample closed early and
+    exposed the rest of the block. Both warned about files nobody meant to
+    ship. md_to_json.fenced_spans - which extract_title already relies on -
+    knows both fence characters and the "at least as long" close rule."""
+    assert INCLUDE_RE.findall(outside_fences(source)) == expected

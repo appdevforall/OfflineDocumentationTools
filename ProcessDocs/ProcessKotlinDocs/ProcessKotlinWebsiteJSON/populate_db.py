@@ -377,6 +377,34 @@ def flatten_to_db_ids(stem_to_id: dict) -> dict:
     return {stem: f"k/html/{stem}" for stem in stem_to_id}
 
 
+def pages_linking_to(pages: list, stems) -> list:
+    """Indices of `pages` that carry an already-resolved link to any of
+    `stems` - i.e. href="/k/html/<stem>.html", the form resolve_href produces
+    while the stem is still in topic_index.
+
+    Used to find the pages that were converted *before* a failed conversion
+    dropped that stem from the index. A page converted afterwards never
+    contains this form (resolve_href returns None and leaves the raw
+    "<stem>.md" href in place, styled broken), so scanning for it selects
+    exactly the stale ones and nothing else."""
+    # Each target is run through the same encoder as the pages it is matched
+    # against, then stripped of its own enclosing quotes. A page's html is
+    # searched as JSON, where the attribute's quote is an escaped \" - so the
+    # raw form of this needle matches nothing at all (found the hard way).
+    targets = [json.dumps(f'href="/k/html/{stem}.html')[1:-1] for stem in stems]
+    if not targets:
+        return []
+    stale = []
+    for i, page in enumerate(pages):
+        # Serialized once per page, not once per (page, target): the failure
+        # path is rare but it still walks the whole corpus, and re-encoding a
+        # page per failed stem turned that into a visible pause.
+        encoded = json.dumps(page)
+        if any(target in encoded for target in targets):
+            stale.append(i)
+    return stale
+
+
 def load_zip_image_names(images_zip: Path) -> list:
     with zipfile.ZipFile(images_zip) as zf:
         return sorted(name for name in zf.namelist() if not name.endswith("/"))
@@ -669,6 +697,7 @@ def main():
         and topic_index.get(p.stem) == p.relative_to(topics_dir).with_suffix("").as_posix()
     ]
     pages = []
+    page_sources = []  # md_files entry each pages[i] came from, for the re-conversion pass below
     failed_stems = []
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
@@ -683,12 +712,19 @@ def main():
             # still resolves the stem and nav renders an ordinary,
             # normally-styled link straight to a 404 (and any other page's
             # in-content link to it does the same). Dropping it here is what
-            # the blacklist path already does above, and makes every
-            # reference render as a styled broken link instead.
+            # the blacklist path already does above.
+            #
+            # This drop only governs what happens next, though - nav (built
+            # further down) and any page converted after this point. Pages
+            # already converted resolved their links against an index that
+            # still had this stem, so they carry an ordinary link to a page
+            # that will 404. The second pass after the refusal check below
+            # re-converts those.
             topic_index_db.pop(md_path.stem, None)
             failed_stems.append(md_path.stem)
             continue
         pages.append(page)
+        page_sources.append((md_path, db_id, source_rel))
     print(f"Converted {len(pages)}/{len(md_files)} pages", file=sys.stderr)
     # A failed conversion means a page that currently exists in the database
     # would be deleted (see the DELETE below) and not replaced. That's a
@@ -705,6 +741,26 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+
+    # --allow-conversion-failures got us here, so a stem was dropped from
+    # topic_index_db partway through the loop above and every page converted
+    # before that point still links to it as if it existed. Re-convert just
+    # those (usually none), now that the index reflects what will actually be
+    # in the database, so a link to a failed page renders as a styled broken
+    # link wherever it appears - not only on the pages that happened to be
+    # converted after the failure.
+    if failed_stems:
+        stale = pages_linking_to(pages, failed_stems)
+        if stale:
+            print(f"Re-converting {len(stale)} page(s) that link to a failed page "
+                  "(their links to it are styled broken this time)", file=sys.stderr)
+        for i in stale:
+            md_path, db_id, source_rel = page_sources[i]
+            try:
+                pages[i] = converter.convert_file(md_path, db_id, source_rel)
+            except Exception as exc:  # noqa: BLE001 - keep the first-pass page rather than losing it
+                print(f"error re-converting {md_path}: {exc}; keeping the first-pass version, "
+                      "whose links to a failed page will not be styled broken", file=sys.stderr)
 
     # Backed up only once everything that can still refuse to proceed has had
     # its say - conversion is the last of those, and it happens entirely in

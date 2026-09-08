@@ -29,10 +29,40 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from md_to_json import Converter, build_image_index, build_topic_index, load_variables, make_markdown_it
+from md_to_json import (
+    Converter,
+    build_image_index,
+    build_topic_index,
+    fenced_spans,
+    load_variables,
+    make_markdown_it,
+)
 
 INCLUDE_RE = re.compile(r'<include\b[^>]*\bfrom\s*=\s*"([^"]+)"')
-FENCE_RE = re.compile(r"```.*?```", re.S)
+
+
+def outside_fences(text: str) -> str:
+    """`text` with every fenced code block removed, so the <include> scan below
+    doesn't report a sample as a broken reference.
+
+    md_to_json.fenced_spans is the shared fence rule, rather than a second
+    pattern here. The one this replaced was `re.compile("```.*?```", re.S)`,
+    which saw only backtick fences: a `<include from="...">` shown inside a
+    ~~~-fenced sample was scanned as if it were real, and warned about a file
+    that was never meant to exist. It also paired fences by "next three
+    backticks", so a longer ```` fence wrapping a ``` sample closed early and
+    exposed the rest of the block. fenced_spans handles both, and is already
+    what extract_title trusts to stay out of code samples."""
+    spans = fenced_spans(text)
+    if not spans:
+        return text
+    parts = []
+    pos = 0
+    for start, end in spans:
+        parts.append(text[pos:start])
+        pos = end
+    parts.append(text[pos:])
+    return "".join(parts)
 
 
 def find_include_warnings(topics_dir: Path) -> tuple:
@@ -47,7 +77,7 @@ def find_include_warnings(topics_dir: Path) -> tuple:
     for md_path in sorted(topics_dir.rglob("*.md")):
         source_rel = str(md_path.relative_to(topics_dir.parent))
         try:
-            text_no_fences = FENCE_RE.sub("", md_path.read_text(encoding="utf-8"))
+            text_no_fences = outside_fences(md_path.read_text(encoding="utf-8"))
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep scanning the rest
             print(f"error scanning {md_path} for <include> targets: {exc}", file=sys.stderr)
             failed += 1

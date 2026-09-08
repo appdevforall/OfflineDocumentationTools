@@ -53,6 +53,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from PIL import Image
 
@@ -63,6 +64,7 @@ except AttributeError:  # Pillow < 9.1
 
 RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp"}
 SVG_EXTENSION = ".svg"
+GIF_EXTENSION = ".gif"
 
 
 class Logger:
@@ -264,16 +266,22 @@ def resize_animated_gif(img: Image.Image, dst: Path, max_width: int) -> Path:
     frame's own disposal method. --webp is intentionally not honored here:
     animated WEBP re-encoding is a separate feature this doesn't attempt."""
     n_frames = getattr(img, "n_frames", 1)
-    loop = img.info.get("loop", 0)
     frames = []
     durations = []
     for i in range(n_frames):
         img.seek(i)
         frames.append(resize_if_needed(img.convert("RGBA"), max_width))
         durations.append(img.info.get("duration", 100))
-    frames[0].save(
-        dst, save_all=True, append_images=frames[1:], duration=durations, loop=loop, disposal=2, optimize=True,
-    )
+    # loop is passed through only when the source carried one. Pillow reports a
+    # GIF with no NETSCAPE application-extension block - i.e. one that plays
+    # once - by *omitting* the "loop" key, and 0 is the value that means "loop
+    # forever". So info.get("loop", 0) reads "play once" and writes "loop
+    # forever", adding a NETSCAPE block the source never had, which is the
+    # opposite of the loop count this function's docstring says it preserves.
+    save_kwargs = {"duration": durations, "disposal": 2, "optimize": True}
+    if "loop" in img.info:
+        save_kwargs["loop"] = img.info["loop"]
+    frames[0].save(dst, save_all=True, append_images=frames[1:], **save_kwargs)
     return dst
 
 
@@ -427,22 +435,73 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
     return dst_final
 
 
-def possible_output_names(stem: str, suffix: str, cfg: dict) -> set:
+class OptimizeResult(NamedTuple):
+    """What optimize_directory did.
+
+    `written` is every output path this run actually produced, which is not
+    the same as "everything in output_dir": a caller reusing a work directory
+    between runs (a documented usage) would otherwise pick up files left by an
+    earlier run whose sources have since been deleted, and insert them as if
+    this run had produced them. `renamed` maps {relative_src: relative_dst}
+    for the subset whose output path differed from its input path, which is
+    what callers maintaining references elsewhere need in order to follow
+    them."""
+
+    renamed: dict
+    written: list
+
+
+def possible_output_names(stem: str, suffix: str, cfg: dict, src: Path = None) -> set:
     """Every basename process_file could write for a source named
     `stem + suffix`.
 
-    A set rather than one name because the SVG branch is genuinely not
-    predictable up front: optimize_svg only rasterizes when the *optimized*
-    SVG comes out over --svg-rasterize-threshold, which isn't known until the
-    work is done. Treating both possibilities as claimed is the conservative
-    choice - it can de-conflict a pair that would not in fact have collided,
-    which costs a rename, where the reverse costs an image."""
+    A set rather than one name because one branch is genuinely not predictable
+    up front: optimize_svg only rasterizes when the *optimized* SVG comes out
+    over --svg-rasterize-threshold, which isn't known until the work is done.
+    Treating both possibilities as claimed is the conservative choice - it can
+    de-conflict a pair that would not in fact have collided, which costs a
+    rename, where the reverse costs an image.
+
+    `src` lets the one *knowable* exception be resolved exactly instead of
+    conservatively: an animated GIF is written back as a GIF even under
+    --webp (resize_animated_gif does not honour it - see its docstring), so
+    predicting ".webp" for every raster mispredicts exactly that case. It
+    mispredicts it in the damaging direction, too: an animated logo.gif claims
+    logo.webp it never writes, a static logo.gif elsewhere is de-conflicted
+    against that phantom, and rename_map then repoints every stored
+    /k/html/images/logo.gif at the static one - so the animated row goes
+    unreferenced and delete_unreferenced_media removes it. Same shape as the
+    collision this pre-pass exists to prevent, reached through the single
+    output name the suffix alone cannot determine.
+
+    Without `src` (or if the file can't be read) the .gif case falls back to
+    claiming both, which is safe in the same way the SVG branch is."""
     if suffix.lower() == SVG_EXTENSION:
         rasterized = ".webp" if cfg["webp"] else ".png"
         return {f"{stem}{SVG_EXTENSION}", f"{stem}{rasterized}"}
     if suffix.lower() in RASTER_EXTENSIONS:
-        return {f"{stem}.webp"} if cfg["webp"] else {f"{stem}{suffix}"}
+        if not cfg["webp"]:
+            return {f"{stem}{suffix}"}
+        if suffix.lower() == GIF_EXTENSION:
+            animated = _is_animated_gif(src)
+            if animated is None:  # unreadable: claim both rather than guess
+                return {f"{stem}{suffix}", f"{stem}.webp"}
+            return {f"{stem}{suffix}"} if animated else {f"{stem}.webp"}
+        return {f"{stem}.webp"}
     return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
+
+
+def _is_animated_gif(src: Path):
+    """True/False for a readable GIF, or None when it can't be determined.
+    The same test optimize_raster makes later, just made early enough for the
+    name-planning pass to predict the output extension."""
+    if src is None:
+        return None
+    try:
+        with Image.open(src) as img:
+            return bool(getattr(img, "is_animated", False))
+    except Exception:  # noqa: BLE001 - unreadable here is not fatal; collect_sources reports it
+        return None
 
 
 def collect_sources(input_dir: Path, logger: Logger, stats: dict) -> list:
@@ -469,12 +528,12 @@ def collect_sources(input_dir: Path, logger: Logger, stats: dict) -> list:
 def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant_path: str, logger: Logger,
                         stats: dict) -> dict:
     """Walks input_dir recursively, optimizing every file into the mirrored
-    location under output_dir (see process_file). Returns
-    {relative_src_path: relative_dst_path} for every file whose output path
-    ended up different from its input path (webp conversion, or an SVG
-    rasterized to PNG/WEBP) - callers that also maintain references to these
+    location under output_dir (see process_file). Returns an OptimizeResult -
+    `written`, every output path this run produced, and `renamed`, the subset
+    whose output path differed from its input path (webp conversion, or an SVG
+    rasterized to PNG/WEBP), which callers maintaining references to these
     files elsewhere (e.g. insert_optimized_media.py, fixing up image URLs
-    stored in a database) use this to know what changed."""
+    stored in a database) use to know what changed."""
     # Writing into the directory being read destroys the originals: every image
     # is optimized straight over its own source, and the only error raised is a
     # copy2 SameFileError on the first *non*-image file, long after the damage.
@@ -512,6 +571,38 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     # possible_output_names), keyed by basename alone. A source whose possible
     # outputs are all unclaimed keeps its stem untouched.
     sources = collect_sources(input_dir, logger, stats)
+
+    # Two sources that share a *basename* are a different problem from two that
+    # merely produce the same output, and they need the opposite treatment.
+    #
+    # The consumer namespace is flat, so "A/logo.gif" and "B/logo.gif" are one
+    # name once inserted, and a page referencing "logo.gif" cannot say which it
+    # meant - populate_db already resolves that by keeping the first sorted and
+    # warning. De-conflicting them here would instead rename the second to
+    # something distinct, which puts an entry in `renamed` for the *shared*
+    # name: build_rename_map then repoints every stored /k/html/images/logo.gif
+    # at the second file, the first goes unreferenced, and
+    # delete_unreferenced_media removes it. That is how an animated GIF got
+    # replaced by an unrelated static one - the rename made the collision
+    # invisible to the seen_names guard that was supposed to catch it.
+    #
+    # So: skip the later duplicates outright, which is exactly the "keeping the
+    # first, sorted, skipping the rest" this pipeline already documents. Not
+    # counted as an error - it is a warned-about condition, not a failure.
+    by_basename = {}
+    deduped = []
+    for src in sources:
+        key = src.name.lower()
+        if key in by_basename:
+            logger.error(
+                f"warning: {src} has the same filename as {by_basename[key]}; the output namespace is "
+                "flat, so only the first can be addressed - keeping the first, skipping this one"
+            )
+            continue
+        by_basename[key] = src
+        deduped.append(src)
+    sources = deduped
+
     dst_rel_for = {}
     # Keyed casefolded: the work dir is written on whatever filesystem the run
     # happens to use, and on a case-insensitive one (APFS, NTFS) "logo.PNG" and
@@ -525,7 +616,7 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         candidate = stem
         attempt = 0
         while True:
-            names = possible_output_names(candidate, suffix, cfg)
+            names = possible_output_names(candidate, suffix, cfg, src)
             clash = next((n for n in sorted(names) if n.lower() in claimed), None)
             if clash is None:
                 break
@@ -542,16 +633,18 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
 
     renamed = {}
+    written = []
     for src in sources:
         rel = src.relative_to(input_dir)
         dst = output_dir / dst_rel_for[src]
         dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger)
         if dst_final is None:
             continue
+        written.append(dst_final)
         rel_final = dst_final.relative_to(output_dir)
         if rel_final != rel:
             renamed[str(rel)] = str(rel_final)
-    return renamed
+    return OptimizeResult(renamed=renamed, written=written)
 
 
 def add_optimize_arguments(parser: argparse.ArgumentParser) -> None:

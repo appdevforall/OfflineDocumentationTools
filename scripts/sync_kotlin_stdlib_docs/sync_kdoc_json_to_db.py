@@ -55,8 +55,13 @@ import brotli
 # undetected chains and an unrelated page being deleted as a "surplus fragment".
 # This script is otherwise standalone (stdlib + brotli), hence the explicit path
 # rather than a package import.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]
-                       / "ProcessDocs" / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON"))
+# append, not insert(0): position 0 would search that directory ahead of the
+# standard library, so any module added there whose name collides with a stdlib
+# one (types.py, json.py, io.py are all plausible) would be imported in its
+# place, here and in everything imported transitively. This script needs the
+# directory reachable, not preferred.
+sys.path.append(str(Path(__file__).resolve().parents[2]
+                    / "ProcessDocs" / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON"))
 from content_chunking import (  # noqa: E402 - must follow the sys.path line above
     CHUNK_SIZE,
     is_continuation_path,
@@ -69,6 +74,7 @@ PREFIXES = ["k/kotlin-stdlib", "k/kotlin-reflect", "k/kotlin-test"]
 # file. A Dokka upgrade that changes the emitted layout makes *every* lookup miss,
 # and the only signal would be "Done: updated 0, deleted N" on a gutted database.
 MAX_DELETE_FRACTION = 0.5
+
 
 def backup_database(db_path):
     """Writes a timestamped backup beside db_path. Uses SQLite's own VACUUM

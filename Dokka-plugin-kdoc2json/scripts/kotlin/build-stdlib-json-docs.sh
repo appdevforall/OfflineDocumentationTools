@@ -52,13 +52,18 @@ log() { echo "$@" >&2; }
 
 usage() { log "Usage: $0 [--kotlin-libs-version V] [--kotlin-libs-repo URL] <path-to-kotlin-repo-root> [output-dir]"; }
 
+# $2 is read unguarded otherwise, so a trailing flag dies with bash's own
+# "$2: unbound variable" under `set -u` instead of the usage message that
+# exists for exactly this mistake.
+need_value() { [ $# -ge 2 ] || { log "error: $1 needs a value"; usage; exit 1; }; }
+
 KOTLIN_LIBS_VERSION=""
 KOTLIN_LIBS_REPO=""
 POSITIONAL=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --kotlin-libs-version) KOTLIN_LIBS_VERSION="$2"; shift 2 ;;
-        --kotlin-libs-repo) KOTLIN_LIBS_REPO="$2"; shift 2 ;;
+        --kotlin-libs-version) need_value "$@"; KOTLIN_LIBS_VERSION="$2"; shift 2 ;;
+        --kotlin-libs-repo) need_value "$@"; KOTLIN_LIBS_REPO="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         --) shift; POSITIONAL+=("$@"); break ;;
         -*) log "error: unrecognized option '$1'"; usage; exit 1 ;;

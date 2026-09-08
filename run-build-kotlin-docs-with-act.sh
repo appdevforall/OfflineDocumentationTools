@@ -85,6 +85,10 @@ if ! command -v act >/dev/null 2>&1; then
   exit 1
 fi
 
+# $2 is read unguarded otherwise, so a trailing flag dies with bash's own
+# "$2: unbound variable" under `set -u` rather than a usable message.
+need_value() { [ $# -ge 2 ] || { echo "error: $1 needs a value" >&2; exit 1; }; }
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKFLOW="$REPO_ROOT/.github/workflows/build-kotlin-docs-local.yaml"
 
@@ -112,16 +116,16 @@ EXTRA_ACT_ARGS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --db-path) DB_PATH="$2"; shift 2 ;;
-    --images-zip-path) IMAGES_ZIP_PATH="$2"; shift 2 ;;
-    --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
+    --db-path) need_value "$@"; DB_PATH="$2"; shift 2 ;;
+    --images-zip-path) need_value "$@"; IMAGES_ZIP_PATH="$2"; shift 2 ;;
+    --output-dir) need_value "$@"; OUTPUT_DIR="$2"; shift 2 ;;
     --live) DRY_RUN="false"; shift ;;
     --skip-website-docs) SKIP_WEBSITE_DOCS="true"; shift ;;
     --skip-stdlib-docs) SKIP_STDLIB_DOCS="true"; shift ;;
-    --kotlin-web-site-ref) KOTLIN_WEB_SITE_REF="$2"; shift 2 ;;
-    --kotlin-ref) KOTLIN_REF="$2"; shift 2 ;;
-    --kotlin-libs-version) KOTLIN_LIBS_VERSION="$2"; shift 2 ;;
-    --kotlin-libs-repo) KOTLIN_LIBS_REPO="$2"; shift 2 ;;
+    --kotlin-web-site-ref) need_value "$@"; KOTLIN_WEB_SITE_REF="$2"; shift 2 ;;
+    --kotlin-ref) need_value "$@"; KOTLIN_REF="$2"; shift 2 ;;
+    --kotlin-libs-version) need_value "$@"; KOTLIN_LIBS_VERSION="$2"; shift 2 ;;
+    --kotlin-libs-repo) need_value "$@"; KOTLIN_LIBS_REPO="$2"; shift 2 ;;
     --) shift; EXTRA_ACT_ARGS+=("$@"); break ;;
     *) echo "error: unrecognized argument '$1'" >&2; exit 1 ;;
   esac

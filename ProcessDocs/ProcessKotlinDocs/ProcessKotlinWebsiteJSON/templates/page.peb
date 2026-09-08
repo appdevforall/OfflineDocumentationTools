@@ -93,9 +93,19 @@
 {% endfor %}</tbody>
 </table>
 
-{% elseif b.type == "image" %}
-<img src="{{ b.src }}" alt="{{ b.alt|default('') }}">
+{#
+  No "image" branch, deliberately. md_to_json.py never emits a standalone
+  image block - CommonMark only produces "image" as an inline token, so
+  `![alt](foo.png)` always lands as an <img> inside the enclosing block's
+  own "html" string (see md_to_json.py's schema comment, and its block-level
+  fallback). A branch here rendering an image block's src was unreachable.
 
+  Do not add one back without also widening insert_optimized_media.py's
+  IMAGE_REF_RE and rewrite_pages' substitutions: both are anchored on an
+  image reference appearing as an HTML src="..." attribute, which a
+  bare-field image block would not satisfy - so post-optimization renames
+  would silently stop being applied to it.
+#}
 {% elseif b.type == "hr" %}
 <hr>
 
