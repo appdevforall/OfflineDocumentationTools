@@ -949,7 +949,10 @@ def test_a_write_the_planner_did_not_predict_is_refused(tmp_path, monkeypatch):
         return written.with_suffix(".avif") if written else written
     monkeypatch.setattr(om, "process_file", drifting_process_file)
 
-    with pytest.raises(RuntimeError, match="possible_output_names did not predict"):
+    # ValueError, not RuntimeError: insert_optimized_media wraps this call in
+    # `except ValueError` to turn it into a clean "error: ..." line, and a
+    # RuntimeError sailed past that as a raw traceback.
+    with pytest.raises(ValueError, match="possible_output_names did not predict"):
         om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS), pngquant_path=om.find_pngquant(),
                                logger=om.Logger(sys.stdout), stats=_new_stats())
 
@@ -990,3 +993,57 @@ def test_the_probe_reports_its_own_failure(tmp_path, capsys):
     # Silent without a logger, so a standalone caller isn't forced to have one.
     assert om._is_animated_raster(bad) is None
     assert capsys.readouterr().out == ""
+
+
+# --- the written-vs-claimed check must not fire on ordinary inputs ----------
+
+@pytest.mark.parametrize("name", ["Diagram.SVG", "Diagram.Svg", "Photo.PNG", "Photo.JPG", "Notes.TXT"])
+@pytest.mark.parametrize("webp", [True, False])
+def test_an_uppercase_extension_is_not_mistaken_for_drift(tmp_path, name, webp):
+    """possible_output_names' SVG branch returned the lowercase SVG_EXTENSION
+    literal while optimize_svg writes `dst`, which carries the source's own
+    spelling - so "Diagram.SVG" was claimed as "Diagram.svg". Harmless while
+    it only fed the casefolded `claimed` map; once the written-vs-claimed
+    check existed it aborted the whole run over one ordinary file."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    if name.lower().endswith(".svg"):
+        (src / name).write_text('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
+                                '<rect width="10" height="10"/></svg>')
+    elif name.lower().endswith(".txt"):
+        (src / name).write_text("passthrough")
+    else:
+        Image.new("RGB", (20, 20), (3, 3, 3)).save(src / name)
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": webp},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert len(result.written) == 1, "the file was optimized, so it must survive the check"
+
+
+def test_the_svg_branch_claims_the_source_s_own_spelling():
+    """Every other branch echoes `suffix`; this one hardcoded the constant."""
+    cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
+    assert om.possible_output_names("d", ".SVG", cfg) == {"d.SVG", "d.webp"}
+    assert om.possible_output_names("d", ".svg", cfg) == {"d.svg", "d.webp"}
+
+
+def test_an_unpredicted_source_that_does_write_is_kept_not_fatal(tmp_path, monkeypatch, capsys):
+    """A probe that fails where optimize_raster then succeeds is one file's
+    bad luck, not drift between the planner and the writer. This module's
+    rule is that a single file's problem is reported and the run continues -
+    a dangling symlink killing the whole run was fixed as a bug in this same
+    PR - so the check must not reintroduce that shape here."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("RGB", (20, 20), (5, 5, 5)).save(src / "photo.png")
+    monkeypatch.setattr(om, "_is_animated_raster", lambda source, logger=None: None)
+
+    stats = _new_stats()
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=stats)
+
+    assert [p.name for p in result.written] == ["photo.webp"], "a good file is kept, not discarded"
+    assert "the de-confliction pass held no name for it" in capsys.readouterr().out

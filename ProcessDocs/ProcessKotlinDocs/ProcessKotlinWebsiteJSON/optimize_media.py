@@ -513,8 +513,15 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: Optional[
         # nothing in the output to suggest why.
         raise TypeError(f"animated must be True, False or None, not {type(animated).__name__}")
     if suffix.lower() == SVG_EXTENSION:
+        # `suffix`, not the SVG_EXTENSION literal: optimize_svg's
+        # non-rasterized path writes `dst`, which carries the source's own
+        # spelling, so a "Diagram.SVG" claimed as "Diagram.svg" is a name this
+        # never actually produces. Harmless while it only fed the casefolded
+        # `claimed` map, fatal once optimize_directory started checking what
+        # was written against what was claimed. Every other branch below
+        # already echoes `suffix`; this one was the exception.
         rasterized = ".webp" if cfg["webp"] else ".png"
-        return {f"{stem}{SVG_EXTENSION}", f"{stem}{rasterized}"}
+        return {f"{stem}{suffix}", f"{stem}{rasterized}"}
     if suffix.lower() in RASTER_EXTENSIONS:
         if not cfg["webp"]:
             return {f"{stem}{suffix}"}
@@ -526,7 +533,7 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: Optional[
     return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
 
 
-def _is_animated_raster(src: Path, logger: Logger = None) -> Optional[bool]:
+def _is_animated_raster(src: Path, logger: Optional[Logger] = None) -> Optional[bool]:
     """True/False for a readable raster, or None when it can't be determined.
     The same `Image.open` + `is_animated` test optimize_raster makes later,
     just made early enough for the name-planning pass to predict the output
@@ -666,7 +673,11 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     # miss a collision that still costs an image. insert_optimized_media's own
     # seen_names guard is case-sensitive too and would not catch it either.
     claimed = {}
-    claimed_for = {}
+    # Sources whose animation could not be determined, and which therefore
+    # claimed no names at all (see possible_output_names). Kept so the check
+    # below can tell "the planner and the writer disagree" - a bug - from
+    # "the planner declined to predict this one" - one file's bad luck.
+    unpredicted = set()
     for src in sources:
         rel = src.relative_to(input_dir)
         stem, suffix = rel.stem, rel.suffix
@@ -676,6 +687,8 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # cannot carry a second frame is never animated, and opening every
         # JPEG to learn that would cost an extra pass over the whole corpus.
         animated = _is_animated_raster(src, logger) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
+        if animated is None:
+            unpredicted.add(src)
         candidate = stem
         attempt = 0
         while True:
@@ -693,7 +706,6 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
                 )
         for name in names:
             claimed[name.lower()] = src
-        claimed_for[src] = names
         dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
 
     renamed = {}
@@ -716,15 +728,43 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # a name written but never claimed, free to overwrite another source's
         # output. Nothing connected the two halves, so nothing noticed.
         #
-        # This is that connection. It costs one set lookup per file and turns
-        # every future drift into an immediate, named failure instead of a
-        # corrupted image corpus that still exits 0.
-        if dst_final.name not in claimed_for[src]:
-            raise RuntimeError(
-                f"internal error: {src} wrote {dst_final.name}, which possible_output_names did not predict "
-                f"(it claimed {sorted(claimed_for[src]) or 'nothing'}). The output-name planning pass and "
-                "process_file have drifted apart - see possible_output_names."
-            )
+        # This is that connection. It costs one dict lookup per file and turns
+        # a future drift into a named failure instead of a corrupted image
+        # corpus that still exits 0.
+        #
+        # Asked of `claimed` rather than of a second per-source dict, and so
+        # casefolded like every other lookup in this pass. De-confliction
+        # guarantees no two sources hold the same lowercased name, so "is this
+        # the source that claimed this name" is exactly `claimed[name] is src`.
+        # Comparing exact case instead made the check stricter than the
+        # invariant it protects, and turned an SVG spelled ".SVG" - which the
+        # planner claimed as ".svg" - into an aborted run.
+        if claimed.get(dst_final.name.lower()) is not src:
+            held = sorted(name for name, owner in claimed.items() if owner is src)
+            if src in unpredicted:
+                # Not drift: the planner declined to predict this one because
+                # its animation could not be determined, expecting
+                # optimize_raster to fail on the same access. It didn't. The
+                # file itself is fine - it is kept rather than dropped, since
+                # discarding a successfully optimized image is the worse
+                # outcome and insert_optimized_media's seen_names guard still
+                # catches a flat-namespace collision downstream - but the
+                # planning pass never de-conflicted it, so say so.
+                logger.error(
+                    f"warning: {src} produced {dst_final.name} after its animation could not be determined, "
+                    "so the de-confliction pass held no name for it; keeping the file, but it was not "
+                    "checked against the other sources' outputs"
+                )
+            else:
+                # Genuine drift. ValueError, not RuntimeError: that is what
+                # insert_optimized_media's `except ValueError` around this call
+                # turns into a clean "error: ..." line in the log file, the
+                # same as this function's input_dir == output_dir refusal.
+                raise ValueError(
+                    f"{src} wrote {dst_final.name}, which possible_output_names did not predict "
+                    f"(it claimed {held or 'nothing'}). The output-name planning pass and process_file "
+                    "have drifted apart - see possible_output_names."
+                )
         written.append(dst_final)
         rel_final = dst_final.relative_to(output_dir)
         if rel_final != rel:
