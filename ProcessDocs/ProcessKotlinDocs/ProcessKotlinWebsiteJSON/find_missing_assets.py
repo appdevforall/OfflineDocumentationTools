@@ -61,7 +61,7 @@ def is_unterminated(span_text: str) -> bool:
     return sum(1 for line in span_text.splitlines() if FENCE_LINE_RE.match(line.lstrip())) < 2
 
 
-def outside_fences(text: str, source: str = None) -> str:
+def outside_fences(text: str, source: str) -> str:
     """`text` with every fenced code block removed, so the <include> scan below
     doesn't report a sample as a broken reference.
 
@@ -74,21 +74,29 @@ def outside_fences(text: str, source: str = None) -> str:
     exposed the rest of the block. fenced_spans handles both, and is already
     what extract_title trusts to stay out of code samples.
 
-    `source` names the file in the warning an unterminated fence earns. That
-    warning is the point: the old regex needed a *closing* fence to match
-    anything, so an unpaired one left the rest of the file scannable, where
-    this correctly treats it as one long code block and stops checking. That
-    is a false negative in a report whose value is catching what's missing,
-    so it has to be said out loud rather than inferred from a short report."""
+    `source` names the file in the warning an unterminated fence earns, and is
+    required rather than defaulting to None. That warning is the point: the
+    old regex needed a *closing* fence to match anything, so an unpaired one
+    left the rest of the file scannable, where this correctly treats it as one
+    long code block and stops checking. That is a false negative in a report
+    whose value is catching what's missing, so it has to be said out loud
+    rather than inferred from a short report - and an optional argument is
+    exactly how a later call site would drop it and quietly get the old
+    silence back."""
     spans = fenced_spans(text)
     if not spans:
         return text
+    # Only the last span can be unterminated: fenced_spans appends a closed
+    # block as it meets its closing fence, and the run-to-end-of-document span
+    # only after the loop ("if open_at is not None"). Checking every span
+    # re-split every code block in the file to ask a question already answered
+    # False for all but one of them - and obscured that invariant.
+    if is_unterminated(text[spans[-1][0]:spans[-1][1]]):
+        print(f"warning: {source} has an unterminated code fence; everything after it is being read as "
+              "code, so any <include> below it is not being checked", file=sys.stderr)
     parts = []
     pos = 0
     for start, end in spans:
-        if source and is_unterminated(text[start:end]):
-            print(f"warning: {source} has an unterminated code fence; everything after it is being read as "
-                  "code, so any <include> below it is not being checked", file=sys.stderr)
         parts.append(text[pos:start])
         pos = end
     parts.append(text[pos:])

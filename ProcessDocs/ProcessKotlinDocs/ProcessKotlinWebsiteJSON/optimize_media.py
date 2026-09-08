@@ -53,7 +53,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 from PIL import Image
 
@@ -462,7 +462,7 @@ class OptimizeResult(NamedTuple):
     written: list
 
 
-def possible_output_names(stem: str, suffix: str, cfg: dict, animated: bool = None) -> set:
+def possible_output_names(stem: str, suffix: str, cfg: dict, animated: Optional[bool] = None) -> set:
     """Every basename process_file could write for a source named
     `stem + suffix`.
 
@@ -486,13 +486,32 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: bool = No
     the collision this pre-pass exists to prevent, reached through the single
     output name the suffix alone cannot determine.
 
-    Pass True/False from _is_animated_raster. None means "not determined"
-    (not probed, or the file could not be read), and a multi-frame-capable
-    extension then claims both names, safe in the same way the SVG branch is.
+    Pass True/False from _is_animated_raster. None means "could not be
+    determined", and a multi-frame-capable extension then claims *nothing*
+    rather than claiming both.
+
+    That is the opposite of the SVG branch's conservatism, and deliberately
+    so: the two ambiguities are different. An SVG genuinely might write
+    either name, so both have to be held. A raster whose animation could not
+    be determined is one optimize_raster is about to fail on for the same
+    reason - it repeats this exact `Image.open` plus `is_animated` access, so
+    whatever raised here raises there, process_file counts an error and
+    returns None, and the source writes no file at all. Holding two names for
+    it would de-conflict an unrelated source against an output that is never
+    produced, renaming a real image and rewriting every stored URL that
+    pointed at it. Claiming nothing is the accurate prediction; if it is ever
+    wrong, optimize_directory's written-vs-claimed check says so out loud.
+
     Taking the answer rather than the path keeps this function free of I/O:
     it is called once per de-confliction attempt, and re-opening the source
     on each attempt bought nothing - the answer is a property of the file,
     not of the candidate name being tried."""
+    if animated is not None and not isinstance(animated, bool):
+        # This parameter took a Path one revision ago. A Path is truthy and is
+        # not None, so a call site left on the old signature would silently
+        # report "animated" for every file - no conversion, no error, and
+        # nothing in the output to suggest why.
+        raise TypeError(f"animated must be True, False or None, not {type(animated).__name__}")
     if suffix.lower() == SVG_EXTENSION:
         rasterized = ".webp" if cfg["webp"] else ".png"
         return {f"{stem}{SVG_EXTENSION}", f"{stem}{rasterized}"}
@@ -500,23 +519,35 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: bool = No
         if not cfg["webp"]:
             return {f"{stem}{suffix}"}
         if suffix.lower() in ANIMATABLE_EXTENSIONS:
-            if animated is None:  # undetermined: claim both rather than guess
-                return {f"{stem}{suffix}", f"{stem}.webp"}
+            if animated is None:  # undetermined: this source writes nothing
+                return set()
             return {f"{stem}{suffix}"} if animated else {f"{stem}.webp"}
         return {f"{stem}.webp"}
     return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
 
 
-def _is_animated_raster(src: Path):
+def _is_animated_raster(src: Path, logger: Logger = None) -> Optional[bool]:
     """True/False for a readable raster, or None when it can't be determined.
-    The same `is_animated` test optimize_raster makes later, just made early
-    enough for the name-planning pass to predict the output extension."""
+    The same `Image.open` + `is_animated` test optimize_raster makes later,
+    just made early enough for the name-planning pass to predict the output
+    extension.
+
+    A failure here is reported rather than swallowed. It is not fatal -
+    process_file repeats the same access and counts the error properly - but
+    it does change what this source claims (see possible_output_names), and
+    it now runs for every PNG and TIFF in the tree rather than only the
+    handful of GIFs. A systematic probe failure - a broken Pillow plugin, an
+    unreadable work tree - would otherwise shift the whole de-confliction
+    pass with nothing in the log to explain the renames that follow."""
     if src is None:
         return None
     try:
         with Image.open(src) as img:
             return bool(getattr(img, "is_animated", False))
-    except Exception:  # noqa: BLE001 - unreadable here is not fatal; process_file reports it
+    except Exception as exc:  # noqa: BLE001 - one file's problem, not the run's
+        if logger is not None:
+            logger.error(f"warning: could not determine whether {src} is animated ({exc}); "
+                         "planning for it to produce no output")
         return None
 
 
@@ -635,6 +666,7 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     # miss a collision that still costs an image. insert_optimized_media's own
     # seen_names guard is case-sensitive too and would not catch it either.
     claimed = {}
+    claimed_for = {}
     for src in sources:
         rel = src.relative_to(input_dir)
         stem, suffix = rel.stem, rel.suffix
@@ -643,7 +675,7 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # attempt was pure waste. False without a probe - an extension that
         # cannot carry a second frame is never animated, and opening every
         # JPEG to learn that would cost an extra pass over the whole corpus.
-        animated = _is_animated_raster(src) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
+        animated = _is_animated_raster(src, logger) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
         candidate = stem
         attempt = 0
         while True:
@@ -661,6 +693,7 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
                 )
         for name in names:
             claimed[name.lower()] = src
+        claimed_for[src] = names
         dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
 
     renamed = {}
@@ -671,6 +704,27 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger)
         if dst_final is None:
             continue
+        # The name this actually wrote has to be one the planning pass held
+        # for it. possible_output_names predicts what process_file ->
+        # optimize_raster/optimize_svg -> encode_raster will do, in a second
+        # place, and that prediction has already drifted twice: it said .webp
+        # for animated GIFs while optimize_raster wrote .gif, and then again
+        # for animated PNG/TIFF once the first fix special-cased .gif rather
+        # than the branch optimize_raster really takes. Both times the symptom
+        # was silent - a name claimed but never written, an unrelated image
+        # de-conflicted against the phantom and its stored URLs rewritten, or
+        # a name written but never claimed, free to overwrite another source's
+        # output. Nothing connected the two halves, so nothing noticed.
+        #
+        # This is that connection. It costs one set lookup per file and turns
+        # every future drift into an immediate, named failure instead of a
+        # corrupted image corpus that still exits 0.
+        if dst_final.name not in claimed_for[src]:
+            raise RuntimeError(
+                f"internal error: {src} wrote {dst_final.name}, which possible_output_names did not predict "
+                f"(it claimed {sorted(claimed_for[src]) or 'nothing'}). The output-name planning pass and "
+                "process_file have drifted apart - see possible_output_names."
+            )
         written.append(dst_final)
         rel_final = dst_final.relative_to(output_dir)
         if rel_final != rel:

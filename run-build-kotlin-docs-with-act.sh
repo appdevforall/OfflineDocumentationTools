@@ -126,16 +126,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Checked here rather than as this script's first act: a mistyped flag should
-# be reported as a mistyped flag on any machine, not shadowed by "act is
-# required" on the machines that don't have it. Nothing above this line needs
-# act, and the argument checks below are pure string/path validation - the
-# first thing that actually uses it is the `act` invocation at the end.
-if ! command -v act >/dev/null 2>&1; then
-  echo "error: act is required - see https://github.com/nektos/act#installation" >&2
-  exit 1
-fi
-
 if [ "$SKIP_WEBSITE_DOCS" = "true" ] && [ "$SKIP_STDLIB_DOCS" = "true" ]; then
   echo "error: --skip-website-docs and --skip-stdlib-docs together skip every step that" >&2
   echo "error: changes the database, leaving nothing for the run to do." >&2
@@ -185,6 +175,18 @@ WORKFLOW_IMAGES_ZIP_PATH=""
 if [ "$SKIP_WEBSITE_DOCS" != "true" ]; then
   add_mount "$IMAGES_ZIP_PATH" "$CONTAINER_IMAGES_ZIP_PATH"
   WORKFLOW_IMAGES_ZIP_PATH="$CONTAINER_IMAGES_ZIP_PATH"
+fi
+
+# Last, after every argument check above, and immediately before the only
+# thing that needs it. Anything earlier shadows a real complaint about the
+# arguments with "act is required" on the machines that don't have act -
+# which is most of them, including CI. Moving it off line 1 fixed that for
+# the parse errors; it has to sit below the semantic checks too, or a missing
+# --db-path or a --skip-website-docs/--skip-stdlib-docs pair still gets
+# answered with the wrong message.
+if ! command -v act >/dev/null 2>&1; then
+  echo "error: act is required - see https://github.com/nektos/act#installation" >&2
+  exit 1
 fi
 
 if [ "$DRY_RUN" = "true" ]; then

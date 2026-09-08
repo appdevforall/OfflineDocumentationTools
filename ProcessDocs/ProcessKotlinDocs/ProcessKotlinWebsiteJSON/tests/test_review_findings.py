@@ -773,7 +773,7 @@ def test_includes_inside_any_fence_are_not_scanned(source, expected):
     exposed the rest of the block. Both warned about files nobody meant to
     ship. md_to_json.fenced_spans - which extract_title already relies on -
     knows both fence characters and the "at least as long" close rule."""
-    assert INCLUDE_RE.findall(outside_fences(source)) == expected
+    assert INCLUDE_RE.findall(outside_fences(source, "topics/x.md")) == expected
 
 
 # =============================================================================
@@ -815,8 +815,13 @@ def test_names_differing_only_by_case_are_both_kept(tmp_path):
     written = sorted(p.name for p in result.written)
     assert len(written) == 2, "neither source may be dropped - both are referenceable"
     assert len(set(n.lower() for n in written)) == 2, "and they must not collide once flattened"
-    # The de-conflicted one is reported, so stored URLs follow it.
-    assert result.renamed == {"b/logo.png": "b/logo-png.png"}
+    # The de-conflicted one is reported, so stored URLs follow it. Asserted as
+    # a property rather than against the "{stem}-{ext}" literal: the naming
+    # scheme is not what this test is about, and pinning it here would make a
+    # rename of that convention look like a case-handling regression.
+    assert list(result.renamed) == ["b/logo.png"], "only the second, de-conflicted source moved"
+    new_name = Path(result.renamed["b/logo.png"]).name
+    assert new_name in written and new_name.lower() != "logo.png"
 
 
 def test_identical_basenames_are_still_skipped(tmp_path):
@@ -864,7 +869,8 @@ def test_animated_png_is_not_predicted_as_webp(tmp_path):
 @pytest.mark.parametrize("suffix, animated, expected", [
     (".gif", True, {"x.gif"}),
     (".gif", False, {"x.webp"}),
-    (".gif", None, {"x.gif", "x.webp"}),
+    (".gif", None, set()),            # undetermined: optimize_raster fails too, so nothing is written
+    (".png", None, set()),
     (".png", True, {"x.png"}),
     (".png", False, {"x.webp"}),
     (".tiff", True, {"x.tiff"}),
@@ -921,3 +927,66 @@ def test_repair_refuses_half_a_scan(tmp_path):
         assert rmf.repair(conn, [], [])["chains_renumbered"] == 0  # both: uses them
     finally:
         conn.close()
+
+
+# --- what process_file writes has to be what the planner claimed ------------
+
+def test_a_write_the_planner_did_not_predict_is_refused(tmp_path, monkeypatch):
+    """possible_output_names predicts, in a second place, what process_file ->
+    optimize_raster -> encode_raster will do, and that prediction has drifted
+    twice. Nothing connected the two halves, so both drifts were silent: a
+    name claimed but never written de-conflicts an unrelated image and
+    rewrites its stored URLs, and a name written but never claimed is free to
+    overwrite another source's output."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("RGB", (20, 20), (1, 1, 1)).save(src / "photo.png")
+
+    # Stand in for a future encoder change the planner doesn't know about.
+    real_process_file = om.process_file
+    def drifting_process_file(source, dst, **kwargs):
+        written = real_process_file(source, dst, **kwargs)
+        return written.with_suffix(".avif") if written else written
+    monkeypatch.setattr(om, "process_file", drifting_process_file)
+
+    with pytest.raises(RuntimeError, match="possible_output_names did not predict"):
+        om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS), pngquant_path=om.find_pngquant(),
+                               logger=om.Logger(sys.stdout), stats=_new_stats())
+
+
+def test_an_unprobeable_source_claims_no_names(tmp_path, capsys):
+    """A raster whose animation can't be determined is one optimize_raster is
+    about to fail on for the same reason, so it writes nothing and must hold
+    nothing. Claiming both names instead de-conflicted a perfectly good
+    unrelated image against an output that never appears - renaming it, and
+    rewriting every stored URL that pointed at it."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    (src / "broken.png").write_bytes(b"not a png at all")
+    Image.new("RGB", (20, 20), (2, 2, 2)).save(src / "broken.jpg")
+
+    cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
+    stats = _new_stats()
+    result = om.optimize_directory(src, out, cfg=cfg, pngquant_path=om.find_pngquant(),
+                                    logger=om.Logger(sys.stdout), stats=stats)
+
+    # broken.jpg keeps its own stem: nothing real ever claimed broken.webp.
+    assert [p.name for p in result.written] == ["broken.webp"]
+    assert result.renamed == {"broken.jpg": "broken.webp"}
+    assert stats["errors"] == 1, "the unreadable file is still counted as one file's error"
+    # And the probe said why, rather than swallowing it.
+    assert "could not determine whether" in capsys.readouterr().out
+
+
+def test_the_probe_reports_its_own_failure(tmp_path, capsys):
+    """_is_animated_raster now runs for every PNG and TIFF in the tree, not
+    just the handful of GIFs, so a systematic failure would shift the whole
+    de-confliction pass. Swallowing it left no way to find out why."""
+    bad = tmp_path / "corrupt.png"
+    bad.write_bytes(b"still not a png")
+
+    assert om._is_animated_raster(bad, om.Logger(sys.stdout)) is None
+    assert "could not determine whether" in capsys.readouterr().out
+    # Silent without a logger, so a standalone caller isn't forced to have one.
+    assert om._is_animated_raster(bad) is None
+    assert capsys.readouterr().out == ""
