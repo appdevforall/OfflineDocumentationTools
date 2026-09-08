@@ -429,7 +429,7 @@ from insert_optimized_media import (  # noqa: E402
     rewrite_pages,
 )
 from find_missing_assets import INCLUDE_RE, outside_fences  # noqa: E402
-from md_to_json import Converter, make_markdown_it  # noqa: E402
+from md_to_json import Converter, build_tree, make_markdown_it  # noqa: E402
 from populate_db import DictionaryCompressor, pages_linking_to  # noqa: E402
 
 needs_brotli_cli = pytest.mark.skipif(shutil.which("brotli") is None, reason="brotli CLI not installed")
@@ -577,14 +577,14 @@ def test_pages_linking_to_finds_the_pre_failure_pages():
 
 def test_markdown_images_stay_inline_never_a_block():
     """templates/page.peb has no "image" branch, and IMAGE_REF_RE / rewrite_pages
-    are anchored on src="..." - all three rest on this."""
+    are anchored on src="..." - all three rest on this.
+
+    Goes through convert_nodes rather than convert_file because convert_file
+    wants a path on disk, and the block schema is what's under test."""
     converter = Converter(make_markdown_it(), {}, {}, {"a.png": "a.png"}, image_url_prefix="/k/html/images/")
-    page = converter.convert_file_text if False else None  # convert_file needs a path; use convert_nodes below
-    from md_to_json import build_tree
     tokens = converter.md.parse("Text with ![alt](a.png) inline.\n\n![alt](a.png)\n")
     blocks = converter.convert_nodes(build_tree(tokens))
 
-    assert page is None
     assert all(b["type"] != "image" for b in blocks), "a standalone image block would render as nothing"
     assert any('src="/k/html/images/a.png"' in b.get("html", "") for b in blocks)
 
@@ -774,3 +774,150 @@ def test_includes_inside_any_fence_are_not_scanned(source, expected):
     ship. md_to_json.fenced_spans - which extract_title already relies on -
     knows both fence characters and the "at least as long" close rule."""
     assert INCLUDE_RE.findall(outside_fences(source)) == expected
+
+
+# =============================================================================
+# Self-review of the fourth round's own fixes.
+# =============================================================================
+
+def _apng(path, frames=3, size=(40, 40)):
+    """An animated PNG. Pillow reports is_animated for these exactly as it
+    does for a GIF, and optimize_raster copies any animated non-GIF through
+    unchanged - so the output keeps the .png."""
+    images = []
+    for i in range(frames):
+        frame = Image.new("RGB", size, (0, 0, 0))
+        ImageDraw.Draw(frame).rectangle([i * 5, i * 5, i * 5 + 10, i * 5 + 10], fill=(255, i * 80, 0))
+        images.append(frame)
+    images[0].save(path, save_all=True, append_images=images[1:], duration=80)
+    return path
+
+
+# --- the duplicate-basename skip must not swallow a case-differing pair -----
+
+def test_names_differing_only_by_case_are_both_kept(tmp_path):
+    """populate_db indexes image basenames exactly ("Logo.png" and "logo.png"
+    are two addressable images, and a page may reference either), so skipping
+    one here as a "duplicate" left that page's reference resolving to a row
+    nothing inserts. They are a collision, which de-confliction handles, not a
+    duplicate."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    (src / "a").mkdir(parents=True)
+    (src / "b").mkdir(parents=True)
+    out.mkdir()
+    Image.new("RGB", (20, 20), (9, 9, 9)).save(src / "a" / "Logo.png")
+    Image.new("RGB", (20, 20), (8, 8, 8)).save(src / "b" / "logo.png")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS),
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    written = sorted(p.name for p in result.written)
+    assert len(written) == 2, "neither source may be dropped - both are referenceable"
+    assert len(set(n.lower() for n in written)) == 2, "and they must not collide once flattened"
+    # The de-conflicted one is reported, so stored URLs follow it.
+    assert result.renamed == {"b/logo.png": "b/logo-png.png"}
+
+
+def test_identical_basenames_are_still_skipped(tmp_path):
+    """The other direction: an exact duplicate is still one image, because
+    populate_db drops it too."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    (src / "a").mkdir(parents=True)
+    (src / "b").mkdir(parents=True)
+    out.mkdir()
+    Image.new("RGB", (20, 20), (9, 9, 9)).save(src / "a" / "logo.png")
+    Image.new("RGB", (20, 20), (8, 8, 8)).save(src / "b" / "logo.png")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS),
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert [p.name for p in result.written] == ["logo.png"]
+    assert result.renamed == {}
+
+
+# --- the animated exemption covers every animated raster, not just GIF ------
+
+def test_animated_png_is_not_predicted_as_webp(tmp_path):
+    """optimize_raster copies an animated non-GIF through untouched, so an
+    APNG under --webp writes anim.png. Predicting anim.webp claimed a name
+    nothing writes, and de-conflicted a genuine .webp producer against that
+    phantom - a rename, and a rewrite of every stored URL, for a collision
+    that never existed."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    _apng(src / "anim.png")
+    Image.new("RGB", (20, 20), (4, 4, 4)).save(src / "anim.jpg")
+
+    cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
+    result = om.optimize_directory(src, out, cfg=cfg, pngquant_path=om.find_pngquant(),
+                                    logger=om.Logger(sys.stdout), stats=_new_stats())
+
+    assert sorted(p.name for p in result.written) == ["anim.png", "anim.webp"]
+    # anim.jpg -> anim.webp is a real conversion; nothing else moved.
+    assert result.renamed == {"anim.jpg": "anim.webp"}
+    with Image.open(out / "anim.png") as written:
+        assert written.n_frames == 3, "the animation survived"
+
+
+@pytest.mark.parametrize("suffix, animated, expected", [
+    (".gif", True, {"x.gif"}),
+    (".gif", False, {"x.webp"}),
+    (".gif", None, {"x.gif", "x.webp"}),
+    (".png", True, {"x.png"}),
+    (".png", False, {"x.webp"}),
+    (".tiff", True, {"x.tiff"}),
+    (".jpg", None, {"x.webp"}),      # cannot be animated, so never probed
+    (".webp", None, {"x.webp"}),     # animated or not, the name is the same
+])
+def test_possible_output_names_resolves_every_animated_raster(suffix, animated, expected):
+    """The prediction is a pure function of (suffix, cfg, animated) - no I/O,
+    so it can be called once per de-confliction attempt without re-opening
+    the source each time."""
+    cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
+    assert om.possible_output_names("x", suffix, cfg, animated) == expected
+
+
+# --- an unterminated fence must not silently switch the scan off ------------
+
+def test_unterminated_fence_is_reported(capsys):
+    """fenced_spans runs an unclosed fence to EOF, which is CommonMark-correct
+    but means one stray ``` line stops the <include> scan for the rest of the
+    file. The old backtick-only regex needed a closing fence to match, so it
+    kept scanning - losing that has to be said out loud, not inferred from a
+    suddenly-short report."""
+    text = 'a\n```\n<include from="sample.md"/>\n\n<include from="real.md"/>\n'
+
+    assert INCLUDE_RE.findall(outside_fences(text, "topics/x.md")) == []
+    assert "unterminated code fence" in capsys.readouterr().err
+
+
+def test_a_closing_fence_on_the_last_line_is_not_reported(capsys):
+    """The warning has to be precise: a file that simply ends with a closed
+    code block reaches EOF too, and warning about it would train operators to
+    ignore the message."""
+    outside_fences("a\n```\nx\n```\n", "topics/x.md")
+
+    assert capsys.readouterr().err == ""
+
+
+# --- repair() takes both halves of a scan, or neither ----------------------
+
+def test_repair_refuses_half_a_scan(tmp_path):
+    """The two lists come from one find_chains call. Answering a half-supplied
+    pair with a fresh scan silently discarded the caller's snapshot, so
+    main()'s backup decision could describe a different repair than the one
+    that ran."""
+    import renumber_misnumbered_fragments as rmf
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(SCHEMA_SQL)
+    try:
+        with pytest.raises(TypeError, match="both misnumbered and gapped"):
+            rmf.repair(conn, [])
+        with pytest.raises(TypeError, match="both misnumbered and gapped"):
+            rmf.repair(conn, gapped=[])
+        assert rmf.repair(conn)["chains_renumbered"] == 0          # neither: scans
+        assert rmf.repair(conn, [], [])["chains_renumbered"] == 0  # both: uses them
+    finally:
+        conn.close()

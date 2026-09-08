@@ -80,11 +80,6 @@
 # default works).
 set -euo pipefail
 
-if ! command -v act >/dev/null 2>&1; then
-  echo "error: act is required - see https://github.com/nektos/act#installation" >&2
-  exit 1
-fi
-
 # $2 is read unguarded otherwise, so a trailing flag dies with bash's own
 # "$2: unbound variable" under `set -u` rather than a usable message.
 need_value() { [ $# -ge 2 ] || { echo "error: $1 needs a value" >&2; exit 1; }; }
@@ -130,6 +125,16 @@ while [ $# -gt 0 ]; do
     *) echo "error: unrecognized argument '$1'" >&2; exit 1 ;;
   esac
 done
+
+# Checked here rather than as this script's first act: a mistyped flag should
+# be reported as a mistyped flag on any machine, not shadowed by "act is
+# required" on the machines that don't have it. Nothing above this line needs
+# act, and the argument checks below are pure string/path validation - the
+# first thing that actually uses it is the `act` invocation at the end.
+if ! command -v act >/dev/null 2>&1; then
+  echo "error: act is required - see https://github.com/nektos/act#installation" >&2
+  exit 1
+fi
 
 if [ "$SKIP_WEBSITE_DOCS" = "true" ] && [ "$SKIP_STDLIB_DOCS" = "true" ]; then
   echo "error: --skip-website-docs and --skip-stdlib-docs together skip every step that" >&2

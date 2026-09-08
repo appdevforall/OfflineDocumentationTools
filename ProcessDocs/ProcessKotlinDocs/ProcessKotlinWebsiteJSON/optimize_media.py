@@ -64,7 +64,18 @@ except AttributeError:  # Pillow < 9.1
 
 RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp"}
 SVG_EXTENSION = ".svg"
-GIF_EXTENSION = ".gif"
+# Rasters that can hold more than one frame *and* whose animated form keeps
+# its own extension through optimize_raster - which copies any animated
+# non-GIF through untouched and resizes an animated GIF as a GIF, so under
+# --webp none of these becomes a .webp. That is what possible_output_names
+# has to predict; gating it on ".gif" alone left an APNG or a multi-frame
+# TIFF claiming a .webp nothing writes.
+#
+# ".webp" is deliberately absent: an animated WEBP is copied through as a
+# .webp, which is what the conversion branch predicts anyway, so there is
+# nothing to resolve and no reason to pay for opening the file. JPEG and BMP
+# cannot be animated at all.
+ANIMATABLE_EXTENSIONS = {".gif", ".png", ".tif", ".tiff"}
 
 
 class Logger:
@@ -451,7 +462,7 @@ class OptimizeResult(NamedTuple):
     written: list
 
 
-def possible_output_names(stem: str, suffix: str, cfg: dict, src: Path = None) -> set:
+def possible_output_names(stem: str, suffix: str, cfg: dict, animated: bool = None) -> set:
     """Every basename process_file could write for a source named
     `stem + suffix`.
 
@@ -462,45 +473,50 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, src: Path = None) -
     de-conflict a pair that would not in fact have collided, which costs a
     rename, where the reverse costs an image.
 
-    `src` lets the one *knowable* exception be resolved exactly instead of
-    conservatively: an animated GIF is written back as a GIF even under
-    --webp (resize_animated_gif does not honour it - see its docstring), so
-    predicting ".webp" for every raster mispredicts exactly that case. It
-    mispredicts it in the damaging direction, too: an animated logo.gif claims
-    logo.webp it never writes, a static logo.gif elsewhere is de-conflicted
-    against that phantom, and rename_map then repoints every stored
-    /k/html/images/logo.gif at the static one - so the animated row goes
-    unreferenced and delete_unreferenced_media removes it. Same shape as the
-    collision this pre-pass exists to prevent, reached through the single
+    `animated` lets the one *knowable* exception be resolved exactly instead
+    of conservatively: an animated raster is written back under its own
+    extension even under --webp (resize_animated_gif does not honour it, and
+    optimize_raster copies an animated non-GIF through untouched), so
+    predicting ".webp" for every raster mispredicts exactly those. It
+    mispredicts them in the damaging direction, too: an animated logo.gif
+    claims logo.webp it never writes, a static logo.gif elsewhere is
+    de-conflicted against that phantom, and rename_map then repoints every
+    stored /k/html/images/logo.gif at the static one - so the animated row
+    goes unreferenced and delete_unreferenced_media removes it. Same shape as
+    the collision this pre-pass exists to prevent, reached through the single
     output name the suffix alone cannot determine.
 
-    Without `src` (or if the file can't be read) the .gif case falls back to
-    claiming both, which is safe in the same way the SVG branch is."""
+    Pass True/False from _is_animated_raster. None means "not determined"
+    (not probed, or the file could not be read), and a multi-frame-capable
+    extension then claims both names, safe in the same way the SVG branch is.
+    Taking the answer rather than the path keeps this function free of I/O:
+    it is called once per de-confliction attempt, and re-opening the source
+    on each attempt bought nothing - the answer is a property of the file,
+    not of the candidate name being tried."""
     if suffix.lower() == SVG_EXTENSION:
         rasterized = ".webp" if cfg["webp"] else ".png"
         return {f"{stem}{SVG_EXTENSION}", f"{stem}{rasterized}"}
     if suffix.lower() in RASTER_EXTENSIONS:
         if not cfg["webp"]:
             return {f"{stem}{suffix}"}
-        if suffix.lower() == GIF_EXTENSION:
-            animated = _is_animated_gif(src)
-            if animated is None:  # unreadable: claim both rather than guess
+        if suffix.lower() in ANIMATABLE_EXTENSIONS:
+            if animated is None:  # undetermined: claim both rather than guess
                 return {f"{stem}{suffix}", f"{stem}.webp"}
             return {f"{stem}{suffix}"} if animated else {f"{stem}.webp"}
         return {f"{stem}.webp"}
     return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
 
 
-def _is_animated_gif(src: Path):
-    """True/False for a readable GIF, or None when it can't be determined.
-    The same test optimize_raster makes later, just made early enough for the
-    name-planning pass to predict the output extension."""
+def _is_animated_raster(src: Path):
+    """True/False for a readable raster, or None when it can't be determined.
+    The same `is_animated` test optimize_raster makes later, just made early
+    enough for the name-planning pass to predict the output extension."""
     if src is None:
         return None
     try:
         with Image.open(src) as img:
             return bool(getattr(img, "is_animated", False))
-    except Exception:  # noqa: BLE001 - unreadable here is not fatal; collect_sources reports it
+    except Exception:  # noqa: BLE001 - unreadable here is not fatal; process_file reports it
         return None
 
 
@@ -526,7 +542,7 @@ def collect_sources(input_dir: Path, logger: Logger, stats: dict) -> list:
 
 
 def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant_path: str, logger: Logger,
-                        stats: dict) -> dict:
+                        stats: dict) -> OptimizeResult:
     """Walks input_dir recursively, optimizing every file into the mirrored
     location under output_dir (see process_file). Returns an OptimizeResult -
     `written`, every output path this run produced, and `renamed`, the subset
@@ -589,17 +605,26 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     # So: skip the later duplicates outright, which is exactly the "keeping the
     # first, sorted, skipping the rest" this pipeline already documents. Not
     # counted as an error - it is a warned-about condition, not a failure.
+    #
+    # Keyed on the exact basename, NOT a casefolded one, because the index
+    # this defers to is exact: populate_db builds image_index_db with
+    # `if base in image_entry_by_name` over the raw names, so "a/Logo.png"
+    # and "b/logo.png" are two addressable images there and a page may
+    # reference either. Skipping one of them here would leave that page's
+    # reference resolving to a row nothing ever inserts - a broken image,
+    # exit 0, one warning. Case-differing names are a *collision*, not a
+    # duplicate, and `claimed` below already handles them by de-conflicting
+    # the second, which rename_map then follows.
     by_basename = {}
     deduped = []
     for src in sources:
-        key = src.name.lower()
-        if key in by_basename:
+        if src.name in by_basename:
             logger.error(
-                f"warning: {src} has the same filename as {by_basename[key]}; the output namespace is "
+                f"warning: {src} has the same filename as {by_basename[src.name]}; the output namespace is "
                 "flat, so only the first can be addressed - keeping the first, skipping this one"
             )
             continue
-        by_basename[key] = src
+        by_basename[src.name] = src
         deduped.append(src)
     sources = deduped
 
@@ -613,10 +638,16 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     for src in sources:
         rel = src.relative_to(input_dir)
         stem, suffix = rel.stem, rel.suffix
+        # Probed here rather than inside the loop: the answer depends on the
+        # file, not on the candidate name, so re-opening it per de-confliction
+        # attempt was pure waste. False without a probe - an extension that
+        # cannot carry a second frame is never animated, and opening every
+        # JPEG to learn that would cost an extra pass over the whole corpus.
+        animated = _is_animated_raster(src) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
         candidate = stem
         attempt = 0
         while True:
-            names = possible_output_names(candidate, suffix, cfg, src)
+            names = possible_output_names(candidate, suffix, cfg, animated)
             clash = next((n for n in sorted(names) if n.lower() in claimed), None)
             if clash is None:
                 break

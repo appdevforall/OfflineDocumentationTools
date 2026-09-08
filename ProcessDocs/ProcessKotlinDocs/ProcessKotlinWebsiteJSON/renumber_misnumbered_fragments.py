@@ -131,8 +131,19 @@ def repair(conn, misnumbered: list = None, gapped: list = None) -> dict:
 
     main() passes its own so it can decide whether a backup is warranted
     before anything is written; callers that just want the whole job done can
-    still call repair(conn)."""
-    if misnumbered is None or gapped is None:
+    still call repair(conn).
+
+    The two halves come from one find_chains call and have to travel
+    together. Supplying only one used to be answered with a fresh scan that
+    silently discarded it - so a caller's pre-backup snapshot could be
+    replaced by whatever the database looked like a moment later, with no
+    error and no log line, leaving main()'s backup decision describing a
+    different repair than the one that ran. Refused explicitly instead."""
+    supplied = (misnumbered is not None) + (gapped is not None)
+    if supplied == 1:
+        raise TypeError("repair() takes both misnumbered and gapped, or neither - "
+                        "they are the two halves of one find_chains() result")
+    if not supplied:
         misnumbered, gapped = find_chains(conn, find_fragment_paths(conn))
     for base_path, fragments in gapped:
         suffixes = [n for n, _path in fragments]

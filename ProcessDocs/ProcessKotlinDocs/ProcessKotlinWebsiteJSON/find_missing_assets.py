@@ -31,6 +31,7 @@ from pathlib import Path
 
 from md_to_json import (
     Converter,
+    FENCE_LINE_RE,
     build_image_index,
     build_topic_index,
     fenced_spans,
@@ -41,7 +42,26 @@ from md_to_json import (
 INCLUDE_RE = re.compile(r'<include\b[^>]*\bfrom\s*=\s*"([^"]+)"')
 
 
-def outside_fences(text: str) -> str:
+def is_unterminated(span_text: str) -> bool:
+    """True when a fenced span never got its closing fence.
+
+    fenced_spans runs such a span to the end of the document, which is what
+    CommonMark does - but for a scan whose whole job is finding missing
+    references, it means one stray ``` line turns the check off for
+    everything after it. Counting fence lines inside the span separates the
+    two: a closed block has an opener and a closer, an unclosed one has only
+    the opener. FENCE_LINE_RE is fenced_spans' own regex, so this cannot
+    drift from the rule that produced the span.
+
+    Deliberately one-sided. A span holding a fence line that did not close it
+    - a ``` sample inside a ~~~ block, say - counts two and stays quiet even
+    if it really is unterminated, so this under-warns rather than crying wolf
+    on the common case of a file that simply ends with a closed code block.
+    It gates a warning, not the stripping, so a miss costs a message."""
+    return sum(1 for line in span_text.splitlines() if FENCE_LINE_RE.match(line.lstrip())) < 2
+
+
+def outside_fences(text: str, source: str = None) -> str:
     """`text` with every fenced code block removed, so the <include> scan below
     doesn't report a sample as a broken reference.
 
@@ -52,13 +72,23 @@ def outside_fences(text: str) -> str:
     that was never meant to exist. It also paired fences by "next three
     backticks", so a longer ```` fence wrapping a ``` sample closed early and
     exposed the rest of the block. fenced_spans handles both, and is already
-    what extract_title trusts to stay out of code samples."""
+    what extract_title trusts to stay out of code samples.
+
+    `source` names the file in the warning an unterminated fence earns. That
+    warning is the point: the old regex needed a *closing* fence to match
+    anything, so an unpaired one left the rest of the file scannable, where
+    this correctly treats it as one long code block and stops checking. That
+    is a false negative in a report whose value is catching what's missing,
+    so it has to be said out loud rather than inferred from a short report."""
     spans = fenced_spans(text)
     if not spans:
         return text
     parts = []
     pos = 0
     for start, end in spans:
+        if source and is_unterminated(text[start:end]):
+            print(f"warning: {source} has an unterminated code fence; everything after it is being read as "
+                  "code, so any <include> below it is not being checked", file=sys.stderr)
         parts.append(text[pos:start])
         pos = end
     parts.append(text[pos:])
@@ -77,7 +107,7 @@ def find_include_warnings(topics_dir: Path) -> tuple:
     for md_path in sorted(topics_dir.rglob("*.md")):
         source_rel = str(md_path.relative_to(topics_dir.parent))
         try:
-            text_no_fences = outside_fences(md_path.read_text(encoding="utf-8"))
+            text_no_fences = outside_fences(md_path.read_text(encoding="utf-8"), source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep scanning the rest
             print(f"error scanning {md_path} for <include> targets: {exc}", file=sys.stderr)
             failed += 1

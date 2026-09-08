@@ -224,7 +224,7 @@ IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
 
 
 def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id: int, logger: Logger,
-                   chunked_log: list, compressor: DictionaryCompressor) -> int:
+                   chunked_log: list, compressor: DictionaryCompressor) -> RewriteResult:
     """Rewrites every k/html/*.html page (and the nav row) that references a
     renamed image, replacing "/k/html/images/<old-name>" with
     "/k/html/images/<new-name>" wherever it appears. Operates directly on
