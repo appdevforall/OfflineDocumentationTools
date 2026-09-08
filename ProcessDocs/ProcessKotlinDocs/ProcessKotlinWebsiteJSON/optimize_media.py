@@ -296,9 +296,28 @@ def resize_animated_gif(img: Image.Image, dst: Path, max_width: int) -> Path:
     return dst
 
 
-def optimize_raster(src: Path, dst: Path, **encode_kwargs) -> Path:
+def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_kwargs) -> Path:
+    """`animated` is decided once, by _is_animated_raster during the
+    name-planning pass, and passed in rather than re-derived here.
+
+    This used to repeat the planner's `getattr(img, "is_animated", False)`
+    a few lines after the planner ran it, which is two answers to one
+    question - and the possibility of them differing is the whole reason
+    optimize_directory had to carry a set of sources it had "declined to
+    predict" and special-case them when checking what got written. Both
+    answers came from the same access on the same file, so in practice they
+    could only differ on a transient (the file changed or was locked between
+    the two opens); taking the planner's answer as authoritative removes the
+    case rather than handling it.
+
+    None means the planner could not tell. It refuses rather than guessing:
+    the planner has already recorded that this source is expected to produce
+    nothing, and process_file turns this into one file's counted error."""
+    if animated is None:
+        raise ValueError("could not determine whether this file is animated (see the earlier warning); "
+                         "skipping it rather than guessing at its output format")
     with Image.open(src) as img:
-        if getattr(img, "is_animated", False):
+        if animated:
             if src.suffix.lower() == ".gif":
                 return resize_animated_gif(img, dst, encode_kwargs["max_width"])
             # Animated non-GIF (e.g. webp): per-frame resizing/re-encoding is
@@ -382,12 +401,19 @@ def optimize_svg(src: Path, dst: Path, *, precision: int, rasterize_threshold: i
     return dst, False
 
 
-def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: dict, logger: Logger) -> Path:
+def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: dict, logger: Logger,
+                  animated: Optional[bool]) -> Path:
     """Optimizes (or copies through) one file. Returns the path actually
     written on success (which may differ from `dst` - webp conversion or
     SVG rasterization changes the extension), or None on error (already
     logged; `stats["errors"]` is incremented so callers can tell without
-    inspecting the return value)."""
+    inspecting the return value).
+
+    `animated` is required, not defaulted: it is the name-planning pass's
+    answer for this source (see optimize_raster), and a default would let a
+    caller silently skip the planning this function's output is checked
+    against. Irrelevant for SVG and passthrough files, which have no
+    animation to honour."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     suffix = src.suffix.lower()
 
@@ -410,7 +436,8 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
                 kind = "svg"
         elif suffix in RASTER_EXTENSIONS:
             dst_final = optimize_raster(
-                src, dst, max_width=cfg["max_width"], jpeg_quality=cfg["jpeg_quality"], webp=cfg["webp"],
+                src, dst, animated=animated,
+                max_width=cfg["max_width"], jpeg_quality=cfg["jpeg_quality"], webp=cfg["webp"],
                 webp_quality=cfg["webp_quality"], pngquant_path=pngquant_path, pngquant_speed=cfg["pngquant_speed"],
                 logger=logger,
             )
@@ -444,6 +471,19 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
             )
         logger.info(message)
     return dst_final
+
+
+class Plan(NamedTuple):
+    """What the name-planning pass decided for one source: where it will be
+    written, every basename it holds against the other sources, and the
+    animation answer process_file is to use. One record rather than a dict
+    per field - the three are decided together, in one loop, and every
+    parallel structure this pass has grown so far ended up disagreeing with
+    the one beside it."""
+
+    dst_rel: Path
+    names: set
+    animated: Optional[bool]
 
 
 class OptimizeResult(NamedTuple):
@@ -666,18 +706,13 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         deduped.append(src)
     sources = deduped
 
-    dst_rel_for = {}
+    plan_for = {}
     # Keyed casefolded: the work dir is written on whatever filesystem the run
     # happens to use, and on a case-insensitive one (APFS, NTFS) "logo.PNG" and
     # "logo.png" are the same file - so comparing the names as written would
     # miss a collision that still costs an image. insert_optimized_media's own
     # seen_names guard is case-sensitive too and would not catch it either.
     claimed = {}
-    # Sources whose animation could not be determined, and which therefore
-    # claimed no names at all (see possible_output_names). Kept so the check
-    # below can tell "the planner and the writer disagree" - a bug - from
-    # "the planner declined to predict this one" - one file's bad luck.
-    unpredicted = set()
     for src in sources:
         rel = src.relative_to(input_dir)
         stem, suffix = rel.stem, rel.suffix
@@ -687,8 +722,6 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # cannot carry a second frame is never animated, and opening every
         # JPEG to learn that would cost an extra pass over the whole corpus.
         animated = _is_animated_raster(src, logger) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
-        if animated is None:
-            unpredicted.add(src)
         candidate = stem
         attempt = 0
         while True:
@@ -706,14 +739,16 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
                 )
         for name in names:
             claimed[name.lower()] = src
-        dst_rel_for[src] = rel.parent / f"{candidate}{suffix}"
+        plan_for[src] = Plan(dst_rel=rel.parent / f"{candidate}{suffix}", names=names, animated=animated)
 
     renamed = {}
     written = []
     for src in sources:
         rel = src.relative_to(input_dir)
-        dst = output_dir / dst_rel_for[src]
-        dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger)
+        plan = plan_for[src]
+        dst = output_dir / plan.dst_rel
+        dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger,
+                                  animated=plan.animated)
         if dst_final is None:
             continue
         # The name this actually wrote has to be one the planning pass held
@@ -728,43 +763,39 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # a name written but never claimed, free to overwrite another source's
         # output. Nothing connected the two halves, so nothing noticed.
         #
-        # This is that connection. It costs one dict lookup per file and turns
-        # a future drift into a named failure instead of a corrupted image
+        # This is that connection. It costs one lookup per file and turns a
+        # future drift into a named failure instead of a corrupted image
         # corpus that still exits 0.
         #
-        # Asked of `claimed` rather than of a second per-source dict, and so
-        # casefolded like every other lookup in this pass. De-confliction
-        # guarantees no two sources hold the same lowercased name, so "is this
-        # the source that claimed this name" is exactly `claimed[name] is src`.
-        # Comparing exact case instead made the check stricter than the
-        # invariant it protects, and turned an SVG spelled ".SVG" - which the
-        # planner claimed as ".svg" - into an aborted run.
-        if claimed.get(dst_final.name.lower()) is not src:
-            held = sorted(name for name, owner in claimed.items() if owner is src)
-            if src in unpredicted:
-                # Not drift: the planner declined to predict this one because
-                # its animation could not be determined, expecting
-                # optimize_raster to fail on the same access. It didn't. The
-                # file itself is fine - it is kept rather than dropped, since
-                # discarding a successfully optimized image is the worse
-                # outcome and insert_optimized_media's seen_names guard still
-                # catches a flat-namespace collision downstream - but the
-                # planning pass never de-conflicted it, so say so.
-                logger.error(
-                    f"warning: {src} produced {dst_final.name} after its animation could not be determined, "
-                    "so the de-confliction pass held no name for it; keeping the file, but it was not "
-                    "checked against the other sources' outputs"
-                )
-            else:
-                # Genuine drift. ValueError, not RuntimeError: that is what
-                # insert_optimized_media's `except ValueError` around this call
-                # turns into a clean "error: ..." line in the log file, the
-                # same as this function's input_dir == output_dir refusal.
-                raise ValueError(
-                    f"{src} wrote {dst_final.name}, which possible_output_names did not predict "
-                    f"(it claimed {held or 'nothing'}). The output-name planning pass and process_file "
-                    "have drifted apart - see possible_output_names."
-                )
+        # Asked of `claimed`, and so casefolded like every other lookup in
+        # this pass: de-confliction guarantees no two sources hold the same
+        # lowercased name, so "is this the source that claimed this name" is
+        # exactly `claimed[name] == src`. Comparing exact case instead made
+        # the check stricter than the invariant it protects, and turned an SVG
+        # spelled ".SVG" - which the planner claimed as ".svg" - into an
+        # aborted run.
+        #
+        # No exemption for a source the planner could not predict: it does not
+        # arise any more. optimize_raster takes the planner's answer instead
+        # of re-deriving it, so a source whose animation was undetermined
+        # raises there, is counted as one file's error, and never reaches
+        # here. The exemption that used to sit in this branch keyed off "the
+        # probe failed" rather than "the planner claimed nothing" - which
+        # differ under --webp false, where the planner claims the source's own
+        # name regardless - and so waved genuine drift through as a warning.
+        if claimed.get(dst_final.name.lower()) != src:
+            # ValueError, not RuntimeError: that is what insert_optimized_media's
+            # `except ValueError` around this call turns into a clean
+            # "error: ..." line, the same as the input_dir == output_dir
+            # refusal above. `plan.names` rather than `claimed`'s keys, so the
+            # message shows the claim as the planner wrote it - reporting a
+            # casefolded "diagram.svg" for a source that claimed "Diagram.SVG"
+            # points the reader at a case mismatch that isn't the problem.
+            raise ValueError(
+                f"{src} wrote {dst_final.name}, which possible_output_names did not predict "
+                f"(it claimed {sorted(plan.names) or 'nothing'}). The output-name planning pass and "
+                "process_file have drifted apart - see possible_output_names."
+            )
         written.append(dst_final)
         rel_final = dst_final.relative_to(output_dir)
         if rel_final != rel:
