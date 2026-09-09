@@ -1122,18 +1122,24 @@ def _multi_frame(path, fmt=None, frames=4, size=(40, 40)):
     ("anim.png", None),    # APNG
     ("stereo.jpg", "MPO"),  # a phone stereo/burst capture; Pillow reports it animated
 ])
-def test_every_animated_raster_keeps_its_frames_under_webp(tmp_path, name, fmt):
+@pytest.mark.parametrize("webp", [True, False])
+def test_every_animated_raster_keeps_its_frames(tmp_path, name, fmt, webp):
     """optimize_raster copies an animated non-GIF through untouched, so the
     animation survives and the file keeps its own extension. That branch was
     unreachable for .webp and .jpg while the planner probed only a curated
     set of extensions and passed a hard-coded False for the rest - and the
     written-vs-claimed check could not see it, because the *name* was exactly
-    what was predicted. Only the frames were gone."""
+    what was predicted. Only the frames were gone.
+
+    Run both ways: possible_output_names takes a different branch without
+    --webp, and optimize_raster still reads `animated` there to choose
+    copy-through over encoding, so the two halves can disagree on that path
+    too - and it is the path where the undetermined case was mishandled."""
     src, out = tmp_path / "in", tmp_path / "out"
     src.mkdir(), out.mkdir()
     _multi_frame(src / name, fmt=fmt)
 
-    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": webp},
                                     pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
                                     stats=_new_stats())
 
@@ -1161,3 +1167,39 @@ def test_a_static_file_of_the_same_types_still_converts(tmp_path):
     assert len(result.written) == 2
     assert all(p.suffix == ".webp" for p in result.written)
     assert len(result.renamed) == 2, "both changed extension, so both repoint"
+
+
+def test_a_copied_through_animation_is_not_reported_as_optimized(tmp_path, capsys):
+    """The copy-through branch writes the source byte-for-byte: no resize, no
+    re-encode. Reporting it as "Optimized" and counting it in stats["raster"]
+    hid that an animated file ships at its original dimensions, past
+    --max-width - and the log was the only place that could have said so."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    _multi_frame(src / "big.webp", size=(900, 900))
+    assert om.BUILTIN_DEFAULTS["max_width"] < 900, "the fixture has to exceed the cap"
+
+    stats = _new_stats()
+    om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                           pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout), stats=stats)
+
+    with Image.open(out / "big.webp") as written:
+        assert written.size == (900, 900), "unresized - which is the thing worth saying out loud"
+    assert stats["copied"] == 1 and stats["raster"] == 0, "counted as copied, not as an optimization"
+    assert "Copied unresized (animated)" in capsys.readouterr().out
+
+
+def test_a_resized_still_image_is_still_reported_as_optimized(tmp_path, capsys):
+    """The other direction: the honest label must not spread to files that
+    really were optimized."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("RGB", (900, 900), (3, 3, 3)).save(src / "big.png")
+
+    stats = _new_stats()
+    om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                           pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout), stats=stats)
+
+    out_text = capsys.readouterr().out
+    assert stats["raster"] == 1 and stats["copied"] == 0
+    assert "Optimized" in out_text and "Copied unresized" not in out_text

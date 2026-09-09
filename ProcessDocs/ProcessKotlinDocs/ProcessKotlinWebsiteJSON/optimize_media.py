@@ -284,8 +284,13 @@ def resize_animated_gif(img: Image.Image, dst: Path, max_width: int) -> Path:
     return dst
 
 
-def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_kwargs) -> Path:
-    """`animated` is decided once, by _is_animated_raster during the
+def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_kwargs) -> tuple:
+    """Returns (path_written, copied_through). `copied_through` is True when
+    the file was passed through byte-for-byte - no resize, no re-encode -
+    which callers need in order to report it honestly; the same shape
+    optimize_svg already uses for its was_rasterized flag.
+
+    `animated` is decided once, by _is_animated_raster during the
     name-planning pass, and passed in rather than re-derived here.
 
     This used to repeat the planner's `getattr(img, "is_animated", False)`
@@ -307,7 +312,7 @@ def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_
     with Image.open(src) as img:
         if animated:
             if src.suffix.lower() == ".gif":
-                return resize_animated_gif(img, dst, encode_kwargs["max_width"])
+                return resize_animated_gif(img, dst, encode_kwargs["max_width"]), False
             # Animated non-GIF: per-frame resizing/re-encoding is out of
             # scope here - copy through unchanged rather than flattening it to
             # a single frame and silently breaking the animation. Reaches
@@ -321,8 +326,8 @@ def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_
             # place to decide that silently, and the source is a rarity worth
             # noticing in the log rather than quietly rewriting.
             shutil.copy2(src, dst)
-            return dst
-        return encode_raster(img, dst, suffix=src.suffix.lower(), **encode_kwargs)
+            return dst, True
+        return encode_raster(img, dst, suffix=src.suffix.lower(), **encode_kwargs), False
 
 
 def rasterize_svg(svg_text: str, max_width: int) -> Image.Image:
@@ -418,6 +423,7 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
     every animated WEBP came to be flattened."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     suffix = src.suffix.lower()
+    optimized = True  # cleared when the file is passed through byte-for-byte
 
     try:
         # Inside the try: a source that vanishes or becomes unreadable between
@@ -437,14 +443,25 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
                 stats["svg"] += 1
                 kind = "svg"
         elif suffix in RASTER_EXTENSIONS:
-            dst_final = optimize_raster(
+            dst_final, copied_through = optimize_raster(
                 src, dst, animated=animated,
                 max_width=cfg["max_width"], jpeg_quality=cfg["jpeg_quality"], webp=cfg["webp"],
                 webp_quality=cfg["webp_quality"], pngquant_path=pngquant_path, pngquant_speed=cfg["pngquant_speed"],
                 logger=logger,
             )
-            stats["raster"] += 1
-            kind = "raster"
+            if copied_through:
+                # An animated non-GIF, copied byte-for-byte. Counted as copied
+                # and reported as copied: calling it "Optimized" and adding it
+                # to the raster tally hid that the file ships at its original
+                # dimensions, past --max-width, at its original size. The log
+                # was the only place that could have said so, and it said the
+                # opposite.
+                stats["copied"] += 1
+                kind = "animated, copied unresized"
+                optimized = False
+            else:
+                stats["raster"] += 1
+                kind = "raster"
         else:
             shutil.copy2(src, dst)
             dst_final = dst
@@ -463,7 +480,7 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
         # where the optimized copy of each media file actually landed,
         # since that's not otherwise derivable once optimization has
         # renamed a file (webp conversion, SVG rasterization).
-        message = f"Optimized {src} -> {dst_final}"
+        message = f"{'Optimized' if optimized else 'Copied unresized (animated)'} {src} -> {dst_final}"
         if cfg["verbose"]:
             saved = original_size - optimized_size
             pct = (saved / original_size * 100) if original_size else 0.0
@@ -565,10 +582,17 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: Optional[
         rasterized = ".webp" if cfg["webp"] else ".png"
         return {f"{stem}{suffix}", f"{stem}{rasterized}"}
     if suffix.lower() in RASTER_EXTENSIONS:
+        # Checked before the --webp branch, not inside it: optimize_raster
+        # refuses an undetermined source whatever --webp says, so it writes
+        # nothing either way. Claiming a name for it on the non-webp branch
+        # held that name against the other sources and de-conflicted a real
+        # image away from an output that never appears - and broke the
+        # "claims nothing exactly when it writes nothing" invariant the
+        # written-vs-claimed check downstream reads as a guarantee.
+        if animated is None:
+            return set()
         if not cfg["webp"]:
             return {f"{stem}{suffix}"}
-        if animated is None:  # undetermined: this source writes nothing
-            return set()
         # Uniform, and no longer keyed on a list of extensions: under --webp a
         # raster keeps its own extension exactly when it is animated, because
         # that is when optimize_raster copies it through (or, for a GIF,
@@ -722,25 +746,23 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
     for src in sources:
         rel = src.relative_to(input_dir)
         stem, suffix = rel.stem, rel.suffix
-        # Probed here rather than inside the loop: the answer depends on the
-        # file, not on the candidate name, so re-opening it per de-confliction
-        # attempt was pure waste. False without a probe - an extension that
-        # cannot carry a second frame is never animated, and opening every
-        # JPEG to learn that would cost an extra pass over the whole corpus.
-        # Probed for every raster, not for a hand-picked subset of extensions.
-        # There used to be an ANIMATABLE_EXTENSIONS set here, chosen to answer
-        # "which extensions need a probe to predict an output *name*" - .webp
-        # was excluded because an animated one is copied through under the
-        # same .webp name a converted one gets, so the answer could not change
-        # the name. Sound for naming; wrong the moment optimize_raster started
-        # consuming the same value, because it decides whether to re-encode.
-        # Every animated WEBP in the tree was flattened to a single frame,
-        # silently, with the output name exactly as predicted so the
-        # written-vs-claimed check below could not see it either.
+        # Probed once per source rather than inside the de-confliction loop
+        # below: the answer is a property of the file, not of the candidate
+        # name being tried.
         #
-        # One question - "is this file animated" - deserves one answer, taken
-        # from the file. optimize_raster opens it regardless, so the extra
-        # header read is the only cost, and it is measurable at neither end.
+        # Every raster, with no membership list of "extensions that can be
+        # animated". Two attempts at such a list were both wrong - .gif
+        # alone, then a four-entry set that omitted .webp and .jpg - because
+        # the list was picked to answer "can this change the output *name*"
+        # while optimize_raster reads the same value to decide whether to
+        # re-encode at all. An animated WEBP was flattened to a single frame
+        # for a whole commit, and the written-vs-claimed check below could
+        # not see it because the name was exactly as predicted. .bmp cannot
+        # be animated and is probed anyway; that wasted open is the price of
+        # having nothing left to get wrong.
+        #
+        # Costs about half a second over the 299-image corpus (39.5s -> 40.0s),
+        # against optimize_raster opening the file again regardless.
         animated = _is_animated_raster(src, logger) if suffix.lower() in RASTER_EXTENSIONS else False
         candidate = stem
         attempt = 0
