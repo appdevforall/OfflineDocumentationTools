@@ -946,3 +946,23 @@ class TestDocument:
         source.write_text(DOCLAVA_CLASS, encoding="utf-8")
         doc = extractor.Document.read(source, "android/demo/Widget.html", linker)
         assert doc.link("/reference/android/demo/Base") == "Base.json"
+
+
+class TestCaseFoldedPaths:
+    def test_a_link_finds_a_page_stored_under_a_different_case(self):
+        # `android.os.strictmode` is a package and `android.os.StrictMode` a class; the scrape is
+        # read off a filesystem that cannot give both a directory, so the package's pages sit
+        # under `StrictMode/`. The links still spell it lowercase.
+        linker = extractor.Linker({"android/os/StrictMode/Violation"})
+        assert linker.resolve("/reference/android/os/strictmode/Violation",
+                              "android/os/StrictMode.html") == "StrictMode/Violation.json"
+
+    def test_an_exact_match_still_wins(self):
+        linker = extractor.Linker({"android/demo/Widget", "android/demo/widget"})
+        assert linker.resolve("/reference/android/demo/widget",
+                              "android/demo/Other.html") == "widget.json"
+
+    def test_a_page_the_scrape_really_lacks_is_still_external(self):
+        linker = extractor.Linker({"android/demo/Widget"})
+        assert linker.resolve("/reference/java/lang/Object", "android/demo/Widget.html") == \
+            "https://developer.android.com/reference/java/lang/Object"

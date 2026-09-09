@@ -4,13 +4,16 @@ Turns the scraped developer.android.com reference HTML under `ProcessDocs/Androi
 documentation tree, and renders that tree back to browsable HTML with Pebble templates.
 
 ```
-android/  androidx/          android_docs_to_json.py         renderer/render.sh
-scraped HTML  ---------->    JSON documentation tree  ---->   browsable HTML
+                       android_docs_to_json.py          renderer/render.sh
+android/ androidx/  ------------------------->  JSON  ------------------->  browsable HTML
+scraped HTML                                     |     load_android_json_db.py
+                                                 +--------------------------->  documentation.db
 ```
 
 Two steps rather than one because the JSON is the deliverable: it is what a tooltip generator, a
 search index, or the documentation database can read without parsing HTML again. The renderer
-exists to show that the JSON kept everything, and to give the corpus a browsable form.
+exists to show that the JSON kept everything, to give the corpus a browsable form, and -- since it
+runs the same templates the database stores -- to preview what the app will serve.
 
 ## Running it
 
@@ -40,7 +43,14 @@ Useful while working on either half:
 | `--workers N` | defaults to the core count; `--workers 1` to get a traceback out of a crash |
 | `--no-navigation` | skip the generated package summaries and root index |
 
-Tests: `python -m pytest test_android_docs_to_json.py` for the extractor, and
+```bash
+# JSON -> documentation.db (about 90 seconds; the source database is never written to)
+./load_android_json_db.py /tmp/android-json \
+    --source ~/Desktop/documentation.db --out ~/Desktop/documentation_androidjson.db
+./verify_android_json_db.py ~/Desktop/documentation_androidjson.db --sample 40
+```
+
+Tests: `python -m pytest` for the extractor and the loader, and
 `(cd renderer && ./gradlew test)` for the renderer and its templates.
 
 ## The two flavors of scrape
@@ -179,6 +189,73 @@ an optional `description`. Package pages are the three scraped `package-summary.
 799 generated ones; index pages are the root `index.json` and the scraped `classes.html` /
 `packages.html`.
 
+## Into documentation.db
+
+The database already carried this reference as 12,106 rows of scraped HTML: each the whole page,
+with the site's stylesheet inlined into it, and no structure a caller can address.
+`load_android_json_db.py` replaces those rows with the JSON and adds the templates that render it,
+so a page is served the way the database already serves the Kotlin docs -- a row's `templateId`
+names a template, and the row's JSON is that template's context.
+
+| What it writes | |
+|---|---|
+| `Templates` | `android-class.peb`, `android-package.peb`, `android-index.peb` |
+| `assets/android-reference.css` | the one stylesheet all 12,906 pages link to |
+| `Content` | one row per page, at the path the HTML row used, `templateId` set |
+| `DocumentationDatabaseVersion` | a minor bump saying what changed |
+
+The source database is never written to: it is copied first, and every write lands on the copy,
+which is the artifact.
+
+Three things the loader has to get right:
+
+- **Paths keep the case the database uses.** The scrape is read off a case-insensitive filesystem,
+  where `android.os.strictmode` (a package) and `android.os.StrictMode` (a class) cannot each have
+  a directory: the package's 25 pages sit under `StrictMode/`. The database has them under
+  `strictmode/`, which is what every link in the corpus says too, so the database's spelling wins
+  for row paths and for links -- otherwise those 25 pages would be written beside the rows they
+  replace, and linked to at a path holding nothing.
+- **Links lose the `.json` the extractor wrote for its own tree** -- the same swap the renderer
+  does, for the reason given under the renderer below.
+- **The stylesheet, the root index and a page's own package summary go into the stored JSON**,
+  because the server hands a template the row's JSON and nothing else. They are the only fields
+  that say where pages are served from rather than what the documentation is.
+
+### What it costs
+
+Measured on the real database, not estimated:
+
+| | before | after |
+|---|---|---|
+| The same 12,106 pages, stored | 29.7 MB | **31.8 MB** |
+| 800 package summaries and a root index | — | 0.5 MB |
+| Whole database | 249 MB | 252 MB |
+| Decompressed per page, which is what the device expands | 46 KB | **22 KB** |
+
+So this is not a storage win: those pages take about 7% *more* room as JSON. The shared Brotli
+dictionary is why -- it was trained on this database's existing content, most of it HTML with that
+same stylesheet inlined thousands of times, so it compresses the old rows extremely well and has
+never seen the shape of the new ones. `remint_dictionary.py` exists to retrain a dictionary across
+a changed corpus and would likely take the difference back, at the cost of rewriting every row in
+the database; that is a separate operation and this does not do it.
+
+What does improve: half the bytes to decompress and parse per page, one stylesheet fetched once
+instead of a copy inlined into all 12,906 pages, and fields a caller can address without parsing
+HTML.
+
+`verify_android_json_db.py` answers the question the loader cannot. It pulls the stored JSON and
+the stored template back out of the database and renders them through Pebble, configured the way
+the server configures it, then checks that no page is left without a template and no link names a
+row that is not there.
+
+`dbwrite.py` holds the row-writing helpers: dictionary compression, the chunk boundary
+`WebServer.kt` reassembles on, the update-in-place rule the `AddBook` trigger imposes. Every one of
+those contracts belongs to `ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py`, and this is
+a second implementation only because that module cannot be imported from `main`: it does
+`from build_nav import build_node` at import time, and `build_nav.py` lands with ADFA-4739, which
+is unmerged. The names and signatures match it deliberately, so once that merges this file can go
+and the import can point there.
+
 ## The renderer
 
 `renderer/` is a small Gradle project: Pebble templates, and just enough Java to walk the tree and
@@ -186,18 +263,29 @@ pick a template per page.
 
 | | |
 |---|---|
-| `templates/base.peb` | page skeleton, breadcrumb, footer |
-| `templates/macros.peb` | summary tables, inherited groups, member entries, version notes |
+| `templates/_macros.peb` | summary tables, inherited groups, member entries, version notes |
 | `templates/class.peb` | a type page |
 | `templates/package.peb` | a package summary |
 | `templates/index.peb` | an index |
-| `AndroidDocRendererTest.java` | renders a page of each kind through the real templates |
 | `static/stylesheet.css` | |
 | `AndroidDocRenderer.java` | walks the JSON tree, `page` field -> template |
-| `AndroidDocExtension.java` | the `href`, `doc` and `anchor` filters |
+| `HtmlLinks.java` | swaps `.json` for `.html` through a whole page document |
+| `TemplateCheck.java` | renders one stored template against one stored page |
+| `AndroidDocRendererTest.java` | renders a page of each kind through the real templates |
 
 The `page` field selects the template and the parsed JSON becomes the template context directly, so
 a template reads the same field names that appear in the JSON.
+
+**The templates are the ones the database stores**, which constrains how they are written: a
+`Templates` row is one self-contained template evaluated against a row's JSON, so there is no
+`extends`, no `import`, and no filter beyond `raw` -- the server has nothing to resolve a parent
+against and no place to register a filter. Macros are only visible inside the file that defines
+them, so a page template and `_macros.peb` are concatenated into one source before compiling; the
+database's own `page.peb` keeps its macros at the bottom of the same file for the same reason.
+
+That is also why the `.json` -> `.html` link swap is no longer a filter. It happens once, when a
+page document is loaded -- `HtmlLinks.java` here, `rewrite_document` in the loader -- which is the
+only way a template with no filters can still emit working links.
 
 Autoescaping is on. The documentation fields are HTML already, and go through the `doc` filter,
 which rewrites the links inside them and marks the result safe; everything else — names,

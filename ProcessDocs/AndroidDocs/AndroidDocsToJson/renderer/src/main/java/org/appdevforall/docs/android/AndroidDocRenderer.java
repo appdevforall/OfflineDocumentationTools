@@ -2,7 +2,6 @@ package org.appdevforall.docs.android;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.pebbletemplates.pebble.PebbleEngine;
-import io.pebbletemplates.pebble.loader.ClasspathLoader;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
 
 import java.io.IOException;
@@ -33,30 +32,51 @@ import java.util.Map;
  */
 public final class AndroidDocRenderer {
 
-    /** {@code page} field value -> template name. A page kind with no entry here is skipped. */
+    /** {@code page} field value -> template resource name. A kind with no entry here is skipped. */
     private static final Map<String, String> TEMPLATES = Map.of(
             "android-class", "class",
             "android-package", "package",
             "android-index", "index"
     );
 
+    /** Where the shared stylesheet is written, relative to the output root. */
+    static final String STYLESHEET = "assets/android-reference.css";
+
     private final ObjectMapper json = new ObjectMapper();
     private final PebbleEngine engine;
+    private final Map<String, PebbleTemplate> compiled = new LinkedHashMap<>();
 
-    private AndroidDocRenderer() {
+    private AndroidDocRenderer() throws IOException {
         this.engine = new PebbleEngine.Builder()
-                .loader(new ClasspathLoader() {{
-                    setPrefix("templates");
-                    setSuffix(".peb");
-                }})
                 // The documentation fields in the JSON are HTML already -- they were read out of
-                // HTML -- and the templates put those through the `doc` filter, which marks them
-                // safe. Autoescaping stays on so that everything else (names, signatures, titles)
-                // is escaped by default rather than by memory.
+                // HTML -- and the templates put those through `raw`. Autoescaping stays on so that
+                // everything else (names, signatures, titles) is escaped by default rather than by
+                // memory. Both settings match what the templates rely on in the documentation
+                // database, which is the other place they run.
                 .autoEscaping(true)
                 .strictVariables(false)
-                .extension(new AndroidDocExtension())
                 .build();
+        // Compiled from source rather than loaded by name: a page template and the shared macros
+        // are concatenated into one self-contained source, because that is the only shape the
+        // database can store and macros are visible only inside their own file. Compiled once,
+        // not once per page.
+        for (Map.Entry<String, String> entry : TEMPLATES.entrySet()) {
+            compiled.put(entry.getKey(),
+                    engine.getLiteralTemplate(assembleTemplate(entry.getValue())));
+        }
+    }
+
+    /** One page template with the shared macros appended, as the database stores them. */
+    static String assembleTemplate(String name) throws IOException {
+        return readResource("/templates/" + name + ".peb") + "\n"
+                + readResource("/templates/_macros.peb");
+    }
+
+    private static String readResource(String path) throws IOException {
+        try (InputStream in = AndroidDocRenderer.class.getResourceAsStream(path)) {
+            if (in == null) throw new IOException("missing template resource: " + path);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -117,23 +137,25 @@ public final class AndroidDocRenderer {
         if (data == null) return false;
 
         Object kind = data.get("page");
-        String templateName = kind == null ? null : TEMPLATES.get(kind.toString());
-        if (templateName == null) {
+        if (kind == null || !compiled.containsKey(kind.toString())) {
             System.err.println("No template for page kind '" + kind + "' (" + relative + ")");
             return false;
         }
 
-        Map<String, Object> context = new LinkedHashMap<>(data);
-        // How far this page sits below the output root, so a template can reach the shared
-        // stylesheet and the root index from any depth.
-        context.put("pathToRoot", pathToRoot(relative));
-        // Where this page's own package summary sits, which is the one link every page wants and
-        // the only one that cannot be written into the JSON: it is derived from the path.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> context =
+                new LinkedHashMap<>((Map<String, Object>) HtmlLinks.rewrite(data));
+        // The three links that depend on where the pages are served from rather than on the
+        // documentation, which is why they are not in the JSON. Relative to this page, so the
+        // output works over file:// as well as from a server root.
+        String root = pathToRoot(relative);
+        context.put("stylesheetUrl", root + STYLESHEET);
+        context.put("indexUrl", root + "index.html");
         context.put("packageUrl", packageUrl(relative));
 
         Path out = target.resolve(withHtmlExtension(relative));
         Files.createDirectories(out.getParent());
-        PebbleTemplate template = engine.getTemplate(templateName);
+        PebbleTemplate template = compiled.get(kind.toString());
         try (Writer writer = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
             template.evaluate(writer, context);
         } catch (IOException e) {
@@ -173,12 +195,18 @@ public final class AndroidDocRenderer {
         return "package-summary.html";
     }
 
+    /**
+     * Writes the one stylesheet every page links to.
+     *
+     * Under `assets/`, and shared, which is the point: the scraped pages each inline the site's
+     * whole stylesheet, tens of kilobytes repeated 12,000 times.
+     */
     private void copyStaticAssets(Path target) throws IOException {
-        for (String asset : new String[]{"stylesheet.css"}) {
-            try (InputStream in = getClass().getResourceAsStream("/static/" + asset)) {
-                if (in == null) continue;
-                Files.copy(in, target.resolve(asset), StandardCopyOption.REPLACE_EXISTING);
-            }
+        Path out = target.resolve(STYLESHEET);
+        Files.createDirectories(out.getParent());
+        try (InputStream in = getClass().getResourceAsStream("/static/stylesheet.css")) {
+            if (in == null) throw new IOException("missing /static/stylesheet.css");
+            Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 }

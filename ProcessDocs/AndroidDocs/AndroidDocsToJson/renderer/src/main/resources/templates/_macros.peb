@@ -1,13 +1,19 @@
 {#
-  Shared fragments.
+  The shared macros, appended to whichever page template is being rendered.
 
-  Every macro here is called by BARE NAME, both from inside this file and from the templates that
-  import it: Pebble's {% import %} pulls macros into the importing template's namespace, and --
-  unlike Jinja or Twig -- there is no `macros.` prefix. A prefixed call resolves to nothing and
-  renders empty, silently, which is easy to miss.
+  This file is not a template on its own: a page template and this are concatenated into one
+  source before compiling, because macros are only visible inside the file that defines them and
+  the documentation database stores one self-contained template per row -- no `extends`, no
+  `import`. The database's own page.peb keeps its macros at the bottom of the same file for the
+  same reason; this splits them out only so the two page kinds can share them.
+
+  Every macro here is called by BARE NAME. Pebble has no `macros.` prefix, and a prefixed call
+  resolves to nothing and renders empty, silently, which is easy to miss.
 
   All of them are defensive about missing keys. The extractor drops null and empty values rather
   than writing them out, so on any given page most of these fields are simply absent.
+
+  Documentation fields carry HTML and go through `raw`; everything else is escaped by default.
 #}
 
 {#
@@ -28,7 +34,7 @@
 
 {# A label + link pair, as the JSON stores every cross-reference. #}
 {% macro reference(ref) %}
-{%- if ref.url is not empty -%}<a href="{{ ref.url | href }}">{{ ref.label }}</a>{%- else -%}{{ ref.label }}{%- endif -%}
+{%- if ref.url is not empty -%}<a href="{{ ref.url }}">{{ ref.label }}</a>{%- else -%}{{ ref.label }}{%- endif -%}
 {% endmacro %}
 
 {% macro referenceList(refs) %}
@@ -53,10 +59,10 @@
   and reserving a column for one would leave a third of those pages empty.
 #}
 <tr class="{{ rowColor(loop.index) }}">
-{%- if row.type is not empty %}<td class="type-col"><code>{{ row.type | doc }}</code></td>{% endif %}
+{%- if row.type is not empty %}<td class="type-col"><code>{{ row.type | raw }}</code></td>{% endif %}
 <td class="member-col"{% if row.type is empty %} colspan="2"{% endif %}>
-{%- if row.member is not empty %}<div class="member-name"><code>{{ row.member | doc }}</code></div>{% endif %}
-{%- if row.description is not empty %}<div class="member-brief">{{ row.description | doc }}</div>{% endif %}
+{%- if row.member is not empty %}<div class="member-name"><code>{{ row.member | raw }}</code></div>{% endif %}
+{%- if row.description is not empty %}<div class="member-brief">{{ row.description | raw }}</div>{% endif %}
 {%- if row.deprecatedIn is not empty %}<div class="member-deprecated">Deprecated in {% if scheme == 'api-level' %}API level {% endif %}{{ row.deprecatedIn }}</div>{% endif %}
 </td>
 </tr>
@@ -117,19 +123,19 @@
   field where the extractor reconciled that.
 #}
 {% macro memberDetail(member, scheme) %}
-<div class="api-item" id="{{ member.anchor | anchor }}">
+<div class="api-item" id="{{ member.anchor }}">
 <div class="api-name-block">
 <h3 class="api-name">{{ member.name }}</h3>
 {{ versionNote(scheme, member.addedIn, member.deprecatedIn) }}
 </div>
-{% if member.signatureHtml is not empty %}<pre class="api-signature">{{ member.signatureHtml | doc }}</pre>{% endif %}
+{% if member.signatureHtml is not empty %}<pre class="api-signature">{{ member.signatureHtml | raw }}</pre>{% endif %}
 {% if member.deprecated %}
 <aside class="caution">
 {%- if member.deprecationLabel is not empty %}<strong>{{ member.deprecationLabel }}</strong>{% else %}<strong>Deprecated.</strong>{% endif %}
-{%- if member.deprecationNote is not empty %} {{ member.deprecationNote | doc }}{% endif %}
+{%- if member.deprecationNote is not empty %} {{ member.deprecationNote | raw }}{% endif %}
 </aside>
 {% endif %}
-{% if member.description is not empty %}<div class="description">{{ member.description | doc }}</div>{% endif %}
+{% if member.description is not empty %}<div class="description">{{ member.description | raw }}</div>{% endif %}
 {% if member.parameters is not empty %}
 <div class="table-wrapper">
 <table class="member-table">
@@ -137,8 +143,8 @@
 <tbody>
 {%- for parameter in member.parameters %}
 <tr class="{{ rowColor(loop.index) }}">
-<td class="type-col"><code>{% if parameter.declaration is not empty %}{{ parameter.declaration | doc }}{% else %}{{ parameter.name }}{% endif %}</code></td>
-<td>{% if parameter.description is not empty %}{{ parameter.description | doc }}{% endif %}</td>
+<td class="type-col"><code>{% if parameter.declaration is not empty %}{{ parameter.declaration | raw }}{% else %}{{ parameter.name }}{% endif %}</code></td>
+<td>{% if parameter.description is not empty %}{{ parameter.description | raw }}{% endif %}</td>
 </tr>
 {%- endfor %}
 </tbody>
@@ -152,8 +158,8 @@
 <tbody>
 {%- for entry in member.returns %}
 <tr class="{{ rowColor(loop.index) }}">
-<td class="type-col"><code>{{ entry.type | doc }}</code></td>
-<td>{% if entry.description is not empty %}{{ entry.description | doc }}{% endif %}</td>
+<td class="type-col"><code>{{ entry.type | raw }}</code></td>
+<td>{% if entry.description is not empty %}{{ entry.description | raw }}{% endif %}</td>
 </tr>
 {%- endfor %}
 </tbody>
@@ -167,8 +173,8 @@
 <tbody>
 {%- for entry in member.throws %}
 <tr class="{{ rowColor(loop.index) }}">
-<td class="type-col"><code>{{ entry.type | doc }}</code></td>
-<td>{% if entry.description is not empty %}{{ entry.description | doc }}{% endif %}</td>
+<td class="type-col"><code>{{ entry.type | raw }}</code></td>
+<td>{% if entry.description is not empty %}{{ entry.description | raw }}{% endif %}</td>
 </tr>
 {%- endfor %}
 </tbody>

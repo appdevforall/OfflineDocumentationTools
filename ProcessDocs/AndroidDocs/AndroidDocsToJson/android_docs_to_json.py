@@ -165,6 +165,13 @@ class Linker:
     def __init__(self, known: set[str]):
         # Keyed the way a reference URL names a page: no extension, no `/reference/` prefix.
         self.known = known
+        # And again case-folded, for the pages whose path on disk is not the case the site uses.
+        # `android.os.strictmode` is a package and `android.os.StrictMode` a class; a
+        # case-insensitive filesystem cannot give both their own directory, so the package's 25
+        # pages are stored under `StrictMode/`. Every link in the corpus spells the package
+        # lowercase, so without this fallback all 25 look like pages the scrape does not have and
+        # are linked to developer.android.com instead of to the copy sitting right there.
+        self._folded = {key.casefold(): key for key in known}
 
     def resolve(self, url: str | None, from_page: str) -> str | None:
         if not url:
@@ -188,6 +195,9 @@ class Linker:
                 key = key[: -len(".html")]
             if key in self.known:
                 return self._relative(key, from_page) + fragment
+            folded = self._folded.get(key.casefold())
+            if folded is not None:
+                return self._relative(folded, from_page) + fragment
             return f"{SITE}/reference/{key}{fragment}"
         if path.startswith("/"):
             return SITE + path + fragment

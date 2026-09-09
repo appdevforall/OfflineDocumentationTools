@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -172,6 +174,47 @@ class AndroidDocRendererTest {
         // does not exist.
         assertTrue(html.contains("Deprecated in 1.3.0"), html);
         assertFalse(html.contains("API level 1.3.0"), "no API level wording for a Jetpack page");
+    }
+
+    @Test
+    void swapsOnlyTheExtensionOfLinksIntoTheTree() {
+        assertEquals("Base.html", HtmlLinks.swap("Base.json"));
+        assertEquals("../view/View.html#foo(int)", HtmlLinks.swap("../view/View.json#foo(int)"));
+        // An absolute URL leaves the tree, and a bare fragment never left this page.
+        assertEquals("https://developer.android.com/reference/java/lang/Object",
+                HtmlLinks.swap("https://developer.android.com/reference/java/lang/Object"));
+        assertEquals("#summary", HtmlLinks.swap("#summary"));
+        // A page whose own name contains .json must keep it: only the extension moves.
+        assertEquals("a.json.b.html", HtmlLinks.swap("a.json.b.json"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rewritesLinksAnywhereInTheDocument() {
+        Map<String, Object> page = Map.of(
+                "inheritance", List.of(Map.of("label", "Base", "url", "Base.json")),
+                "description", "<p>See <a href=\"../view/View.json#x\">View</a>.</p>",
+                "name", "Widget");
+        Map<String, Object> out = (Map<String, Object>) HtmlLinks.rewrite(page);
+        assertEquals("Base.html",
+                ((List<Map<String, Object>>) out.get("inheritance")).get(0).get("url"));
+        assertEquals("<p>See <a href=\"../view/View.html#x\">View</a>.</p>", out.get("description"));
+        assertEquals("Widget", out.get("name"), "a string with no link is untouched");
+    }
+
+    @Test
+    void assemblesEachTemplateWithTheSharedMacros() throws Exception {
+        for (String name : new String[]{"class", "package", "index"}) {
+            String source = AndroidDocRenderer.assembleTemplate(name);
+            // Self-contained is the contract the database imposes: one row, one template.
+            assertFalse(source.contains("{% extends"), name + " must not extend anything");
+            assertFalse(source.contains("{% import"), name + " must not import anything");
+            assertTrue(source.contains("{% macro summaryRows"), name + " needs the macros appended");
+            // The only filter the database's engine is known to offer.
+            assertFalse(source.contains("| doc") || source.contains("| anchor")
+                            || source.contains("| href"),
+                    name + " must use no filter this project defines");
+        }
     }
 
     @Test
