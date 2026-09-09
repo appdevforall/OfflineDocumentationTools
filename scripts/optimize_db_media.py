@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "brotli",
+#     "Pillow",
+#     "scour",
+# ]
+# ///
 """
 optimize_db_media.py
 
@@ -46,11 +54,19 @@ actually smaller than what's already stored - an image is never made larger.
 Reads/writes bytes straight from/to the DB; needs no source directory. Backs
 up the database first (VACUUM INTO a timestamped sibling), VACUUMs at the end
 to reclaim freed space, and supports --dry-run (do all the work, log what
-would change, roll back). Requires the "pngquant" binary on PATH plus Pillow,
-scour and brotli:
+would change, roll back).
 
-    uv run --with-requirements requirements.txt scripts/optimize_db_media.py documentation.db
+Python dependencies (Pillow, scour, brotli) are declared inline above (PEP
+723), so uv installs them on the fly - run it one-shot with no setup:
+
+    uv run scripts/optimize_db_media.py documentation.db
+
+The "pngquant" and "brotli" command-line tools must also be on PATH (e.g.
+`brew install pngquant brotli`); those are system binaries, not pip packages,
+so uv can't provide them.
 """
+from __future__ import annotations
+
 import argparse
 import io
 import re
