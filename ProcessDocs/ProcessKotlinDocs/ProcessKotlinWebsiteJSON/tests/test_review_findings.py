@@ -874,13 +874,23 @@ def test_animated_png_is_not_predicted_as_webp(tmp_path):
     (".png", True, {"x.png"}),
     (".png", False, {"x.webp"}),
     (".tiff", True, {"x.tiff"}),
-    (".jpg", None, {"x.webp"}),      # cannot be animated, so never probed
-    (".webp", None, {"x.webp"}),     # animated or not, the name is the same
+    (".jpg", True, {"x.jpg"}),       # an MPO stored as .jpg: Pillow reports it animated
+    (".jpg", False, {"x.webp"}),
+    (".jpg", None, set()),
+    (".webp", True, {"x.webp"}),     # copied through, under the name a conversion would give
+    (".webp", False, {"x.webp"}),
+    (".webp", None, set()),
 ])
 def test_possible_output_names_resolves_every_animated_raster(suffix, animated, expected):
     """The prediction is a pure function of (suffix, cfg, animated) - no I/O,
     so it can be called once per de-confliction attempt without re-opening
-    the source each time."""
+    the source each time.
+
+    One rule for every raster: under --webp it keeps its own extension
+    exactly when it is animated, because that is when optimize_raster copies
+    it through instead of re-encoding. The curated set this replaced kept
+    getting the membership wrong - first .gif only, then a four-entry set that
+    omitted .webp and .jpg."""
     cfg = dict(om.BUILTIN_DEFAULTS) | {"webp": True}
     assert om.possible_output_names("x", suffix, cfg, animated) == expected
 
@@ -1054,7 +1064,11 @@ def test_an_undetermined_probe_skips_one_file_and_no_more(tmp_path, monkeypatch,
     src, out = tmp_path / "in", tmp_path / "out"
     src.mkdir(), out.mkdir()
     Image.new("RGB", (20, 20), (5, 5, 5)).save(src / "photo.png")
-    Image.new("RGB", (20, 20), (6, 6, 6)).save(src / "other.jpg")
+    # A passthrough file as the control, not another raster: the stub answers
+    # every probe, and rasters are all probed now, so a .jpg control would be
+    # skipped too and the assertion below would fail for a reason that has
+    # nothing to do with what this test protects.
+    (src / "other.txt").write_text("passthrough")
     monkeypatch.setattr(om, "_is_animated_raster", lambda source, logger=None: None)
 
     stats = _new_stats()
@@ -1063,7 +1077,7 @@ def test_an_undetermined_probe_skips_one_file_and_no_more(tmp_path, monkeypatch,
                                     stats=stats)
 
     assert stats["errors"] == 1, "the undetermined file, and only it"
-    assert [p.name for p in result.written] == ["other.webp" if webp else "other.jpg"]
+    assert [p.name for p in result.written] == ["other.txt"]
     assert "could not determine whether this file is animated" in capsys.readouterr().out
 
 
@@ -1084,3 +1098,66 @@ def test_the_drift_message_names_the_claim_as_the_planner_wrote_it(tmp_path, mon
     with pytest.raises(ValueError, match=r"it claimed \['Diagram\.SVG', 'Diagram\.png'\]"):
         om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS), pngquant_path=om.find_pngquant(),
                                logger=om.Logger(sys.stdout), stats=_new_stats())
+
+
+# --- every animated raster, not just the GIF the tests happened to cover ----
+
+def _multi_frame(path, fmt=None, frames=4, size=(40, 40)):
+    """A multi-frame image in whatever format `path`/`fmt` implies. Frames
+    differ so the encoder cannot collapse them into one."""
+    images = []
+    for i in range(frames):
+        frame = Image.new("RGB", size, (0, 0, 0))
+        ImageDraw.Draw(frame).rectangle([i * 5, i * 5, i * 5 + 10, i * 5 + 10], fill=(255, i * 60, 0))
+        images.append(frame)
+    kwargs = {"save_all": True, "append_images": images[1:]}
+    if fmt:
+        kwargs["format"] = fmt
+    images[0].save(path, **kwargs)
+    return path
+
+
+@pytest.mark.parametrize("name, fmt", [
+    ("anim.webp", None),   # animated WEBP - flattened to one frame for a whole commit
+    ("anim.png", None),    # APNG
+    ("stereo.jpg", "MPO"),  # a phone stereo/burst capture; Pillow reports it animated
+])
+def test_every_animated_raster_keeps_its_frames_under_webp(tmp_path, name, fmt):
+    """optimize_raster copies an animated non-GIF through untouched, so the
+    animation survives and the file keeps its own extension. That branch was
+    unreachable for .webp and .jpg while the planner probed only a curated
+    set of extensions and passed a hard-coded False for the rest - and the
+    written-vs-claimed check could not see it, because the *name* was exactly
+    what was predicted. Only the frames were gone."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    _multi_frame(src / name, fmt=fmt)
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    assert [p.name for p in result.written] == [name], "an animated raster keeps its own extension"
+    assert result.renamed == {}, "so nothing repoints the stored URLs"
+    with Image.open(out / name) as written:
+        assert written.n_frames == 4, "and every frame survives"
+
+
+def test_a_static_file_of_the_same_types_still_converts(tmp_path):
+    """The exemption is animation, not extension: single-frame sources of the
+    same types still convert, so this does not quietly opt whole formats out
+    of --webp."""
+    src, out = tmp_path / "in", tmp_path / "out"
+    src.mkdir(), out.mkdir()
+    Image.new("RGB", (20, 20), (1, 1, 1)).save(src / "still.png")
+    Image.new("RGB", (20, 20), (2, 2, 2)).save(src / "still.jpg")
+
+    result = om.optimize_directory(src, out, cfg=dict(om.BUILTIN_DEFAULTS) | {"webp": True},
+                                    pngquant_path=om.find_pngquant(), logger=om.Logger(sys.stdout),
+                                    stats=_new_stats())
+
+    # Both claim still.webp, so one is de-conflicted - the point here is that
+    # each of them converted, not which one kept the plain name.
+    assert len(result.written) == 2
+    assert all(p.suffix == ".webp" for p in result.written)
+    assert len(result.renamed) == 2, "both changed extension, so both repoint"

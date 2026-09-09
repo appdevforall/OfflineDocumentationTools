@@ -64,18 +64,6 @@ except AttributeError:  # Pillow < 9.1
 
 RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp"}
 SVG_EXTENSION = ".svg"
-# Rasters that can hold more than one frame *and* whose animated form keeps
-# its own extension through optimize_raster - which copies any animated
-# non-GIF through untouched and resizes an animated GIF as a GIF, so under
-# --webp none of these becomes a .webp. That is what possible_output_names
-# has to predict; gating it on ".gif" alone left an APNG or a multi-frame
-# TIFF claiming a .webp nothing writes.
-#
-# ".webp" is deliberately absent: an animated WEBP is copied through as a
-# .webp, which is what the conversion branch predicts anyway, so there is
-# nothing to resolve and no reason to pay for opening the file. JPEG and BMP
-# cannot be animated at all.
-ANIMATABLE_EXTENSIONS = {".gif", ".png", ".tif", ".tiff"}
 
 
 class Logger:
@@ -320,10 +308,18 @@ def optimize_raster(src: Path, dst: Path, *, animated: Optional[bool], **encode_
         if animated:
             if src.suffix.lower() == ".gif":
                 return resize_animated_gif(img, dst, encode_kwargs["max_width"])
-            # Animated non-GIF (e.g. webp): per-frame resizing/re-encoding is
-            # out of scope here - copy through unchanged rather than
-            # flattening it to a single frame and silently breaking the
-            # animation.
+            # Animated non-GIF: per-frame resizing/re-encoding is out of
+            # scope here - copy through unchanged rather than flattening it to
+            # a single frame and silently breaking the animation. Reaches
+            # animated WEBP, APNG and multi-frame TIFF.
+            #
+            # It also reaches an MPO stored as ".jpg" - a phone stereo or
+            # burst capture, which Pillow opens as a multi-frame image and
+            # reports as animated. Copying it through unoptimized is the
+            # deliberate choice: flattening it to its primary frame would be
+            # defensible for a documentation image, but this branch is not the
+            # place to decide that silently, and the source is a rarity worth
+            # noticing in the log rather than quietly rewriting.
             shutil.copy2(src, dst)
             return dst
         return encode_raster(img, dst, suffix=src.suffix.lower(), **encode_kwargs)
@@ -412,8 +408,14 @@ def process_file(src: Path, dst: Path, *, cfg: dict, pngquant_path: str, stats: 
     `animated` is required, not defaulted: it is the name-planning pass's
     answer for this source (see optimize_raster), and a default would let a
     caller silently skip the planning this function's output is checked
-    against. Irrelevant for SVG and passthrough files, which have no
-    animation to honour."""
+    against.
+
+    It governs the raster branch alone, and it governs it for every raster -
+    an animated one is copied through (or resized as a GIF) under its own
+    extension, a static one is re-encoded. The caller passes False for SVG and
+    passthrough files, which have no animation to honour; it must not pass a
+    hard-coded False for a raster it simply chose not to probe, which is how
+    every animated WEBP came to be flattened."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     suffix = src.suffix.lower()
 
@@ -565,11 +567,15 @@ def possible_output_names(stem: str, suffix: str, cfg: dict, animated: Optional[
     if suffix.lower() in RASTER_EXTENSIONS:
         if not cfg["webp"]:
             return {f"{stem}{suffix}"}
-        if suffix.lower() in ANIMATABLE_EXTENSIONS:
-            if animated is None:  # undetermined: this source writes nothing
-                return set()
-            return {f"{stem}{suffix}"} if animated else {f"{stem}.webp"}
-        return {f"{stem}.webp"}
+        if animated is None:  # undetermined: this source writes nothing
+            return set()
+        # Uniform, and no longer keyed on a list of extensions: under --webp a
+        # raster keeps its own extension exactly when it is animated, because
+        # that is when optimize_raster copies it through (or, for a GIF,
+        # resizes it as a GIF) instead of re-encoding it. That covers the
+        # cases a curated set kept getting wrong - an APNG, a multi-frame
+        # TIFF, and an MPO stored as .jpg, which Pillow reports as animated.
+        return {f"{stem}{suffix}"} if animated else {f"{stem}.webp"}
     return {f"{stem}{suffix}"}  # passthrough copy, extension never changes
 
 
@@ -721,7 +727,21 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         # attempt was pure waste. False without a probe - an extension that
         # cannot carry a second frame is never animated, and opening every
         # JPEG to learn that would cost an extra pass over the whole corpus.
-        animated = _is_animated_raster(src, logger) if suffix.lower() in ANIMATABLE_EXTENSIONS else False
+        # Probed for every raster, not for a hand-picked subset of extensions.
+        # There used to be an ANIMATABLE_EXTENSIONS set here, chosen to answer
+        # "which extensions need a probe to predict an output *name*" - .webp
+        # was excluded because an animated one is copied through under the
+        # same .webp name a converted one gets, so the answer could not change
+        # the name. Sound for naming; wrong the moment optimize_raster started
+        # consuming the same value, because it decides whether to re-encode.
+        # Every animated WEBP in the tree was flattened to a single frame,
+        # silently, with the output name exactly as predicted so the
+        # written-vs-claimed check below could not see it either.
+        #
+        # One question - "is this file animated" - deserves one answer, taken
+        # from the file. optimize_raster opens it regardless, so the extra
+        # header read is the only cost, and it is measurable at neither end.
+        animated = _is_animated_raster(src, logger) if suffix.lower() in RASTER_EXTENSIONS else False
         candidate = stem
         attempt = 0
         while True:
