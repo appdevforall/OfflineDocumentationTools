@@ -50,7 +50,8 @@ DOCLAVA_CLASS = """
 <span class="expand-control">Known direct subclasses</span>
 <div id="subclasses-direct" class="showalways"><a href="/reference/android/demo/FancyWidget">FancyWidget</a></div>
 </div></td></tr></table>
-<p>A widget that does something. Second sentence is not the brief.</p>
+<p>A widget that does something. Second sentence is not the brief.
+See the <a href="/guide/topics/widgets">guide</a>.</p>
 <h2 class="api-section" id="summary" data-text="Summary">Summary</h2>
 <table id="nestedclasses" class="responsive">
 <tr><th colspan="2"><h3 id="nested-classes" data-text="Nested classes">Nested classes</h3></th></tr>
@@ -482,7 +483,8 @@ class TestDackkaClass:
         assert dackka["addedIn"] == "1.2.0"
         assert dackka["artifact"] == {
             "label": "androidx.demo:demo",
-            "url": "https://developer.android.com/jetpack/androidx/releases/demo"}
+            "url": "https://developer.android.com/jetpack/androidx/releases/demo",
+            "linkClass": "external-link"}
         assert dackka["sourceUrl"] == "https://cs.android.com/x"
 
     def test_signature(self, dackka):
@@ -752,12 +754,14 @@ class TestImplementedInterfaces:
         assert doclava["implements"] == [
             {"label": "Widget.Listener", "url": "Widget.Listener.json"},
             {"label": "Cloneable",
-             "url": "https://developer.android.com/reference/java/lang/Cloneable"}]
+             "url": "https://developer.android.com/reference/java/lang/Cloneable",
+             "linkClass": "external-link"}]
 
     def test_dackka_interfaces_come_off_the_signature(self, dackka):
         assert dackka["implements"] == [
             {"label": "Closeable",
-             "url": "https://developer.android.com/reference/java/io/Closeable"}]
+             "url": "https://developer.android.com/reference/java/io/Closeable",
+             "linkClass": "external-link"}]
 
     def test_the_superclass_is_not_in_the_list(self, doclava):
         # Only links after the `implements` keyword; `extends Base` precedes it.
@@ -885,7 +889,8 @@ class TestGenericInterfaces:
         # is an interface. Taking both had the class implementing itself.
         assert generic["implements"] == [
             {"label": "Comparable",
-             "url": "https://developer.android.com/reference/java/lang/Comparable"},
+             "url": "https://developer.android.com/reference/java/lang/Comparable",
+             "linkClass": "external-link"},
             {"label": "Widget.Listener", "url": "Widget.Listener.json"}]
 
     def test_the_signature_still_records_the_type_argument(self, generic):
@@ -966,3 +971,52 @@ class TestCaseFoldedPaths:
         linker = extractor.Linker({"android/demo/Widget"})
         assert linker.resolve("/reference/java/lang/Object", "android/demo/Widget.html") == \
             "https://developer.android.com/reference/java/lang/Object"
+
+
+# --------------------------------------------------------------------------------------------
+# Telling the reader which links leave the app, and which lead nowhere
+# --------------------------------------------------------------------------------------------
+
+class TestLinkClass:
+    @pytest.mark.parametrize("resolved,expected", [
+        # Into this tree: the only thing the linker produces for a page it found.
+        ("Base.json", None),
+        ("../view/View.json#foo(int)", None),
+        ("#summary", None),
+        # Off-site, and so needing the network.
+        ("https://developer.android.com/reference/java/lang/Object", "external-link"),
+        ("https://cs.android.com/x", "external-link"),
+        ("mailto:x@example.com", "external-link"),
+        ("ftp:/dkuug.dk/i18n.txt", "external-link"),
+        # Neither: a URL the linker could not place, from a malformed href in the source.
+        ('"/reference/android/content/Intent', "broken-link"),
+        ("URL", "broken-link"),
+        (None, None),
+    ])
+    def test_a_resolved_url_says_what_kind_of_link_it_is(self, resolved, expected):
+        assert extractor.link_class(resolved) == expected
+
+    def test_an_off_site_link_in_prose_is_marked(self, doclava):
+        # java.lang.Cloneable is not in this scrape, so the link leaves the app.
+        implemented = {entry["label"]: entry for entry in doclava["implements"]}
+        assert implemented["Cloneable"]["linkClass"] == "external-link"
+
+    def test_a_link_into_the_tree_is_not_marked(self, doclava):
+        implemented = {entry["label"]: entry for entry in doclava["implements"]}
+        assert "linkClass" not in implemented["Widget.Listener"]
+
+    def test_an_anchor_inside_a_documentation_fragment_gets_the_class(self, doclava):
+        # The prose links to a guide page, which the scrape does not contain.
+        assert 'class="external-link"' in doclava["description"]
+        assert "developer.android.com" in doclava["description"]
+
+    def test_a_class_the_source_already_set_is_kept(self, linker, tmp_path):
+        markup = """
+        <html><body><article><div id="jd-content">
+        <h1 class="api-title" id="widget">Widget</h1>
+        <p><code class="api-signature">public class Widget</code></p>
+        <p>See <a class="api-reference" href="https://example.com/x">elsewhere</a>.</p>
+        </div></article></body></html>
+        """
+        page = parse(markup, "android/demo/Widget.html", linker, tmp_path)
+        assert 'class="api-reference external-link"' in page["description"]

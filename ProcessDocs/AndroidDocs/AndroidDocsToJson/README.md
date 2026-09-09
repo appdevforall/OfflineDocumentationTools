@@ -105,6 +105,34 @@ That makes the JSON tree self-contained: 1.38 million internal links, of which f
 all four because the source HTML has a malformed `href`. The renderer swaps `.json` for `.html` as
 it writes, which is why the same relative paths work in both trees.
 
+## Links the reader should not trust
+
+Every link is classified as it is resolved, and the two kinds that are not a plain hop within this
+documentation are marked so the stylesheet can colour them red -- the same `broken-link` and
+`external-link` classes the scraped pages carried, and the same reason: a reader can see which
+links need the network and which lead nowhere without tapping one.
+
+| | | across the corpus |
+|---|---|---|
+| plain | a relative path to another page here | 1,344,383 |
+| `external-link` | leaves the app; needs a network connection | 335,197 |
+| `broken-link` | names nothing, here or anywhere | 14 |
+
+`link_class` reads the answer off the resolved URL rather than tracking it through the resolving,
+because it is there to be read: a link into the tree is a relative `.json` path, since that is the
+only thing the linker produces for a page it found; a fragment stays on this page; anything with a
+scheme of its own leaves the app. What is left is a URL the linker could not place.
+
+All 14 of those are one defect in the source: the `href` value itself is wrapped in quote
+characters, as in `href='"https://developer.android.com/guide/..."'`, so the URL a browser sees
+starts with a `"` and resolves nowhere. They are marked rather than repaired -- stripping the
+quotes would turn each into a perfectly good off-site link, which is a change to what the
+documentation says rather than to how it is shown.
+
+The class rides in the data: `linkClass` on a `{label, url}` cross-reference, and a `class`
+attribute on an `<a>` inside a documentation fragment. It has to, because a template is handed one
+page's JSON and cannot tell whether a URL names a row.
+
 ## Generated pages
 
 Two kinds of page are synthesised rather than scraped, because without them the tree has no entry
@@ -149,6 +177,7 @@ A class, interface, enum or annotation.
 | `inheritance` | the superclass chain, `java.lang.Object` first, this type last and unlinked |
 | `implements`, `knownDirectSubclasses`, `knownIndirectSubclasses` | `{label, url}` lists |
 | `deprecated`, `deprecationLabel`, `deprecationNote` | set when the type itself is deprecated |
+| `linkClass` (on any `{label, url}`) | `external-link` or `broken-link`; absent for a plain link |
 | `description` | the class-level prose, as HTML |
 | `brief` | its first sentence, as plain text |
 | `summary` | sections of members the type declares |

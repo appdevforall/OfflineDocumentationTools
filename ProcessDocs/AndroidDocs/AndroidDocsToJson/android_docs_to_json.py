@@ -73,6 +73,13 @@ _FIRST_SENTENCE = re.compile(r"^(.*?[.!?])(?:\s|$)", re.S)
 # was removed; inside a fragment they are the author's.
 _EDGE_RULES = re.compile(r"^(?:\s|<br\s*/?>|<hr\s*/?>)+")
 _EDGE_RULES_END = re.compile(r"(?:\s|<br\s*/?>|<hr\s*/?>)+$")
+# A link's class, once it has been resolved. The scraped pages carried these two and the app
+# styles them red, so a reader can see which links need the network and which lead nowhere rather
+# than finding out by tapping.
+EXTERNAL_LINK_CLASS = "external-link"
+BROKEN_LINK_CLASS = "broken-link"
+_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.I)
+
 _CODE_PADDING = re.compile(r"(<code[^>]*>)\s+")
 _CODE_PADDING_END = re.compile(r"\s+(</code>)")
 # The sentence both tools write for a deprecation notice: "This class was deprecated in API
@@ -258,6 +265,36 @@ class Document:
         return self.linker.resolve(url, self.relative)
 
 
+def link_class(resolved: str | None) -> str | None:
+    """What kind of link a resolved URL is: off-site, going nowhere, or into this tree.
+
+    Read off the resolved URL rather than tracked through the resolving, because the answer is
+    there to be read. A link into the tree is a relative path to a `.json` file, since that is the
+    only thing the linker produces for a page it found; a fragment stays on this page; anything
+    with a scheme of its own leaves the app. What is left is a URL the linker could not place -- a
+    malformed `href` in the source, of which the corpus has a handful -- and that is what "broken"
+    means here: it names nothing, in this tree or anywhere.
+    """
+    if not resolved or resolved.startswith("#"):
+        return None
+    if _SCHEME.match(resolved):
+        return EXTERNAL_LINK_CLASS
+    if resolved.partition("#")[0].endswith(".json"):
+        return None
+    return BROKEN_LINK_CLASS
+
+
+def add_class(tag: Tag, name: str | None) -> None:
+    """Adds a class to a tag, keeping any it already has."""
+    if not name:
+        return
+    existing = tag.get("class") or []
+    if isinstance(existing, str):
+        existing = existing.split()
+    if name not in existing:
+        tag["class"] = existing + [name]
+
+
 def strip_noise(scope: Tag) -> None:
     """Removes devsite chrome and unwraps its behavioural wrappers, in place."""
     for comment in scope.find_all(string=lambda text: isinstance(text, Comment)):
@@ -299,6 +336,8 @@ def html_of(node: Tag | None, doc: Document, *, inner: bool = True) -> str | Non
     for tag in [node] + node.find_all(True):
         if tag.has_attr("href"):
             tag["href"] = doc.link(tag["href"])
+            if tag.name == "a":
+                add_class(tag, link_class(tag["href"]))
         if tag.has_attr("src"):
             tag["src"] = doc.link(tag["src"])
         for attr in [a for a in tag.attrs if a not in KEEP_ATTRS]:
@@ -357,6 +396,12 @@ def text_of(node: Tag | None) -> str | None:
 
 
 def link_of(anchor: Tag | None, doc: Document) -> dict | None:
+    """A `{label, url}` cross-reference, with `linkClass` when the link is not a plain one.
+
+    The class rides in the data rather than being decided by the template: a template is handed one
+    page's JSON and cannot tell whether a URL names a row, and by the time it runs the question has
+    already been answered here.
+    """
     if anchor is None:
         return None
     label = text_of(anchor)
@@ -365,7 +410,8 @@ def link_of(anchor: Tag | None, doc: Document) -> dict | None:
     entry = {"label": label}
     if anchor.has_attr("href"):
         entry["url"] = doc.link(anchor["href"])
-    return entry
+        entry["linkClass"] = link_class(entry["url"])
+    return {key: value for key, value in entry.items() if value is not None}
 
 
 def first_sentence(html: str | None) -> str | None:

@@ -39,9 +39,15 @@ class AndroidDocRendererTest {
               "kind": "class",
               "title": "Widget",
               "addedIn": "4",
+              "sourceUrl": "https://cs.android.com/widget",
               "signature": "public class Widget extends Base",
               "signatureHtml": "public class Widget extends <a href=\\"Base.json\\">Base</a>",
-              "implements": [{"label": "Widget.Listener", "url": "Widget.Listener.json"}],
+              "implements": [
+                {"label": "Widget.Listener", "url": "Widget.Listener.json"},
+                {"label": "Cloneable", "url": "https://developer.android.com/x",
+                 "linkClass": "external-link"},
+                {"label": "Mystery", "url": "URL", "linkClass": "broken-link"}
+              ],
               "inheritance": [
                 {"label": "java.lang.Object", "url": "https://developer.android.com/x"},
                 {"label": "android.demo.Widget"}
@@ -174,6 +180,33 @@ class AndroidDocRendererTest {
         // does not exist.
         assertTrue(html.contains("Deprecated in 1.3.0"), html);
         assertFalse(html.contains("API level 1.3.0"), "no API level wording for a Jetpack page");
+    }
+
+    @Test
+    void marksLinksThatLeaveTheAppAndLinksThatNameNothing(@TempDir Path dir) throws Exception {
+        String html = render(dir, "android/demo/Widget.json", CLASS_PAGE);
+        // The scraped pages carried these two classes and the site coloured them red; a reader
+        // can see which links need the network and which lead nowhere before tapping one.
+        assertTrue(html.contains(
+                "<a href=\"https://developer.android.com/x\" class=\"external-link\">"
+                        + "Cloneable</a>"), html);
+        assertTrue(html.contains("<a href=\"URL\" class=\"broken-link\">Mystery</a>"), html);
+        // A plain link into the documentation gets no class at all.
+        assertTrue(html.contains("<a href=\"Widget.Listener.html\">Widget.Listener</a>"), html);
+        // And the source link always leaves the app.
+        assertTrue(html.contains("class=\"external-link\">View source</a>"), html);
+    }
+
+    @Test
+    void stylesBothKindsOfRedLink() throws Exception {
+        String css = new String(AndroidDocRenderer.class
+                .getResourceAsStream("/static/stylesheet.css").readAllBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(css.contains("a.external-link"), "off-site links need a rule");
+        assertTrue(css.contains("a.broken-link"), "links that name nothing need a rule");
+        // Both colours are defined for either theme, so neither disappears against a dark ground.
+        assertEquals(2, css.split("--link-external:", -1).length - 1, "light and dark");
+        assertEquals(2, css.split("--link-broken:", -1).length - 1, "light and dark");
     }
 
     @Test
