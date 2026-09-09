@@ -46,9 +46,19 @@ Useful while working on either half:
 ```bash
 # JSON -> documentation.db (about 90 seconds; the source database is never written to)
 ./load_android_json_db.py /tmp/android-json \
-    --source ~/Desktop/documentation.db --out ~/Desktop/documentation_androidjson.db
-./verify_android_json_db.py ~/Desktop/documentation_androidjson.db --sample 40
+    --source ~/Desktop/documentation.db --out /tmp/staged.db
+./verify_android_json_db.py /tmp/staged.db --sample 40
+
+# Retrain the shared Brotli dictionary over the changed corpus and recompress every row
+# (about 6 minutes), then prove nothing changed but the encoding.
+cp /tmp/staged.db /tmp/preremint.db
+../../ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py /tmp/staged.db --no-backup
+../../ProcessKotlinDocs/ProcessKotlinWebsiteJSON/verify_remint_dictionary.py \
+    /tmp/preremint.db /tmp/staged.db
+mv /tmp/staged.db ~/Desktop/documentation_androidjson.db
 ```
+
+Reminting is not optional if size matters: see below.
 
 Tests: `python -m pytest` for the extractor and the loader, and
 `(cd renderer && ./gradlew test)` for the renderer and its templates.
@@ -223,23 +233,29 @@ Three things the loader has to get right:
 
 ### What it costs
 
-Measured on the real database, not estimated:
+Measured on the real database at each step, not estimated:
 
-| | before | after |
-|---|---|---|
-| The same 12,106 pages, stored | 29.7 MB | **31.8 MB** |
-| 800 package summaries and a root index | — | 0.5 MB |
-| Whole database | 249 MB | 252 MB |
-| Decompressed per page, which is what the device expands | 46 KB | **22 KB** |
+| | HTML | JSON | JSON, reminted |
+|---|---|---|---|
+| The same 12,106 pages, stored | 29.7 MB | 31.8 MB | **26.8 MB** |
+| All Android pages (12,906 after) | 29.7 MB | 32.3 MB | **27.2 MB** |
+| Whole database | 249 MB | 252 MB | **249 MB** |
+| Decompressed per page, which is what the device expands | 46 KB | **22 KB** | 22 KB |
 
-So this is not a storage win: those pages take about 7% *more* room as JSON. The shared Brotli
-dictionary is why -- it was trained on this database's existing content, most of it HTML with that
-same stylesheet inlined thousands of times, so it compresses the old rows extremely well and has
-never seen the shape of the new ones. `remint_dictionary.py` exists to retrain a dictionary across
-a changed corpus and would likely take the difference back, at the cost of rewriting every row in
-the database; that is a separate operation and this does not do it.
+The middle column is why the remint is part of the job rather than a nicety. Content in this
+database is Brotli-compressed against one shared dictionary, and the dictionary in the source was
+trained on the corpus as it then was -- mostly HTML, with the site's stylesheet inlined thousands
+of times over. It compresses those old rows extremely well and has never seen the shape of the new
+ones, so simply swapping HTML for JSON makes the pages 7% *larger*.
 
-What does improve: half the bytes to decompress and parse per page, one stylesheet fetched once
+Retraining it over the changed corpus takes that back and more: the same pages end up 10% smaller
+than the HTML they replaced, all 12,906 pages together take less room than the 12,106 did, and the
+whole database comes out the size it started. `remint_dictionary.py` does the retraining and
+recompresses every row; `verify_remint_dictionary.py` then decompresses both databases and
+compares plaintexts, because a row recompressed against a mismatched dictionary decodes without
+error into *different* bytes -- 30,415 of 30,415 byte-identical is the check that matters.
+
+Beside the size: half the bytes to decompress and parse per page, one stylesheet fetched once
 instead of a copy inlined into all 12,906 pages, and fields a caller can address without parsing
 HTML.
 
@@ -248,13 +264,20 @@ the stored template back out of the database and renders them through Pebble, co
 the server configures it, then checks that no page is left without a template and no link names a
 row that is not there.
 
-`dbwrite.py` holds the row-writing helpers: dictionary compression, the chunk boundary
-`WebServer.kt` reassembles on, the update-in-place rule the `AddBook` trigger imposes. Every one of
-those contracts belongs to `ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py`, and this is
-a second implementation only because that module cannot be imported from `main`: it does
-`from build_nav import build_node` at import time, and `build_nav.py` lands with ADFA-4739, which
-is unmerged. The names and signatures match it deliberately, so once that merges this file can go
-and the import can point there.
+The row-writing itself is `populate_db.py`'s and `migrate_content_to_dictionary_brotli.py`'s:
+dictionary compression, the chunk boundary `WebServer.kt` reassembles on, the update-in-place rule
+the `AddBook` trigger imposes. Those are imported rather than reimplemented, which needed one fix
+in `populate_db.py` first -- it imported `build_nav` and `md_to_json` at module scope, and both
+land with ADFA-4739, so on `main` the module could not be imported at all. They are used only
+inside its `main()`, converting the Writerside sources, so that is where the imports now sit.
+
+`store_page` is the one piece the pipeline does not provide: which of the two writers to call.
+`write_item` UPDATEs a row that exists, `insert_chunked_content` INSERTs one that does not, and
+`write_item`'s UPDATE on an absent path succeeds while writing nothing -- so guessing loses the
+page silently. It also rewrites only the bytes, correctly for what it was built for (recompressing
+a row whose type and template are not changing) but not here, where a scraped page is `templateId`
+0 and has to come out templated. So the columns that say how to serve a row are set afterwards, on
+the base row and on any continuation row.
 
 ## The renderer
 

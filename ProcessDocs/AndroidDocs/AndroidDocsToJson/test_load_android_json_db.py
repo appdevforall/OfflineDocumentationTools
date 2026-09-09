@@ -10,7 +10,6 @@ import sqlite3
 
 import pytest
 
-import dbwrite
 import load_android_json_db as loader
 
 
@@ -134,78 +133,64 @@ def db(tmp_path):
     return conn
 
 
-class TestLookups:
-    def test_ids_come_from_the_database(self, db):
-        assert dbwrite.get_id(db, "Languages", "en-US") == 1
-        assert dbwrite.get_content_type(db, "text/html") == (1, True)
-        assert dbwrite.get_content_type(db, "image/png") == (2, False)
+class TestStorePage:
+    def test_a_page_that_is_not_there_is_inserted(self, db):
+        assert loader.store_page(db, "a/x.html", 1, 1, 5, b"hello", []) is False
+        assert db.execute("SELECT content, templateId FROM Content "
+                          "WHERE path='a/x.html'").fetchone() == (b"hello", 5)
 
-    def test_a_missing_row_is_an_error_not_a_guess(self, db):
-        # Inventing a Languages or ContentTypes row would put content in the database that the
-        # server has no way to interpret.
-        with pytest.raises(RuntimeError, match="no row for"):
-            dbwrite.get_content_type(db, "text/nonsense")
-
-    def test_the_dictionary_is_read_never_made(self, db):
-        assert dbwrite.load_dictionary(db) == b"\x01\x02\x03\x04\x05"
-        db.execute("DELETE FROM CompressionDictionary")
-        with pytest.raises(RuntimeError, match="missing or empty"):
-            dbwrite.load_dictionary(db)
-
-    def test_a_template_is_upserted_by_name(self, db):
-        first = dbwrite.upsert_template(db, "android-class.peb", "one")
-        again = dbwrite.upsert_template(db, "android-class.peb", "two")
-        assert first == again, "the same name keeps the same id, so Content.templateId stays valid"
-        assert db.execute("SELECT content FROM Templates WHERE id = ?",
-                          (first,)).fetchone()[0] == b"two"
-
-
-class TestWriteContent:
-    def test_a_new_path_is_inserted(self, db):
-        assert dbwrite.write_content(db, "a/x.html", 1, 1, 5, b"hello") == 1
-        row = db.execute("SELECT content, templateId FROM Content WHERE path = 'a/x.html'").fetchone()
-        assert row == (b"hello", 5)
-
-    def test_an_existing_path_is_updated_in_place(self, db):
+    def test_a_page_that_is_there_is_replaced_in_place(self, db):
         db.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
                    "VALUES ('a/x.html', 1, X'00', 1, 0)")
         original = db.execute("SELECT id FROM Content WHERE path='a/x.html'").fetchone()[0]
-        dbwrite.write_content(db, "a/x.html", 1, 1, 5, b"replaced")
-        row = db.execute("SELECT id, content, templateId FROM Content "
-                         "WHERE path='a/x.html'").fetchone()
-        # The same row, not a delete and a re-insert: Content's AddBook trigger fires on an
-        # insert, and a new id would break anything referencing the old one.
-        assert row == (original, b"replaced", 5)
+        assert loader.store_page(db, "a/x.html", 1, 1, 5, b"replaced", []) is True
+        # The same row, not a delete and a re-insert: Content's AddBook trigger fires on insert,
+        # and a new id would break anything holding the old one.
+        assert db.execute("SELECT id, content, templateId FROM Content "
+                          "WHERE path='a/x.html'").fetchone() == (original, b"replaced", 5)
 
-    def test_content_over_the_chunk_size_is_split_the_way_the_server_reassembles_it(self, db):
-        data = bytes(dbwrite.CHUNK_SIZE + 100)
-        assert dbwrite.write_content(db, "a/big.html", 1, 1, 5, data) == 2
-        base = db.execute("SELECT content FROM Content WHERE path='a/big.html'").fetchone()[0]
-        tail = db.execute("SELECT content FROM Content WHERE path='a/big.html-1'").fetchone()[0]
+    def test_an_absent_page_is_never_left_to_the_updater(self, db):
+        # write_item's UPDATE on a path that is not there succeeds while writing nothing, so
+        # picking the wrong half of the pair loses the page silently rather than loudly.
+        loader.store_page(db, "a/new.html", 1, 1, 5, b"content", [])
+        assert db.execute("SELECT COUNT(*) FROM Content WHERE path='a/new.html'").fetchone()[0] == 1
+
+    def test_a_page_over_the_chunk_size_is_split_and_comes_back_whole(self, db):
+        from migrate_content_to_dictionary_brotli import read_item
+        from populate_db import CHUNK_SIZE
+        data = bytes(CHUNK_SIZE + 100)
+        chunked: list = []
+        loader.store_page(db, "a/big.html", 1, 1, 5, data, chunked)
         # The server decides a row is fragmented by its first chunk being exactly CHUNK_SIZE.
-        assert len(base) == dbwrite.CHUNK_SIZE
-        assert len(tail) == 100
-        assert dbwrite.read_content(db, "a/big.html") == data
+        assert len(db.execute("SELECT content FROM Content "
+                              "WHERE path='a/big.html'").fetchone()[0]) == CHUNK_SIZE
+        assert read_item(db, "a/big.html") == data
+        assert chunked and chunked[0][0] == "a/big.html"
 
-    def test_a_shorter_payload_leaves_no_stale_tail(self, db):
-        dbwrite.write_content(db, "a/x.html", 1, 1, 5, bytes(dbwrite.CHUNK_SIZE * 2 + 5))
-        assert len(dbwrite.fragment_chain(db, "a/x.html")) == 2
-        dbwrite.write_content(db, "a/x.html", 1, 1, 5, b"small")
-        assert dbwrite.fragment_chain(db, "a/x.html") == [], "surplus fragments must be deleted"
-        assert dbwrite.read_content(db, "a/x.html") == b"small"
-
-    def test_a_fragment_chain_is_matched_exactly_not_by_pattern(self, db):
-        # The LIKE that finds a chain over-matches: `_` and `%` are wildcards and the suffix is
-        # not constrained to digits. Only the regex re-check makes the answer exact.
-        for path in ("a/x.html", "a/x.html-1", "a/xyhtml-1", "a/x.html-notanumber"):
-            db.execute("INSERT INTO Content (path, languageID, content, contentTypeID) "
-                       "VALUES (?, 1, X'00', 1)", (path,))
-        assert dbwrite.fragment_chain(db, "a/x.html") == [(1, "a/x.html-1")]
-
-    def test_a_round_trip_through_the_real_compressor(self, db):
+    def test_a_page_survives_the_round_trip_through_the_real_compressor(self, db):
         # Wrong-dictionary decoding is the silent failure mode, so the bytes that go in have to
         # come back out through a compressor built from the same dictionary.
-        compressor = dbwrite.DictionaryCompressor(dbwrite.load_dictionary(db))
+        from migrate_content_to_dictionary_brotli import read_item
+        from populate_db import DictionaryCompressor, load_dictionary
+        compressor = DictionaryCompressor(load_dictionary(db))
         payload = json.dumps({"page": "android-class", "name": "Widget" * 500}).encode()
-        dbwrite.write_content(db, "a/x.html", 1, 1, 5, compressor.compress(payload))
-        assert compressor.decompress(dbwrite.read_content(db, "a/x.html")) == payload
+        loader.store_page(db, "a/x.html", 1, 1, 5, compressor.compress(payload), [])
+        assert compressor.decompress(read_item(db, "a/x.html")) == payload
+
+    def test_replacing_also_sets_the_columns_that_say_how_to_serve_it(self, db):
+        # The whole point of the load: a scraped page is templateId 0 and has to come out
+        # templated. write_item rewrites only the bytes, so a row replaced without this is served
+        # as raw JSON instead of being rendered -- and nothing downstream would say so.
+        db.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                   "VALUES ('a/old.html', 1, X'00', 2, 0)")
+        loader.store_page(db, "a/old.html", 1, 1, 7, b"json", [])
+        assert db.execute("SELECT contentTypeID, templateId FROM Content "
+                          "WHERE path='a/old.html'").fetchone() == (1, 7)
+
+    def test_a_continuation_row_is_served_the_same_way_as_its_base(self, db):
+        from populate_db import CHUNK_SIZE
+        db.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                   "VALUES ('a/big.html', 1, X'00', 2, 0)")
+        loader.store_page(db, "a/big.html", 1, 1, 7, bytes(CHUNK_SIZE + 10), [])
+        assert db.execute("SELECT contentTypeID, templateId FROM Content "
+                          "WHERE path='a/big.html-1'").fetchone() == (1, 7)

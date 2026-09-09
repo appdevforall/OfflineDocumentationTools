@@ -23,7 +23,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from dbwrite import DictionaryCompressor, load_dictionary, read_content
+_KOTLIN_PIPELINE = (Path(__file__).resolve().parents[2]
+                    / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON")
+sys.path.insert(0, str(_KOTLIN_PIPELINE))
+
+from populate_db import DictionaryCompressor, load_dictionary  # noqa: E402
+from migrate_content_to_dictionary_brotli import read_item  # noqa: E402
 
 RENDERER_CLASSPATH = (Path(__file__).resolve().parent
                       / "renderer/build/install/android-doc-renderer/lib/*")
@@ -97,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     broken_links = 0
     random.Random(args.seed).shuffle(rows)
     for path, template_id, _ in rows[: args.sample]:
-        raw = compressor.decompress(read_content(conn, path))
+        raw = compressor.decompress(read_item(conn, path))
         try:
             document = json.loads(raw)
         except (json.JSONDecodeError, UnicodeDecodeError):

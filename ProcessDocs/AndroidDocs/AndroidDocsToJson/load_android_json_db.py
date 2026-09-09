@@ -35,10 +35,20 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from dbwrite import (
-    DictionaryCompressor, get_content_type, get_id, load_dictionary, upsert_template,
-    write_content,
+# The row-writing machinery lives with the Kotlin pipeline, which is where it was written and
+# where the reasoning is documented at length: the exact chunk boundary WebServer.kt reassembles
+# on, the AddBook/DeleteBook triggers that make a base-row DELETE unsafe, and the rule that an
+# existing CompressionDictionary is never retrained. Reusing it is the point -- a second
+# implementation of any of that would be a second chance to get it wrong.
+_KOTLIN_PIPELINE = (Path(__file__).resolve().parents[2]
+                    / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON")
+sys.path.insert(0, str(_KOTLIN_PIPELINE))
+
+from populate_db import (  # noqa: E402  (the path has to be set up first)
+    DictionaryCompressor, fragment_chain, get_content_type, get_id, insert_chunked_content,
+    load_dictionary, upsert_template,
 )
+from migrate_content_to_dictionary_brotli import write_item  # noqa: E402
 
 # Where the Android documentation lives in the served namespace. The scraped HTML rows are already
 # under this prefix, and keeping it means every link elsewhere in the database still lands.
@@ -164,6 +174,33 @@ def assemble_template(name: str) -> str:
     return page + "\n" + macros
 
 
+def store_page(conn, path: str, language_id: int, content_type_id: int, template_id: int,
+               data: bytes, chunked: list) -> bool:
+    """Writes one page's bytes, replacing what is there or adding it. Returns whether it replaced.
+
+    The two halves come from the Kotlin pipeline and each does one of the jobs: `write_item`
+    UPDATEs a base row that exists and reconciles its continuation rows, and
+    `insert_chunked_content` INSERTs one that does not. Which to call has to be decided here,
+    because `write_item`'s UPDATE on an absent path succeeds while writing nothing -- it would
+    lose the page silently.
+
+    `write_item` rewrites only the bytes, which is right for what it was written for:
+    recompressing a row whose type and template are staying as they are. Here they are not. A
+    scraped page is `templateId` 0 and becomes a templated row, so the columns that say how to
+    serve it are set afterwards -- on the base row and on any continuation row, found by exact
+    path rather than by a LIKE that a `_` in a path would widen.
+    """
+    existed = conn.execute("SELECT 1 FROM Content WHERE path = ?", (path,)).fetchone() is not None
+    if existed:
+        write_item(conn, path, language_id, content_type_id, template_id, data)
+        for row_path in [path] + [fragment for _n, fragment in fragment_chain(conn, path)]:
+            conn.execute("UPDATE Content SET languageID = ?, contentTypeID = ?, templateId = ? "
+                         "WHERE path = ?", (language_id, content_type_id, template_id, row_path))
+    else:
+        insert_chunked_content(conn, path, language_id, content_type_id, template_id, data, chunked)
+    return existed
+
+
 def prepare(job: tuple, known: dict, compressor: DictionaryCompressor) -> tuple:
     """Reads one page, rewrites its links, and compresses it. Returns (db_path, kind, bytes).
 
@@ -195,8 +232,8 @@ def load(json_dir: Path, conn, workers: int, limit: int | None) -> dict:
 
     stylesheet = STYLESHEET_SOURCE.read_bytes()
     css_type_id, css_compress = get_content_type(conn, "text/css")
-    write_content(conn, STYLESHEET_PATH, language_id, css_type_id, 0,
-                  compressor.compress(stylesheet) if css_compress else stylesheet)
+    store_page(conn, STYLESHEET_PATH, language_id, css_type_id, 0,
+               compressor.compress(stylesheet) if css_compress else stylesheet, [])
     print(f"==> stylesheet: {STYLESHEET_PATH} ({len(stylesheet):,} bytes)")
 
     known = existing_android_paths(conn)
@@ -216,20 +253,17 @@ def load(json_dir: Path, conn, workers: int, limit: int | None) -> dict:
                 print(f"  ! {db_path}: no template for page kind {kind!r}", file=sys.stderr)
                 stats["skipped"] += 1
                 continue
-            existed = conn.execute("SELECT 1 FROM Content WHERE path = ?",
-                                   (db_path,)).fetchone() is not None
-            rows = write_content(conn, db_path, language_id, content_type_id, template_id, payload)
+            existed = store_page(conn, db_path, language_id, content_type_id, template_id,
+                                 payload, chunked)
             stats["updated" if existed else "inserted"] += 1
             stats["stored"] += len(payload)
-            if rows > 1:
-                chunked.append((db_path, rows))
             if done % 2000 == 0:
                 conn.commit()
                 print(f"    {done:,}/{len(jobs):,}  ({time.time() - start:.0f}s)")
     conn.commit()
     if chunked:
         print(f"==> {len(chunked)} page(s) needed continuation rows: "
-              + ", ".join(f"{p} ({n} rows)" for p, n in chunked[:5]))
+              + ", ".join(f"{p} ({n} chunks)" for p, _size, n in chunked[:5]))
     return stats
 
 
