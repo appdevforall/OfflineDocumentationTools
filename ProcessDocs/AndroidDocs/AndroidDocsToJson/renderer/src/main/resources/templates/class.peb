@@ -1,0 +1,82 @@
+{#
+  A class, interface, enum or annotation page.
+
+  The order follows the reference site's: what the type is, where it sits in the hierarchy, what
+  it is for, a table per group of members, then the members in full. The page reads top to bottom
+  without the site's JavaScript -- inherited members collapse with <details>, which needs none.
+#}{% extends "base" %}
+{% import "macros" %}
+
+{% block title %}{{ name }}{% if packageName is not empty %} ({{ packageName }}){% endif %}{% endblock %}
+{% block bodyClass %}class-page{% endblock %}
+{% block crumb %}<span class="separator">/</span><span class="current">{{ name }}</span>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+<h1>{{ title | default(name) }}</h1>
+<div class="page-meta">
+{{ versionNote(versionScheme, addedIn, deprecatedIn) }}
+{% if artifact is not empty %}<div class="artifact">Artifact: {{ reference(artifact) }}</div>{% endif %}
+{% if sourceUrl is not empty %}<div class="source-link"><a href="{{ sourceUrl | href }}">View source</a></div>{% endif %}
+</div>
+</div>
+
+{% if signatureHtml is not empty %}
+<pre class="api-signature">{{ signatureHtml | doc }}</pre>
+{% endif %}
+
+{% if deprecated %}
+<aside class="caution">
+{%- if deprecationLabel is not empty %}<strong>{{ deprecationLabel }}</strong>{% else %}<strong>Deprecated.</strong>{% endif %}
+{%- if deprecationNote is not empty %} {{ deprecationNote | doc }}{% endif %}
+</aside>
+{% endif %}
+
+{#
+  The inheritance chain, indented one step per generation, as the reference tables draw it. The
+  last entry is this type itself, which the extractor left without a URL because it is the page
+  you are already on.
+#}
+{% if inheritance is not empty and inheritance | length > 1 %}
+<div class="table-wrapper">
+<table class="jd-inheritance-table">
+{%- for ancestor in inheritance %}
+{#
+  One spacer cell per generation, then the class name spanning what is left of the row. The span
+  is what keeps the indent even: without it the first row's name would set the width of the
+  column the second row's arrow sits in.
+#}
+<tr>
+{%- for step in range(0, loop.index) %}<td class="jd-inheritance-space">{% if loop.last %}&nbsp;&nbsp;&nbsp;&#x21b3;{% else %}&nbsp;{% endif %}</td>{% endfor %}
+<td class="jd-inheritance-class-cell" colspan="{{ (inheritance | length) - loop.index }}">{{ reference(ancestor) }}</td>
+</tr>
+{%- endfor %}
+</table>
+</div>
+{% endif %}
+
+{% if implements is not empty %}
+<dl class="notes"><dt>Implements:</dt><dd>{{ referenceList(implements) }}</dd></dl>
+{% endif %}
+{% if knownDirectSubclasses is not empty %}
+<dl class="notes"><dt>Known direct subclasses:</dt><dd>{{ referenceList(knownDirectSubclasses) }}</dd></dl>
+{% endif %}
+{% if knownIndirectSubclasses is not empty %}
+<dl class="notes"><dt>Known indirect subclasses:</dt><dd>{{ referenceList(knownIndirectSubclasses) }}</dd></dl>
+{% endif %}
+
+{% if description is not empty %}
+<div class="description">{{ description | doc }}</div>
+{% endif %}
+
+{% if summary is not empty or inherited is not empty %}
+<h2 id="summary">Summary</h2>
+{% for section in summary %}{{ summaryTable(section, versionScheme) }}{% endfor %}
+{% for section in inherited %}{{ inheritedSection(section, versionScheme) }}{% endfor %}
+{% endif %}
+
+{% for section in details %}
+<h2 class="api-section" id="{{ section.id }}_1">{{ section.title }}</h2>
+{% for member in section.members %}{{ memberDetail(member, versionScheme) }}{% endfor %}
+{% endfor %}
+{% endblock %}
