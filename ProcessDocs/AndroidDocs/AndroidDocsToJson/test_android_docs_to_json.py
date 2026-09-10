@@ -595,10 +595,10 @@ class TestGeneratedPages:
         assert [group["id"] for group in page["groups"]] == ["android", "androidx", "indexes"]
         android = page["groups"][0]["rows"]
         assert len(android) == 1
-        assert android[0]["description"] == "2 types"
+        assert android[0]["description"] == "2 classes"
         assert android[0]["member"] == \
             '<a href="android/demo/package-summary.json">android.demo</a>' 
-        assert page["groups"][1]["rows"][0]["description"] == "1 type"
+        assert page["groups"][1]["rows"][0]["description"] == "1 class"
 
 
 # --------------------------------------------------------------------------------------------
@@ -818,12 +818,94 @@ class TestOverviewCounts:
     def test_only_types_are_counted(self):
         # A package page and an index page sit in a package without being types in it.
         records = [
-            {"library": "android", "packageName": "android.demo", "page": "android-class"},
+            {"library": "android", "packageName": "android.demo", "page": "android-class",
+             "kind": "class"},
             {"library": "android", "packageName": "android.demo", "page": "android-package"},
             {"library": "android", "packageName": "android.demo", "page": "android-index"},
         ]
         rows = extractor.overview_page(records, [])["groups"][0]["rows"]
-        assert rows[0]["description"] == "1 type"
+        assert rows[0]["description"] == "1 class"
+        assert rows[0]["types"] == {"class": 1}
+
+
+class TestPackageTally:
+    """What a package holds, which is what the root index shows instead of a bare "n types"."""
+
+    def records(self):
+        return [
+            {"page": "android-class", "library": "android", "packageName": "android.demo",
+             "kind": "class",
+             "counts": {"method": 267, "constant": 12, "constructor": 1, "nested type": 1}},
+            {"page": "android-class", "library": "android", "packageName": "android.demo",
+             "kind": "interface", "counts": {"method": 3}},
+            {"page": "android-class", "library": "android", "packageName": "android.demo",
+             "kind": "enum", "counts": {"enum value": 4}},
+            # Not a type in the package, so not counted as one.
+            {"page": "android-package", "library": "android", "packageName": "android.demo"},
+        ]
+
+    def test_types_and_members_are_tallied_separately(self):
+        tally = extractor.package_tally(self.records())
+        # The package page in the records is not a type in the package, so it is not counted.
+        assert tally["types"] == {"class": 1, "interface": 1, "enum": 1}
+        assert tally["members"] == {"method": 270, "constant": 12, "constructor": 1,
+                                    "nested type": 1, "enum value": 4}
+
+    def test_the_line_reads_in_the_order_a_reference_page_uses(self):
+        assert extractor.describe_tally(extractor.package_tally(self.records())) == (
+            "1 interface, 1 class, 1 enum \u00b7 "
+            "1 nested type, 1 constructor, 270 methods, 12 constants, 4 enum values")
+
+    @pytest.mark.parametrize("number,singular,expected", [
+        (1, "class", "1 class"),
+        (2, "class", "2 classes"),
+        (1, "enum value", "1 enum value"),
+        (3, "enum value", "3 enum values"),
+        (1, "XML attribute", "1 XML attribute"),
+        (1234, "method", "1,234 methods"),
+    ])
+    def test_counts_are_worded_and_grouped(self, number, singular, expected):
+        assert extractor.count_label(number, singular) == expected
+
+    def test_a_package_with_no_members_says_only_what_its_types_are(self):
+        assert extractor.describe_tally({"types": {"class": 2}, "members": {}}) == "2 classes"
+
+    def test_the_row_carries_the_tally_as_data_too(self):
+        # The point of the JSON: a caller should not have to parse the prose back apart.
+        row = extractor.overview_page(self.records(), [])["groups"][0]["rows"][0]
+        assert row["types"] == {"class": 1, "interface": 1, "enum": 1}
+        assert row["members"]["method"] == 270
+
+
+class TestMemberCounts:
+    def test_a_page_is_counted_by_what_it_declares(self, doclava):
+        # One MODE_FAST, one setMode, one Widget.Listener. A kind the page has none of is absent
+        # rather than zero, which is what lets the tally line skip it.
+        assert extractor.member_counts(doclava) == {"constant": 1, "method": 1, "nested type": 1}
+
+    def test_inherited_members_are_not_counted(self, doclava):
+        # `reset` is inherited from Base and documented on Base's own page, where it is counted.
+        assert extractor.member_counts(doclava)["method"] == 1
+
+    def test_the_two_flavors_are_counted_the_same_way(self, dackka, doclava):
+        # The section ids differ between the tools -- doclava's "fields" is Dackka's
+        # "public-fields" -- and both split one kind across visibility, so a method counts as a
+        # method whichever tool wrote the page and whichever section it sits in.
+        assert extractor.member_counts(dackka) == {"method": 1}
+        assert extractor.member_counts(doclava)["method"] == extractor.member_counts(dackka)["method"]
+
+    @pytest.mark.parametrize("section_id,kind", [
+        ("public-methods", "method"), ("protected-methods", "method"),
+        ("public-fields", "field"), ("fields", "field"), ("protected-fields", "field"),
+        ("public-constructors", "constructor"), ("protected-constructors", "constructor"),
+        ("constants", "constant"), ("enum-values", "enum value"),
+        ("xml-attributes", "XML attribute"), ("extension-functions", "extension function"),
+    ])
+    def test_every_detail_section_the_scrape_has_is_counted(self, section_id, kind):
+        # A section id this does not know would be silently left out of the tally, so the whole
+        # set the corpus actually contains is pinned here.
+        page = {"details": [{"id": section_id, "members": [{}, {}]}]}
+        assert extractor.member_counts(page) == {kind: 2}
 
 
 class TestJsonPath:

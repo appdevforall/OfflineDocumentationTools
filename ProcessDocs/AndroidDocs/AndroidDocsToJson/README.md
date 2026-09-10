@@ -98,12 +98,15 @@ Two properties of the source are worth knowing about before changing the extract
 Every `/reference/...` URL in the scrape is rewritten. If the scrape contains the page, the link
 becomes a relative path to its `.json`; if it does not — `java.lang.Object`, the Kotlin view of a
 page, a guide, a release note — it becomes an absolute `https://developer.android.com/...` URL.
-Nothing is left as a site-absolute path, because those resolve against whatever host serves the
-output.
+Any other site-absolute path (`/guide/...`, `/jetpack/...`) is absolutised the same way. Nothing is
+left as a site-absolute path, because those resolve against whatever host serves the output.
 
-That makes the JSON tree self-contained: 1.38 million internal links, of which four are broken,
-all four because the source HTML has a malformed `href`. The renderer swaps `.json` for `.html` as
-it writes, which is why the same relative paths work in both trees.
+Links the reference makes to other people's documentation — `jspecify.dev`, `kotlinlang.org`,
+`errorprone.info` and 128 other hosts — were already absolute and pass through untouched.
+
+That makes the JSON tree self-contained: 1,390,377 internal links, of which 14 are broken across 4
+distinct targets, every one because the source HTML has a malformed `href`. The renderer swaps
+`.json` for `.html` as it writes, which is why the same relative paths work in both trees.
 
 ## Links the reader should not trust
 
@@ -122,6 +125,17 @@ links need the network and which lead nowhere without tapping one.
 because it is there to be read: a link into the tree is a relative `.json` path, since that is the
 only thing the linker produces for a page it found; a fragment stays on this page; anything with a
 scheme of its own leaves the app. What is left is a URL the linker could not place.
+
+Where the off-site links actually go, counted rather than assumed — the page footer used to claim
+they all went back to developer.android.com, and one in seven does not:
+
+| | |
+|---|---|
+| developer.android.com | 269,735 (85.5%) |
+| jspecify.dev | 30,406 |
+| kotlinlang.org | 6,550 |
+| errorprone.info, guava.dev, junit.org, reactivex.io, truth.dev, checkerframework.org | 12,486 |
+| 122 other hosts | 6,162 |
 
 All 14 of those are one defect in the source: the `href` value itself is wrapped in quote
 characters, as in `href='"https://developer.android.com/guide/..."'`, so the URL a browser sees
@@ -142,7 +156,12 @@ point and no way to walk from a class to its neighbours:
   The rows come from the class pages themselves, grouped by kind, carrying each type's brief and
   its versions. Links in the scraped
   `androidx/packages.html` point at exactly these paths, so they resolve.
-- `index.json` at the root: every library, its packages, and the scraped indexes.
+- `index.json` at the root: every library, its packages, and the scraped indexes. Each package
+  row says what it holds rather than how many pages it has -- `6 interfaces, 19 classes · 15
+  nested types, 11 constructors, 187 methods, 8 fields, 127 constants` -- counted from the pages
+  themselves and carried on the row as `types` and `members` maps as well as the readable line, so
+  a caller is not left parsing prose. Members are what a type declares; an inherited method is
+  counted on the class that declares it.
 
 Both are marked `"generated": true`.
 
@@ -267,9 +286,13 @@ Measured on the real database at each step, not estimated:
 | | HTML | JSON | JSON, reminted |
 |---|---|---|---|
 | The same 12,106 pages, stored | 29.7 MB | 31.8 MB | **26.8 MB** |
-| All Android pages (12,906 after) | 29.7 MB | 32.3 MB | **27.2 MB** |
-| Whole database | 249 MB | 252 MB | **249 MB** |
+| All Android pages (12,906 after) | 29.7 MB | 32.3 MB | **27.4 MB** |
+| Whole database | — | — | same as its source, ±1 MB |
 | Decompressed per page, which is what the device expands | 46 KB | **22 KB** | 22 KB |
+
+The whole-database figure depends on which source you start from -- ADFA-5552's media
+optimisation took it from 249 MB to 178 MB while leaving the Android pages alone -- so the row
+that means anything is the Android one.
 
 The middle column is why the remint is part of the job rather than a nicety. Content in this
 database is Brotli-compressed against one shared dictionary, and the dictionary in the source was

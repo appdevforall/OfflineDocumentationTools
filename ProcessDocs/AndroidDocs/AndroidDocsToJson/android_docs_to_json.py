@@ -101,6 +101,37 @@ _PACKAGE_GROUPS = {
     "object": ("objects", "Objects"), "record": ("records", "Records"),
 }
 
+# Which kind of thing each detail section holds, keyed by section id and named in the singular.
+# The two doc tools give the same section different ids ("fields" vs "public-fields"), and both
+# split one kind across visibility ("public-methods" and "protected-methods" are both methods), so
+# this maps ids to a kind rather than counting the ids themselves.
+_MEMBER_KINDS = {
+    "public-constructors": "constructor", "protected-constructors": "constructor",
+    "public-methods": "method", "protected-methods": "method",
+    "extension-functions": "extension function",
+    "fields": "field", "public-fields": "field", "protected-fields": "field",
+    "constants": "constant",
+    "enum-values": "enum value",
+    "xml-attributes": "XML attribute",
+}
+# A nested type has no detail section of its own -- it is a link to its own page -- so it is
+# counted from the summary instead.
+_NESTED_SECTIONS = ("nested-classes", "nested-types")
+
+# The order a reference page introduces things in, for reading a tally in the same order.
+_TYPE_ORDER = ("interface", "class", "enum", "annotation", "object", "record")
+_MEMBER_ORDER = ("nested type", "constructor", "method", "field", "constant", "enum value",
+                 "XML attribute", "extension function")
+# Spelled out rather than derived: "class" does not pluralise by adding an "s", and neither does
+# any rule short enough to be worth writing.
+_PLURALS = {
+    "interface": "interfaces", "class": "classes", "enum": "enums",
+    "annotation": "annotations", "object": "objects", "record": "records",
+    "nested type": "nested types", "constructor": "constructors", "method": "methods",
+    "field": "fields", "constant": "constants", "enum value": "enum values",
+    "XML attribute": "XML attributes", "extension function": "extension functions",
+}
+
 # Section ids as they appear in the scrape, mapped to the order a reference page shows them in.
 # doclava and Dackka disagree on a couple of names for the same section ("fields" vs
 # "public-fields"), so both spellings appear.
@@ -814,6 +845,29 @@ def page_identity(relative: str) -> dict:
             "name": name, "qualifiedName": ".".join(parts) if package else name}
 
 
+def count_label(number: int, singular: str) -> str:
+    """`1 class`, `18 classes`."""
+    return f"{number:,} {singular if number == 1 else _PLURALS[singular]}"
+
+
+def member_counts(page: dict) -> dict[str, int]:
+    """How many of each kind of thing a type page declares.
+
+    Counted from the page's own sections, so it is what the type declares rather than what it
+    inherits: an inherited method is documented on the class that declares it and is counted
+    there.
+    """
+    counts: dict[str, int] = {}
+    for section in page.get("details", []):
+        kind = _MEMBER_KINDS.get(section["id"])
+        if kind:
+            counts[kind] = counts.get(kind, 0) + len(section["members"])
+    for section in page.get("summary", []):
+        if section["id"] in _NESTED_SECTIONS:
+            counts["nested type"] = counts.get("nested type", 0) + len(section.get("rows", []))
+    return counts
+
+
 def class_kind(signature: str | None) -> str | None:
     if not signature:
         return None
@@ -1134,26 +1188,58 @@ def package_page(package: str, entries: list[dict], relative: str) -> dict:
             "groups": groups}
 
 
+def package_tally(records: list[dict]) -> dict:
+    """What a package holds: how many of each kind of type, and of each kind of member.
+
+    Types only: a package page and an index page both sit in a package without being one of the
+    types it holds, and counting them would overstate every package they appear in.
+    """
+    types: dict[str, int] = {}
+    members: dict[str, int] = {}
+    for record in records:
+        if record.get("page") != "android-class":
+            continue
+        kind = record.get("kind") or "class"
+        types[kind] = types.get(kind, 0) + 1
+        for member_kind, number in (record.get("counts") or {}).items():
+            members[member_kind] = members.get(member_kind, 0) + number
+    return {"types": types, "members": members}
+
+
+def describe_tally(tally: dict) -> str:
+    """A package's tally as a line to read: what the types are, then what is in them.
+
+    "18 classes, 5 interfaces" says more than "23 types" did, and the members are what a reader is
+    usually looking for -- a package with four classes and six hundred methods is a different
+    prospect from one with four classes and a dozen.
+    """
+    def listing(counts: dict, order: tuple) -> str:
+        return ", ".join(count_label(counts[kind], kind) for kind in order if counts.get(kind))
+
+    types = listing(tally["types"], _TYPE_ORDER)
+    members = listing(tally["members"], _MEMBER_ORDER)
+    return f"{types} \u00b7 {members}" if types and members else types or members
+
+
 def overview_page(records: list[dict], extra_indexes: list[str]) -> dict:
     """The root index: every library, its packages, and the scraped indexes worth linking to."""
-    libraries: dict[str, dict[str, int]] = {}
+    libraries: dict[str, dict[str, list]] = {}
     for record in records:
         package = record.get("packageName")
-        # Types only: a package page and an index page both sit in a package without being one of
-        # the types it holds, and counting them overstates every package they appear in.
         if not package or record.get("page") != "android-class":
             continue
-        counts = libraries.setdefault(record["library"], {})
-        counts[package] = counts.get(package, 0) + 1
+        libraries.setdefault(record["library"], {}).setdefault(package, []).append(record)
     groups = []
     for library in sorted(libraries):
         rows = []
         for package in sorted(libraries[library]):
             path = package.replace(".", "/") + "/package-summary.json"
-            count = libraries[library][package]
+            tally = package_tally(libraries[library][package])
             rows.append({"member": f'<a href="{path}">{package}</a>',
                          "name": package,
-                         "description": f"{count} type{'s' if count != 1 else ''}"})
+                         "description": describe_tally(tally),
+                         # The same tally as data, so a caller is not left parsing the prose.
+                         "types": tally["types"], "members": tally["members"]})
         groups.append({"id": library, "title": library, "rows": rows})
     if extra_indexes:
         rows = [{"member": f'<a href="{path}">{path}</a>', "name": path}
@@ -1197,7 +1283,8 @@ def _run_one(job: tuple[str, str]) -> dict | None:
             "kind": document.get("kind"), "brief": document.get("brief"),
             "addedIn": document.get("addedIn"),
             "deprecatedIn": document.get("deprecatedIn"),
-            "versionScheme": document.get("versionScheme")}
+            "versionScheme": document.get("versionScheme"),
+            "counts": member_counts(document)}
 
 
 def main(argv: list[str] | None = None) -> int:
