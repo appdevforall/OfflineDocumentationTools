@@ -68,20 +68,28 @@ from optimize_db_media import (
     load_dictionary, owned_fragment_paths, reassemble,
 )
 
-# Content types that actually carry links to media, measured rather than
-# guessed: across a full production database every rewritten row was one of
-# these three - 541 text/html (page markup), 29 text/javascript (javadoc's
-# search UI referencing glass.png/x.png), 8 text/css (url(...) backgrounds).
+# Content types whose stored text can carry a link to a media file.
 #
-# text/plain, application/json, text/markdown and application/xml were on this
-# list first and are deliberately off it now: all four were scanned over that
-# same database and rewrote nothing. text/plain was the tempting one - this
-# schema files ~61 "j/html/api/*/module-graph.svg" under it, and SVG genuinely
-# can reference a raster via <image href="...">, but none of those module
-# graphs does. What it did contribute was cost: it also files 16 binary .ogv/
-# .webm videos as text, every one of which had to be decoded and discarded.
-# Add a type back when a row of that type is shown to hold a reference.
-TEXT_TYPES = ("text/html", "text/javascript", "text/css")
+# Three are measured carriers: over a full production database every rewritten
+# row was text/html (541, page markup), text/javascript (29, javadoc's search
+# UI referencing glass.png/x.png) or text/css (8, url(...) backgrounds).
+#
+# application/json, text/markdown and application/xml rewrote nothing in that
+# particular database but are kept, because each genuinely embeds references
+# elsewhere in this schema: Kotlin's nav row is application/json carrying
+# literal "/k/html/images/<name>" links (insert_optimized_media.py rewrites
+# exactly that row), markdown embeds images as ![](foo.png), and XML does so
+# in an attribute. Scanning them costs one decode of a handful of rows.
+#
+# text/plain is deliberately NOT here, having been measured and found to hold
+# no references at all: this schema files ~61 "j/html/api/*/module-graph.svg"
+# under it - and SVG can reference a raster via <image href="..."> - but none
+# of those module graphs does, while it also files 16 binary .ogv/.webm videos
+# as text, the only rows that ever hit the decode guard below. The one
+# text/plain row that even resembles a reference is a false positive:
+# "javax.imageio.plugins.jpeg", a Java package name in j/html/api/element-list.
+TEXT_TYPES = ("text/html", "application/json", "text/css", "text/markdown",
+              "text/javascript", "application/xml")
 # A "<path>-<N>" chunk continuation row, which vanishes with its base rather
 # than being renamed.
 _FRAGMENT_RE = re.compile(r"-\d+$")
