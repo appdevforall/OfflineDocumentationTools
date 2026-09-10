@@ -68,9 +68,20 @@ from optimize_db_media import (
     load_dictionary, owned_fragment_paths, reassemble,
 )
 
-# Content types whose stored text can carry a link to a media file.
-TEXT_TYPES = ("text/html", "application/json", "text/css", "text/markdown",
-              "text/javascript", "text/plain", "application/xml")
+# Content types that actually carry links to media, measured rather than
+# guessed: across a full production database every rewritten row was one of
+# these three - 541 text/html (page markup), 29 text/javascript (javadoc's
+# search UI referencing glass.png/x.png), 8 text/css (url(...) backgrounds).
+#
+# text/plain, application/json, text/markdown and application/xml were on this
+# list first and are deliberately off it now: all four were scanned over that
+# same database and rewrote nothing. text/plain was the tempting one - this
+# schema files ~61 "j/html/api/*/module-graph.svg" under it, and SVG genuinely
+# can reference a raster via <image href="...">, but none of those module
+# graphs does. What it did contribute was cost: it also files 16 binary .ogv/
+# .webm videos as text, every one of which had to be decoded and discarded.
+# Add a type back when a row of that type is shown to hold a reference.
+TEXT_TYPES = ("text/html", "text/javascript", "text/css")
 # A "<path>-<N>" chunk continuation row, which vanishes with its base rather
 # than being renamed.
 _FRAGMENT_RE = re.compile(r"-\d+$")
@@ -262,9 +273,11 @@ def run(cfg: dict) -> int:
             try:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:
-                # Binary content filed under a text content type - this database
-                # stores .ogv/.webm video as text/plain. It cannot contain a
-                # textual reference, so skip it rather than failing the run.
+                # Insurance, not a known case: with TEXT_TYPES narrowed to
+                # markup/JS/CSS nothing here should be binary, but this schema
+                # has been seen filing binary video under a text content type,
+                # so a row that isn't text is skipped rather than failing the
+                # whole run.
                 return ("binary", path, None)
             new_text, hits = rewrite_text(text, pattern, renames)
             if not hits:
