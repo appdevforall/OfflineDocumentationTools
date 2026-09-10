@@ -70,6 +70,29 @@ up the database first (VACUUM INTO a timestamped sibling), VACUUMs at the end
 to reclaim freed space, and supports --dry-run (do all the work, log what
 would change, roll back).
 
+Re-running over a database someone else has edited (--manifest-out/--manifest-in):
+  This database gets handed to authors who cannot run these scripts. Running
+  the tool again over their work must not re-encode what it already encoded -
+  lossy output re-encoded from lossy input loses quality every time - but must
+  still pick up whatever they changed. --manifest-out writes a text record of
+  every media file this tool manages (stored size, sha256, and the path it was
+  converted from); passing it back as --manifest-in on the next run makes the
+  three things an author can do come out right:
+
+    * A file they ADDED is absent from the manifest, so it is optimized.
+    * A file they OVERWROTE in place no longer matches its recorded digest,
+      so it is optimized again - the size is checked too, but the digest is
+      what decides, since an edit can easily land on the same byte count.
+    * A source image they RE-INSERTED in place of one converted earlier (a
+      .png whose .webp this tool produced) is recognised through the
+      manifest's provenance column and converted back over that same .webp,
+      replacing it. Without that column the new .png would convert to a
+      de-conflicted name like foo-png.webp, which nothing links to, while the
+      stale foo.webp every page still points at stayed put.
+
+  Everything else in the manifest is skipped untouched. Rows that errored are
+  deliberately left out, so a later run retries them.
+
 Python dependencies (Pillow, scour, brotli) are declared inline above (PEP
 723), so uv installs them on the fly - run it one-shot with no setup:
 
@@ -82,6 +105,7 @@ so uv can't provide them.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import re
 import shutil
@@ -450,6 +474,64 @@ def target_path(old_path: str, new_ext: str, claimed: set) -> str:
     return candidate
 
 
+# --- media manifest ---------------------------------------------------------
+#
+# A record of what this tool has already optimized, so a later run can leave
+# that work alone. It exists because the database is handed to authors who
+# cannot run these scripts: they add new files, overwrite existing ones, and
+# sometimes re-insert a source image (a .png) whose optimized form (.webp) is
+# already here. Re-optimizing an image that is already optimized is not a
+# no-op - it re-encodes lossy output from lossy input and loses quality every
+# time - so "have I done this one already?" has to be answerable.
+#
+# Plain text, one record per media file, sorted by path so diffs are readable:
+#
+#     <sha256 of stored bytes>\t<stored bytes>\t<path>\t<source path or ->
+#
+# The size is what the operator asked for and what makes the file skimmable;
+# the digest is what makes the decision safe, since an edited file can easily
+# land on its predecessor's byte count. The fourth field is provenance: the
+# path this file was converted FROM, which is what lets a re-inserted source
+# replace the stale output it once produced instead of piling up beside it.
+MANIFEST_HEADER = "# optimize_db_media media manifest v1"
+MANIFEST_COLUMNS = "# sha256\tbytes\tpath\tconverted-from"
+
+
+def digest(stored: bytes) -> str:
+    return hashlib.sha256(stored).hexdigest()
+
+
+def read_manifest(path: Path) -> dict:
+    """{stored path: (sha256, size, source path or None)} from a manifest file.
+
+    Unparseable lines are a hard error rather than a shrug: a manifest that is
+    silently half-read looks exactly like one describing a database where half
+    the work was never done, and the run would redo - and re-degrade - every
+    file it failed to read a line for."""
+    entries = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 4:
+            raise RuntimeError(f"{path}:{number}: expected 4 tab-separated fields, got {len(fields)}")
+        sha, size, stored_path, source = fields
+        if not size.isdigit():
+            raise RuntimeError(f"{path}:{number}: size {size!r} is not a number")
+        entries[stored_path] = (sha, int(size), None if source == "-" else source)
+    return entries
+
+
+def write_manifest(path: Path, entries: dict) -> None:
+    """Writes {path: (sha, size, source)} out, sorted by path."""
+    lines = [MANIFEST_HEADER, MANIFEST_COLUMNS,
+             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(entries)} media file(s)"]
+    for stored_path in sorted(entries):
+        sha, size, source = entries[stored_path]
+        lines.append(f"{sha}\t{size}\t{stored_path}\t{source or '-'}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 # --- DB plumbing -------------------------------------------------------------
 
 def backup_database(db_path: Path) -> Path:
@@ -655,6 +737,21 @@ def run(cfg: dict) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
+    known = {}
+    if cfg["manifest_in"] is not None:
+        if not cfg["manifest_in"].is_file():
+            print(f"error: --manifest-in {cfg['manifest_in']} does not exist", file=sys.stderr)
+            return 1
+        try:
+            known = read_manifest(cfg["manifest_in"])
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Manifest {cfg['manifest_in']} lists {len(known)} already-optimized media file(s).")
+    # {source path: path it was converted to}, so a re-inserted source can
+    # replace the stale output it produced last time instead of landing beside it.
+    produced_from_source = {source: stored for stored, (_sha, _size, source) in known.items() if source}
+
     if cfg["dry_run"]:
         print(f"Dry run: no backup, no changes committed. Optimizing media in {db_path} ...")
     else:
@@ -664,7 +761,8 @@ def run(cfg: dict) -> int:
 
     conn = sqlite3.connect(db_path)
     stats = {"optimized": 0, "converted": 0, "no_gain": 0, "skipped_type": 0, "skipped_animated": 0,
-             "skipped_fragment": 0, "errors": 0, "before": 0, "after": 0, "saved": 0}
+             "skipped_manifest": 0, "skipped_fragment": 0, "replaced_stale": 0, "errors": 0,
+             "before": 0, "after": 0, "saved": 0}
     per_type = {}
     codec = None
     try:
@@ -706,11 +804,27 @@ def run(cfg: dict) -> int:
         print(f"Scanning {len(rows)} image row(s) ({sum(1 for p in lengths if is_continuation_path(lengths, p))} "
               "chunk-continuation row(s) will be folded into their base)...")
         warn = lambda message: print(message, file=sys.stderr)  # noqa: E731
+        # What the manifest will say about this database afterwards. Every row
+        # of a type this tool optimizes gets an entry, whether it was rewritten,
+        # left as already-minimal, skipped as animated, or carried over from an
+        # incoming manifest - so a later run can tell "done" from "new". Rows
+        # that ERRORED are deliberately absent: a later run should retry them.
+        manifest_out = {}
+        # Paths this run has already rewritten as some OTHER row's target (see
+        # the re-inserted-source case below). `rows` is a snapshot taken before
+        # the loop, so such a path is still sitting in it with its pre-run bytes;
+        # reaching it later would either record those stale bytes in the
+        # manifest or - worse - re-optimize them and write them back over the
+        # replacement, silently undoing the author's update.
+        superseded = set()
 
         for path, blob, content_type_id, value, compression, template_id in rows:
             if is_continuation_path(lengths, path):
                 stats["skipped_fragment"] += 1  # handled as part of its base row
                 continue
+
+            if path in superseded:
+                continue  # already rewritten this run as another row's target
 
             if value not in OPTIMIZABLE:
                 stats["skipped_type"] += 1
@@ -719,11 +833,24 @@ def run(cfg: dict) -> int:
             name = path.rsplit("/", 1)[-1]
             stored_full = reassemble(conn, path, blob)  # base + its served chunks
             original_stored = len(stored_full)
+
+            # Already optimized by an earlier run and untouched since? Leave it
+            # alone. Both the size and the digest have to match: an author who
+            # overwrote this file may well have produced something the same
+            # length, and re-encoding their new image as though it were our own
+            # output would quietly degrade it.
+            recorded = known.get(path)
+            if recorded and recorded[1] == original_stored and recorded[0] == digest(stored_full):
+                stats["skipped_manifest"] += 1
+                manifest_out[path] = recorded
+                continue
+
             try:
                 media_bytes = codec.decompress(stored_full, compression)
                 result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn)
                 if result is None:  # animated WEBP/APNG: deliberately left alone
                     stats["skipped_animated"] += 1
+                    manifest_out[path] = (digest(stored_full), original_stored, None)
                     continue
                 new_media, new_type = result
                 # A converted file is stored under the content type of the
@@ -738,23 +865,53 @@ def run(cfg: dict) -> int:
 
             stats["before"] += original_stored
             if len(new_stored) >= original_stored:
-                # Never grow a file, and never rename one for no benefit.
+                # Never grow a file, and never rename one for no benefit. It is
+                # still recorded: it is in its final state, and a later run
+                # should not spend the work discovering that again.
                 stats["no_gain"] += 1
                 stats["after"] += original_stored
+                manifest_out[path] = (digest(stored_full), original_stored, recorded[2] if recorded else None)
                 continue
 
             # Only a genuine format change renames anything: a file already
             # stored under the type it was re-encoded to keeps its own path,
             # whatever extension that path happens to use.
-            new_path = path if new_type == value else target_path(path, OPTIMIZABLE[new_type], claimed)
+            replaces_stale = None
+            if new_type == value:
+                new_path = path
+            else:
+                # An author who re-inserts a source image (a .png whose .webp
+                # this tool produced last run) means it as a replacement. The
+                # manifest says which output came from this path, so reclaim
+                # exactly that name: the pages already link to it, and
+                # disambiguating instead would strand the author's new image
+                # under a name nothing references while the stale one is still
+                # served.
+                natural = f"{path.rsplit('.', 1)[0]}{OPTIMIZABLE[new_type]}"
+                if produced_from_source.get(path) == natural:
+                    new_path, replaces_stale = natural, natural
+                    # Marked whether or not we are writing, so a --dry-run
+                    # prediction matches what a real run would do.
+                    superseded.add(natural)
+                else:
+                    new_path = target_path(path, OPTIMIZABLE[new_type], claimed)
             converted = new_path != path
             if not cfg["dry_run"]:
+                if replaces_stale:
+                    row = conn.execute("SELECT LENGTH(content) FROM Content WHERE path = ?",
+                                       (replaces_stale,)).fetchone()
+                    if row:
+                        warn(f"  note: {path} was converted to {replaces_stale} before and has been "
+                             "re-inserted; replacing that output rather than adding a second copy")
+                        delete_media_row(conn, replaces_stale, row[0])
+                        stats["replaced_stale"] += 1
                 if converted:
                     convert_media_row(conn, path, len(blob), new_path, new_stored, language_id,
                                       new_type_id, template_id, warn)
                 else:
                     write_media_row(conn, path, len(blob), new_stored, language_id, new_type_id,
                                     template_id, warn)
+            manifest_out[new_path] = (digest(new_stored), len(new_stored), path if converted else None)
             if converted:
                 claimed.add(new_path.lower())
                 claimed.discard(path.lower())
@@ -793,6 +950,14 @@ def run(cfg: dict) -> int:
         finally:
             vac.close()
 
+    if cfg["manifest_out"] is not None:
+        if cfg["dry_run"]:
+            print(f"Dry run: not writing {cfg['manifest_out']} (it would describe a database "
+                  "this run did not actually change).")
+        else:
+            write_manifest(cfg["manifest_out"], manifest_out)
+            print(f"Manifest written to {cfg['manifest_out']} ({len(manifest_out)} media file(s)).")
+
     pct = stats["saved"] / stats["before"] * 100 if stats["before"] else 0.0
     verb = "would optimize" if cfg["dry_run"] else "optimized"
     print()
@@ -801,8 +966,12 @@ def run(cfg: dict) -> int:
           f"(new extension, old row deleted); {stats['no_gain']} already minimal, "
           f"{stats['skipped_type']} untouched (non-optimizable type), "
           f"{stats['skipped_animated']} animated WEBP/APNG left alone, "
+          f"{stats['skipped_manifest']} already optimized per the manifest, "
           f"{stats['skipped_fragment']} chunk-fragment row(s) folded into their base, "
           f"{stats['errors']} error(s).")
+    if stats["replaced_stale"]:
+        print(f"  {stats['replaced_stale']} re-inserted source image(s) replaced the stale output "
+              "they had produced in an earlier run.")
     for value in sorted(per_type):
         b = per_type[value]
         print(f"  {value}: {b['n']} optimized ({b['converted']} converted), saved {human(b['saved'])} bytes")
@@ -835,6 +1004,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help=f"pngquant speed/quality 1(best)-11(rough) (default: {DEFAULTS['pngquant_speed']})")
     p.add_argument("--svg-precision", type=int, default=DEFAULTS["svg_precision"],
                    help=f"Decimal places Scour rounds SVG numbers to (default: {DEFAULTS['svg_precision']})")
+    p.add_argument("--manifest-out", type=Path, default=None, metavar="PATH",
+                   help="After a successful run, write a text manifest of every media file this tool "
+                        "manages - its stored size, a digest, and what it was converted from. Feed it "
+                        "back as --manifest-in on a later run")
+    p.add_argument("--manifest-in", type=Path, default=None, metavar="PATH",
+                   help="A manifest from an earlier run. Media matching it byte for byte is left alone "
+                        "instead of being re-encoded (which would lose quality each time), while new or "
+                        "edited files are optimized normally")
     p.add_argument("--verbose", action="store_true", help="Log every optimized image, with byte sizes")
     return p
 
@@ -846,6 +1023,7 @@ def main() -> None:
         "jpeg_quality": args.jpeg_quality, "webp_quality": args.webp_quality,
         "pngquant_speed": args.pngquant_speed, "svg_precision": args.svg_precision, "verbose": args.verbose,
         "webp": args.webp, "svg_rasterize_threshold": args.svg_rasterize_threshold,
+        "manifest_out": args.manifest_out, "manifest_in": args.manifest_in,
     }
     sys.exit(run(cfg))
 
