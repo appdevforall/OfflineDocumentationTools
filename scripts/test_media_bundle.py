@@ -195,10 +195,33 @@ def test_archive_does_not_let_one_path_overwrite_another(tmp_path):
 
 def test_archive_reports_failure_when_it_cannot_write(tmp_path):
     """The optimizer relies on this False to leave the row alone; if add() ever
-    goes back to swallowing the error, the row is rewritten with no copy kept."""
+    goes back to swallowing the error, the row is rewritten with no copy kept.
+
+    The OSError is provoked by putting a FILE where add() needs a directory,
+    which fails for root as well - a permissions trick would not, and most CI
+    containers run as root."""
     archive = opt.OriginalsArchive(tmp_path, lambda message: None)
-    assert archive.add("/etc/passwd", "image/png", 1, 0, b"x") is False
-    assert archive.skipped == 1
+    assert archive.add("/etc/passwd", "image/png", 1, 0, b"x") is False  # refused as an unsafe path
+
+    (tmp_path / opt.BUNDLE_ORIGINALS_DIR).mkdir()
+    (tmp_path / opt.BUNDLE_ORIGINALS_DIR / "k").write_text("not a directory")
+    assert archive.add("k/img/a.png", "image/png", 1, 0, b"x") is False  # refused as an OSError
+    assert archive.skipped == 2
+
+
+def test_archive_rewrites_an_original_that_was_pruned_from_the_bundle(tmp_path):
+    """An index entry is not a copy. originals/ is the bulk of a bundle's size
+    and so the obvious thing to delete to reclaim space; reporting those assets
+    as archived would let the optimizer destroy rows nothing has a copy of."""
+    first = opt.OriginalsArchive(tmp_path, lambda message: None)
+    assert first.add("k/img/a.png", "image/png", 1, 0, b"original") is True
+    first.write_index()
+    (tmp_path / "originals/k/img/a.png").unlink()
+
+    second = opt.OriginalsArchive(tmp_path, lambda message: None)
+    assert second.add("k/img/a.png", "image/png", 1, 0, b"original") is True
+    assert second.replaced_missing == 1 and second.reused == 0
+    assert (tmp_path / "originals/k/img/a.png").read_bytes() == b"original"
 
 
 def test_reference_log_accumulates_passes(tmp_path):
@@ -239,6 +262,36 @@ def test_rewind_row_walks_a_two_pass_chain_back_to_the_original():
     assert ref.rewind_row(original, ref.digest(original.encode()), chain, renames)[2] == []
 
 
+def test_rewind_row_completes_from_the_middle_of_a_chain():
+    """A row that simply was not at the newest state still rewinds all the way
+    to the single root. Judging completeness by how many records were consumed
+    refused exactly this case."""
+    renames = {"x.png": "x.webp", "x.webp": "x-2.webp"}
+    original = '<img src="/i/x.png">'
+    once, sites1 = ref.rewrite_text(original, ref.build_pattern({"x.png": "x.webp"}), renames)
+    twice, sites2 = ref.rewrite_text(once, ref.build_pattern({"x.webp": "x-2.webp"}), renames)
+    chain = [
+        (ref.digest(original.encode()), ref.digest(once.encode()), "p.html", sites1),
+        (ref.digest(once.encode()), ref.digest(twice.encode()), "p.html", sites2),
+    ]
+
+    text, final, undone = ref.rewind_row(once, ref.digest(once.encode()), chain, renames)
+
+    assert text == original
+    assert len(undone) == 1 and len(chain) == 2, "fewer records, but still complete"
+    assert ref.chain_roots(chain) == {ref.digest(original.encode())}
+    assert final in ref.chain_roots(chain), "landing on the single root is what makes it complete"
+
+
+def test_rewind_row_refuses_an_ambiguous_step():
+    """Two passes recorded as producing identical text leave no way to know
+    which edits to undo; picking one would silently undo the wrong ones."""
+    chain = [("before-one", "same", "p.html", [(10, "x.png")]),
+             ("before-two", "same", "p.html", [(20, "y.png")])]
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        ref.rewind_row("text", "same", chain, {"x.png": "x.webp", "y.png": "y.webp"})
+
+
 def test_rewind_row_stops_where_a_chain_was_broken_by_an_edit():
     """If someone edits a page between two passes, the earlier pass's "after"
     digest describes text that no longer existed when the later pass ran. Its
@@ -257,6 +310,9 @@ def test_rewind_row_stops_where_a_chain_was_broken_by_an_edit():
     _text, _final, undone = ref.rewind_row(twice, ref.digest(twice.encode()), chain, renames)
 
     assert len(undone) == 1 and len(chain) == 2, "the broken link must not be crossed"
+    # Two roots is what tells the caller this history is in pieces, and is why
+    # the row is refused rather than written back half-reversed.
+    assert len(ref.chain_roots(chain)) == 2
 
 
 # --- end to end ---------------------------------------------------------------
@@ -385,6 +441,25 @@ def test_convert_then_restore_reproduces_the_database(tmp_path):
     assert _snapshot(db_path) == before
 
 
+def test_restore_puts_back_language_and_template_even_when_bytes_match(tmp_path):
+    """i/favicon.ico is archived but never rewritten, so its content always
+    matches the archive - the shortcut that used to skip the row entirely and
+    leave its other columns wherever they had drifted to."""
+    db_path = tmp_path / "documentation.db"
+    bundle = tmp_path / "bundle"
+    _build_database(db_path)
+    assert opt.run(_optimize_cfg(db_path, save_originals=bundle)) == 0
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE Content SET languageID = 99, templateId = 42 WHERE path = 'i/favicon.ico'")
+
+    assert opt.restore_originals(_optimize_cfg(db_path, restore_originals=bundle)) == 0
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT languageID, templateId FROM Content WHERE path = 'i/favicon.ico'"
+                           ).fetchone()
+    assert row == (1, 0)
+
+
 def test_restore_refuses_a_bundle_from_another_database(tmp_path):
     """Several same-named databases sit side by side; pointing a restore at the
     wrong one would inject every archived asset into it."""
@@ -410,12 +485,15 @@ def test_a_row_whose_original_cannot_be_archived_is_not_rewritten(tmp_path):
     bundle = tmp_path / "bundle"
     _build_database(db_path)
     before = _snapshot(db_path)
-    bundle.mkdir()
-    bundle.chmod(0o500)
+
+    # add() is made to refuse directly rather than through a read-only
+    # directory: root ignores the permission bits, and CI usually runs as root.
+    unpatched = opt.OriginalsArchive.add
+    opt.OriginalsArchive.add = lambda self, *args, **kwargs: False
     try:
         assert opt.run(_optimize_cfg(db_path, save_originals=bundle)) == 1
     finally:
-        bundle.chmod(0o700)
+        opt.OriginalsArchive.add = unpatched
     assert _snapshot(db_path) == before
 
 

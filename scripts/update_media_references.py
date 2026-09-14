@@ -80,9 +80,14 @@ Putting the references back (--save-originals / --restore-originals):
   passes over a database: a page rewritten twice gets two records, chained by
   their digests - the second pass's "before" is the first pass's "after".
   --restore-originals follows that chain backwards, undoing whichever record
-  produced the text in hand and repeating until none matches. A row whose bytes
-  match no record's "after" has been edited since and is reported and left
-  alone rather than overwritten; one already at a recorded "before" is
+  produced the text in hand and repeating until none matches. What decides
+  whether a row came back is where that walk LANDED - on the single digest the
+  chain starts from - not how many records it consumed, so a row that merely
+  was not at the newest state still rewinds the whole way. A history with two
+  such starting points was split by someone editing the page between passes:
+  the earlier pass's offsets no longer address anything, so the row is left
+  exactly as it is and named. A row whose bytes match no record at all has been
+  edited since and is likewise left alone; one already at the start is
   recognised as put back already. Anything left unrestored makes the run exit
   non-zero, because those pages still link to filenames the media restore has
   just deleted.
@@ -108,7 +113,7 @@ from pathlib import Path
 
 from optimize_db_media import (
     BrotliCodec, CHUNK_SIZE, backup_database, clear_fragment_slots, digest, is_continuation_path,
-    load_dictionary, owned_fragment_paths, reassemble,
+    load_dictionary, owned_fragment_paths, reassemble, write_atomically,
 )
 
 # The two files this script contributes to optimize_db_media.py's rollback
@@ -329,16 +334,6 @@ def conflicting_renames(path: Path, renames: dict) -> list:
     return sorted(old for old, new in renames.items() if existing.get(old, new) != new)
 
 
-def write_atomically(path: Path, text: str) -> Path:
-    """Writes through a temporary file and renames it into place, so a failing
-    or interrupted write leaves the previous contents rather than a truncated
-    file that the reader would reject - taking the whole bundle with it."""
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(text, encoding="utf-8")
-    temporary.replace(path)
-    return path
-
-
 def write_rename_log(root: Path, renames: dict) -> Path:
     """Merges `renames` into whatever rename map the bundle already holds.
 
@@ -443,6 +438,14 @@ def run(cfg: dict) -> int:
     db_path = cfg["db_path"]
     if not db_path.is_file():
         print(f"error: {db_path} does not exist", file=sys.stderr)
+        return 1
+
+    # Checked here and not only in main(), for the same reason optimize_db_media
+    # does: a log describing edits that were rolled back is a trap for whatever
+    # tries to undo them later.
+    if cfg["save_originals"] is not None and cfg["dry_run"]:
+        print("error: --save-originals cannot be combined with a dry run: a dry run rewrites nothing "
+              "to undo", file=sys.stderr)
         return 1
 
     before_path = cfg["before"]
@@ -569,11 +572,22 @@ def run(cfg: dict) -> int:
                 # was and the rollback below undoes the rest.
                 if cfg["save_originals"] is not None:
                     root = cfg["save_originals"]
-                    root.mkdir(parents=True, exist_ok=True)
-                    rename_path = write_rename_log(root, renames)
-                    log_path = write_reference_log(
-                        root, [(before, after, path, sites)
-                               for _kind, path, _bl, _ns, _lang, _ct, _tid, sites, before, after in changes])
+                    try:
+                        root.mkdir(parents=True, exist_ok=True)
+                        rename_path = write_rename_log(root, renames)
+                        log_path = write_reference_log(
+                            root, [(before, after, path, sites)
+                                   for _kind, path, _bl, _ns, _lang, _ct, _tid, sites, before, after
+                                   in changes])
+                    except OSError as exc:
+                        # Reported the way optimize_db_media reports the same
+                        # failure, rather than as a traceback: an unwritable
+                        # bundle directory is an operator mistake.
+                        print(f"error: could not write the reference log: {exc}. Rolling back - these "
+                              "rewrites must not be committed without the log that undoes them.",
+                              file=sys.stderr)
+                        conn.rollback()
+                        return 1
                     print(f"Reference log written to {log_path} and {rename_path}; undo this run with "
                           f"--restore-originals {root}.")
                 conn.commit()
@@ -601,6 +615,20 @@ def run(cfg: dict) -> int:
     return 1 if errors else 0
 
 
+def chain_roots(chain: list) -> set:
+    """The digests a row's recorded history can legitimately end at: every
+    "before" that is not also some other record's "after".
+
+    An unbroken history has exactly one - the text before the first pass ran.
+    Two mean the chain is in pieces, because someone edited the page between
+    passes and the earlier pass's "after" describes text that no longer
+    existed by the time the later one ran. That count, not how many records
+    happened to be undone, is what says whether a row can be put back: a row
+    that simply was not at the newest state still rewinds all the way to the
+    single root, and counting records would wrongly refuse it."""
+    return {record[0] for record in chain} - {record[1] for record in chain}
+
+
 def rewind_row(text: str, digest_now: str, chain: list, renames: dict) -> tuple:
     """Undoes the recorded passes over one row, newest first, and returns
     (text, digest, records_undone).
@@ -621,9 +649,16 @@ def rewind_row(text: str, digest_now: str, chain: list, renames: dict) -> tuple:
     undone = []
     remaining = list(chain)
     while True:
-        record = next((r for r in remaining if r[1] == digest_now), None)
-        if record is None:
+        matches = [r for r in remaining if r[1] == digest_now]
+        if not matches:
             return text, digest_now, undone
+        if len(matches) > 1:
+            # Two passes recorded producing byte-identical text for this row
+            # (reachable if it was reverted between them and converted again).
+            # Picking one arbitrarily would undo the wrong edits; say so instead.
+            raise RuntimeError(f"{len(matches)} recorded passes produced the same text, so which one to "
+                               "undo is ambiguous")
+        record = matches[0]
         text = undo_rewrite(text, record[3], renames)
         digest_now = digest(text.encode("utf-8"))
         if digest_now != record[0]:
@@ -676,6 +711,17 @@ def restore_references(cfg: dict) -> int:
     conn = sqlite3.connect(db_path)
     codec = None
     try:
+        # Digest matching already makes a wrong database harmless - nothing
+        # would be written - but it would report itself as hundreds of rows
+        # "edited since", which reads like the operator's own edits rather than
+        # a mistyped path. Say which it is, the way restore_originals does.
+        stored = {row[0] for row in conn.execute("SELECT path FROM Content")}
+        present = sum(1 for path in by_path if path in stored)
+        if by_path and present * 2 < len(by_path) and not cfg.get("force_restore"):
+            print(f"error: only {present} of the {len(by_path)} logged row(s) exist in {db_path}; this "
+                  "does not look like the database those references were rewritten in. Refusing to "
+                  "restore. Pass --force-restore if it really is.", file=sys.stderr)
+            return 1
         try:
             codec = BrotliCodec(load_dictionary(conn))
         except RuntimeError as exc:
@@ -704,30 +750,37 @@ def restore_references(cfg: dict) -> int:
                     stats["errors"] += 1
                     warn(f"  error: could not read {path}: {exc}")
                     continue
+                current = digest(raw)
                 try:
-                    original, _final, undone = rewind_row(text, digest(raw), chain, renames)
+                    original, final, undone = rewind_row(text, current, chain, renames)
                 except RuntimeError as exc:
                     stats["errors"] += 1
                     warn(f"  error: could not undo the edits in {path}: {exc}")
                     continue
-                if not undone:
-                    if any(record[0] == digest(raw) for record in chain):
-                        stats["already"] += 1
+
+                # Whether the row can be put back is decided by where the
+                # rewind LANDED, not by how many records it consumed: a row
+                # that was simply not at the newest state still rewinds all the
+                # way to the single root, and counting records refused it.
+                roots = chain_roots(chain)
+                complete = len(roots) == 1 and final in roots
+                if complete and not undone:
+                    stats["already"] += 1
+                    continue
+                if not complete:
+                    if undone or len(roots) != 1:
+                        # Someone edited this page between two passes, so the
+                        # earlier pass's offsets no longer address anything.
+                        # Writing back what did come apart would leave the row
+                        # matching no record at all, so it is left exactly as
+                        # it is and named - the only state a person can act on.
+                        stats["partial"] += 1
+                        warn(f"  warning: {path} was rewritten by {len(chain)} pass(es) and only "
+                             f"{len(undone)} can be undone (it was edited in between); leaving it alone")
                     else:
                         stats["changed_since"] += 1
                         warn(f"  warning: {path} has changed since its references were rewritten; leaving "
                              "it alone rather than replaying edits into text that has moved")
-                    continue
-                if len(undone) != len(chain):
-                    # Only part of this row's history can be replayed backwards
-                    # - someone edited the page between two of the passes, so
-                    # the earlier one's offsets no longer address anything.
-                    # Writing what did come apart would leave the row matching
-                    # no record at all, so it is left exactly as it is and
-                    # named, which is the only state a person can act on.
-                    stats["partial"] += 1
-                    warn(f"  warning: {path} was rewritten by {len(chain)} passes but only the last "
-                         f"{len(undone)} can be undone (it was edited in between); leaving it alone")
                     continue
                 sites = sum(len(record[3]) for record in undone)
                 replace_row(conn, path, len(blob), codec.compress(original.encode("utf-8"), compression),
@@ -790,6 +843,9 @@ def main() -> None:
     originals.add_argument("--restore-originals", type=Path, default=None, metavar="BUNDLE",
                            help="Undo a --save-originals run instead of rewriting: put every recorded "
                                 "reference back to the filename it named before. Needs no --before")
+    p.add_argument("--force-restore", action="store_true",
+                   help="With --restore-originals, proceed even though the logged rows are largely absent "
+                        "from this database - which normally means the bundle belongs to a different one")
     p.add_argument("--verbose", action="store_true", help="List rewritten rows and sample renames")
     args = p.parse_args()
     if args.save_originals is not None and args.dry_run:
@@ -798,7 +854,7 @@ def main() -> None:
         p.error("--before is required (it is what the rename map is diffed from); "
                 "only --restore-originals can go without it")
     cfg = {"db_path": args.db_path, "before": args.before, "dry_run": args.dry_run,
-           "workers": args.workers, "verbose": args.verbose,
+           "workers": args.workers, "verbose": args.verbose, "force_restore": args.force_restore,
            "save_originals": args.save_originals, "restore_originals": args.restore_originals}
     sys.exit(restore_references(cfg) if args.restore_originals is not None else run(cfg))
 
