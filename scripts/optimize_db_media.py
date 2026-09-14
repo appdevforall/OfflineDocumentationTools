@@ -110,7 +110,18 @@ Keeping the originals (--save-originals / --restore-originals):
   run's lossy output. The single exception is a row --manifest-in vouches for:
   those bytes are this tool's own output from an earlier run, and filing them
   as "the original" would overwrite the real original with a lossy copy of
-  itself. They are left out and counted.
+  itself. They are left out and counted. Refilling a bundle without passing
+  that run's manifest back is the one way to get optimized media archived as
+  though it were original, so doing so warns.
+
+  Archiving is a precondition, not a side effect: an image whose original
+  cannot be written to the bundle - a full disk, a permission problem, a
+  Content.path that is not a usable filename - is left UNOPTIMIZED, and the run
+  exits non-zero. Rewriting it would be precisely the loss this flag was asked
+  to prevent. For the same reason the index is written inside the transaction,
+  before the commit: bytes under originals/ are unusable without the paths and
+  content types that name them, so a failure to write it rolls the whole run
+  back rather than leaving a conversion nothing can undo.
 
   The bundle is additive, so several runs can share one: a file already
   archived byte for byte is left alone, and one whose bytes have CHANGED since
@@ -118,8 +129,12 @@ Keeping the originals (--save-originals / --restore-originals):
   replacing the original already sitting there.
 
   --restore-originals <bundle> is the inverse - each archived original goes
-  back at its own path with its own content type, and whatever it had been
-  converted into is deleted. Media is only half the picture: run
+  back at its own path with its own content type and its own languageID and
+  templateId, and whatever it had been converted into is deleted. It first
+  checks the bundle plausibly describes the database it is pointed at, the way
+  update_media_references.py checks --before, since several same-named
+  databases sit side by side and restoring the wrong bundle into one would
+  inject every archived asset into it. Media is only half the picture: run
   update_media_references.py --restore-originals over the same bundle to undo
   the reference rewriting as well, and between them the original documentation
   is reconstructed.
@@ -622,6 +637,16 @@ def read_originals_index(path: Path) -> list:
         for label, number_text in (("bytes", size), ("languageID", language_id), ("templateId", template_id)):
             if not number_text.isdigit():
                 raise RuntimeError(f"{path}:{number}: {label} {number_text!r} is not a number")
+        # The location is joined onto the bundle directory and read back, so it
+        # gets the same check the write side applies to a Content.path: an
+        # index naming "../../etc/hosts" would otherwise have restore read that
+        # file and, on a digest match, store it as a media row. Requiring one of
+        # the two known prefixes also keeps a hand-edited index from pointing
+        # anywhere else inside the bundle.
+        if (bundle_relative(location) != location
+                or not location.startswith((f"{BUNDLE_ORIGINALS_DIR}/", f"{BUNDLE_REVISIONS_DIR}/"))):
+            raise RuntimeError(f"{path}:{number}: archived-as {location!r} is not a location inside the "
+                               f"bundle's {BUNDLE_ORIGINALS_DIR}/ or {BUNDLE_REVISIONS_DIR}/ directory")
         entries.append([sha, int(size), stored_path, content_type, int(language_id), int(template_id),
                         location, None if converted == "-" else converted])
     return entries
@@ -640,10 +665,17 @@ class OriginalsArchive:
         self._logger = logger
         self._entries = []        # every record, in the order archived
         self._by_path = {}        # stored path -> its records, primary first
+        # Casefolded bundle location -> the Content.path that owns it. Two
+        # different Content.path values can want the same file: SQLite's UNIQUE
+        # is case-sensitive but macOS's default filesystem is not, and
+        # bundle_relative collapses "a//b.png" and "a/./b.png" onto one name.
+        # Whoever gets there first keeps it; see add().
+        self._locations = {}
         self.saved = 0
         self.reused = 0
         self.revisions = 0
         self.skipped = 0
+        self.preloaded = 0
         index_path = root / BUNDLE_ORIGINALS_INDEX
         if index_path.is_file():
             # Re-pointed at a bundle an earlier run filled in. Loading it is
@@ -652,30 +684,47 @@ class OriginalsArchive:
             # which by then may be the previous run's output.
             for entry in read_originals_index(index_path):
                 self._record(entry)
-            self._logger(f"Archive {index_path} already describes {len(self._entries)} original(s); "
+            self.preloaded = len(self._entries)
+            self._logger(f"Archive {index_path} already describes {self.preloaded} original(s); "
                          "adding to it.")
 
     def _record(self, entry: list) -> None:
         self._by_path.setdefault(entry[2], []).append(entry)
+        self._locations.setdefault(entry[6].lower(), entry[2])
         self._entries.append(entry)
 
     def add(self, stored_path: str, content_type: str, language_id: int, template_id: int,
-            media_bytes: bytes) -> None:
-        """Archives one asset's original, decoded bytes. Does nothing if these
-        exact bytes are already archived under this path."""
+            media_bytes: bytes) -> bool:
+        """Archives one asset's original, decoded bytes, and reports whether
+        this file's original is now safely in the bundle. True also covers
+        "these exact bytes were already archived under this path"; False means
+        the caller must not go on to rewrite the row, because there is no copy
+        of what it is about to destroy."""
         sha = digest(media_bytes)
         existing = self._by_path.get(stored_path, [])
         if any(entry[0] == sha for entry in existing):
             self.reused += 1
-            return
+            return True
         relative = bundle_relative(stored_path)
         if relative is None:
             self._logger(f"  warning: not archiving {stored_path!r}: it is not a safe relative path")
             self.skipped += 1
-            return
+            return False
         primary = not existing
         location = (f"{BUNDLE_ORIGINALS_DIR}/{relative}" if primary
                     else f"{BUNDLE_REVISIONS_DIR}/{sha[:12]}/{relative}")
+        owner = self._locations.get(location.lower())
+        if owner is not None and owner != stored_path:
+            # Another Content.path already owns that file in the bundle (see
+            # _locations). Give this one a subdirectory of its own rather than
+            # overwriting an original that belongs to a different row - which
+            # would leave the loser unrestorable, reported only as a digest
+            # mismatch much later.
+            marker = hashlib.sha256(stored_path.encode("utf-8")).hexdigest()[:8]
+            head, _, tail = location.partition("/")
+            location = f"{head}/{marker}/{tail}"
+            self._logger(f"  note: {stored_path} and {owner} map to the same file in the bundle; "
+                         f"filing this one under {location}")
         destination = self.root / location
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -683,7 +732,7 @@ class OriginalsArchive:
         except OSError as exc:
             self._logger(f"  warning: could not archive {stored_path}: {exc}")
             self.skipped += 1
-            return
+            return False
         if primary:
             self.saved += 1
         else:
@@ -692,6 +741,7 @@ class OriginalsArchive:
             self.revisions += 1
         self._record([sha, len(media_bytes), stored_path, content_type, language_id, template_id,
                       location, None])
+        return True
 
     def mark_converted(self, stored_path: str, new_path: str) -> None:
         """Records that the file archived from `stored_path` now lives at
@@ -702,6 +752,10 @@ class OriginalsArchive:
             entry[7] = new_path
 
     def write_index(self) -> Path:
+        """Writes the index through a temporary file and renames it into place,
+        so an interrupted or failing write leaves the previous index intact
+        rather than a truncated one that read_originals_index would reject -
+        taking the whole archive with it."""
         index_path = self.root / BUNDLE_ORIGINALS_INDEX
         lines = [ORIGINALS_HEADER, ORIGINALS_COLUMNS,
                  f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(self._entries)} archived original(s)"]
@@ -712,7 +766,9 @@ class OriginalsArchive:
             lines.append(f"{sha}\t{size}\t{stored_path}\t{content_type}\t{language_id}\t{template_id}\t"
                          f"{location}\t{converted or '-'}")
         index_path.parent.mkdir(parents=True, exist_ok=True)
-        index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        temporary = index_path.with_name(index_path.name + ".tmp")
+        temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        temporary.replace(index_path)
         return index_path
 
 
@@ -937,6 +993,7 @@ def run(cfg: dict) -> int:
     produced_from_source = {source: stored for stored, (_sha, _size, source) in known.items() if source}
 
     archive = None
+    index_path = None
     if cfg["save_originals"] is not None:
         try:
             cfg["save_originals"].mkdir(parents=True, exist_ok=True)
@@ -944,6 +1001,15 @@ def run(cfg: dict) -> int:
         except (OSError, RuntimeError) as exc:
             print(f"error: cannot use {cfg['save_originals']} as an originals archive: {exc}", file=sys.stderr)
             return 1
+        if archive.preloaded and cfg["manifest_in"] is None:
+            # --manifest-in is the only thing that tells this run's input apart
+            # from an earlier run's output, and the two flags are independent.
+            # Refilling a bundle without one files optimized media under
+            # originals/ as though it were the original it was made from.
+            print("warning: this bundle already describes an earlier run, but no --manifest-in was given. "
+                  "Media that run already optimized cannot be recognised, so it will be archived as though "
+                  "it were original. Pass the --manifest-out from that run as --manifest-in.",
+                  file=sys.stderr)
 
     if cfg["dry_run"]:
         print(f"Dry run: no backup, no changes committed. Optimizing media in {db_path} ...")
@@ -955,7 +1021,8 @@ def run(cfg: dict) -> int:
     conn = sqlite3.connect(db_path)
     stats = {"optimized": 0, "converted": 0, "no_gain": 0, "skipped_type": 0, "skipped_animated": 0,
              "skipped_manifest": 0, "skipped_fragment": 0, "replaced_stale": 0, "errors": 0,
-             "archive_errors": 0, "archive_not_original": 0, "before": 0, "after": 0, "saved": 0}
+             "archive_errors": 0, "archive_not_original": 0, "archive_blocked": 0,
+             "before": 0, "after": 0, "saved": 0}
     per_type = {}
     codec = None
     try:
@@ -1044,6 +1111,7 @@ def run(cfg: dict) -> int:
             # bytes, and on a dictionary-compressed database each decompress is
             # a brotli subprocess.
             media_bytes = None
+            archived = True
             if archive is not None:
                 if already_ours:
                     # The manifest vouches for these bytes as this tool's own
@@ -1056,12 +1124,22 @@ def run(cfg: dict) -> int:
                         media_bytes = codec.decompress(stored_full, compression)
                     except Exception as exc:  # noqa: BLE001 - one bad row is not the run
                         stats["archive_errors"] += 1
+                        archived = False
                         print(f"  error: could not archive {path}: {exc}", file=sys.stderr)
                     else:
-                        archive.add(path, value, row_language_id, template_id, media_bytes)
+                        archived = archive.add(path, value, row_language_id, template_id, media_bytes)
 
             if not optimizable:
                 stats["skipped_type"] += 1
+                continue
+            if not archived:
+                # The whole point of --save-originals is that nothing is
+                # destroyed without a copy of it surviving. A failed archive
+                # write - a full disk, a permission problem - makes rewriting
+                # this row exactly the data loss the flag was asked to prevent,
+                # so the row is left alone and the run ends non-zero.
+                stats["archive_blocked"] += 1
+                warn(f"  skipping {path}: its original could not be archived, so it must not be rewritten")
                 continue
             if already_ours:
                 stats["skipped_manifest"] += 1
@@ -1158,6 +1236,21 @@ def run(cfg: dict) -> int:
                 print(f"  [OPT] {path}{arrow}: {human(original_stored)} -> {human(len(new_stored))} "
                       f"(saved {human(saved)}, {pct:.1f}%)")
 
+        if archive is not None:
+            # Written before the commit, not after it. An index that cannot be
+            # written makes the bundle useless as a rollback - the bytes under
+            # originals/ are unusable without the paths and content types that
+            # name them - so the conversion it would have described must not be
+            # committed either. Reported as an error rather than a traceback:
+            # an unwritable bundle directory is an operator mistake, not a bug.
+            try:
+                index_path = archive.write_index()
+            except OSError as exc:
+                print(f"error: could not write the archive index: {exc}. Rolling back - the conversion "
+                      "it would have described must not be committed without it.", file=sys.stderr)
+                conn.rollback()
+                return 1
+
         if cfg["dry_run"]:
             conn.rollback()
         else:
@@ -1179,10 +1272,12 @@ def run(cfg: dict) -> int:
             vac.close()
 
     if archive is not None:
-        index_path = archive.write_index()
         print(f"Archived {archive.saved} original asset(s) under {cfg['save_originals']}: "
               f"{archive.reused} were already archived byte for byte, {archive.revisions} filed as a later "
               f"revision, {archive.skipped} skipped, {stats['archive_errors']} unreadable.")
+        if stats["archive_blocked"]:
+            print(f"  {stats['archive_blocked']} image(s) left UNOPTIMIZED because their original could not "
+                  "be archived; fix the archive directory and re-run to pick them up.", file=sys.stderr)
         if stats["archive_not_original"]:
             print(f"  {stats['archive_not_original']} row(s) not archived: --manifest-in says they hold this "
                   "tool's own output from an earlier run, not originals.")
@@ -1208,6 +1303,7 @@ def run(cfg: dict) -> int:
           f"{stats['skipped_animated']} animated WEBP/APNG left alone, "
           f"{stats['skipped_manifest']} already optimized per the manifest, "
           f"{stats['skipped_fragment']} chunk-fragment row(s) folded into their base, "
+          f"{stats['archive_blocked']} left alone because archiving them failed, "
           f"{stats['errors']} error(s).")
     if stats["replaced_stale"]:
         print(f"  {stats['replaced_stale']} re-inserted source image(s) replaced the stale output "
@@ -1218,7 +1314,36 @@ def run(cfg: dict) -> int:
     print(f"Image bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
-    return 1 if stats["errors"] or stats["archive_errors"] else 0
+    # An archive that silently lost originals must not look like a clean run to
+    # whatever chained this command, so every archiving failure counts here too.
+    return 1 if (stats["errors"] or stats["archive_errors"] or stats["archive_blocked"]
+                 or (archive is not None and archive.skipped)) else 0
+
+
+def check_bundle_belongs(conn, primaries: list) -> str:
+    """Returns a complaint if these archived originals plainly did not come from
+    the database `conn` is open on, or "" if they did.
+
+    The same cheap insurance update_media_references.check_same_lineage buys for
+    --before, and for the same reason: several same-named databases sit side by
+    side, and a mistyped or tab-completed path would otherwise have this inject
+    every archived asset into an unrelated database - INSERTing rows whose
+    languageID need not even exist there, since SQLite leaves foreign keys off
+    by default - while reporting a successful restore.
+
+    An archived asset should be recognisable: either its own path is still in
+    the database, or the path it was converted into is. Some drift is expected
+    (media really can be deleted between the two runs), so this only refuses
+    when the overlap is so small that the bundle cannot plausibly describe this
+    database."""
+    if not primaries:
+        return ""
+    stored = {row[0] for row in conn.execute("SELECT path FROM Content")}
+    recognised = sum(1 for entry in primaries if entry[2] in stored or (entry[7] and entry[7] in stored))
+    if recognised * 2 >= len(primaries):
+        return ""
+    return (f"only {recognised} of its {len(primaries)} archived path(s) appear in this database, under "
+            "either their original or their converted name")
 
 
 def restore_originals(cfg: dict) -> int:
@@ -1263,6 +1388,11 @@ def restore_originals(cfg: dict) -> int:
     conn = sqlite3.connect(db_path)
     codec = None
     try:
+        complaint = check_bundle_belongs(conn, primaries)
+        if complaint:
+            print(f"error: {index_path} does not look like an archive of {db_path}: {complaint}. "
+                  "Refusing to restore an unrelated bundle into this database.", file=sys.stderr)
+            return 1
         try:
             codec = BrotliCodec(load_dictionary(conn))
         except RuntimeError as exc:
@@ -1333,6 +1463,14 @@ def restore_originals(cfg: dict) -> int:
                 else:
                     write_media_row(conn, path, row[0], stored, language_id, content_type_id,
                                     template_id, warn)
+                    # write_media_row updates content and contentTypeID only -
+                    # correct for the optimizer, which is rewriting a row's own
+                    # bytes in place, but a restore is putting a recorded row
+                    # back and owns every column the index carries. Without
+                    # this, the same archived record produced two different
+                    # rows depending on whether the path still existed.
+                    conn.execute("UPDATE Content SET languageID = ?, templateId = ? WHERE path = ?",
+                                 (language_id, template_id, path))
                 stats["restored"] += 1
                 if cfg["verbose"]:
                     print(f"  [RESTORE] {path} <- {location}"

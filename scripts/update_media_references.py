@@ -76,15 +76,25 @@ Putting the references back (--save-originals / --restore-originals):
   would also hit references that always said foo.webp - the same mistake the
   rename map itself is diffed rather than inferred to avoid.
 
-  --restore-originals <bundle> replays those offsets backwards. A row whose
-  bytes no longer hash to "after" has been edited since this run and is
-  reported and left alone rather than overwritten; one that already hashes to
-  "before" is recognised as put back already. Run optimize_db_media.py
-  --restore-originals over the same bundle for the media itself; between them
-  the original documentation is reconstructed.
+  Both files accumulate rather than replace, so one bundle can describe several
+  passes over a database: a page rewritten twice gets two records, chained by
+  their digests - the second pass's "before" is the first pass's "after".
+  --restore-originals follows that chain backwards, undoing whichever record
+  produced the text in hand and repeating until none matches. A row whose bytes
+  match no record's "after" has been edited since and is reported and left
+  alone rather than overwritten; one already at a recorded "before" is
+  recognised as put back already. Anything left unrestored makes the run exit
+  non-zero, because those pages still link to filenames the media restore has
+  just deleted.
 
-  Like optimize_db_media.py's, --save-originals is refused with --dry-run:
-  a log of edits that were never made is a trap, not a record.
+  Run optimize_db_media.py --restore-originals over the same bundle for the
+  media itself; between them the original documentation is reconstructed.
+
+  The logs are written inside the rewriting transaction and renamed into place,
+  so a bundle that cannot be written takes the rewrite down with it instead of
+  leaving the database changed with no way back. Like optimize_db_media.py's,
+  --save-originals is refused with --dry-run: a log of edits that were never
+  made is a trap, not a record.
 """
 from __future__ import annotations
 
@@ -112,10 +122,13 @@ RENAMES_COLUMNS = "# old-filename\tnew-filename"
 REFERENCES_HEADER = "# update_media_references reference-edit log v1"
 REFERENCES_COLUMNS = ("# sha256-before\tsha256-after\tpath\tsites (offset:old-filename, comma-separated;"
                       " offsets index the rewritten text)")
-# Characters a filename may not contain for the sites field above to stay
-# unambiguous. Checked before anything is rewritten rather than at write time,
-# so a bundle can never fail after the work is already done.
-SITE_RESERVED = (",", ":", "\t", "\n", "\r")
+# Characters a filename may not contain for these files to stay parseable.
+# TSV_RESERVED breaks any column of either file; SITE_RESERVED additionally
+# covers the separators inside the sites field, which only old filenames go
+# into. Both are checked before anything is rewritten rather than at write
+# time, so a bundle can never fail after the work is already done.
+TSV_RESERVED = ("\t", "\n", "\r")
+SITE_RESERVED = (",", ":") + TSV_RESERVED
 
 # Content types whose stored text can carry a link to a media file.
 #
@@ -286,21 +299,60 @@ def undo_rewrite(text: str, sites: list, renames: dict) -> str:
 
 
 def unloggable_names(renames: dict) -> list:
-    """Old filenames that could not be written into a reference log's sites
-    field unambiguously. Empty for every real filename in this database; the
-    check exists so a name that did contain a comma or colon would stop the run
-    up front with a clear complaint instead of producing a log that silently
-    cannot be parsed back."""
-    return sorted(name for name in renames if any(char in name for char in SITE_RESERVED))
+    """Filenames that could not be written into the bundle unambiguously.
+
+    Both halves of the map are checked, not just the keys: old names go into
+    the sites field and so must avoid its separators too, while new names still
+    occupy a column of renames.tsv and would break it with a tab or a newline.
+    Empty for every real filename in this database; the check exists so a name
+    that did contain one would stop the run up front with a clear complaint
+    instead of producing a log that silently cannot be parsed back."""
+    bad = {old for old in renames if any(char in old for char in SITE_RESERVED)}
+    bad.update(new for new in renames.values() if any(char in new for char in TSV_RESERVED))
+    return sorted(bad)
+
+
+def conflicting_renames(path: Path, renames: dict) -> list:
+    """Old filenames this run maps somewhere other than the bundle's existing
+    rename map already does.
+
+    A bundle accumulates passes (see write_reference_log), and undoing a pass
+    resolves each recorded old name through one shared map - so the same old
+    name cannot mean two different new names in one bundle. It takes an unusual
+    sequence to produce that (a source image re-inserted and converted again
+    without --manifest-in, so it de-conflicts to a different name), but the
+    result would be a bundle that silently restores the wrong filename, which
+    is worth one comparison up front."""
+    if not path.is_file():
+        return []
+    existing = read_rename_log(path)
+    return sorted(old for old, new in renames.items() if existing.get(old, new) != new)
+
+
+def write_atomically(path: Path, text: str) -> Path:
+    """Writes through a temporary file and renames it into place, so a failing
+    or interrupted write leaves the previous contents rather than a truncated
+    file that the reader would reject - taking the whole bundle with it."""
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(text, encoding="utf-8")
+    temporary.replace(path)
+    return path
 
 
 def write_rename_log(root: Path, renames: dict) -> Path:
+    """Merges `renames` into whatever rename map the bundle already holds.
+
+    Additive, like optimize_db_media.py's originals.tsv and for the same
+    reason: one bundle can describe several passes over a database, and a
+    rename map that replaced the previous pass's would leave those earlier
+    edits recorded in references.tsv with no way to resolve their names."""
     path = root / BUNDLE_RENAMES
+    merged = read_rename_log(path) if path.is_file() else {}
+    merged.update(renames)
     lines = [RENAMES_HEADER, RENAMES_COLUMNS,
-             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(renames)} rename(s)"]
-    lines.extend(f"{old}\t{renames[old]}" for old in sorted(renames))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
+             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(merged)} rename(s)"]
+    lines.extend(f"{old}\t{merged[old]}" for old in sorted(merged))
+    return write_atomically(path, "\n".join(lines) + "\n")
 
 
 def read_rename_log(path: Path) -> dict:
@@ -316,17 +368,31 @@ def read_rename_log(path: Path) -> dict:
 
 
 def write_reference_log(root: Path, records: list) -> Path:
-    """Writes [(sha_before, sha_after, path, sites)], sorted by path."""
+    """Adds [(sha_before, sha_after, path, sites)] to the bundle's edit log.
+
+    Appends rather than replaces, so a bundle can describe more than one pass
+    over the same database. A page rewritten twice gets two records, chained by
+    their digests - the second pass's "before" is the first pass's "after" -
+    and restore_references walks that chain backwards. Replacing the file
+    instead, as this first did, silently discarded every earlier pass's edits
+    while both runs still reported success.
+
+    A record identical to one already present (same row, same before and after)
+    is the same pass written twice and is not duplicated."""
     path = root / BUNDLE_REFERENCES
-    total = sum(len(sites) for _b, _a, _p, sites in records)
+    existing = read_reference_log(path) if path.is_file() else []
+    seen = {(record[2], record[0], record[1]) for record in existing}
+    merged = existing + [r for r in records if (r[2], r[0], r[1]) not in seen]
+    total = sum(len(sites) for _b, _a, _p, sites in merged)
     lines = [REFERENCES_HEADER, REFERENCES_COLUMNS,
-             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(records)} row(s), "
+             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(merged)} record(s), "
              f"{total} reference(s)"]
-    for sha_before, sha_after, stored_path, sites in sorted(records, key=lambda record: record[2]):
+    # Sorted by path, then by the digest the record starts from, so a page's
+    # records sit together; the chain is followed by digest, not by file order.
+    for sha_before, sha_after, stored_path, sites in sorted(merged, key=lambda r: (r[2], r[0])):
         packed = ",".join(f"{offset}:{old_name}" for offset, old_name in sorted(sites))
         lines.append(f"{sha_before}\t{sha_after}\t{stored_path}\t{packed}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
+    return write_atomically(path, "\n".join(lines) + "\n")
 
 
 def read_reference_log(path: Path) -> list:
@@ -405,6 +471,13 @@ def run(cfg: dict) -> int:
                 print(f"error: {len(offenders)} converted filename(s) contain a character the reference log "
                       f"cannot encode ({', '.join(repr(c) for c in SITE_RESERVED)}), e.g. {offenders[0]!r}. "
                       "Re-run without --save-originals, or rename those files first.", file=sys.stderr)
+                return 1
+            clashes = conflicting_renames(cfg["save_originals"] / BUNDLE_RENAMES, renames)
+            if clashes:
+                print(f"error: {len(clashes)} filename(s) are already recorded in "
+                      f"{cfg['save_originals'] / BUNDLE_RENAMES} as converting to something else, e.g. "
+                      f"{clashes[0]!r}. One bundle cannot hold two meanings for one name; point "
+                      "--save-originals at a fresh directory for this run.", file=sys.stderr)
                 return 1
         print(f"Found {len(renames)} converted filename(s) to rewrite references for.")
         if cfg["verbose"]:
@@ -486,23 +559,27 @@ def run(cfg: dict) -> int:
                                 lambda m: print(m, file=sys.stderr))
                     if cfg["verbose"]:
                         print(f"  [REF] {path}: {len(sites)} reference(s)")
+
+                # Written before the commit, not after it. These rewrites are
+                # only reversible while the log describing them exists, so a
+                # log that cannot be written (a full or read-only bundle
+                # directory) has to take the rewrite down with it rather than
+                # leave the database changed with no way back. Both files are
+                # renamed into place, so a failure here leaves the bundle as it
+                # was and the rollback below undoes the rest.
+                if cfg["save_originals"] is not None:
+                    root = cfg["save_originals"]
+                    root.mkdir(parents=True, exist_ok=True)
+                    rename_path = write_rename_log(root, renames)
+                    log_path = write_reference_log(
+                        root, [(before, after, path, sites)
+                               for _kind, path, _bl, _ns, _lang, _ct, _tid, sites, before, after in changes])
+                    print(f"Reference log written to {log_path} and {rename_path}; undo this run with "
+                          f"--restore-originals {root}.")
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
-
-            # Written only after the commit: a log describing edits that were
-            # rolled back would send a later --restore-originals hunting for
-            # rows that never changed.
-            if cfg["save_originals"] is not None:
-                root = cfg["save_originals"]
-                root.mkdir(parents=True, exist_ok=True)
-                rename_path = write_rename_log(root, renames)
-                log_path = write_reference_log(
-                    root, [(before, after, path, sites)
-                           for _kind, path, _bl, _ns, _lang, _ct, _tid, sites, before, after in changes])
-                print(f"Reference log written to {log_path} and {rename_path}; undo this run with "
-                      f"--restore-originals {root}.")
     finally:
         if codec is not None:
             codec.close()
@@ -522,6 +599,40 @@ def run(cfg: dict) -> int:
           f"{len(renames)} converted filename(s) known; {len(binary)} binary row(s) skipped; "
           f"{len(errors)} error(s).")
     return 1 if errors else 0
+
+
+def rewind_row(text: str, digest_now: str, chain: list, renames: dict) -> tuple:
+    """Undoes the recorded passes over one row, newest first, and returns
+    (text, digest, records_undone).
+
+    A bundle can describe several conversions of the same page (see
+    write_reference_log), so this follows the chain by digest rather than by
+    file order: the record to undo is whichever one produced the text in hand,
+    and undoing it yields the text the pass before that produced. It stops when
+    no record matches.
+
+    Stopping early is not always success. If someone edited the page between
+    two passes, the earlier pass's "after" digest describes text that no longer
+    existed by the time the later pass ran, so the chain is broken in the
+    middle and the earlier edits cannot be replayed backwards at all - their
+    offsets have moved. That is why the undone records are returned rather than
+    a count: the caller compares them against the whole chain and refuses a row
+    it can only partly put back."""
+    undone = []
+    remaining = list(chain)
+    while True:
+        record = next((r for r in remaining if r[1] == digest_now), None)
+        if record is None:
+            return text, digest_now, undone
+        text = undo_rewrite(text, record[3], renames)
+        digest_now = digest(text.encode("utf-8"))
+        if digest_now != record[0]:
+            # Belt and braces: the digests bracket each pass, so undoing one
+            # has to land on the "before" it recorded. Anything else means the
+            # log and the row disagree in a way the per-site checks missed.
+            raise RuntimeError(f"undoing {len(record[3])} edit(s) did not reproduce the recorded original")
+        remaining.remove(record)
+        undone.append(record)
 
 
 def restore_references(cfg: dict) -> int:
@@ -551,12 +662,17 @@ def restore_references(cfg: dict) -> int:
     except (OSError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    by_path = {}
+    for record in records:
+        by_path.setdefault(record[2], []).append(record)
     total_sites = sum(len(sites) for _b, _a, _p, sites in records)
-    print(f"Log {log_path} describes {total_sites} rewritten reference(s) across {len(records)} row(s), "
-          f"over {len(renames)} converted filename(s).")
+    passes = f" over {len(records)} pass(es)" if len(records) != len(by_path) else ""
+    print(f"Log {log_path} describes {total_sites} rewritten reference(s) across {len(by_path)} row(s)"
+          f"{passes}, over {len(renames)} converted filename(s).")
 
     warn = lambda message: print(message, file=sys.stderr)  # noqa: E731
-    stats = {"restored": 0, "sites": 0, "already": 0, "changed_since": 0, "missing": 0, "errors": 0}
+    stats = {"restored": 0, "sites": 0, "already": 0, "changed_since": 0, "partial": 0,
+             "missing": 0, "errors": 0}
     conn = sqlite3.connect(db_path)
     codec = None
     try:
@@ -570,7 +686,8 @@ def restore_references(cfg: dict) -> int:
             print(f"Backup written to {backup_database(db_path)}")
         conn.execute("BEGIN")
         try:
-            for sha_before, sha_after, path, sites in records:
+            for path in sorted(by_path):
+                chain = by_path[path]
                 row = conn.execute(
                     "SELECT c.content, c.languageID, c.contentTypeID, c.templateId, ct.compression "
                     "FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id WHERE c.path = ?",
@@ -587,36 +704,39 @@ def restore_references(cfg: dict) -> int:
                     stats["errors"] += 1
                     warn(f"  error: could not read {path}: {exc}")
                     continue
-                current = digest(raw)
-                if current == sha_before:
-                    stats["already"] += 1
-                    continue
-                if current != sha_after:
-                    stats["changed_since"] += 1
-                    warn(f"  warning: {path} has changed since its references were rewritten; leaving it "
-                         "alone rather than replaying edits into text that has moved")
-                    continue
                 try:
-                    original = undo_rewrite(text, sites, renames)
+                    original, _final, undone = rewind_row(text, digest(raw), chain, renames)
                 except RuntimeError as exc:
                     stats["errors"] += 1
                     warn(f"  error: could not undo the edits in {path}: {exc}")
                     continue
-                data = original.encode("utf-8")
-                if digest(data) != sha_before:
-                    # Belt and braces: the digests bracket the edit, so undoing
-                    # it has to land back on the recorded "before". Anything
-                    # else means the log and the row disagree in a way the
-                    # per-site checks did not catch.
-                    stats["errors"] += 1
-                    warn(f"  error: undoing {path} did not reproduce the recorded original; skipping")
+                if not undone:
+                    if any(record[0] == digest(raw) for record in chain):
+                        stats["already"] += 1
+                    else:
+                        stats["changed_since"] += 1
+                        warn(f"  warning: {path} has changed since its references were rewritten; leaving "
+                             "it alone rather than replaying edits into text that has moved")
                     continue
-                replace_row(conn, path, len(blob), codec.compress(data, compression), language_id,
-                            content_type_id, template_id, warn)
+                if len(undone) != len(chain):
+                    # Only part of this row's history can be replayed backwards
+                    # - someone edited the page between two of the passes, so
+                    # the earlier one's offsets no longer address anything.
+                    # Writing what did come apart would leave the row matching
+                    # no record at all, so it is left exactly as it is and
+                    # named, which is the only state a person can act on.
+                    stats["partial"] += 1
+                    warn(f"  warning: {path} was rewritten by {len(chain)} passes but only the last "
+                         f"{len(undone)} can be undone (it was edited in between); leaving it alone")
+                    continue
+                sites = sum(len(record[3]) for record in undone)
+                replace_row(conn, path, len(blob), codec.compress(original.encode("utf-8"), compression),
+                            language_id, content_type_id, template_id, warn)
                 stats["restored"] += 1
-                stats["sites"] += len(sites)
+                stats["sites"] += sites
                 if cfg["verbose"]:
-                    print(f"  [UNDO] {path}: {len(sites)} reference(s)")
+                    passes = f" over {len(undone)} pass(es)" if len(undone) > 1 else ""
+                    print(f"  [UNDO] {path}: {sites} reference(s){passes}")
             if cfg["dry_run"]:
                 conn.rollback()
             else:
@@ -641,9 +761,15 @@ def restore_references(cfg: dict) -> int:
     print()
     print(f"{'Dry run complete. ' if cfg['dry_run'] else 'Done. '}{verb} {stats['sites']} reference(s) "
           f"across {stats['restored']} row(s); {stats['already']} row(s) already held the original names, "
-          f"{stats['changed_since']} edited since and left alone, {stats['missing']} missing, "
-          f"{stats['errors']} error(s).")
-    return 1 if stats["missing"] or stats["errors"] else 0
+          f"{stats['changed_since']} edited since and left alone, {stats['partial']} only partly "
+          f"reversible, {stats['missing']} missing, {stats['errors']} error(s).")
+    if stats["changed_since"] or stats["missing"] or stats["partial"]:
+        print("Some references were NOT put back, so those pages still link to converted filenames that "
+              "optimize_db_media.py --restore-originals has removed.", file=sys.stderr)
+    # A partial restore leaves pages pointing at media that no longer exists, so
+    # it must not look like a clean run to whatever chained this command.
+    return 1 if (stats["missing"] or stats["errors"] or stats["changed_since"]
+                 or stats["partial"]) else 0
 
 
 def main() -> None:
