@@ -53,6 +53,38 @@ because a dictionary-compressed database shells out to the brotli CLI per
 row, which is where the time goes.
 
     uv run scripts/update_media_references.py documentation.db --dry-run
+
+Putting the references back (--save-originals / --restore-originals):
+  optimize_db_media.py --save-originals keeps every asset's original bytes;
+  this is the other half - what it takes to reconstruct the original HTML.
+  --save-originals <bundle> writes two small files into that same bundle:
+
+      <bundle>/renames.tsv     old filename -> new filename, one per line
+      <bundle>/references.tsv  sha256-before, sha256-after, path, and the
+                               offset of every reference this run rewrote
+
+  That is deliberately the minimum rather than a copy of each page. A rewrite
+  substitutes filenames and changes nothing else, so recording where each
+  substitution landed - its character offset in the REWRITTEN text - and what
+  the name used to be describes the edit exactly, in tens of bytes per
+  reference instead of a megabyte per page. The two digests bracket it: the
+  "after" one identifies the row this run actually produced, and the "before"
+  one is what undoing the edits has to reproduce.
+
+  Reversing cannot be inferred from renames.tsv alone, which is why the
+  offsets are recorded at all. Rewriting every "foo.webp" back to "foo.png"
+  would also hit references that always said foo.webp - the same mistake the
+  rename map itself is diffed rather than inferred to avoid.
+
+  --restore-originals <bundle> replays those offsets backwards. A row whose
+  bytes no longer hash to "after" has been edited since this run and is
+  reported and left alone rather than overwritten; one that already hashes to
+  "before" is recognised as put back already. Run optimize_db_media.py
+  --restore-originals over the same bundle for the media itself; between them
+  the original documentation is reconstructed.
+
+  Like optimize_db_media.py's, --save-originals is refused with --dry-run:
+  a log of edits that were never made is a trap, not a record.
 """
 from __future__ import annotations
 
@@ -60,13 +92,30 @@ import argparse
 import re
 import sqlite3
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from optimize_db_media import (
-    BrotliCodec, CHUNK_SIZE, backup_database, clear_fragment_slots, is_continuation_path,
+    BrotliCodec, CHUNK_SIZE, backup_database, clear_fragment_slots, digest, is_continuation_path,
     load_dictionary, owned_fragment_paths, reassemble,
 )
+
+# The two files this script contributes to optimize_db_media.py's rollback
+# bundle (see that module's "original-asset archive" section for the rest of the
+# layout). Both are tab-separated text with "#" headers, like every other
+# manifest in this pipeline, so a reviewer can read one without a tool.
+BUNDLE_RENAMES = "renames.tsv"
+BUNDLE_REFERENCES = "references.tsv"
+RENAMES_HEADER = "# update_media_references rename map v1"
+RENAMES_COLUMNS = "# old-filename\tnew-filename"
+REFERENCES_HEADER = "# update_media_references reference-edit log v1"
+REFERENCES_COLUMNS = ("# sha256-before\tsha256-after\tpath\tsites (offset:old-filename, comma-separated;"
+                      " offsets index the rewritten text)")
+# Characters a filename may not contain for the sites field above to stay
+# unambiguous. Checked before anything is rewritten rather than at write time,
+# so a bundle can never fail after the work is already done.
+SITE_RESERVED = (",", ":", "\t", "\n", "\r")
 
 # Content types whose stored text can carry a link to a media file.
 #
@@ -186,16 +235,121 @@ def build_pattern(renames: dict) -> re.Pattern:
 
 
 def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
-    """Returns (new_text, number_of_replacements) - a single pass over the
-    original text, so a replacement can never be re-matched by another."""
-    count = 0
+    """Returns (new_text, sites), where sites is [(offset, old_filename)] for
+    every substitution made - the offset being where the NEW name starts in
+    new_text, which is what undo_rewrite needs to walk it back.
 
-    def repl(match):
-        nonlocal count
-        count += 1
-        return renames[match.group(1)]
+    Still a single pass over the original text, so a replacement can never be
+    re-matched by another; the output is assembled piece by piece instead of
+    through pattern.sub purely so those offsets can be counted as it grows."""
+    pieces, sites = [], []
+    read = written = 0
+    for match in pattern.finditer(text):
+        old_name = match.group(1)
+        new_name = renames[old_name]
+        pieces.append(text[read:match.start()])
+        written += match.start() - read
+        sites.append((written, old_name))
+        pieces.append(new_name)
+        written += len(new_name)
+        read = match.end()
+    if not sites:
+        return text, []
+    pieces.append(text[read:])
+    return "".join(pieces), sites
 
-    return pattern.sub(repl, text), count
+
+def undo_rewrite(text: str, sites: list, renames: dict) -> str:
+    """rewrite_text's inverse: puts each recorded site's old filename back.
+
+    Walks the sites in offset order building a new string, rather than splicing
+    repeatedly, so a page carrying hundreds of references (j/html/api/
+    index-all.html) stays linear instead of quadratic. Every site is checked
+    against the text actually there - a mismatch means this is not the row the
+    log describes, and raises rather than writing a corrupted page."""
+    pieces = []
+    read = 0
+    for offset, old_name in sorted(sites):
+        new_name = renames.get(old_name)
+        if new_name is None:
+            raise RuntimeError(f"no rename recorded for {old_name!r}")
+        if offset < read:
+            raise RuntimeError(f"overlapping edit sites at offset {offset}")
+        if text[offset:offset + len(new_name)] != new_name:
+            raise RuntimeError(f"expected {new_name!r} at offset {offset}, found "
+                               f"{text[offset:offset + len(new_name)]!r}")
+        pieces.append(text[read:offset])
+        pieces.append(old_name)
+        read = offset + len(new_name)
+    pieces.append(text[read:])
+    return "".join(pieces)
+
+
+def unloggable_names(renames: dict) -> list:
+    """Old filenames that could not be written into a reference log's sites
+    field unambiguously. Empty for every real filename in this database; the
+    check exists so a name that did contain a comma or colon would stop the run
+    up front with a clear complaint instead of producing a log that silently
+    cannot be parsed back."""
+    return sorted(name for name in renames if any(char in name for char in SITE_RESERVED))
+
+
+def write_rename_log(root: Path, renames: dict) -> Path:
+    path = root / BUNDLE_RENAMES
+    lines = [RENAMES_HEADER, RENAMES_COLUMNS,
+             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(renames)} rename(s)"]
+    lines.extend(f"{old}\t{renames[old]}" for old in sorted(renames))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def read_rename_log(path: Path) -> dict:
+    renames = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 2:
+            raise RuntimeError(f"{path}:{number}: expected 2 tab-separated fields, got {len(fields)}")
+        renames[fields[0]] = fields[1]
+    return renames
+
+
+def write_reference_log(root: Path, records: list) -> Path:
+    """Writes [(sha_before, sha_after, path, sites)], sorted by path."""
+    path = root / BUNDLE_REFERENCES
+    total = sum(len(sites) for _b, _a, _p, sites in records)
+    lines = [REFERENCES_HEADER, REFERENCES_COLUMNS,
+             f"# written {time.strftime('%Y-%m-%dT%H:%M:%S')} - {len(records)} row(s), "
+             f"{total} reference(s)"]
+    for sha_before, sha_after, stored_path, sites in sorted(records, key=lambda record: record[2]):
+        packed = ",".join(f"{offset}:{old_name}" for offset, old_name in sorted(sites))
+        lines.append(f"{sha_before}\t{sha_after}\t{stored_path}\t{packed}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def read_reference_log(path: Path) -> list:
+    """The inverse of write_reference_log. As with every other manifest here, a
+    line that will not parse is fatal: a partly-read log would put some
+    references back and leave others pointing at converted names, which is a
+    worse state than either end of the conversion."""
+    records = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 4:
+            raise RuntimeError(f"{path}:{number}: expected 4 tab-separated fields, got {len(fields)}")
+        sha_before, sha_after, stored_path, packed = fields
+        sites = []
+        for site in packed.split(","):
+            offset, sep, old_name = site.partition(":")
+            if not sep or not offset.isdigit() or not old_name:
+                raise RuntimeError(f"{path}:{number}: {site!r} is not an offset:filename pair")
+            sites.append((int(offset), old_name))
+        records.append((sha_before, sha_after, stored_path, sites))
+    return records
 
 
 def replace_row(conn, path: str, base_length: int, stored: bytes, language_id: int,
@@ -245,6 +399,13 @@ def run(cfg: dict) -> int:
         if not renames:
             print("No converted media found - nothing to rewrite.")
             return 0
+        if cfg["save_originals"] is not None:
+            offenders = unloggable_names(renames)
+            if offenders:
+                print(f"error: {len(offenders)} converted filename(s) contain a character the reference log "
+                      f"cannot encode ({', '.join(repr(c) for c in SITE_RESERVED)}), e.g. {offenders[0]!r}. "
+                      "Re-run without --save-originals, or rename those files first.", file=sys.stderr)
+                return 1
         print(f"Found {len(renames)} converted filename(s) to rewrite references for.")
         if cfg["verbose"]:
             for old in sorted(renames)[:10]:
@@ -287,11 +448,17 @@ def run(cfg: dict) -> int:
                 # so a row that isn't text is skipped rather than failing the
                 # whole run.
                 return ("binary", path, None)
-            new_text, hits = rewrite_text(text, pattern, renames)
-            if not hits:
+            new_text, sites = rewrite_text(text, pattern, renames)
+            if not sites:
                 return None
-            new_stored = codec.compress(new_text.encode("utf-8"), compression)
-            return ("ok", path, base_len, new_stored, language_id, content_type_id, template_id, hits)
+            new_bytes = new_text.encode("utf-8")
+            new_stored = codec.compress(new_bytes, compression)
+            # Both digests are over the DECODED text, not the stored blob:
+            # Brotli need not re-emit byte-identical output, so a digest over
+            # the blob would report a row as "edited since" purely because it
+            # was recompressed. What has to be reproduced is the content.
+            return ("ok", path, base_len, new_stored, language_id, content_type_id, template_id, sites,
+                    digest(raw), digest(new_bytes))
 
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             results = [r for r in pool.map(scan, work) if r is not None]
@@ -304,7 +471,7 @@ def run(cfg: dict) -> int:
         for _kind, path, message in errors:
             print(f"  error: could not read {path}: {message}", file=sys.stderr)
 
-        total_hits = sum(r[7] for r in changes)
+        total_hits = sum(len(r[7]) for r in changes)
         print(f"{len(changes)} row(s) reference a converted file; {total_hits} reference(s) to rewrite.")
 
         if cfg["dry_run"]:
@@ -314,15 +481,28 @@ def run(cfg: dict) -> int:
             print(f"Backup written to {backup_database(db_path)}")
             conn.execute("BEGIN")
             try:
-                for _kind, path, base_len, new_stored, lang, ctid, tid, hits in changes:
+                for _kind, path, base_len, new_stored, lang, ctid, tid, sites, _before, _after in changes:
                     replace_row(conn, path, base_len, new_stored, lang, ctid, tid,
                                 lambda m: print(m, file=sys.stderr))
                     if cfg["verbose"]:
-                        print(f"  [REF] {path}: {hits} reference(s)")
+                        print(f"  [REF] {path}: {len(sites)} reference(s)")
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
+
+            # Written only after the commit: a log describing edits that were
+            # rolled back would send a later --restore-originals hunting for
+            # rows that never changed.
+            if cfg["save_originals"] is not None:
+                root = cfg["save_originals"]
+                root.mkdir(parents=True, exist_ok=True)
+                rename_path = write_rename_log(root, renames)
+                log_path = write_reference_log(
+                    root, [(before, after, path, sites)
+                           for _kind, path, _bl, _ns, _lang, _ct, _tid, sites, before, after in changes])
+                print(f"Reference log written to {log_path} and {rename_path}; undo this run with "
+                      f"--restore-originals {root}.")
     finally:
         if codec is not None:
             codec.close()
@@ -344,19 +524,157 @@ def run(cfg: dict) -> int:
     return 1 if errors else 0
 
 
+def restore_references(cfg: dict) -> int:
+    """Replays a --save-originals reference log backwards, putting every
+    rewritten link back to the filename it named before the conversion.
+
+    Each row is identified by the digest of the text this run produced, so the
+    only rows touched are the ones still holding exactly what was written. A
+    row already matching the "before" digest has been put back already (a
+    re-run, or a restore that was interrupted) and is skipped; a row matching
+    neither has been edited since and is reported and left alone, because
+    replaying offsets into text that has moved would corrupt it."""
+    db_path = cfg["db_path"]
+    root = cfg["restore_originals"]
+    if not db_path.is_file():
+        print(f"error: {db_path} does not exist", file=sys.stderr)
+        return 1
+    renames_path, log_path = root / BUNDLE_RENAMES, root / BUNDLE_REFERENCES
+    for required in (renames_path, log_path):
+        if not required.is_file():
+            print(f"error: {root} holds no {required.name}, so it is not a bundle "
+                  "update_media_references.py --save-originals wrote", file=sys.stderr)
+            return 1
+    try:
+        renames = read_rename_log(renames_path)
+        records = read_reference_log(log_path)
+    except (OSError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    total_sites = sum(len(sites) for _b, _a, _p, sites in records)
+    print(f"Log {log_path} describes {total_sites} rewritten reference(s) across {len(records)} row(s), "
+          f"over {len(renames)} converted filename(s).")
+
+    warn = lambda message: print(message, file=sys.stderr)  # noqa: E731
+    stats = {"restored": 0, "sites": 0, "already": 0, "changed_since": 0, "missing": 0, "errors": 0}
+    conn = sqlite3.connect(db_path)
+    codec = None
+    try:
+        try:
+            codec = BrotliCodec(load_dictionary(conn))
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if not cfg["dry_run"]:
+            print(f"Backing up {db_path} ...")
+            print(f"Backup written to {backup_database(db_path)}")
+        conn.execute("BEGIN")
+        try:
+            for sha_before, sha_after, path, sites in records:
+                row = conn.execute(
+                    "SELECT c.content, c.languageID, c.contentTypeID, c.templateId, ct.compression "
+                    "FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id WHERE c.path = ?",
+                    (path,)).fetchone()
+                if row is None:
+                    stats["missing"] += 1
+                    warn(f"  error: {path} is no longer in the database; its references cannot be put back")
+                    continue
+                blob, language_id, content_type_id, template_id, compression = row
+                try:
+                    raw = codec.decompress(reassemble(conn, path, blob), compression)
+                    text = raw.decode("utf-8")
+                except Exception as exc:  # noqa: BLE001 - one unreadable row is not the run
+                    stats["errors"] += 1
+                    warn(f"  error: could not read {path}: {exc}")
+                    continue
+                current = digest(raw)
+                if current == sha_before:
+                    stats["already"] += 1
+                    continue
+                if current != sha_after:
+                    stats["changed_since"] += 1
+                    warn(f"  warning: {path} has changed since its references were rewritten; leaving it "
+                         "alone rather than replaying edits into text that has moved")
+                    continue
+                try:
+                    original = undo_rewrite(text, sites, renames)
+                except RuntimeError as exc:
+                    stats["errors"] += 1
+                    warn(f"  error: could not undo the edits in {path}: {exc}")
+                    continue
+                data = original.encode("utf-8")
+                if digest(data) != sha_before:
+                    # Belt and braces: the digests bracket the edit, so undoing
+                    # it has to land back on the recorded "before". Anything
+                    # else means the log and the row disagree in a way the
+                    # per-site checks did not catch.
+                    stats["errors"] += 1
+                    warn(f"  error: undoing {path} did not reproduce the recorded original; skipping")
+                    continue
+                replace_row(conn, path, len(blob), codec.compress(data, compression), language_id,
+                            content_type_id, template_id, warn)
+                stats["restored"] += 1
+                stats["sites"] += len(sites)
+                if cfg["verbose"]:
+                    print(f"  [UNDO] {path}: {len(sites)} reference(s)")
+            if cfg["dry_run"]:
+                conn.rollback()
+            else:
+                conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    finally:
+        if codec is not None:
+            codec.close()
+        conn.close()
+
+    if not cfg["dry_run"] and stats["restored"]:
+        print("Vacuuming database...")
+        vac = sqlite3.connect(db_path)
+        try:
+            vac.execute("VACUUM")
+        finally:
+            vac.close()
+
+    verb = "would put back" if cfg["dry_run"] else "put back"
+    print()
+    print(f"{'Dry run complete. ' if cfg['dry_run'] else 'Done. '}{verb} {stats['sites']} reference(s) "
+          f"across {stats['restored']} row(s); {stats['already']} row(s) already held the original names, "
+          f"{stats['changed_since']} edited since and left alone, {stats['missing']} missing, "
+          f"{stats['errors']} error(s).")
+    return 1 if stats["missing"] or stats["errors"] else 0
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database whose media references should be updated")
-    p.add_argument("--before", type=Path, required=True,
+    p.add_argument("--before", type=Path, default=None,
                    help="The pre-conversion copy of this database (the backup optimize_db_media.py wrote), "
-                        "diffed against it to learn exactly which files were renamed")
+                        "diffed against it to learn exactly which files were renamed. Required unless "
+                        "--restore-originals is given")
     p.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
     p.add_argument("--workers", type=int, default=8,
                    help="Parallel (de)compression workers (default: 8)")
+    originals = p.add_mutually_exclusive_group()
+    originals.add_argument("--save-originals", type=Path, default=None, metavar="BUNDLE",
+                           help="Record where every reference this run rewrites used to point, into the "
+                                "same bundle optimize_db_media.py --save-originals fills - the minimum "
+                                "needed to reconstruct the original HTML. Cannot be combined with --dry-run")
+    originals.add_argument("--restore-originals", type=Path, default=None, metavar="BUNDLE",
+                           help="Undo a --save-originals run instead of rewriting: put every recorded "
+                                "reference back to the filename it named before. Needs no --before")
     p.add_argument("--verbose", action="store_true", help="List rewritten rows and sample renames")
     args = p.parse_args()
-    sys.exit(run({"db_path": args.db_path, "before": args.before, "dry_run": args.dry_run,
-                  "workers": args.workers, "verbose": args.verbose}))
+    if args.save_originals is not None and args.dry_run:
+        p.error("--save-originals cannot be combined with --dry-run: a dry run rewrites nothing to undo")
+    if args.restore_originals is None and args.before is None:
+        p.error("--before is required (it is what the rename map is diffed from); "
+                "only --restore-originals can go without it")
+    cfg = {"db_path": args.db_path, "before": args.before, "dry_run": args.dry_run,
+           "workers": args.workers, "verbose": args.verbose,
+           "save_originals": args.save_originals, "restore_originals": args.restore_originals}
+    sys.exit(restore_references(cfg) if args.restore_originals is not None else run(cfg))
 
 
 if __name__ == "__main__":
