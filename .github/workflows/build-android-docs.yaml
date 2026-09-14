@@ -1,0 +1,353 @@
+name: Build Android Docs
+
+# CI counterpart of ProcessDocs/AndroidDocs/AndroidDocsToJson's pipeline - the
+# same five steps (android_docs_to_json -> load_android_json_db ->
+# verify_android_json_db -> remint_dictionary -> verify_remint_dictionary), but
+# reading and writing the real database on Google Drive (GOOGLE_DRIVE_FILE_ID)
+# instead of a local copy. build-android-docs-local.yaml is the same workflow
+# against a path on disk; this file deliberately mirrors build-kotlin-docs.yaml
+# and build-java-docs.yaml in shape.
+#
+# What it does: converts the scraped developer.android.com reference under
+# ProcessDocs/AndroidDocs into a JSON documentation tree, replaces the 12,106
+# rows of scraped HTML in the database with it, adds the 800 package summaries
+# and root index the scrape has no pages for, and re-mints the shared Brotli
+# dictionary over the changed corpus.
+#
+# NO EXTERNAL SOURCE CHECKOUT: unlike the Kotlin workflow (which clones
+# kotlin-web-site) and the Java one (which unpacks a JDK's lib/src.zip), the
+# input is already in this repository - the 12,106 derived HTML pages under
+# ProcessDocs/AndroidDocs/{android,androidx}, committed here. The 9 GB raw
+# scrape they were derived from lives on Drive and is not needed: see
+# ProcessDocs/AndroidDocs/README.md. So a run is reproducible from a commit
+# alone, and there is no ref input to pin.
+#
+# WHY THE RE-MINT IS PART OF THE JOB, not a follow-up: content is compressed
+# against one shared dictionary, and the database's was trained when the corpus
+# was mostly HTML with the site's stylesheet inlined thousands of times over. It
+# compresses those old rows extremely well and has never seen the shape of the
+# new ones, so swapping HTML for JSON *alone* makes the Android pages about 7%
+# larger. Re-training over the changed corpus takes that back and more - 29.7 MB
+# of HTML becomes 27.4 MB of JSON across 800 more pages. skip_remint exists for
+# a quick structural check, not for a run whose output anyone will ship.
+#
+# TIMING, measured on the real corpus (a GitHub-hosted runner will differ, but
+# the proportions hold): ~1 min to convert, ~1.5 min to load, ~5.5 min to
+# re-mint and ~2 min to verify the re-mint. The re-mint recompresses every row
+# in the database at Brotli q11, not just the Android ones, which is why it
+# dominates. Budget ~15 minutes for a full run.
+#
+# Required secrets (already configured - see docdb-regression-test.yaml for
+# their other use in this repo):
+#   GCP_WIF_PROVIDER        - Workload Identity Federation provider name
+#   GCP_WIF_SERVICE_ACCOUNT - Service account email for WIF (needs write
+#                              access - not just view - to the database file,
+#                              since this workflow overwrites it)
+#   GOOGLE_DRIVE_FILE_ID     - File ID of the production documentation.db
+#                              (stored on Drive as a zip)
+#
+# Optional secret (Slack notifications are skipped with a warning if unset):
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, since this workflow mutates a
+#                        single shared Drive file).
+
+permissions:
+  contents: read
+  id-token: write
+
+# This workflow overwrites a single shared Drive file - never let two runs
+# race to upload against each other.
+concurrency:
+  group: build-android-docs
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: >-
+          Convert only the pages whose path contains this substring, e.g.
+          "android/app/". Turns a multi-minute run into seconds, which is the
+          way to smoke-test a change. Links into the rest of the tree still
+          resolve (the whole corpus is indexed either way), but the database
+          will hold a mix of JSON and untouched HTML rows, so pair it with
+          verify_complete=false.
+        required: false
+        default: ''
+      sample_size:
+        description: >-
+          How many stored pages to pull back out of the built database and
+          render through their stored template. The check is not free - each
+          one starts a JVM - so this samples rather than rendering all 12,906.
+        required: false
+        default: '40'
+      verify_complete:
+        description: >-
+          Fail if any Android row is still serving raw HTML, i.e. if the load
+          did not cover the whole corpus. Turn it off only for an `only` run,
+          which by definition leaves the rest behind.
+        required: false
+        default: true
+        type: boolean
+      skip_remint:
+        description: >-
+          Skip re-training the shared Brotli dictionary and recompressing every
+          row. Right in two cases: a structural check whose output nobody will
+          ship, and a re-run against a database whose dictionary was already
+          minted for this corpus and whose content has not materially changed
+          since - re-minting is not cumulative, and a second pass over an
+          already-minted database measured -0.7%, i.e. five and a half minutes
+          to get marginally worse. Otherwise leave it off: on a database coming
+          from HTML it is worth about 16% (see WHY THE RE-MINT IS PART OF THE
+          JOB above).
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT upload the result
+          back to Google Drive - the production database is left untouched.
+          Set to false only once you trust a given commit.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-android-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DB_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_FILE_ID }}
+      ONLY: ${{ inputs.only }}
+      SAMPLE_SIZE: ${{ inputs.sample_size }}
+      # Where each stage writes. JSON_OUT is ~350 MB and STAGED_DB is the
+      # database being built; both stay in the workspace.
+      JSON_OUT: ${{ github.workspace }}/android-json-build
+      STAGED_DB: ${{ github.workspace }}/documentation-android.db
+      PREREMINT_DB: ${{ github.workspace }}/preremint.db
+      MODULE: ProcessDocs/AndroidDocs/AndroidDocsToJson
+      KOTLIN_PIPELINE: ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON
+      # --- Hard-coded override for one-off manual testing ------------------
+      # Fill in with a literal Google Drive file ID to bypass the secret above
+      # for a quick, repeatable test run (e.g. against a scratch copy of the
+      # database on Drive). Leave empty ('') for normal operation.
+      TEST_DB_FILE_ID: ''
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve Google Drive file ID
+        run: |
+          DB_FILE_ID="${TEST_DB_FILE_ID:-$DB_FILE_ID_SECRET}"
+          if [ -z "$DB_FILE_ID" ]; then
+            echo "Error: no database file ID resolved - set the GOOGLE_DRIVE_FILE_ID secret, or TEST_DB_FILE_ID above for a test run" >&2
+            exit 1
+          fi
+          echo "Resolved DB_FILE_ID: ${DB_FILE_ID:+(set)}"
+          echo "DB_FILE_ID=$DB_FILE_ID" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (for the Pebble renderer the verification step runs)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # The renderer's Gradle build targets 17 and its wrapper is happy on
+          # anything from 17 up. Nothing here is pinned to an old Kotlin the
+          # way kdoc-to-json is, so this has no upper bound.
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # brotli: the CLI, not the Python package. DictionaryCompressor shells
+          # out to it because no Python binding exposes a custom dictionary
+          # (ADFA-5153).
+          # zstd: its --train-fastcover trainer is what mints the Brotli
+          # dictionary; Brotli has no trainer of its own (see train_dictionary).
+          sudo apt-get install -y unzip zip sqlite3 brotli zstd
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # google-api-python-client & friends: Drive download/upload, same
+          # libraries check-tools/download_database.py already depends on.
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Build the Pebble renderer
+        run: |
+          # verify_android_json_db.py renders stored pages through their stored
+          # templates to prove the database works, and shells out to this jar to
+          # do it. Built once here rather than per page.
+          (cd "$MODULE/renderer" && ./gradlew --console=plain -q installDist)
+
+      - name: Run the unit tests
+        run: |
+          # Cheap (under a second for both suites) and worth having in front of
+          # a run that rewrites a shared database.
+          (cd "$MODULE" && python3 -m pytest -q)
+          (cd "$MODULE/renderer" && ./gradlew --console=plain test)
+
+      - name: Authenticate to Google Cloud using Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/drive.file
+
+      - name: Download current documentation.db from Google Drive
+        run: |
+          python3 check-tools/download_database.py "$DB_FILE_ID" documentation.zip
+          unzip -o documentation.zip
+          if [ ! -f documentation.db ]; then
+            found="$(find . -maxdepth 2 -name documentation.db | head -n1)"
+            [ -n "$found" ] && mv "$found" documentation.db
+          fi
+          test -f documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          rm -f documentation.zip
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      - name: 'Notify Slack: build started'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: 'Step 1/5: android_docs_to_json.py (scraped HTML -> JSON documentation tree)'
+        run: |
+          ARGS=(ProcessDocs/AndroidDocs/android ProcessDocs/AndroidDocs/androidx --out "$JSON_OUT")
+          [ -n "$ONLY" ] && ARGS+=(--only "$ONLY")
+          python3 "$MODULE/android_docs_to_json.py" "${ARGS[@]}"
+
+      - name: 'Step 2/5: load_android_json_db.py (JSON -> Content rows, templates, stylesheet)'
+        run: |
+          python3 "$MODULE/load_android_json_db.py" "$JSON_OUT" \
+            --source documentation.db --out "$STAGED_DB" --force
+
+      - name: 'Step 3/5: verify_android_json_db.py (render stored pages from the database)'
+        run: |
+          # The question the loader cannot answer: do the rows it wrote render?
+          # This pulls the stored JSON and the stored template back out and runs
+          # them through Pebble configured the way the server configures it.
+          ARGS=("$STAGED_DB" --sample "$SAMPLE_SIZE")
+          python3 "$MODULE/verify_android_json_db.py" "${ARGS[@]}"
+
+      - name: 'Step 4/5: remint_dictionary.py (re-train the shared dictionary, recompress)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          cp "$STAGED_DB" "$PREREMINT_DB"
+          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --no-backup
+
+      - name: 'Step 5/5: verify_remint_dictionary.py (every row still decodes to the same bytes)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          # Not paranoia: a row recompressed against a mismatched dictionary
+          # decodes without error into *different* bytes (measured at 38% in
+          # that script's own header), so nothing at runtime would catch it.
+          python3 "$KOTLIN_PIPELINE/verify_remint_dictionary.py" "$PREREMINT_DB" "$STAGED_DB"
+
+      - name: Summary
+        run: |
+          python3 - "$STAGED_DB" "$JSON_OUT" "${{ inputs.verify_complete }}" <<'PYEOF'
+          import pathlib
+          import sqlite3
+          import sys
+
+          db_path, json_out, verify_complete = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
+          conn = sqlite3.connect(db_path)
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          android = "path LIKE 'a/android/%' OR path LIKE 'a/androidx/%' OR path = 'a/index.html'"
+          templated = count(f"({android}) AND templateId != 0")
+          raw_html = count(f"({android}) AND templateId = 0")
+          stored = conn.execute(
+              f"SELECT SUM(length(content)) FROM Content WHERE ({android}) AND templateId != 0"
+          ).fetchone()[0] or 0
+          pages_on_disk = sum(1 for _ in pathlib.Path(json_out).rglob("*.json"))
+
+          print(f"Database: {db_path}")
+          print(f"  JSON pages generated            : {pages_on_disk:,}")
+          print(f"  a/android* rows, JSON+template  : {templated:,}")
+          print(f"  a/android* rows, still raw HTML : {raw_html:,}")
+          summaries = count("path LIKE 'a/%package-summary.html'")
+          templates = [n for (n,) in conn.execute("SELECT name FROM Templates ORDER BY id")]
+          print(f"  package summaries               : {summaries:,}")
+          print(f"  stored bytes of the JSON rows   : {stored:,}")
+          print(f"  templates                       : {templates}")
+          conn.close()
+
+          if templated == 0:
+              print("FAIL: no Android rows are pointing at a template - the load did nothing.")
+              sys.exit(1)
+          # Fewer templated rows than pages generated means the load dropped some. More is
+          # normal and not an error: an `only` run against a database a previous full run
+          # already covered leaves every other page templated from before.
+          if templated < pages_on_disk:
+              print(f"FAIL: {pages_on_disk:,} pages were generated but only {templated:,} rows "
+                    f"are templated - the load did not cover what the conversion produced.")
+              sys.exit(1)
+          if verify_complete and raw_html:
+              print(f"FAIL: {raw_html:,} Android row(s) are still serving raw HTML. Every page in "
+                    f"the corpus should have been replaced; pass verify_complete=false only for "
+                    f"an `only` run, which deliberately leaves the rest behind.")
+              sys.exit(1)
+          print("PASS")
+          PYEOF
+
+      - name: Upload built database as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db-${{ github.run_number }}
+          path: ${{ env.STAGED_DB }}
+          retention-days: 14
+
+      - name: Zip updated database for upload
+        if: ${{ !inputs.dry_run }}
+        run: zip -j documentation.zip "$STAGED_DB"
+
+      - name: Upload updated database to Google Drive
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          from google.auth import default
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          file_id = os.environ["DB_FILE_ID"]
+          credentials, _ = default()
+          service = build("drive", "v3", credentials=credentials)
+          media = MediaFileUpload("documentation.zip", mimetype="application/zip", resumable=True)
+          updated = service.files().update(
+              fileId=file_id, media_body=media, fields="id, modifiedTime, md5Checksum"
+          ).execute()
+          print(f"Uploaded new revision of {file_id}: {updated}")
+          PYEOF
+
+      - name: 'Notify Slack: build complete'
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Updated Android documentation. Dropping baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi

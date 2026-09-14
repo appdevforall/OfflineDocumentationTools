@@ -331,6 +331,37 @@ a row whose type and template are not changing) but not here, where a scraped pa
 0 and has to come out templated. So the columns that say how to serve a row are set afterwards, on
 the base row and on any continuation row.
 
+## Running it in CI
+
+Two workflows, mirroring the Kotlin and Java pairs:
+
+| | |
+|---|---|
+| `.github/workflows/build-android-docs.yaml` | reads and writes the real database on Google Drive |
+| `.github/workflows/build-android-docs-local.yaml` | the same five steps against a path on disk |
+| `run-build-android-docs-with-act.sh` | drives the local one under [act](https://github.com/nektos/act) |
+
+The steps between the two are identical -- convert, load, verify, re-mint,
+verify the re-mint -- and only the ends differ: Drive download/upload behind
+Workload Identity Federation, or `cp` from and to `db_path`. The local workflow
+exists because WIF validates the OIDC token's issuer against GitHub's own token
+endpoint, so act can never get past the Drive workflow's auth step no matter
+what secrets it is given.
+
+Unlike the Kotlin workflow (which clones kotlin-web-site) and the Java one
+(which unpacks a JDK's `lib/src.zip`), there is no external source to fetch: the
+12,106 derived HTML pages are committed in this repository, so a run is
+reproducible from a commit alone and there is no ref to pin. The 9 GB raw scrape
+they came from stays on Drive and is not needed.
+
+Two inputs are worth knowing about. `only` converts a substring of the corpus
+and turns a twelve-minute run into seconds, which is how to smoke-test a change;
+it leaves the rest of the rows as they were, so it needs `verify_complete=false`
+beside it. `skip_remint` drops the two slowest steps, which is right for a
+structural check and for a re-run against a database already minted for this
+corpus -- re-minting is not cumulative, and a second pass over an already-minted
+database measured -0.7%.
+
 ## The renderer
 
 `renderer/` is a small Gradle project: Pebble templates, and just enough Java to walk the tree and
