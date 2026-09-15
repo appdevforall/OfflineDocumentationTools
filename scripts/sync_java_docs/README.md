@@ -15,6 +15,42 @@ python3 scripts/sync_java_docs/sync_javadoc_json_to_db.py <json-root> --db docum
 python3 scripts/sync_java_docs/sync_javadoc_json_to_db.py <json-root> --db documentation.db
 ```
 
+## Running it as a workflow
+
+The three commands above are the manual form. Two workflows wrap them into the
+full fetch → copy → sync → save cycle, and both keep their input intact:
+
+| | `.github/workflows/build-java-docs.yaml` | `.github/workflows/build-java-docs-local.yaml` |
+| --- | --- | --- |
+| input database | downloaded from Drive (`GOOGLE_DRIVE_FILE_ID`) | read from `db_path` |
+| copy of the original | `documentation-original.db`, uploaded as a run artifact | written to `output_dir` |
+| result saved to | `destination_file_id` **or** `destination_folder_id` | `output_db_path` |
+| source is written back to | never, unless `allow_source_overwrite` | never |
+
+Neither one will save over the database it read: the Drive workflow refuses a
+`destination_file_id` equal to its source, and the local workflow refuses an
+`output_db_path` that resolves to `db_path`. Both refuse *before* the JDK build
+rather than after it, so a misconfigured destination costs seconds.
+
+Both also verify, against the preserved original, that the run changed rows
+under `j/html/api/` and nothing else. That check is the only thing standing
+behind the "Java API only" claim — the sync itself would pass every other check
+in the workflow even if it reached wider.
+
+Run the local one with [act](https://github.com/nektos/act) via
+`./run-build-java-docs-with-act.sh`, which bind-mounts `--db-path` **read-only**
+so the container cannot modify it whatever the workflow does:
+
+```bash
+# A two-module subset - about a minute, and enough to exercise every step
+./run-build-java-docs-with-act.sh \
+    --db-path ~/docs/documentation.db \
+    --modules java.sql,java.transaction.xa --no-verify-parity
+```
+
+That script's header carries the measured container-memory numbers for a full
+JDK run; read it before trying one.
+
 ## How a page is stored
 
 The same arrangement the Kotlin website docs already use, and it is worth being explicit about

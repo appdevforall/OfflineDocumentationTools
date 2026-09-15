@@ -62,19 +62,38 @@
 # your container runtime is allowed to share - under $HOME is safe for both
 # colima and Docker Desktop; /tmp on macOS often is not.
 #
+# --db-path is mounted :ro. The workflow is written not to touch it, but a
+# read-only mount is the part of that guarantee that does not depend on anyone
+# remembering - which is why --output-db-path defaults into --output-dir
+# rather than back over the input.
+#
 # Usage:
 #   ./run-build-java-docs-with-act.sh --db-path PATH [options] [-- <extra act args>]
 #
+# Typical first run - a two-module subset, nothing written anywhere but the
+# output directory:
+#
+#   ./run-build-java-docs-with-act.sh \
+#       --db-path ~/docs/documentation.db \
+#       --modules java.sql,java.transaction.xa --no-verify-parity
+#
 # Options:
-#   --db-path PATH            Host path to the input documentation.db (required).
-#                             With --live this file is overwritten in place.
+#   --db-path PATH            Host path to the input documentation.db
+#                             (required). Never written to: it is bind-mounted
+#                             into the container read-only, so no step of the
+#                             run can modify it even by mistake.
+#   --output-db-path PATH     Host path to save the updated database to.
+#                             Default: <output-dir>/documentation.db. Refused
+#                             if it resolves to the same file as --db-path.
 #   --output-dir PATH         Host directory for outputs - a run-numbered copy
-#                             of the built database. Created if absent.
+#                             of the built database and of the original it was
+#                             built from. Created if absent.
 #                             (default: ./build-java-docs-output)
-#   --live                    dry_run=false: write the rebuilt database back
-#                             over --db-path when the run finishes. Also
-#                             required for the "build complete" Slack
-#                             notification to fire. Default is dry_run=true.
+#   --live                    dry_run=false: actually write --output-db-path
+#                             when the run finishes. Also required for the
+#                             "build complete" Slack notification to fire.
+#                             Default is dry_run=true, which still writes the
+#                             run-numbered copy into --output-dir.
 #   --java-version V          JDK whose lib/src.zip is documented, and which
 #                             the Gradle builds run on (default: 17). Must be
 #                             21 or lower: kdoc-to-json is pinned to Kotlin
@@ -98,9 +117,9 @@
 # whose YAML "default:" would cover them. act does not apply
 # workflow_dispatch input defaults - an input you don't pass arrives empty -
 # and for dry_run that inverts the intended behaviour: "${{ !inputs.dry_run }}"
-# on an empty value is true, so the step that writes the database back over
-# --db-path would run. Passing all of them keeps a local run's semantics
-# identical to a real dispatch.
+# on an empty value is true, so the save step would run when it was meant not
+# to. Passing all of them keeps a local run's semantics identical to a real
+# dispatch.
 #
 # On Apple Silicon act warns about container architecture; append
 # `-- --container-architecture linux/arm64` if you want to silence it (the
@@ -119,8 +138,14 @@ WORKFLOW="$REPO_ROOT/.github/workflows/build-java-docs-local.yaml"
 # therefore what the workflow itself is told its inputs are.
 CONTAINER_DB_PATH="/mnt/act-inputs/documentation.db"
 CONTAINER_OUTPUT_DIR="/mnt/act-output"
+# Filled in from --output-db-path once the arguments are parsed. It is reached
+# through the output-dir mount rather than getting a mount of its own: it
+# generally names a file that does not exist yet, and Docker creates a
+# *directory* at the host path for a bind-mount source that is missing.
+CONTAINER_OUTPUT_DB_PATH=""
 
 DB_PATH=""
+OUTPUT_DB_PATH=""
 OUTPUT_DIR="$REPO_ROOT/build-java-docs-output"
 # Mirrors build-java-docs-local.yaml's own default. Restated here because act
 # does not apply workflow_dispatch defaults (see the note above); passing the
@@ -137,6 +162,7 @@ EXTRA_ACT_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --db-path) DB_PATH="$2"; shift 2 ;;
+    --output-db-path) OUTPUT_DB_PATH="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
     --live) DRY_RUN="false"; shift ;;
     --java-version) JAVA_VERSION="$2"; shift 2 ;;
@@ -169,6 +195,40 @@ fi
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
+# Map --output-db-path onto its in-container location. It has to sit under
+# --output-dir, because that directory's mount is how anything the run writes
+# reaches the host; a path anywhere else would be written inside the container
+# and thrown away with it. Saying so is better than silently producing a run
+# whose output cannot be found afterwards.
+if [ -z "$OUTPUT_DB_PATH" ]; then
+  OUTPUT_DB_PATH="$OUTPUT_DIR/documentation.db"
+  CONTAINER_OUTPUT_DB_PATH="$CONTAINER_OUTPUT_DIR/documentation.db"
+else
+  OUTPUT_DB_DIR="$(cd "$(dirname "$OUTPUT_DB_PATH")" 2>/dev/null && pwd)" || {
+    echo "error: --output-db-path '$OUTPUT_DB_PATH' is in a directory that does not exist" >&2
+    exit 1
+  }
+  OUTPUT_DB_PATH="$OUTPUT_DB_DIR/$(basename "$OUTPUT_DB_PATH")"
+  case "$OUTPUT_DB_PATH" in
+    "$OUTPUT_DIR"/*)
+      CONTAINER_OUTPUT_DB_PATH="$CONTAINER_OUTPUT_DIR/${OUTPUT_DB_PATH#"$OUTPUT_DIR"/}"
+      ;;
+    *)
+      echo "error: --output-db-path '$OUTPUT_DB_PATH' is outside --output-dir '$OUTPUT_DIR'." >&2
+      echo "error: Only --output-dir is mounted for writing, so a file written anywhere else" >&2
+      echo "error: would stay inside the container. Put it under --output-dir, or point" >&2
+      echo "error: --output-dir at the directory you want to write into." >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [ "$OUTPUT_DB_PATH" = "$DB_PATH" ]; then
+  echo "error: --output-db-path is the same file as --db-path. This workflow keeps its" >&2
+  echo "error: input intact so a bad run can be compared against it; pick another path." >&2
+  exit 1
+fi
+
 # One -v per input. Mounting the database individually (rather than its parent
 # directory) keeps the container's view to exactly what the run needs, and lets
 # --db-path and --output-dir live in unrelated places on the host.
@@ -177,17 +237,25 @@ OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 # quoting rules, so each mount spec is emitted double-quoted: an unquoted join
 # would break the moment a host path contained a space.
 CONTAINER_OPTIONS=""
-add_mount() { CONTAINER_OPTIONS+=" -v \"$1:$2\""; }
-add_mount "$DB_PATH" "$CONTAINER_DB_PATH"
+add_mount() { CONTAINER_OPTIONS+=" -v \"$1:$2${3:-}\""; }
+# :ro on the input. The workflow does not write db_path, and refuses an
+# output_db_path that resolves to it - this is the third lock on the same door,
+# and the only one that holds regardless of what the workflow does.
+add_mount "$DB_PATH" "$CONTAINER_DB_PATH" ":ro"
 add_mount "$OUTPUT_DIR" "$CONTAINER_OUTPUT_DIR"
 
+# '$DB_PATH' is never modified, with or without --live, so neither branch
+# warns about it - the difference is only whether --output-db-path is written.
 if [ "$DRY_RUN" = "true" ]; then
-  echo "note: dry_run=true - '$DB_PATH' will NOT be modified; the built database is" >&2
-  echo "note: written to '$OUTPUT_DIR' only. The 'build started' Slack notification" >&2
-  echo "note: still fires (if SLACK_WEBHOOK_URL is set) but 'build complete' is gated" >&2
-  echo "note: on dry_run=false. Pass --live to write back and see it." >&2
+  echo "note: dry_run=true - '$OUTPUT_DB_PATH' will NOT be written. The run-numbered" >&2
+  echo "note: copy still lands in '$OUTPUT_DIR', so there is something to inspect." >&2
+  echo "note: The 'build started' Slack notification still fires (if SLACK_WEBHOOK_URL" >&2
+  echo "note: is set) but 'build complete' is gated on dry_run=false. Pass --live for it." >&2
 else
-  echo "WARNING: --live - '$DB_PATH' will be OVERWRITTEN in place when the run finishes." >&2
+  echo "note: --live - the updated database will be saved to '$OUTPUT_DB_PATH'." >&2
+  if [ -e "$OUTPUT_DB_PATH" ]; then
+    echo "WARNING: '$OUTPUT_DB_PATH' already exists and will be overwritten." >&2
+  fi
 fi
 
 # The workflow reads SLACK_WEBHOOK_URL and tolerates it being unset, so pass
@@ -206,8 +274,9 @@ if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
 fi
 
 echo "== Running $WORKFLOW via act =="
-echo "   db_path      $DB_PATH -> $CONTAINER_DB_PATH"
-echo "   output_dir   $OUTPUT_DIR -> $CONTAINER_OUTPUT_DIR"
+echo "   db_path        $DB_PATH -> $CONTAINER_DB_PATH (read-only)"
+echo "   output_dir     $OUTPUT_DIR -> $CONTAINER_OUTPUT_DIR"
+echo "   output_db_path $OUTPUT_DB_PATH -> $CONTAINER_OUTPUT_DB_PATH"
 echo "   java_version=$JAVA_VERSION modules=${MODULES:-(all)} dry_run=$DRY_RUN"
 echo "   verify_parity=$VERIFY_PARITY delete_missing=$DELETE_MISSING"
 echo "   dokka_worker_heap=${DOKKA_WORKER_HEAP:-(build default)}"
@@ -223,6 +292,7 @@ act workflow_dispatch \
   --container-daemon-socket - \
   --container-options "$CONTAINER_OPTIONS" \
   --input db_path="$CONTAINER_DB_PATH" \
+  --input output_db_path="$CONTAINER_OUTPUT_DB_PATH" \
   --input output_dir="$CONTAINER_OUTPUT_DIR" \
   --input java_version="$JAVA_VERSION" \
   --input modules="$MODULES" \
