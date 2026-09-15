@@ -57,11 +57,21 @@ def humanize(stem: str) -> str:
     return HUMANIZE_RE.sub(" ", stem).strip().title()
 
 
-def load_page_index(docs_json_dir: Path) -> tuple[dict, dict]:
-    """Returns (stem -> id, id -> title) built from every generated page JSON."""
+def load_page_index(docs_json_dir: Path, skip: set = None) -> tuple[dict, dict]:
+    """Returns (stem -> id, id -> title) built from every generated page JSON.
+
+    `skip` names files in the tree that are this script's own output rather than pages. The
+    README documents running this as `build_nav.py <docs-root> <output-dir> <output-dir>`, so on
+    a second run nav.json is sitting in the directory being scanned - and it is a JSON array, not
+    a page object, so reading it as one fails. Skipped by path rather than by shape: quietly
+    tolerating a non-page JSON would also swallow genuinely malformed input.
+    """
     stem_to_id = {}
     id_to_title = {}
+    skip = {p.resolve() for p in (skip or set())}
     for json_path in docs_json_dir.rglob("*.json"):
+        if json_path.resolve() in skip:
+            continue
         page = json.loads(json_path.read_text(encoding="utf-8"))
         page_id = page.get("id")
         if not page_id:
@@ -110,17 +120,19 @@ def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: li
                     warnings.append(f"topic={topic!r} has no converted page (deleted); dropping from nav")
                     return None
             else:
-                # Not a converted .md page (e.g. home.topic, api-references.topic):
-                # still rendered as a link (for consistency, and it's still the
-                # best URL guess) but it doesn't lead anywhere real, so it's
-                # colored the same as a no-topic-at-all category header. Prefixed
-                # the same way as a resolved stem_to_id hit would be (e.g.
-                # populate_db.py passes id_prefix="k/html/" since stem_to_id
-                # there already maps every real page to "k/html/<stem>"), so
-                # this fallback id follows the same URL convention as everything
-                # else on the page rather than silently reverting to a bare one.
-                page_id = f"{id_prefix}{stem}"
-                warnings.append(f"no converted page for topic={topic!r}; using id={page_id!r}")
+                # A .topic reference with no page behind it (e.g. api-references.topic). It gets
+                # no id at all, so nav.peb renders it as an unlinked section header and
+                # flatten_nav_ids leaves it out of the prev/next chain.
+                #
+                # It used to be given a guessed id, `{id_prefix}{stem}`, which is a URL no
+                # Content row answers: nav.peb links on `node.id` alone - noLinkColor only
+                # colours the link, it does not stop it being one - so the sidebar entry 404'd,
+                # and being id-bearing it also became the prev or next target of the real pages
+                # either side of it. Only home.topic ever had a page, and populate_db.py gives it
+                # one by putting "home" into the index before nav is built, so it resolves above
+                # and never reaches here.
+                warnings.append(f"no converted page for topic={topic!r}; "
+                                f"rendering as an unlinked header")
         else:
             no_link = False
         if not title:
@@ -185,7 +197,8 @@ def main():
         print(f"error: {tree_path} does not exist", file=sys.stderr)
         sys.exit(1)
 
-    stem_to_id, id_to_title = load_page_index(args.docs_json_dir)
+    nav_json_path = args.output_dir / "nav.json"
+    stem_to_id, id_to_title = load_page_index(args.docs_json_dir, skip={nav_json_path})
 
     theme_path = args.docs_json_dir / "theme.json"
     no_link_color = None
@@ -204,7 +217,7 @@ def main():
         print(f"warning: {w}", file=sys.stderr)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / "nav.json").write_text(
+    nav_json_path.write_text(
         json.dumps(nav_tree, separators=(",", ":"), ensure_ascii=False), encoding="utf-8"
     )
     (args.output_dir / "nav.html").write_text(render_html(nav_tree), encoding="utf-8")

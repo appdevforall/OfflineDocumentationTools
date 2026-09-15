@@ -125,10 +125,13 @@ jobs:
           echo "DB_FILE_ID=$DB_FILE_ID" >> "$GITHUB_ENV"
           echo "IMG_FILE_ID=$IMG_FILE_ID" >> "$GITHUB_ENV"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Python with uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version: '3.11'
+          version: "latest"
+
+      - name: Create the virtual environment
+        run: uv venv --python 3.11
 
       - name: Set up JDK (for the kdoc-to-json / kotlin-stdlib-docs Gradle builds)
         uses: actions/setup-java@v4
@@ -147,13 +150,13 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install -r requirements.txt
-          # markdown-it-py/scour/cairosvg: ProcessKotlinWebsiteJSON's own
-          # requirements (see its README), not in the root requirements.txt.
-          # google-api-python-client & friends: Drive download/upload, same
-          # libraries check-tools/download_database.py already depends on.
-          pip install markdown-it-py scour cairosvg \
-            google-api-python-client google-auth-httplib2 google-auth-oauthlib
+          # markdown-it-py, scour and cairosvg now live in requirements.txt, where anyone
+          # following the README gets them too - they used to be installed only here, so a
+          # checkout outside CI could not import md_to_json at all.
+          uv pip install -r requirements.txt
+          # Drive download/upload only, and only needed by this workflow: the same libraries
+          # check-tools/download_database.py already depends on.
+          uv pip install -r .github/requirements-drive.txt
 
       - name: Authenticate to Google Cloud using Workload Identity Federation
         uses: google-github-actions/auth@v2
@@ -161,11 +164,12 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
           access_token_scopes: |
+            https://www.googleapis.com/auth/drive.readonly
             https://www.googleapis.com/auth/drive.file
 
       - name: Download current documentation.db from Google Drive
         run: |
-          python3 check-tools/download_database.py "$DB_FILE_ID" documentation.zip
+          uv run python check-tools/download_database.py "$DB_FILE_ID" documentation.zip
           unzip -o documentation.zip
           if [ ! -f documentation.db ]; then
             found="$(find . -maxdepth 2 -name documentation.db | head -n1)"
@@ -177,6 +181,7 @@ jobs:
           echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
 
       - name: 'Notify Slack: build started'
+        if: ${{ !inputs.dry_run }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -191,9 +196,11 @@ jobs:
       - name: Clone kotlin-web-site
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          ARGS=(--depth 1)
-          [ -n "$KOTLIN_WEB_SITE_REF" ] && ARGS+=(--branch "$KOTLIN_WEB_SITE_REF")
-          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site
+          # fetch, not clone --branch: --branch takes a branch or a tag and rejects a commit SHA
+          # ("Remote branch <sha> not found in upstream origin"), which is exactly what pinning
+          # for a reproducible build asks for. This accepts all three.
+          ./.github/scripts/shallow-checkout.sh \
+            https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site "$KOTLIN_WEB_SITE_REF"
 
       - name: Download Writerside image export from Google Drive
         if: ${{ !inputs.skip_website_docs }}
@@ -205,12 +212,12 @@ jobs:
           # download_database.py is a generic Drive-file-by-ID downloader
           # despite its name - reused here rather than duplicating the
           # WIF/Drive-API download logic for a second file type.
-          python3 check-tools/download_database.py "$IMG_FILE_ID" webHelpImages.zip
+          uv run python check-tools/download_database.py "$IMG_FILE_ID" webHelpImages.zip
 
       - name: 'Step 1/5: find_missing_assets.py (source QA report)'
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
+          uv run python ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/find_missing_assets.py \
             kotlin-web-site/docs missing-assets-report.md
 
       - name: Upload missing-assets report
@@ -226,11 +233,12 @@ jobs:
           # Same three blacklist entries as run_e2e_pipeline_test.sh
           # (ADFA-4737) - re-derive these from kotlin-web-site/docs/kr.tree
           # if its nav structure has changed since this was written.
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
+          uv run python ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/populate_db.py \
             kotlin-web-site/docs \
             ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/config.json \
             webHelpImages.zip \
             documentation.db \
+            --skip-images \
             --blacklisted-element-titles \
               'Development\/Web development' \
               'Interoperability\/Swift/Objective-C and C interop' \
@@ -245,15 +253,14 @@ jobs:
             "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
           mkdir -p media
           unzip -q webHelpImages.zip -d media
-          python3 ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
+          uv run python ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/insert_optimized_media.py \
             media documentation.db \
             --jpeg-quality 85 --webp --webp-quality 90 --verbose
 
       - name: Clone kotlin (for kotlin-stdlib-docs)
         run: |
-          ARGS=(--depth 1)
-          [ -n "$KOTLIN_REF" ] && ARGS+=(--branch "$KOTLIN_REF")
-          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin.git kotlin-repo
+          ./.github/scripts/shallow-checkout.sh \
+            https://github.com/JetBrains/kotlin.git kotlin-repo "$KOTLIN_REF"
 
       - name: 'Step 4/5: build-stdlib-json-docs.sh (fresh plugin build -> kotlin-stdlib/-reflect/-test JSON)'
         id: stdlib_docs
@@ -264,12 +271,12 @@ jobs:
 
       - name: 'Step 5/5: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
         run: |
-          python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
+          uv run python scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
             "${{ steps.stdlib_docs.outputs.all_libs_dir }}" --db documentation.db
 
       - name: Summary
         run: |
-          python3 - documentation.db <<'PYEOF'
+          uv run python - documentation.db <<'PYEOF'
           import sqlite3
           import sys
 
@@ -291,7 +298,7 @@ jobs:
       - name: Blacklist pruning verification
         if: ${{ !inputs.skip_website_docs }}
         run: |
-          python3 - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
+          uv run python - ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON kotlin-web-site/docs documentation.db \
             'Development\/Web development' \
             'Interoperability\/Swift/Objective-C and C interop' \
             'Interoperability\/JavaScript interop' <<'PYEOF'
@@ -348,7 +355,7 @@ jobs:
       - name: Upload updated database to Google Drive
         if: ${{ !inputs.dry_run }}
         run: |
-          python3 - <<'PYEOF'
+          uv run python - <<'PYEOF'
           import os
           from google.auth import default
           from googleapiclient.discovery import build
@@ -364,8 +371,12 @@ jobs:
           print(f"Uploaded new revision of {file_id}: {updated}")
           PYEOF
 
+      # always(), and the same dry_run condition as the "started" step: the pair is meant to read
+      # as a lock being taken and released, so a release that only fires on the happy path leaves
+      # the baton stuck after any failure - and one that fires on a different condition from the
+      # acquire leaves it stuck on every default (dry) run.
       - name: 'Notify Slack: build complete'
-        if: ${{ !inputs.dry_run }}
+        if: ${{ always() && !inputs.dry_run }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -373,6 +384,6 @@ jobs:
             echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
           else
             curl -sS -X POST -H 'Content-type: application/json' \
-              --data '{"text": "Updated Kotlin documentation. Dropping baton"}' \
+              --data "{\"text\": \"Kotlin documentation build ${{ job.status }}. Dropping baton\"}" \
               "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
           fi

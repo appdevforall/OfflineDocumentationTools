@@ -389,7 +389,13 @@ def main() -> None:
             chunked_log = []
             inserted = 0
             seen_names = {}
-            for out_path in sorted(work_dir.rglob("*")):
+            # This run's manifest, not a listing of work_dir. work_dir is only auto-removed when
+            # it is the temp fallback, so a reused --work-dir accumulates: a previous --webp run
+            # leaves mascot.webp beside mascot.png and a later run without --webp inserts both,
+            # and a file deleted from media_dir between runs is still sitting there to be
+            # re-inserted, resurrecting content this run was meant to drop. The manifest is the
+            # authoritative record of what this run actually produced.
+            for out_path in sorted(work_dir / rel for rel in manifest.values()):
                 if out_path.is_dir():
                     continue
                 name = out_path.name

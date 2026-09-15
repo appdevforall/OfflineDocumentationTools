@@ -411,6 +411,18 @@ def main():
     parser.add_argument("--tree-file", default="kr.tree", help="Filename of the Writerside tree file under docs_root")
     parser.add_argument("--topics-subdir", default="topics", help="Subdirectory of docs_root holding .md files")
     parser.add_argument(
+        "--skip-images", action="store_true",
+        help="Do not insert the images from <images_zip>. Use when insert_optimized_media.py runs "
+             "next, as it does in run_e2e_pipeline_test.sh and build-kotlin-docs.yaml: it replaces "
+             "every image row this would write, so inserting them here is work that is thrown "
+             "away. The zip is still read for the image index the converter needs.")
+    parser.add_argument(
+        "--allow-conversion-failures", type=int, default=0, metavar="N",
+        help="Tolerate up to N pages failing to convert (default: 0, i.e. any failure fails the "
+             "run). Raise it deliberately for a known-bad page upstream; nothing downstream "
+             "checks that expected pages are present, so a silent skip would otherwise publish a "
+             "database with holes in it.")
+    parser.add_argument(
         "--blacklisted-element-titles", dest="blacklisted_element_titles", nargs="*", default=[], metavar="TOC_PATH",
         help='full toc-title path(s) of <toc-element>s to omit entirely, from a top-level element down to the '
              'one being blacklisted, levels joined by "\\/" (e.g. "Interoperability\\/Swift/Objective-C and C '
@@ -473,7 +485,25 @@ def main():
     )
 
     md_files = [p for p in sorted(topics_dir.rglob("*.md")) if p.stem not in blacklisted_stems]
+
+    # Page ids are the bare .md stem, and Content.path is UNIQUE, so two topics with the same
+    # filename anywhere in the tree would collide - as an IntegrityError from the INSERT far
+    # below, naming neither file. topics/ comes from a third-party repo that changes weekly, so
+    # the uniqueness the ids rely on is an assumption with an expiry date; this is where it gets
+    # checked, while both paths are still in hand to name.
+    by_stem = {}
+    for md_path in md_files:
+        by_stem.setdefault(md_path.stem, []).append(md_path)
+    collisions = {stem: paths for stem, paths in by_stem.items() if len(paths) > 1}
+    if collisions:
+        print(f"error: {len(collisions)} filename collision(s) in {topics_dir} - page ids are the "
+              f"bare .md stem, so these would write to the same Content.path:", file=sys.stderr)
+        for stem, paths in sorted(collisions.items()):
+            print(f"  k/html/{stem}: " + ", ".join(str(p) for p in paths), file=sys.stderr)
+        sys.exit(1)
+
     pages = []
+    failed = []
     for md_path in md_files:
         rel = md_path.relative_to(topics_dir)
         db_id = f"k/html/{md_path.stem}"
@@ -482,9 +512,25 @@ def main():
             page = converter.convert_file(md_path, db_id, source_rel)
         except Exception as exc:  # noqa: BLE001 - surface which file broke, keep converting the rest
             print(f"error converting {md_path}: {exc}", file=sys.stderr)
+            failed.append((md_path, exc))
             continue
         pages.append(page)
     print(f"Converted {len(pages)}/{len(md_files)} pages", file=sys.stderr)
+
+    # Converting the rest is right - one bad page should not cost the whole run - but finishing
+    # with a zero exit is not: the blacklist check only proves that blacklisted pages are absent,
+    # never that expected pages are present, so a run that dropped pages would sail through it and
+    # publish a database with holes in it, and dangling nav and prev/next links pointing at them.
+    if failed:
+        print(f"{len(failed)} page(s) failed to convert:", file=sys.stderr)
+        for path, exc in failed:
+            print(f"  {path}: {exc}", file=sys.stderr)
+        if len(failed) > args.allow_conversion_failures:
+            print(f"error: {len(failed)} failure(s) exceeds --allow-conversion-failures "
+                  f"{args.allow_conversion_failures}", file=sys.stderr)
+            sys.exit(1)
+        print(f"continuing: within --allow-conversion-failures "
+              f"{args.allow_conversion_failures}", file=sys.stderr)
 
     # kr.tree's start-page is home.topic, not a .md file, so it never goes
     # through the conversion loop above - nav ends up linking to
@@ -561,12 +607,22 @@ def main():
 
         content_type_cache = {}
         images_inserted = 0
-        with zipfile.ZipFile(args.images_zip) as zf:
-            for name in image_names:
-                db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
-                if insert_file(conn, zf.read(name), name, db_path, language_id, content_type_cache, chunked_log,
-                                pngquant_path):
-                    images_inserted += 1
+        if args.skip_images:
+            # Both callers that pass this (run_e2e_pipeline_test.sh and build-kotlin-docs.yaml)
+            # run insert_optimized_media.py immediately afterwards, which deletes every row this
+            # loop writes and re-inserts the re-optimized bytes at the same paths - so on a
+            # ~1000-image doc set this is ~1000 pngquant subprocesses and a full brotli pass whose
+            # entire output is discarded seconds later. With --webp it is not even an overwrite:
+            # the .png rows are orphaned and then swept up by delete_unreferenced_media.
+            print("Skipping image insertion (--skip-images); insert_optimized_media.py is "
+                  "expected to populate them", file=sys.stderr)
+        else:
+            with zipfile.ZipFile(args.images_zip) as zf:
+                for name in image_names:
+                    db_path = f"{IMAGES_DB_PATH_PREFIX}{name}"
+                    if insert_file(conn, zf.read(name), name, db_path, language_id,
+                                    content_type_cache, chunked_log, pngquant_path):
+                        images_inserted += 1
 
         assets_inserted = 0
         for asset_path in sorted(assets_dir.iterdir()):

@@ -81,11 +81,18 @@ from markdown_it.token import Token
 TITLE_RE = re.compile(r"^\[//\]:\s*#\s*\(title:\s*(.*?)\)\s*$", re.MULTILINE)
 ATTR_LINE_RE = re.compile(r"^\{(.*)\}$")
 ATTR_PAIR_RE = re.compile(r'([\w-]+)=(?:"([^"]*)"|(\S+))')
-TAG_RE = re.compile(r"^<(/?)(tabs|tab|note|tip|warning)([^>]*)/?>$", re.I)
+# The \b matters: without it `tab` matches the first three letters of `<table>`, and a raw
+# HTML table in a topic is parsed as a tab container - the <table>/</table> lines vanish and
+# page.peb emits bare <tr>/<td> that browsers discard. The trailing (/?) is a real group rather
+# than an optional character so a self-closing <tab/> can be told from an opening <tab>; when it
+# was part of the attribute run, `<tab/>` opened a container that never closed and swallowed the
+# rest of the page.
+TAG_RE = re.compile(r"^<(/?)(tabs|tab|note|tip|warning)\b([^>]*?)(/?)>$", re.I)
 VAR_RE = re.compile(r"%([\w.-]+)%")
 MD_LINK_RE = re.compile(r"^([\w.-]+)\.md(#.*)?$")
 EXTERNAL_HREF_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//|^mailto:", re.I)
 LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
+STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
 
 CONTAINER_TAGS = {"tabs", "tab", "note", "tip", "warning"}
 
@@ -137,9 +144,18 @@ def substitute_vars(text: str, variables: dict) -> str:
 
 
 def parse_attrs(attr_str: str) -> dict:
+    """Attributes from a tag or a `{...}` line, as a name -> value mapping.
+
+    Which of the two alternations matched is asked of each match rather than of the whole string:
+    testing the string for `="` made one quoted attribute blank every bare one beside it, so
+    `<tabs group=build-script title="Gradle">` lost its group and tabs.js quietly stopped syncing.
+    `quoted` is None when the bare branch matched and "" when the value really was empty, which is
+    what distinguishes `x=""` from a bare value.
+    """
     attrs = {}
-    for name, quoted, bare in ATTR_PAIR_RE.findall(attr_str or ""):
-        attrs[name] = quoted if quoted != "" or '="' in (attr_str or "") else bare
+    for match in ATTR_PAIR_RE.finditer(attr_str or ""):
+        name, quoted, bare = match.group(1), match.group(2), match.group(3)
+        attrs[name] = quoted if quoted is not None else bare
     return attrs
 
 
@@ -275,7 +291,18 @@ class Converter:
             tag = m.group(0)
             if self.classify_href(m.group(1)) is None:
                 return tag
-            return tag[:-1] + f' style="color: {self.broken_ext_link_color};">'
+            colour = f"color: {self.broken_ext_link_color};"
+            # Merged into an existing style rather than appended as a second attribute: HTML
+            # parsers keep the first `style` and discard the rest, so on hand-authored passthrough
+            # links - the ones most likely to already carry an inline style - the colouring was
+            # being dropped exactly where it was wanted.
+            existing = STYLE_ATTR_RE.search(tag)
+            if existing:
+                value = existing.group(1).rstrip()
+                if value and not value.endswith(";"):
+                    value += ";"
+                return tag[:existing.start(1)] + value + colour + tag[existing.end(1):]
+            return tag[:-1] + f' style="{colour}">'
 
         return LINK_TAG_RE.sub(repl, html)
 
@@ -394,13 +421,18 @@ class Converter:
                 m = TAG_RE.match(line.strip())
                 if m:
                     flush_raw()
-                    closing, tag, attrstr = m.groups()
-                    result.append({
-                        "type": "tag_marker",
-                        "closing": bool(closing),
-                        "tag": tag.lower(),
-                        "attrs": parse_attrs(attrstr),
-                    })
+                    closing, tag, attrstr, selfclose = m.groups()
+                    # A self-closing container has no children. Emitted as an open immediately
+                    # followed by a close so the block assembler pairs it off here instead of
+                    # leaving it open to collect the rest of the file.
+                    markers = [False, True] if selfclose and not closing else [bool(closing)]
+                    for is_closing in markers:
+                        result.append({
+                            "type": "tag_marker",
+                            "closing": is_closing,
+                            "tag": tag.lower(),
+                            "attrs": {} if is_closing else parse_attrs(attrstr),
+                        })
                 elif line.strip():
                     raw_run.append(line)
             flush_raw()
