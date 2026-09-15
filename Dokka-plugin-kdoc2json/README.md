@@ -110,6 +110,7 @@ dokka {
 | `classDiscriminator` | String | `"kind"` | The JSON key used to discriminate between polymorphic `Documentable` types (e.g., `"kind": "class"`). Must not collide with an existing DTO field name (e.g. `"type"` or `"name"`), or serialization will fail. |
 | `prettyPrint` | Boolean | `false` | If `true`, formats the written JSON files with indentation for human readability instead of compact single-line output. |
 | `sourceSetWhitelist` | List | `[]` | A list of source set names (matching the values that appear in the output `sourceSets` field, e.g. `["jvm"]`). If non-empty, any Documentable that isn't present in at least one whitelisted source set has its output file omitted, and a message is logged with the symbol's name and its `sourceSets`. Leave empty to disable filtering (default: all source sets included). |
+| `javadoc-mode` | Boolean | `false` | If `true`, emit **javadoc-shaped** JSON mirroring the `api/` tree of the `javadoc` tool instead of Dokka-shaped JSON. See [§10](#10-javadoc-mode). Note the kebab-case key -- it is spelled that way in the config, unlike every other option here. |
 
 > **`omitNulls` also strips *empty* values, not just `null`.** Despite the name, `omitNulls: true` removes a key whenever its value is `null`, `""`, `[]`, or `{}` (see the filter in `JsonRenderer.filterJson`) — so with it enabled, `"functions": []` doesn't appear at all rather than appearing as an empty array. Consumers must treat a **missing** key as equivalent to its empty value (e.g. `functions is defined and functions is not empty`, as in the Pebble example in §8), not assume every key is always present.
 
@@ -207,3 +208,362 @@ For example, to render a table of functions for a class:
 This writes HTML output to `<output-dir>/html/latest/all-libs` and JSON output to `<output-dir>/json/latest/all-libs` (`output-dir` defaults to `scripts/kotlin/build-output`).
 
 > **Provenance / staleness warning:** `scripts/kotlin/build.gradle.kts` was derived from the `kotlin-stdlib-docs/build.gradle.kts` in JetBrains' `kotlin` repo as of commit [`cfcb49fd0113`](https://github.com/JetBrains/kotlin/commit/cfcb49fd0113d2300a2b677c4fc2e16dddff7df5) ("[stdlib] Update Dokka to 2.2.0-Beta and migrate to DGPv2"). That upstream file is not under our control and can change — new source sets, Dokka API changes, or a different doc-build structure could all require re-diffing our modifications against a newer upstream version. If `build-kotlin-stdlib.sh` starts failing against a newer `kotlin` checkout, compare `scripts/kotlin/build.gradle.kts` against the current upstream `kotlin-stdlib-docs/build.gradle.kts` and re-apply the `useJsonPlugin`/`dokkaGenerateModuleJson` additions by hand.
+
+---
+
+## 10. Javadoc Mode
+
+Setting `"javadoc-mode": true` replaces the plugin's whole output with JSON that mirrors what the
+`javadoc` tool produces under its `api/` directory -- same file layout, same page sections, same
+member anchors. It is intended for documenting **Java** sources (the JDK's own API docs being the
+motivating case) where the downstream templates expect javadoc's structure rather than Dokka's.
+
+Only JSON is written. The one non-JSON file is `element-list`, which javadoc itself emits as a
+plain-text manifest and external tooling reads to resolve links into the output. No HTML pages are
+produced -- rendering stays the job of the downstream template engine.
+
+> The key is spelled `javadoc-mode`, not `javadocMode`. Every other option in this block is
+> camelCase; this one is deliberately kebab-case.
+
+### Output layout
+
+```
+index.json                                   overview: the run's modules and packages
+element-list                                 javadoc's plain-text manifest (not JSON)
+allclasses-index.json                        every documented type
+allpackages-index.json                       every documented package
+deprecated-list.json                         deprecated elements, grouped by kind
+constant-values.json                         static final fields, grouped by package then type
+index-files/index-N.json                     the A-Z index, one file per letter
+<module>/module-summary.json                 module page
+<module>/<pkg/as/path>/package-summary.json  package page
+<module>/<pkg/as/path>/<Outer.Nested>.json   type page
+```
+
+#### How modules are determined
+
+Dokka's own model has no notion of JPMS -- a Dokka "module" is a build-level grouping -- so
+Javadoc mode reads `module-info.java` directly instead. Every configured source root is checked
+for one; a root that has one *is* a JPMS module root, which makes this self-validating (an
+ordinary `src/main/java` has no `module-info.java`, so a non-modular project is unaffected).
+
+From each descriptor the plugin takes the module name, its doc comment, and its `requires`,
+`exports`, `opens`, `uses` and `provides` directives -- everything javadoc's module-summary page
+is built from. A package is attributed to the module that declares it, falling back to whichever
+module's source root the declaration's file sits under.
+
+The leading `<module>/` segment appears when the run contains more than one module -- more than
+one JPMS module if the sources are modular, otherwise more than one Dokka module. That mirrors
+javadoc's own split between modular and non-modular builds. A single-module run also writes
+`module-summary.json` at the root: javadoc omits a module page entirely for a non-modular build,
+but the module's documentation would otherwise be dropped.
+
+To document a modular codebase, then, give Dokka **one source root per module directory** and let
+the descriptors do the rest -- see `scripts/java/` for a worked example that does this for the
+entire JDK.
+
+#### Multi-module Gradle builds
+
+Separately from JPMS, a *Gradle* multi-module build makes Dokka run the renderer once per
+subproject into that subproject's own output directory, then make an aggregating pass. Each
+per-module run therefore writes global index files scoped to its own module, and the aggregating
+pass writes only the overview `index.json` linking to each. Merging those per-module indexes into
+run-wide ones is a downstream step this plugin does not perform. Documenting a modular codebase
+from a single Dokka run (as `scripts/java/` does) avoids this entirely.
+
+All links between pages are **relative to the page they appear on** (`../lang/Object.json`), as
+javadoc's are, so the tree can be served from any prefix. This includes links inside rendered doc
+comments. A link to something the run does not document resolves to `null` (or, inside a comment,
+degrades to plain text) rather than becoming a dead `href`.
+
+### Page shape
+
+Type pages carry the sections a javadoc class page has: the type signature and its parts
+(`modifiers`, `typeParameters`, `superclass`, `superinterfaces`), the hierarchy closures
+(`inheritance`, `allImplementedInterfaces`, `allSuperinterfaces`, `directKnownSubclasses`,
+`allKnownSubinterfaces`, `allKnownImplementingClasses`), the doc comment and its block tags
+(`description`, `since`, `seeAlso`, `authors`, `versions`, `deprecated`, `tags`), the member
+tables (`nestedTypes`, `enumConstants`, `fields`, `constructors`, `methods`, `annotationElements`)
+and the inherited-member groups (`inheritedFields`, `inheritedMethods`).
+
+Structured data is primary: types, modifiers, parameters, throws clauses and override
+relationships are all discrete fields. Each declaration also carries a flat `signature` string
+(`public default Shape<U> scaled(double factor) throws IllegalArgumentException`) as a
+convenience -- ignore it if you would rather compose signatures in the template.
+
+Member `anchor` values follow javadoc's scheme: a bare name for a field, `name(erasedParamTypes)`
+for an executable, and `<init>(...)` for a constructor -- so `toArray(java.lang.Object[])`, not
+`toArray(T[])`. `overrides` and `specifiedBy` are derived from those same erased signatures.
+
+Doc-comment text is HTML, because a javadoc comment's body already is (`<p>`, `<code>`, `<table>`,
+`<dl>`). That matches the convention the default output mode already uses.
+
+### Recommended Dokka settings
+
+javadoc documents public **and protected** members by default; Dokka documents only public. For
+parity, set this on the consuming project:
+
+```kotlin
+dokka {
+    dokkaSourceSets.configureEach {
+        documentedVisibilities.set(setOf(VisibilityModifier.Public, VisibilityModifier.Protected))
+    }
+}
+```
+
+`examples/example-java-library` is a working Java example wired up this way; `tests/test_javadoc_mode.sh`
+drives it.
+
+### Known limitations
+
+These are places where Dokka's model does not carry something a real javadoc page shows. Each is a
+missing *input*, not a gap in the mapping:
+
+| Limitation | Effect |
+| --- | --- |
+| Dokka has no JPMS model | Worked around by parsing `module-info.java` directly (see above), so `requires`/`exports`/`opens`/`uses`/`provides` and the module description *are* populated for modular sources. Without `module-info.java` in a source root those sections are empty. |
+| Dokka does not record annotation-element defaults | Annotation elements are reported as one `annotationElements` list rather than being split into javadoc's Required/Optional tables. `defaultValue` is populated only when Dokka does supply it. |
+| Dokka has no `record` class kind | Java records are documented as classes; `recordComponents` stays empty. |
+| Dokka merges a private field and its accessors into one property | Unfolded back into methods so `getWidth()` is a method and the private field is not documented, as javadoc has it. Note this means a *public* field that happens to have a same-named accessor pair is reported through its accessors. |
+| Inherited members depend on Dokka's inheritance propagation | If Dokka does not attach `InheritedMember`, those members appear as declared rather than in an inherited group. |
+
+### What Javadoc mode does not change
+
+`omitFields`, `omitNulls`, `prettyPrint`, `logLevel`, `logFile` and `sourceSetWhitelist` all behave
+as documented in [§3](#3-configuration-options). `replaceHtmlExtension` and `classDiscriminator`
+have no effect: javadoc-mode pages are written with `.json` links throughout and none of its DTOs
+are polymorphic. Javadoc mode also skips the `LinkPostProcessor` pass, since it resolves every link
+itself rather than rewriting Dokka's.
+
+Pages are serialized with `encodeDefaults = true`, so every documented key is present on every page
+even when empty -- a template can test a field without also testing whether it exists. Enabling
+`omitNulls` strips the empty ones back out if you prefer that.
+
+---
+
+## 11. Reproducing the JDK API Docs (`scripts/java`)
+
+`scripts/java/` builds the JDK's own API documentation as javadoc-shaped JSON -- the JSON
+counterpart of the `api/` tree in `SourceDocs/JavaDocs/html/api`.
+
+```bash
+# Document the JDK that JAVA_HOME points at (use a JDK 17 to match SourceDocs/JavaDocs)
+scripts/java/build-jdk-json-docs.sh -j /path/to/jdk-17 -o /path/to/output/api
+
+# Quick check on two small modules instead of all 60
+scripts/java/build-jdk-json-docs.sh -j /path/to/jdk-17 -m java.sql,java.transaction.xa
+```
+
+### How it works
+
+1. **`stage_jdk_sources.py`** unpacks the JDK's `lib/src.zip` and keeps only what javadoc
+   documents. javadoc's rule turns out to be exact: a package appears in `api/` if and only if its
+   module `exports` it **unqualified**. For JDK 17's `java.base`, the 53 unqualified exports are
+   precisely the 53 documented packages, with nothing left over on either side. The script also
+   drops the modules the JDK's own docs build filters out (`jdk.internal.*`, `jdk.unsupported*`,
+   `jdk.random`), leaving 60 modules and 224 packages -- exactly what the official docs contain.
+
+   Each module becomes its own directory in the staging tree, with its `module-info.java` copied
+   alongside. Everything left behind still resolves from the JDK on the analysis classpath.
+
+2. **`jdk-docs/`** is a Dokka project that registers each staged module directory as a source root
+   and runs the plugin in javadoc mode. Nothing is compiled -- Dokka only analyses.
+
+3. **`compare_with_javadoc.py`** checks the result against the official HTML, level by level:
+
+   ```bash
+   python3 scripts/java/compare_with_javadoc.py <json-dir> <path-to>/SourceDocs/JavaDocs/html/api
+   python3 scripts/java/compare_with_javadoc.py <json-dir> <api-dir> --members
+   ```
+
+   `--members` compares the member anchors of every type. That is the sharpest of the checks:
+   javadoc's anchor encodes a member's name and its erased parameter types, so a matching anchor
+   set means the two sides agree on the members, their signatures and their overloads -- not
+   merely on the page count.
+
+### Measured result (JDK 17)
+
+A full run takes **about 90 seconds** and writes **4,988 JSON files**. Against the official docs in
+`SourceDocs/JavaDocs/html/api`:
+
+| Level | Result |
+| --- | --- |
+| modules | **60 / 60** — no missing, no extra |
+| packages | **224 / 224** — no missing, no extra |
+| types | **4,672 / 4,672** — no missing, no extra |
+| member anchors | 4,305 / 4,672 types match *exactly* (92%) |
+
+The 367 types whose member sets differ do so for two understood reasons, neither of which is a
+missing page:
+
+- **893 anchors we have that javadoc doesn't** (330 types). javadoc folds an override whose entire
+  doc comment is `{@inheritDoc}` — adding nothing of its own — into the superclass's "Methods
+  declared in…" list instead of giving it a detail section. `java.awt.Frame.setBackground` is a
+  typical case. We document them as the declared members they are, so this is extra data, not lost
+  data.
+- **481 anchors javadoc has that we don't** (37 types). Where a class extends an *undocumented*
+  supertype (a package-private base like `java.awt.AttributeValue`), javadoc pulls that supertype's
+  members up and shows them as if declared. We only document what the source declares.
+
+### Two Dokka problems this works around
+
+Both were found running the JDK through it, and both are in Dokka rather than in this plugin:
+
+1. **Unbounded recursion in `{@inheritDoc}`.** Dokka's `InheritDocTagResolver.resolveThrowsTag` →
+   `PsiElementToHtmlConverter.toInheritDocHtml` recurses until the stack dies, reproducibly, on
+   much of the JDK (`java.io` and `java.util` among others). A bigger stack only buys time:
+   `-Xss64m` fails after 42 s, `-Xss512m` after 3m28s. `stage_jdk_sources.py` therefore rewrites
+   `{@inheritDoc}` to an inert marker before Dokka parses it, and the plugin resolves the marker
+   itself, walking the same supertype chain javadoc walks — so all 3,214 occurrences across the JDK
+   still resolve, and the plugin additionally inherits a *missing* `@param`/`@return`/`@throws` the
+   way javadoc does. Pass `--keep-inherit-doc` to re-check whether a newer Dokka has fixed this.
+2. **Type arguments in DRI parameter types.** Dokka builds a Java DRI from the PSI type's canonical
+   text, which carries type arguments, so a naive anchor comes out as
+   `addAll(java.util.Collection<? extends E>)` where javadoc uses the erasure,
+   `addAll(java.util.Collection)`. `JavadocPaths.eraseGenerics` strips them while keeping array
+   brackets. This alone moved member-anchor parity from 80% to 92%.
+
+### Notes
+
+- Dokka generates in a *worker process*, not the Gradle daemon, so `org.gradle.jvmargs` does not
+  size it — `dokkaGeneratorIsolation` in `jdk-docs/build.gradle.kts` does. Override with
+  `-PdokkaWorkerHeap` / `-PdokkaWorkerStack` if needed.
+- Use a JDK whose version matches the docs you are reproducing. Source and docs from different
+  update releases differ in small ways that are real, not bugs.
+
+---
+
+## 12. Rendering the JSON to HTML (`pebble-renderer`)
+
+`pebble-renderer/` turns a javadoc-mode JSON tree into browsable HTML using Pebble templates that
+follow the official javadoc page structure. It is the reference consumer of the JSON: if a field
+is in the JSON, a template here shows it.
+
+```bash
+# After scripts/java/build-jdk-json-docs.sh
+pebble-renderer/render.sh scripts/java/build-output/api scripts/java/build-output/html
+
+# Then browse it
+(cd scripts/java/build-output/html && python3 -m http.server 8000)
+```
+
+### How links work
+
+The HTML tree mirrors the JSON tree file-for-file, `Foo.json` becoming `Foo.html` in the same
+directory. Every link in the JSON is already relative to the page it appears on, so **the path is
+correct as-is and only the extension needs changing**. Two Pebble filters do that:
+
+| Filter | Use | What it does |
+| --- | --- | --- |
+| `href` | `{{ type.url \| href }}` | rewrites one URL's trailing `.json` to `.html`, preserving any `#anchor` |
+| `doc` | `{{ description \| doc }}` | rewrites every `href` *inside* a block of documentation HTML, and marks it safe so it isn't escaped |
+
+Doc text needs the second filter because a javadoc comment's body is HTML that can itself contain
+links. Autoescaping stays on everywhere else, so names and signatures are escaped by default.
+
+### Templates
+
+One per page kind, selected by the JSON's `page` field:
+
+| `page` | Template | Renders |
+| --- | --- | --- |
+| `class` | `class.peb` | class/interface/enum/annotation/exception page |
+| `package` | `package-summary.peb` | package page |
+| `module` | `module-summary.peb` | module page, including the JPMS tables |
+| `overview` | `overview.peb` | `index.html` |
+| `all-classes` / `all-packages` | `all-classes.peb` / `all-packages.peb` | the global indexes |
+| `deprecated-list` | `deprecated-list.peb` | deprecated API |
+| `constant-values` | `constant-values.peb` | constant field values |
+| `index` | `index-page.peb` | one A-Z index page |
+
+`base.peb` holds the shared skeleton and navigation; `macros.peb` holds the fragments (type links,
+signatures, notes, member details). Class names follow the official javadoc output (`top-nav`,
+`summary-table`, `col-first`, `member-signature`, `notes`, `inheritance`, …), and
+`static/stylesheet.css` styles those names -- it is a readable approximation of javadoc's look,
+written here rather than copied from the JDK.
+
+Two Pebble details worth knowing before editing a template, because both fail *silently*:
+
+- `{% import "macros" %}` pulls macros into the importing template's own namespace. Call them by
+  bare name (`{{ typeLink(ref) }}`); a Jinja/Twig-style `macros.typeLink(...)` renders nothing.
+- `loop.index` is **0-based**, unlike Jinja's.
+
+### Measured result (JDK 17)
+
+Rendering all 4,988 pages takes about two seconds. Of the **450,575** internal links in the
+output, **99.88% resolve**; the 555 that don't break down as:
+
+| Count | Cause |
+| --- | --- |
+| 251 | `doc-files/` pages -- javadoc copies these from the JDK's build repository, and `src.zip` does not ship them, so they cannot be produced from this source at all |
+| 227 | links out of `api/` into `specs/` and `legal/`, which are siblings of `api/` in the official docs and outside what this pipeline generates |
+| 77 | hand-written relative links in doc comments that are still rebased imperfectly when a summary sentence is shown on a different page than the one that declares it |
+
+### Comparison against the official docs
+
+Beyond the counts above, the rendered HTML was diffed section by section against
+`SourceDocs/JavaDocs/html/api`. What that turned up, and where it stands:
+
+**Fixed**
+
+| Gap | Scale | Now |
+| --- | --- | --- |
+| `module-graph.svg` missing entirely | all 60 module pages | Generated from the JSON's `requires`. All 60 have node sets identical to the originals; 57/60 also match edge counts (graphviz applies a transitive reduction we don't). |
+| Inherited nested types never emitted | ~700 groups | `inheritedNestedTypes` is now computed from the hierarchy -- Dokka, unlike for fields and methods, does not copy nested types down, so there is no `InheritedMember` to read. |
+| "Indirect Exports" table | 16 module pages | Added as `indirectExports`. |
+| "Indirect Requires" table | 3 module pages | Added as `indirectRequires`. |
+| Block tags shown by their source name | ~2,400 notes | `@apiNote` now renders as "API Note:", `@implSpec` as "Implementation Requirements:", and so on, as javadoc does. The data was always in the JSON's `tags`. |
+| "Enclosing class:" on a nested interface | 111 pages | Uses the enclosing type's own kind. |
+
+The module graph rules were derived by checking candidates against all 60 originals rather than
+assumed. Both turned out to be narrower than they look: the graph draws the **`requires transitive`
+closure plus `java.base`** (a plain `requires` does not propagate readability -- `java.naming`
+plainly requires `java.security.sasl` and its graph shows neither), and `java.base` is drawn even
+though no `module-info.java` declares it. Same for the tables: **Indirect Requires** is that
+closure minus the direct requires (3/3 exact), **Indirect Exports** is the exporting modules in it
+(16/16 exact).
+
+**Not reproducible from this source**
+
+| Gap | Scale | Why |
+| --- | --- | --- |
+| `doc-files/` pages and images | 93 files, 251 links | javadoc copies these from the JDK's build repository. `src.zip` does not contain them, so no pipeline reading `src.zip` can produce them. |
+| `serialVersionUID` values | 1,174 | Shown only on `serialized-form.html`, and read from private fields Dokka does not model. |
+
+**Out of scope (page kinds this pipeline does not generate)**
+
+`class-use/` (4,672 pages), `package-use` (224), `package-tree`/`overview-tree` (225),
+`serialized-form`, `system-properties`, `help-doc`, `new-list`, `preview-list`, `search` and its
+`.js` index. These are cross-reference and navigation pages rather than API data; everything they
+present is derivable from the JSON already emitted.
+
+**Deliberate differences**
+
+Our module pages show `Requires`, `Provides`, `Uses` and `Exports` tables on more modules than
+javadoc does -- javadoc suppresses some rows (for instance a `provides` whose implementation class
+is not itself documented, as in `java.smartcardio`). That is extra data rather than missing data,
+so it is left in.
+
+### Page-by-page content audit
+
+Every page type was diffed against the originals, not just the class pages. What that changed:
+
+| Page | Was | Now |
+| --- | --- | --- |
+| `index.html` | listed all 224 packages *as well as* the 60 modules | modules only, as javadoc does. The package list has its own page; javadoc's overview shows packages only for a non-modular run, which is what the template now keys on. |
+| `constant-values.html` | 3,138 of the JDK's 3,463 constants | 3,458. The 325 absent were all inherited from *undocumented* supertypes -- `java.util.jar.JarEntry`'s 40 `CEN*`/`END*` constants come from the package-private `java.util.zip.ZipConstants`. |
+| class pages | same 325-constant cause, plus ~480 members | a member inherited from a type this run does not document is now shown as declared, which is what javadoc does: an "inherited from" group pointing at a page that does not exist is a dead end. Member-anchor parity 4,305 -> 4,327 of 4,672 types. |
+| `deprecated-list.html` | section headings were the raw JSON keys (`classes`, `enumConstants`) | javadoc's titles ("Deprecated Classes", "Deprecated Enum Constants"), plus a contents list |
+| package pages | no "Related Packages" table | present on 206 pages, 181 matching the originals exactly |
+| `allclasses-index.html` | all 4,672 types | 4,506 -- javadoc indexes the public API, so the 167 protected nested types are left out (they keep their pages, reachable from the enclosing class) |
+
+"Related Packages" is the parent, the direct children, and -- only when the result stays at five or
+fewer -- the siblings. That size condition is javadoc's own: `java.nio.channels` lists its siblings
+`java.nio.charset` and `java.nio.file`, while `java.util.concurrent` and `java.lang.annotation`
+list none, because `java.util` and `java.lang` have too many children for the table to stay
+useful. Five reproduces 181 of the 190 originals; no cut-off at all reproduces 95.
+
+Two counts still differ, both small and both in the direction of showing more rather than less:
+`allclasses-index.html` lists 4,506 against javadoc's 4,402, and the A-Z index has 54,248 entries
+against 55,483. Neither reduced to a rule that held across all 60 modules, so they are left as they
+are rather than tuned to fit.

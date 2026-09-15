@@ -10,6 +10,10 @@ ROOT_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 PLUGIN_DIR="$ROOT_DIR/kdoc-to-json"
 EXAMPLE_DIR="$ROOT_DIR/examples/example-data-processor"
 OUTPUT_DIR="$EXAMPLE_DIR/build/dokka/html"
+# Javadoc mode mirrors the output of the `javadoc` tool, so it is exercised against a
+# Java-only example rather than the Kotlin one every other test uses.
+JAVA_EXAMPLE_DIR="$ROOT_DIR/examples/example-java-library"
+JAVA_OUTPUT_DIR="$JAVA_EXAMPLE_DIR/build/dokka/html"
 
 TMP_DIR="$(mktemp -d /tmp/kdoc2json_test.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -51,6 +55,25 @@ run_dokka() {
     rm -rf "$EXAMPLE_DIR/build/dokka"
 
     if ! (cd "$EXAMPLE_DIR" && KDOC2JSON_TEST_CONFIG="$config_file" ./gradlew --console=plain dokkaGenerate) >"$gradle_log" 2>&1; then
+        echo "FATAL: dokkaGenerate failed for config: $config_json" >&2
+        cat "$gradle_log" >&2
+        exit 1
+    fi
+    LAST_GRADLE_LOG="$gradle_log"
+}
+
+# run_dokka_java '<json config>' is run_dokka against examples/example-java-library, the
+# Java-source example Javadoc mode is tested with. Afterwards $JAVA_OUTPUT_DIR reflects only
+# this run. Aborts the whole script if the Dokka build itself fails, like run_dokka.
+run_dokka_java() {
+    local config_json="$1"
+    local config_file="$TMP_DIR/config-java-$RANDOM.json"
+    local gradle_log="$TMP_DIR/gradle-java-$RANDOM.log"
+    printf '%s' "$config_json" >"$config_file"
+
+    rm -rf "$JAVA_EXAMPLE_DIR/build/dokka"
+
+    if ! (cd "$JAVA_EXAMPLE_DIR" && KDOC2JSON_TEST_CONFIG="$config_file" ./gradlew --console=plain dokkaGenerate) >"$gradle_log" 2>&1; then
         echo "FATAL: dokkaGenerate failed for config: $config_json" >&2
         cat "$gradle_log" >&2
         exit 1
@@ -168,6 +191,32 @@ assert_no_local_html_urls() {
         pass "$desc"
     else
         fail "$desc (found: $(echo "$hits" | head -3 | tr '\n' ' '))"
+    fi
+}
+
+# assert_json <file> <python-expression> <expected> <desc> evaluates a Python expression
+# against the parsed JSON document (bound to `d`) and compares its str() to <expected>. Lets a
+# test assert on structure -- a field's value, a list's contents -- instead of grepping for a
+# substring that might match somewhere unrelated in the file.
+assert_json() {
+    local path="$1" expr="$2" expected="$3" desc="$4"
+    local actual
+    actual=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception as e:
+    print('<unreadable: %s>' % e)
+    sys.exit(0)
+try:
+    print($expr)
+except Exception as e:
+    print('<error: %s>' % e)
+" "$path" 2>/dev/null)
+    if [[ "$actual" == "$expected" ]]; then
+        pass "$desc"
+    else
+        fail "$desc (expected '$expected', got '$actual')"
     fi
 }
 
