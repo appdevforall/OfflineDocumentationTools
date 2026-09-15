@@ -1,0 +1,487 @@
+{# --- MACROS --- #}
+{%- macro renderPlatforms(sourceSets) -%}
+{%- if sourceSets is defined and sourceSets is not null and sourceSets is not empty %}
+<div class="platforms">
+{%- for sourceSet in sourceSets %}
+{%- set parts = sourceSet | split("/") %}
+<span class="platform-tag">{{ parts | last }}</span>
+{%- endfor %}
+</div>
+{%- endif %}
+{%- endmacro -%}
+
+{%- macro renderDoc(docMap) -%}
+{%- if docMap != null %}
+{%- for entry in docMap %}
+{%- if loop.first %}
+{%- for tag in entry.value %}
+<div class="doc-tag">
+{%- if tag.type == "Description" %}
+<div class="description">{{ tag.text | replace({".json": ".html"}) | raw }}</div>
+{%- elseif tag.type == "Param" %}
+<div class="param">
+<span class="tag-name">@param {{ tag.name }}</span>{{ " " }}{{ tag.text | replace({".json": ".html"}) | raw }}
+</div>
+{%- elseif tag.type == "Return" %}
+<div class="return">
+<span class="tag-name">@return</span>{{ " " }}{{ tag.text | replace({".json": ".html"}) | raw }}
+</div>
+{%- elseif tag.type == "CustomTagWrapper" and tag.name == "Since Kotlin" %}
+<span class="kdoc-tag"><h4 class="">Since Kotlin</h4>{{ tag.text | replace({".json": ".html"}) | raw }}</span>
+{%- elseif tag.type == "Sample" %}
+<div class="sample">
+<h4 class="">Samples</h4>
+<div class="sample-container">
+{# Not filtered - this is literal sample source code, not doc prose, so a coincidental
+   ".json" substring here shouldn't be rewritten. #}
+<pre><code class="runnablesample monospace block lang-kotlin" theme="idea">{{ tag.text | raw }}</code></pre>
+</div>
+</div>
+{%- else %}
+<div class="misc-tag">
+<span class="tag-name">@{{ tag.type }}{{ " " }}{%- if tag.name != null %}{{ tag.name }}{%- endif %}</span>{{ " " }}{{ tag.text | replace({".json": ".html"}) | raw }}
+</div>
+{%- endif %}
+</div>
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endmacro -%}
+
+{%- macro renderType(typeDto) -%}
+{%- if typeDto != null %}
+{%- if typeDto.kind == "Star" %}
+*
+{%- elseif typeDto.kind == "Covariance" or typeDto.kind == "Contravariance" or typeDto.kind == "Invariance" %}
+{{- renderType(typeDto.inner) }}
+{%- elseif typeDto.kind == "Nullable" or typeDto.kind == "DefinitelyNonNullable" %}
+{{- renderType(typeDto.inner) }}{%- if typeDto.kind == "Nullable" %}?{%- endif %}
+{%- elseif typeDto.kind == "TypeAliased" %}
+{{- renderType(typeDto.typeAlias) }}
+{%- elseif typeDto.kind == "JavaObject" %}
+Object
+{%- elseif typeDto.kind == "Void" %}
+Void
+{%- elseif typeDto.kind == "Dynamic" %}
+dynamic
+{%- elseif typeDto.kind == "FunctionalTypeConstructor" %}
+{%- if typeDto.isSuspendable %}<span class="keyword">suspend</span>{{ " " }}{%- endif %}
+{%- if typeDto.isExtensionFunction %}
+{{- renderType(typeDto.projections | first) }}.({%- if typeDto.projections | length > 2 %}{%- for proj in typeDto.projections | slice(1, typeDto.projections | length - 1) %}{{ renderType(proj) }}{%- if not loop.last %},{{ " " }}{%- endif %}{%- endfor %}{%- endif %}) -&gt;{{ " " }}{{- renderType(typeDto.projections | last) }}
+{%- else %}
+({%- if typeDto.projections | length > 1 %}{%- for proj in typeDto.projections | slice(0, typeDto.projections | length - 1) %}{{ renderType(proj) }}{%- if not loop.last %},{{ " " }}{%- endif %}{%- endfor %}{%- endif %}) -&gt;{{ " " }}{{- renderType(typeDto.projections | last) }}
+{%- endif %}
+{%- else %}
+{%- set display = "Unknown" %}
+{%- if typeDto.name != null and typeDto.name != "" %}
+{%- set display = typeDto.name %}
+{%- elseif typeDto.dri != null %}
+{%- set driParts = typeDto.dri | split("/") %}
+{%- if driParts | length > 1 and driParts[1] != "" %}
+{%- set display = driParts[1] | replace({"%20": " "}) %}
+{%- endif %}
+{%- endif %}
+{%- if typeDto.presentableName != null and typeDto.presentableName != "" %}
+{{- typeDto.presentableName }}:{{ " " }}{%- endif %}
+{%- if typeDto.url != null %}
+<a href="{{ typeDto.url | replace({".json": ".html"}) }}" class="type-link">{{ display }}</a>
+{%- else %}
+<span class="type-name">{{ display }}</span>
+{%- endif %}
+{%- if typeDto.projections is defined and typeDto.projections is not empty %}
+&lt;
+{%- for proj in typeDto.projections %}
+{{- renderType(proj) }}{%- if not loop.last %},{{ " " }}{%- endif %}
+{%- endfor %}
+&gt;
+{%- endif %}
+{%- endif %}
+{%- endif %}
+{%- endmacro -%}
+
+{%- macro renderTableSignature(member) -%}
+<div class="table-signature">
+{%- if member.extras is defined and member.extras.annotations is not empty %}
+{%- for entry in member.extras.annotations %}
+{%- if loop.first %}
+{%- for anno in entry.value %}
+{%- set annoName = anno.dri | split("/") %}
+<div class="annotation">
+{%- if anno.url != null %}
+<a href="{{ anno.url | replace({".json": ".html"}) }}" style="color: inherit; text-decoration: none;">@{{ annoName[1] }}</a>
+{%- else %}
+@{{ annoName[1] }}
+{%- endif %}
+</div>
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if member.modifier is defined and member.modifier is not empty %}
+{%- for entry in member.modifier %}
+{%- if loop.first and entry.value != "final" and entry.value != "public" %}
+<span class="keyword">{{ entry.value }}</span>{{ " " }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if member.extras is defined and member.extras.additionalModifiers is not empty %}
+{%- for entry in member.extras.additionalModifiers %}
+{%- if loop.first %}
+{%- for mod in entry.value %}
+<span class="keyword">{{ mod }}</span>{{ " " }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if member.kind == "function" %}
+<span class="keyword">fun</span>{{ " " }}
+{%- if member.generics is defined and member.generics is not empty %}
+&lt;
+{%- for gen in member.generics %}
+{{- gen.name }}
+{%- if not loop.last %},{{ " " }}{%- endif %}
+{%- endfor %}
+&gt;{{ " " }}
+{%- endif %}
+{%- if member.receiver is defined and member.receiver is not null %}
+{{- renderType(member.receiver.type) }}.
+{%- endif %}
+{{- member.name }}(
+{%- if member.parameters is defined and member.parameters is not null %}
+{%- for param in member.parameters %}
+{{- param.name }}:{{ " " }}{{- renderType(param.type) }}
+{%- if param.extras is defined and param.extras.defaultValues is not empty %}
+{{ " = " }}
+{%- for dEntry in param.extras.defaultValues %}
+{%- if loop.first %}{{ dEntry.value | replace({"\"": "&quot;"}) }}{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- if not loop.last %},{{ " " }}{%- endif %}
+{%- endfor %}
+{%- endif %}
+)
+{%- if member.type is defined and member.type is not null %}
+:{{ " " }}{{- renderType(member.type) }}
+{%- endif %}
+{%- elseif member.kind == "property" %}
+<span class="keyword">val</span>{{ " " }}
+{%- if member.receiver is defined and member.receiver is not null %}
+{{- renderType(member.receiver.type) }}.
+{%- endif %}
+{{- member.name }}
+{%- if member.type is defined and member.type is not null %}
+:{{ " " }}{{- renderType(member.type) }}
+{%- endif %}
+{%- elseif member.kind == "typeAlias" %}
+<span class="keyword">typealias</span> {{ member.name }} ={{ " " }}
+{%- if member.underlyingType is defined and member.underlyingType is not null %}
+{%- for entry in member.underlyingType %}
+{%- if loop.first %}
+{{- renderType(entry.value) }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- elseif member.kind == "class" or member.kind == "interface" or member.kind == "object" or member.kind == "enum" %}
+<span class="keyword">{{ member.kind }}</span> {{ member.name }}
+{%- endif %}
+</div>
+{%- endmacro -%}
+
+{%- macro renderMembers(title, members) -%}
+{%- if members is not empty %}
+<div class="member-section">
+<h2>{{ title }}</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+{%- for member in members %}
+{%- if member.extras is not defined or not member.extras.isObviousMember %}
+<tr>
+<td class="col-name">
+<a href="{{ member.url | default('#') | replace({".json": ".html"}) }}">{{ member.name | default('Unknown') }}</a>
+{{- renderPlatforms(member.sourceSets) }}
+</td>
+<td class="col-summary">
+{{- renderTableSignature(member) }}
+{%- if member.documentation is defined and member.documentation is not null %}
+{%- for entry in member.documentation %}
+{%- if loop.first %}
+{%- for tag in entry.value %}
+{%- if tag.type == "Description" %}
+<div class="brief">{{ tag.text | replace({".json": ".html"}) | raw }}</div>
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+</td>
+</tr>
+{%- endif %}
+{%- endfor %}
+</tbody>
+</table>
+</div>
+{%- endif %}
+{%- endmacro -%}
+
+{# --- HTML TEMPLATE --- #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ name }}</title>
+<style>
+:root {
+--primary: #1976d2;
+--text: #333333;
+--bg: #ffffff;
+--bg-alt: #f4f5f7;
+--border: #e0e0e0;
+--keyword: #0033b3;
+--type-link: #20999D;
+--annotation: #808000;
+}
+body {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+margin: 0;
+padding: 0;
+color: var(--text);
+background-color: var(--bg);
+line-height: 1.6;
+}
+header {
+background-color: var(--bg-alt);
+padding: 1rem 2rem;
+border-bottom: 1px solid var(--border);
+}
+.breadcrumb {
+font-size: 0.9rem;
+color: #555;
+}
+main {
+max-width: 1000px;
+margin: 2rem auto;
+padding: 0 2rem;
+padding-bottom: 4rem;
+}
+h1 { font-size: 2rem; margin-bottom: 0.5rem; text-transform: capitalize; }
+h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.5rem; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+table {
+width: 100%;
+border-collapse: collapse;
+margin: 1rem 0;
+font-size: 0.95rem;
+}
+th, td {
+padding: 0.75rem;
+text-align: left;
+border-bottom: 1px solid var(--border);
+vertical-align: top;
+}
+th {
+background-color: var(--bg-alt);
+font-weight: 600;
+}
+.col-name { width: 30%; font-weight: 500; }
+.keyword { color: var(--keyword); font-weight: bold; }
+.type-link { color: var(--type-link); }
+.type-name { color: var(--text); }
+.annotation { color: var(--annotation); font-weight: normal; margin-bottom: 0.2rem; }
+.signature {
+background-color: var(--bg-alt);
+padding: 1rem;
+border-radius: 6px;
+font-family: "JetBrains Mono", Consolas, monospace;
+overflow-x: auto;
+margin-bottom: 1.5rem;
+border: 1px solid var(--border);
+}
+.table-signature {
+font-family: "JetBrains Mono", Consolas, monospace;
+font-size: 0.9em;
+margin-bottom: 0.5rem;
+color: #000;
+}
+.doc-block { margin: 1.5rem 0; font-size: 1.05rem; }
+.doc-tag { margin-bottom: 0.5rem; }
+.tag-name { font-weight: 600; color: #555; margin-right: 0.5rem; }
+.brief { color: #444; margin-top: 0.2rem; }
+/* Platform Styles */
+.platforms { 
+display: flex;
+flex-wrap: wrap; 
+gap: 0.3rem; 
+margin-top: 0.4rem; 
+margin-bottom: 0.5rem;
+}
+.platform-tag {
+display: inline-block;
+background-color: var(--bg-alt);
+color: #555;
+font-size: 0.7rem;
+font-weight: 600;
+padding: 0.1rem 0.4rem;
+border-radius: 12px;
+border: 1px solid var(--border);
+text-transform: capitalize;
+}
+/* CustomTagWrapper 'Since Kotlin' Styles */
+.kdoc-tag h4 {
+font-size: 1rem;
+margin: 0.8rem 0 0.2rem 0;
+color: #555;
+font-weight: 600;
+}
+code {
+background-color: rgba(0,0,0,0.05);
+padding: 0.2rem 0.4rem;
+border-radius: 3px;
+font-family: Consolas, monospace;
+font-size: 0.9em;
+}
+pre > code {
+display: block;
+padding: 1rem;
+overflow-x: auto;
+}
+/* Custom Footer Styles */
+.footer {
+margin-top: 3rem;
+padding-top: 1.5rem;
+border-top: 1px solid var(--border);
+text-align: center;
+font-size: 0.9rem;
+color: #666;
+}
+/* --- EXTERNAL LINK STYLING --- */
+/* Target any link that starts with http:// or https:// */
+a[href^="http://"], 
+a[href^="https://"] {
+    color: #d32f2f; /* A highly visible red */
+    text-decoration: underline;
+}
+
+</style>
+</head>
+<body>
+<header>
+<div class="breadcrumb">
+{%- if breadcrumbs is defined and breadcrumbs is not empty %}
+{%- for crumb in breadcrumbs %}
+{%- if crumb.url != null and not loop.last %}
+<a href="{{ crumb.url | replace({".json": ".html"}) }}">{{ crumb.name }}</a>
+{%- else %}
+{{ crumb.name }}
+{%- endif %}
+{%- if not loop.last %} / {% endif %}
+{%- endfor %}
+{%- else %}
+API Documentation / {{ name }}
+{%- endif %}
+</div>
+</header>
+<main>
+<h1>
+<span class="keyword">
+{%- if kind == "allTypes" %}
+Index
+{%- else %}
+{{ kind }}
+{%- endif %}
+</span>{{ " " }}{{ name }}
+</h1>
+{{- renderPlatforms(sourceSets) }}
+
+{%- if kind == "function" or kind == "property" or kind == "typeAlias" or kind == "class" or kind == "interface" or kind == "object" or kind == "enum" %}
+<div class="signature">
+{{- renderTableSignature(_context) }}
+</div>
+{%- endif %}
+
+<div class="doc-block">
+{{- renderDoc(documentation) }}
+</div>
+
+{%- if modules is defined and modules is not null %}
+{{- renderMembers("Modules", modules) }}
+{%- endif %}
+{%- if packages is defined and packages is not null %}
+{{- renderMembers("Packages", packages) }}
+{%- endif %}
+{%- if classlikes is defined and classlikes is not null %}
+{{- renderMembers("Types", classlikes) }}
+{%- endif %}
+{%- if typeAliases is defined and typeAliases is not null %}
+{{- renderMembers("Type Aliases", typeAliases) }}
+{%- endif %}
+{%- if constructors is defined and constructors is not null %}
+{{- renderMembers("Constructors", constructors) }}
+{%- endif %}
+{%- if properties is defined and properties is not null %}
+{{- renderMembers("Properties", properties) }}
+{%- endif %}
+{%- if functions is defined and functions is not null %}
+{{- renderMembers("Functions", functions) }}
+{%- endif %}
+{%- if entries is defined and entries is not null %}
+{{- renderMembers("Enum Entries", entries) }}
+{%- endif %}
+
+{# --- NEW: ALL TYPES INDEX RENDERER --- #}
+{%- if types is defined and types is not null %}
+<div class="member-section">
+<h2>Index of All Types</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Platforms</th>
+</tr>
+</thead>
+<tbody>
+{%- for typeEntry in types %}
+<tr>
+<td class="col-name">
+<span class="keyword" style="font-size: 0.8em; margin-right: 0.5rem;">{{ typeEntry.kind }}</span>
+<a href="{{ typeEntry.url | default('#') | replace({".json": ".html"}) }}">{{ typeEntry.name }}</a>
+</td>
+<td class="col-summary">
+{{- renderPlatforms(typeEntry.sourceSets) }}
+</td>
+</tr>
+{%- endfor %}
+</tbody>
+</table>
+</div>
+{%- endif %}
+
+{%- if kind == "module" %}
+<div>
+<h2 class="">Index</h2>
+<a href="all-types.html">All Types</a>
+</div>
+<div class="footer">
+<div>
+<span>Generated by </span>
+<a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+Dokka
+</a>
+<div>© 2026 Copyright</div>
+</div>
+</div>
+{%- endif %}
+</main>
+</body>
+</html>
