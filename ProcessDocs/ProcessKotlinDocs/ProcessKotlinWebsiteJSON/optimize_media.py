@@ -428,12 +428,18 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
                         stats: dict) -> dict:
     """Walks input_dir recursively, optimizing every file into the mirrored
     location under output_dir (see process_file). Returns
-    {relative_src_path: relative_dst_path} for every file whose output path
-    ended up different from its input path (webp conversion, or an SVG
-    rasterized to PNG/WEBP) - callers that also maintain references to these
-    files elsewhere (e.g. insert_optimized_media.py, fixing up image URLs
-    stored in a database) use this to know what changed."""
-    renamed = {}
+    {relative_src_path: relative_dst_path} for every file successfully
+    written - a complete manifest of what this run produced, not just the
+    entries that changed name. A caller needs both halves of that: the keys
+    tell it which files this run is responsible for (insert_optimized_media.py
+    inserts exactly those into the database, rather than listing output_dir,
+    which may still hold files from an earlier run), and the entries whose
+    two sides differ tell it which ones changed name on the way (webp
+    conversion, or an SVG rasterized to PNG/WEBP) so references held
+    elsewhere - image URLs stored in a database, say - can be fixed up.
+    Files process_file failed on are absent; they are counted in
+    stats["errors"] instead."""
+    manifest = {}
     for src in sorted(input_dir.rglob("*")):
         if src.is_dir():
             continue
@@ -442,10 +448,8 @@ def optimize_directory(input_dir: Path, output_dir: Path, *, cfg: dict, pngquant
         dst_final = process_file(src, dst, cfg=cfg, pngquant_path=pngquant_path, stats=stats, logger=logger)
         if dst_final is None:
             continue
-        rel_final = dst_final.relative_to(output_dir)
-        if rel_final != rel:
-            renamed[str(rel)] = str(rel_final)
-    return renamed
+        manifest[str(rel)] = str(dst_final.relative_to(output_dir))
+    return manifest
 
 
 def add_optimize_arguments(parser: argparse.ArgumentParser) -> None:

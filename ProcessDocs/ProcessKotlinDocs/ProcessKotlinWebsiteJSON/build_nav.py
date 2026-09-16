@@ -82,8 +82,8 @@ def load_page_index(docs_json_dir: Path, skip: set = None) -> tuple[dict, dict]:
     return stem_to_id, id_to_title
 
 
-def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: list, no_link_color: str,
-               id_prefix: str = "") -> dict | None:
+def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: list,
+               no_link_color: str) -> dict | None:
     """Returns None when this element's own topic="*.md" no longer resolves
     to a converted page (deleted) and it has no children left worth keeping -
     callers must filter these out of whatever list they collect build_node()
@@ -94,7 +94,7 @@ def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: li
     hidden = el.get("hidden") == "true"
 
     children = [
-        build_node(c, stem_to_id, id_to_title, warnings, no_link_color, id_prefix)
+        build_node(c, stem_to_id, id_to_title, warnings, no_link_color)
         for c in el.findall("toc-element")
     ]
     children = [c for c in children if c is not None]
@@ -124,8 +124,9 @@ def build_node(el: ET.Element, stem_to_id: dict, id_to_title: dict, warnings: li
                 # no id at all, so nav.peb renders it as an unlinked section header and
                 # flatten_nav_ids leaves it out of the prev/next chain.
                 #
-                # It used to be given a guessed id, `{id_prefix}{stem}`, which is a URL no
-                # Content row answers: nav.peb links on `node.id` alone - noLinkColor only
+                # It used to be given a guessed id, the caller's id prefix plus the stem,
+                # which is a URL no Content row answers: nav.peb links on `node.id` alone -
+                # the prefix parameter that fed it is gone with it. noLinkColor only
                 # colours the link, it does not stop it being one - so the sidebar entry 404'd,
                 # and being id-bearing it also became the prev or next target of the real pages
                 # either side of it. Only home.topic ever had a page, and populate_db.py gives it

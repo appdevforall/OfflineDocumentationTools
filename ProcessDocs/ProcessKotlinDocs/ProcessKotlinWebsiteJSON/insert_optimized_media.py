@@ -133,10 +133,12 @@ def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_i
 
 def build_rename_map(manifest: dict, logger: Logger) -> dict:
     """Flattens optimize_directory's {relative_src: relative_dst} manifest
-    to {old_basename: new_basename}, matching k/html/images/*'s bare-filename
-    addressing. Warns (keeping the first) if two different renames collide
-    on the same old basename - e.g. two identically-named files in
-    different subdirectories of media_dir."""
+    to {old_basename: new_basename} for the entries that actually changed
+    name, matching k/html/images/*'s bare-filename addressing. The manifest
+    covers every file the run produced, so the same-name entries - the
+    majority - are dropped here. Warns (keeping the first) if two different
+    renames collide on the same old basename - e.g. two identically-named
+    files in different subdirectories of media_dir."""
     rename_map = {}
     for old_rel, new_rel in sorted(manifest.items()):
         old_name = Path(old_rel).name
@@ -394,10 +396,10 @@ def main() -> None:
             # leaves mascot.webp beside mascot.png and a later run without --webp inserts both,
             # and a file deleted from media_dir between runs is still sitting there to be
             # re-inserted, resurrecting content this run was meant to drop. The manifest is the
-            # authoritative record of what this run actually produced.
+            # authoritative record of what this run actually produced - it lists every file
+            # written, not only the ones that changed name, so iterating it inserts the same set
+            # the old work_dir walk did, minus anything left over from a previous run.
             for out_path in sorted(work_dir / rel for rel in manifest.values()):
-                if out_path.is_dir():
-                    continue
                 name = out_path.name
                 if name in seen_names:
                     logger.error(
@@ -444,7 +446,8 @@ def main() -> None:
             vacuum_conn.close()
 
         logger.info(
-            f"Done: inserted/updated {inserted} image(s) in {cfg['db_path']}, {removed} stale renamed-away row(s) "
+            f"Done: inserted/updated {inserted} of {len(manifest)} optimized file(s) in {cfg['db_path']}, "
+            f"{removed} stale renamed-away row(s) "
             f"removed, {changed_pages} page(s)/nav row(s) updated to match {len(rename_map)} renamed file(s), "
             f"{unreferenced_removed} unreferenced image(s) deleted."
         )

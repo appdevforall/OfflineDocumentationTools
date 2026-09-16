@@ -490,16 +490,18 @@ def main():
     # filename anywhere in the tree would collide - as an IntegrityError from the INSERT far
     # below, naming neither file. topics/ comes from a third-party repo that changes weekly, so
     # the uniqueness the ids rely on is an assumption with an expiry date; this is where it gets
-    # checked, while both paths are still in hand to name.
-    by_stem = {}
+    # checked, while both sources are still in hand to name. The home placeholder this script
+    # appends unconditionally below claims an id too, so it is seeded here rather than left as
+    # the one way to reach that IntegrityError anyway.
+    by_id = {HOME_PAGE_ID: ["the home placeholder populate_db.py always inserts"]}
     for md_path in md_files:
-        by_stem.setdefault(md_path.stem, []).append(md_path)
-    collisions = {stem: paths for stem, paths in by_stem.items() if len(paths) > 1}
+        by_id.setdefault(f"k/html/{md_path.stem}", []).append(str(md_path))
+    collisions = {db_id: sources for db_id, sources in by_id.items() if len(sources) > 1}
     if collisions:
-        print(f"error: {len(collisions)} filename collision(s) in {topics_dir} - page ids are the "
+        print(f"error: {len(collisions)} page id collision(s) from {topics_dir} - page ids are the "
               f"bare .md stem, so these would write to the same Content.path:", file=sys.stderr)
-        for stem, paths in sorted(collisions.items()):
-            print(f"  k/html/{stem}: " + ", ".join(str(p) for p in paths), file=sys.stderr)
+        for db_id, sources in sorted(collisions.items()):
+            print(f"  {db_id}: " + ", ".join(sources), file=sys.stderr)
         sys.exit(1)
 
     pages = []
@@ -544,8 +546,7 @@ def main():
     id_to_title = {p["id"]: p["title"] for p in pages}
     nav_warnings = []
     nav_tree = [
-        build_node(el, topic_index_db, id_to_title, nav_warnings, config.get("menu-no-link-color"),
-                   id_prefix="k/html/")
+        build_node(el, topic_index_db, id_to_title, nav_warnings, config.get("menu-no-link-color"))
         for el in root.findall("toc-element")
     ]
     nav_tree = [node for node in nav_tree if node is not None]

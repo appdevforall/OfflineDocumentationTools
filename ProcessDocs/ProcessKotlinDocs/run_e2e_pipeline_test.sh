@@ -102,7 +102,13 @@ echo "Report written to $REPORT_PATH"
 
 echo
 echo "== Step 2/5: populate_db.py (convert docs, prune blacklist, insert into test db) =="
+# --skip-images, matching build-kotlin-docs.yaml: step 3 below replaces every image row this
+# would write, so inserting them here is a full pngquant+brotli pass thrown away seconds later.
+# Passed here as well as in CI so this script exercises the same arrangement the workflow does -
+# insert_optimized_media.py as the sole source of k/html/images/* rows. Run without it, this
+# script would still pass while that step silently inserted nothing.
 ( cd "$PROCESS_DIR" && python3 populate_db.py "$DOCS_ROOT" "$CONFIG_JSON" "$IMAGES_ZIP" "$TEST_DB" \
+    --skip-images \
     --blacklisted-element-titles "${BLACKLIST[@]}" )
 
 echo
@@ -163,6 +169,39 @@ print(f"  k/kotlin-reflect/* rows: {count('path LIKE ? OR path = ?', ('k/kotlin-
 print(f"  k/kotlin-test/*    rows: {count('path LIKE ? OR path = ?', ('k/kotlin-test/%', 'k/kotlin-test'))}")
 
 conn.close()
+PYEOF
+
+echo
+echo "== Media verification =="
+# Every image a stored page still points at must have a Content row behind it. --skip-images
+# above puts that invariant entirely in insert_optimized_media.py's hands, so it is checked
+# rather than assumed - reusing that script's own stored/referenced readers (the pair
+# delete_unreferenced_media already compares) instead of re-deriving either side here.
+python3 - "$PROCESS_DIR" "$TEST_DB" <<'PYEOF'
+import sqlite3
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+import insert_optimized_media as iom  # noqa: E402
+from populate_db import PAGE_CONTENT_TYPE, get_id  # noqa: E402
+
+conn = sqlite3.connect(sys.argv[2])
+stored = iom.list_stored_media(conn)
+referenced = iom.collect_referenced_media(conn, get_id(conn, "ContentTypes", PAGE_CONTENT_TYPE))
+conn.close()
+
+print(f"{len(stored)} image row(s) stored, {len(referenced)} referenced by a page or the nav row.")
+if not stored:
+    print("FAIL: no k/html/images/* rows at all.", file=sys.stderr)
+    sys.exit(1)
+missing = sorted(referenced - set(stored))
+if missing:
+    print(f"FAIL: {len(missing)} referenced image(s) have no Content row:", file=sys.stderr)
+    for name in missing:
+        print(f"  {name}", file=sys.stderr)
+    sys.exit(1)
+print("PASS: every image referenced by a page has a Content row.")
 PYEOF
 
 echo

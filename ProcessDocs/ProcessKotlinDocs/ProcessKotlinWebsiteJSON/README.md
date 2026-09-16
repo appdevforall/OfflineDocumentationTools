@@ -19,8 +19,10 @@ and its media straight into a `documentation.db`-schema SQLite database.
 ## Requirements
 
 - Python 3.10+
-- `pip install markdown-it-py Pillow scour brotli`
-- `cairosvg` (only needed if an optimized SVG exceeds `--svg-rasterize-threshold`): `pip install cairosvg`
+- `pip install -r requirements.txt` from this directory — it pulls in the repo-root
+  `requirements.txt` as well, so this one command covers everything these scripts import.
+  (`cairosvg`, included there, is only exercised when an optimized SVG is still over
+  `--svg-rasterize-threshold` and has to be rasterized, but it is imported unconditionally.)
 - `pngquant` on `PATH` (e.g. `apt install pngquant`) — required by `optimize_media.py`/`insert_optimized_media.py`, and by `populate_db.py` for the images it inserts directly from the Writerside export.
 
 `populate_db.py` also expects, relative to its own location, and already

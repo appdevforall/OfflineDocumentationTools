@@ -92,7 +92,12 @@ VAR_RE = re.compile(r"%([\w.-]+)%")
 MD_LINK_RE = re.compile(r"^([\w.-]+)\.md(#.*)?$")
 EXTERNAL_HREF_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//|^mailto:", re.I)
 LINK_TAG_RE = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>')
-STYLE_ATTR_RE = re.compile(r'\bstyle="([^"]*)"')
+# Anchored on whitespace (or the start of the tag) rather than \b, which also holds after a
+# hyphen: \bstyle=" matches the `style="..."` inside `data-style="..."` and would splice the
+# colour into that attribute instead, leaving the link uncoloured and the data attribute
+# corrupted. Both quote styles, because a single-quoted style that went unmatched would fall
+# through to the append branch and re-create the duplicate-`style` bug this exists to avoid.
+STYLE_ATTR_RE = re.compile(r"""(?:^|\s)style\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.I)
 
 CONTAINER_TAGS = {"tabs", "tab", "note", "tip", "warning"}
 
@@ -298,10 +303,11 @@ class Converter:
             # being dropped exactly where it was wanted.
             existing = STYLE_ATTR_RE.search(tag)
             if existing:
-                value = existing.group(1).rstrip()
+                group = 1 if existing.group(1) is not None else 2  # double- or single-quoted
+                value = existing.group(group).rstrip()
                 if value and not value.endswith(";"):
                     value += ";"
-                return tag[:existing.start(1)] + value + colour + tag[existing.end(1):]
+                return tag[:existing.start(group)] + value + colour + tag[existing.end(group):]
             return tag[:-1] + f' style="{colour}">'
 
         return LINK_TAG_RE.sub(repl, html)

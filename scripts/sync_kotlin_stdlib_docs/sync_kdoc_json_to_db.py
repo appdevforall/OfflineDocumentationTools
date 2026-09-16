@@ -58,15 +58,16 @@ def compress_for(compression, raw_bytes, path):
 
 
 def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run, prune_tooltips=False):
-    """Drops TooltipButtons whose uri points at a now-deleted Content path.
+    """Drops every TooltipButton whose uri points at a now-deleted Content path.
 
-    A tooltip itself is removed only when *every* one of its buttons is orphaned, and only when
-    `prune_tooltips` says so. It used to be removed whenever *any* button was, which took the
-    hand-authored `summary`/`detail` and every still-valid sibling button with it - and that text
-    is not in the plugin output, so nothing could regenerate it. A stdlib symbol renamed upstream
-    was enough to trigger it: its Content row goes, one button is orphaned, the whole tooltip
-    goes. The destructive path is opt-in because a docs rebuild should not quietly delete
-    hand-written content as a side effect.
+    A tooltip itself is removed only when *every* one of its buttons was orphaned, and even then
+    only when `prune_tooltips` says so. It used to be removed whenever *any* button was, which
+    took the hand-authored `summary`/`detail` and every still-valid sibling button with it - and
+    that text is not in the plugin output, so nothing could regenerate it. A stdlib symbol renamed
+    upstream was enough to trigger it: its Content row goes, one button is orphaned, the whole
+    tooltip goes. The destructive path is opt-in because a docs rebuild should not quietly delete
+    hand-written content as a side effect. The buttons are not opt-in: a button pointing at a row
+    this run deleted is a dead link and nothing else, so it goes either way.
 
     Returns (tooltips_removed, buttons_removed).
     """
@@ -103,12 +104,14 @@ def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run, prune_tooltips=False)
 
     fully_orphaned = [t for t in affected_ids
                       if len(orphaned_by_tooltip[t]) >= total_buttons.get(t, 0)]
-    partly_orphaned = [t for t in affected_ids if t not in set(fully_orphaned)]
 
+    # Every orphaned button goes, whichever kind of tooltip it hangs off. It points at a Content
+    # row this same run deleted, so leaving it behind only puts a dead link in the IDE's tooltip
+    # dialog - there is nothing to preserve. What `prune_tooltips` gates is the *tooltip*, whose
+    # summary/detail is hand-authored and absent from the plugin output. Every deletion is named:
+    # this is the one place in the pipeline that removes content no other step can put back.
     buttons_removed = 0
-    # Every deletion is named, whichever kind it is: this is the one place in the pipeline that
-    # removes content no other step can put back.
-    for tooltip_id in partly_orphaned:
+    for tooltip_id in affected_ids:
         for uri in orphaned_by_tooltip[tooltip_id]:
             print(f"  [DELETE BUTTON] tooltip={tooltip_id} uri={uri}")
             if not dry_run:
@@ -120,23 +123,23 @@ def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run, prune_tooltips=False)
         return 0, buttons_removed
 
     if not prune_tooltips:
-        print(f"  [KEEP] {len(fully_orphaned)} tooltip(s) have no working buttons left but were "
-              f"not removed; pass --prune-tooltips to delete them: "
+        print(f"  [KEEP] {len(fully_orphaned)} tooltip(s) have no buttons left, their last one(s) "
+              f"having just been dropped; the hand-authored summary/detail is kept, pass "
+              f"--prune-tooltips to delete the tooltips too: "
               + ", ".join(f"id={t}" for t in fully_orphaned))
         return 0, buttons_removed
 
     placeholders = ",".join("?" * len(fully_orphaned))
-    doomed_buttons = cur.execute(
-        f"SELECT count(*) FROM TooltipButtons WHERE tooltipId IN ({placeholders})", fully_orphaned
-    ).fetchone()[0]
     for tooltip_id in fully_orphaned:
         print(f"  [DELETE TOOLTIP] id={tooltip_id} "
               f"(all {total_buttons.get(tooltip_id, 0)} button(s) orphaned)")
     if not dry_run:
+        # The loop above already dropped these tooltips' buttons one by one; this sweeps up any
+        # row it could not address by exact uri (a NULL uri counted in total_buttons, say).
         cur.execute(f"DELETE FROM TooltipButtons WHERE tooltipId IN ({placeholders})", fully_orphaned)
         cur.execute(f"DELETE FROM Tooltips WHERE id IN ({placeholders})", fully_orphaned)
 
-    return len(fully_orphaned), buttons_removed + doomed_buttons
+    return len(fully_orphaned), buttons_removed
 
 
 def main():

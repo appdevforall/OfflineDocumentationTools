@@ -113,6 +113,22 @@ class TestLinkColouring:
         markup = '<a href="/k/html/enum-classes.html">internal</a>'
         assert self.colourer().style_broken_and_external_links(markup) == markup
 
+    def test_a_hyphenated_attribute_is_not_mistaken_for_style(self):
+        # \b holds after a hyphen, so `\bstyle="` matched the value inside `data-style="..."`:
+        # the colour went into that attribute and the link itself was left uncoloured.
+        out = self.colourer().style_broken_and_external_links(
+            '<a href="https://example.com" data-style="dark">ext</a>')
+        assert 'data-style="dark"' in out, "the data attribute is untouched"
+        assert ' style="color: #cc0000;"' in out, "the link gets its own style attribute"
+
+    def test_a_single_quoted_style_is_merged_not_duplicated(self):
+        # Unmatched, this fell through to the append branch and emitted a second `style`, which
+        # HTML parsers drop - the very bug merging exists to avoid.
+        out = self.colourer().style_broken_and_external_links(
+            "<a href=\"https://example.com\" style='font-weight:bold'>ext</a>")
+        assert out.count("style=") == 1
+        assert "font-weight:bold;color: #cc0000;" in out
+
 
 class TestNavForUnconvertedTopics:
     """A `.topic` with no page behind it was given a guessed id, so it linked to a 404."""
@@ -122,7 +138,7 @@ class TestNavForUnconvertedTopics:
                              '<toc-element topic="api-references.topic"/>'
                              '<toc-element topic="real.md"/></x>')
         warnings = []
-        nodes = [build_nav.build_node(el, stem_to_id, {}, warnings, "#999", id_prefix="k/html/")
+        nodes = [build_nav.build_node(el, stem_to_id, {}, warnings, "#999")
                  for el in tree.findall("toc-element")]
         return {n["title"]: n for n in nodes}, warnings
 
@@ -191,11 +207,16 @@ class TestTooltipCleanup:
         # Its dead button goes; the working one stays.
         assert cur.execute("SELECT count(*) FROM TooltipButtons WHERE tooltipId = 1").fetchone() == (1,)
 
-    def test_a_fully_orphaned_tooltip_is_kept_unless_asked(self):
+    def test_a_fully_orphaned_tooltip_keeps_its_text_but_loses_its_dead_buttons(self):
         conn = self.fixture()
         cur = conn.cursor()
-        cleanup_orphaned_tooltips(cur, [self.DEAD], dry_run=False)
-        assert cur.execute("SELECT count(*) FROM Tooltips WHERE id = 2").fetchone() == (1,)
+        _tooltips, buttons = cleanup_orphaned_tooltips(cur, [self.DEAD], dry_run=False)
+        # The hand-authored text is what --prune-tooltips gates. The buttons are not gated: each
+        # one points at a Content row this run deleted, so leaving it puts a dead link in the
+        # IDE's tooltip dialog.
+        assert cur.execute("SELECT summary FROM Tooltips WHERE id = 2").fetchone() == ("Other",)
+        assert cur.execute("SELECT count(*) FROM TooltipButtons WHERE tooltipId = 2").fetchone() == (0,)
+        assert buttons == 2, "one dead button from each of the two tooltips"
 
     def test_prune_tooltips_removes_only_the_fully_orphaned_one(self):
         conn = self.fixture()
@@ -210,3 +231,56 @@ class TestTooltipCleanup:
         cleanup_orphaned_tooltips(cur, [self.DEAD], dry_run=True, prune_tooltips=True)
         assert cur.execute("SELECT count(*) FROM Tooltips").fetchone() == (2,)
         assert cur.execute("SELECT count(*) FROM TooltipButtons").fetchone() == (3,)
+
+
+class TestOptimizeManifest:
+    """optimize_directory's manifest is what insert_optimized_media inserts from, so it has to
+    name every file the run produced - it used to list only the ones that changed name."""
+
+    def optimize(self, tmp_path, names):
+        # Imported in here rather than at module scope: optimize_media pulls in Pillow, scour and
+        # cairosvg (this directory's requirements.txt), and cairosvg wants a native libcairo at
+        # import time. A machine without it should lose this test, not the whole module.
+        import optimize_media
+
+        src, out = tmp_path / "src", tmp_path / "out"
+        src.mkdir()
+        for name in names:
+            (src / name).write_text(name, encoding="utf-8")
+        cfg = dict(optimize_media.BUILTIN_DEFAULTS)
+        stats = {"raster": 0, "svg": 0, "svg_rasterized": 0, "copied": 0, "errors": 0,
+                 "original_bytes": 0, "optimized_bytes": 0}
+        # .txt files take process_file's copy-through branch, so this needs neither pngquant nor
+        # a decodable image - and copy-through is exactly the case that kept its filename.
+        manifest = optimize_media.optimize_directory(
+            src, out, cfg=cfg, pngquant_path="/nonexistent/pngquant",
+            logger=optimize_media.Logger(None), stats=stats)
+        return manifest, out
+
+    def test_a_file_that_keeps_its_name_is_still_in_the_manifest(self, tmp_path):
+        manifest, out = self.optimize(tmp_path, ["readme.txt", "notes.txt"])
+        assert manifest == {"readme.txt": "readme.txt", "notes.txt": "notes.txt"}
+        # What insert_optimized_media's loop would insert, against what is actually on disk.
+        assert sorted(out / rel for rel in manifest.values()) == sorted(
+            p for p in out.rglob("*") if p.is_file())
+
+    def test_the_rename_map_still_holds_only_real_renames(self, tmp_path):
+        from insert_optimized_media import build_rename_map
+
+        manifest, _out = self.optimize(tmp_path, ["readme.txt"])
+        # A complete manifest reaches build_rename_map, which drops the same-name entries - so
+        # rewrite_pages is not handed a no-op "rename" for every unchanged file.
+        assert build_rename_map(manifest, _RecordingLogger()) == {}
+        assert build_rename_map({"a.svg": "a.png", "b.png": "b.png"}, _RecordingLogger()) == {
+            "a.svg": "a.png"}
+
+
+class _RecordingLogger:
+    def __init__(self):
+        self.messages = []
+
+    def info(self, msg):
+        self.messages.append(msg)
+
+    def error(self, msg):
+        self.messages.append(msg)

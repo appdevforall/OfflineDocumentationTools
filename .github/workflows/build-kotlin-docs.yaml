@@ -150,13 +150,21 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          # markdown-it-py, scour and cairosvg now live in requirements.txt, where anyone
-          # following the README gets them too - they used to be installed only here, so a
-          # checkout outside CI could not import md_to_json at all.
+          # The repo-root shared set (brotli, Pillow, ...). Installed explicitly rather than
+          # left to the -r chain at the top of the file below, so this step does not quietly
+          # lose it if that chain is ever dropped.
           uv pip install -r requirements.txt
-          # Drive download/upload only, and only needed by this workflow: the same libraries
-          # check-tools/download_database.py already depends on.
-          uv pip install -r .github/requirements-drive.txt
+          # markdown-it-py, scour and cairosvg. These live in ProcessKotlinWebsiteJSON's own
+          # requirements.txt, where anyone following its README gets them too - they used to be
+          # installed only here, so a checkout outside CI could not import md_to_json at all.
+          # Not in the root file: cairosvg wants a native libcairo at import time, and
+          # publish-doc-db.yaml / automate-kotlin.yaml install that file without ever using it.
+          uv pip install -r ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/requirements.txt
+          # Drive download/upload. check-tools/pyproject.toml is where download_database.py's
+          # dependencies are already declared (and locked, and installed by
+          # docdb-regression-test.yaml with `uv sync`); reading them from there keeps one
+          # declaration rather than a second copy that drifts.
+          uv pip install -r check-tools/pyproject.toml
 
       - name: Authenticate to Google Cloud using Workload Identity Federation
         uses: google-github-actions/auth@v2
@@ -181,6 +189,7 @@ jobs:
           echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
 
       - name: 'Notify Slack: build started'
+        id: slack_baton_taken
         if: ${{ !inputs.dry_run }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -371,12 +380,15 @@ jobs:
           print(f"Uploaded new revision of {file_id}: {updated}")
           PYEOF
 
-      # always(), and the same dry_run condition as the "started" step: the pair is meant to read
-      # as a lock being taken and released, so a release that only fires on the happy path leaves
-      # the baton stuck after any failure - and one that fires on a different condition from the
-      # acquire leaves it stuck on every default (dry) run.
+      # always(), gated on the "started" step having actually run. The pair is meant to read as a
+      # lock being taken and released, so a release that only fires on the happy path leaves the
+      # baton stuck after any failure - but one keyed off inputs.dry_run alone drops a baton that
+      # was never taken, since everything from the checkout to the Drive download can fail before
+      # "build started" is reached. That step's own conclusion answers both: 'skipped' on a dry
+      # run, 'skipped' again when the job died before getting to it, 'success' exactly when Slack
+      # was told the build had the baton.
       - name: 'Notify Slack: build complete'
-        if: ${{ always() && !inputs.dry_run }}
+        if: ${{ always() && steps.slack_baton_taken.conclusion == 'success' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
