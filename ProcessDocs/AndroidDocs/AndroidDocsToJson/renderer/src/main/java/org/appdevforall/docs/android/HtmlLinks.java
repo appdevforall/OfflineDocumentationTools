@@ -17,8 +17,14 @@ import java.util.regex.Pattern;
  *
  * It happens here rather than in a Pebble filter so that the templates need no filter of their
  * own: the database stores one self-contained template per row and evaluates it against the
- * page's JSON, with no opportunity to register anything. The same swap is implemented in
- * `load_android_json_db.py` for the same reason.
+ * page's JSON, with no opportunity to register anything.
+ *
+ * `load_android_json_db.py`'s `rewrite_link` does the corresponding job for the database, and is
+ * deliberately NOT identical: it also folds each path to the case the database spells it with,
+ * because the database holds pages the scrape spelled two ways (`StrictMode/` and `strictmode/`)
+ * and a link has to name the row that exists. There is no such second spelling here - this
+ * renderer writes the HTML tree itself, mirroring the JSON tree's own paths - so the swap below
+ * is the whole job. Change one and the other does not automatically need the same change.
  */
 final class HtmlLinks {
 

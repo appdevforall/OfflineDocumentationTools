@@ -57,10 +57,12 @@ permissions:
   contents: read
   id-token: write
 
-# This workflow overwrites a single shared Drive file - never let two runs
-# race to upload against each other.
+# Every workflow that rewrites the shared documentation.db on Drive shares this group, not just
+# the two runs of this one. Each does download -> modify -> upload against the same file, so an
+# Android run overlapping a Kotlin run means both start from the same revision and whichever
+# uploads second silently discards the other's work. A per-workflow group never saw that.
 concurrency:
-  group: build-android-docs
+  group: documentation-db
   cancel-in-progress: false
 
 on:
@@ -175,6 +177,10 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
+          # pytest: the "Run the unit tests" step below needs it, and nothing else installs it.
+          # setup-python gives a clean interpreter, so the runner image's own packages are not
+          # on this path - without this line that step dies on `No module named pytest`.
+          pip install pytest
           # google-api-python-client & friends: Drive download/upload, same
           # libraries check-tools/download_database.py already depends on.
           pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
@@ -198,7 +204,11 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          # drive.readonly as well as drive.file: drive.file covers only files this app
+          # created or opened itself, and the step below downloads a database it did not.
+          # The same pair docdb-regression-test.yaml uses against the same file.
           access_token_scopes: |
+            https://www.googleapis.com/auth/drive.readonly
             https://www.googleapis.com/auth/drive.file
 
       - name: Download current documentation.db from Google Drive
@@ -214,7 +224,13 @@ jobs:
           rm -f documentation.zip
           echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
 
+      # dry_run-gated, and paired with the release below. The baton stands for the lock on the
+      # shared file this workflow rewrites, so a dry run - which rewrites nothing - should never
+      # take it. Before this was gated, the default dispatch (dry_run is true) grabbed a baton
+      # that the release, gated on dry_run being false, then never dropped.
       - name: 'Notify Slack: build started'
+        id: slack_baton_taken
+        if: ${{ !inputs.dry_run }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -318,7 +334,14 @@ jobs:
 
       - name: Zip updated database for upload
         if: ${{ !inputs.dry_run }}
-        run: zip -j documentation.zip "$STAGED_DB"
+        run: |
+          # The member inside the zip has to be called documentation.db, not whatever this
+          # workflow happened to name its staging file: every reader of the Drive artifact looks
+          # for that exact name and fails outright without it - this workflow's own download step
+          # above, docdb-regression-test.yaml's daily run, and build-kotlin-docs.yaml. `zip -j`
+          # drops the directory but keeps the basename, so the rename has to happen first.
+          cp "$STAGED_DB" documentation.db
+          zip -j documentation.zip documentation.db
 
       - name: Upload updated database to Google Drive
         if: ${{ !inputs.dry_run }}
@@ -339,8 +362,14 @@ jobs:
           print(f"Uploaded new revision of {file_id}: {updated}")
           PYEOF
 
+      # always(), keyed off whether the acquire actually ran rather than off dry_run again.
+      # Everything from the checkout to the Drive download can fail before "build started" is
+      # reached, and a release gated only on dry_run announces a drop for a baton nobody took;
+      # without always(), a failure after it leaves the baton held. The acquire's own conclusion
+      # answers both - 'skipped' on a dry run and on an early failure, 'success' exactly when
+      # Slack was told the baton had been taken.
       - name: 'Notify Slack: build complete'
-        if: ${{ !inputs.dry_run }}
+        if: ${{ always() && steps.slack_baton_taken.conclusion == 'success' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |

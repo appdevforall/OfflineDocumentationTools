@@ -124,8 +124,12 @@ def rewrite_link(url: str, page_dir: str, known: dict) -> str:
 
 
 def rewrite_document(node, page_dir: str, known: dict):
-    """Every link in a page document, rewritten. Mirrors HtmlLinks.java, which does this for the
-    standalone renderer; the two exist separately only because one is Java and one is Python."""
+    """Every link in a page document, rewritten.
+
+    HtmlLinks.java walks the document the same way for the standalone renderer, but the two are
+    not interchangeable: `rewrite_link` below also canonicalises each path's case against what
+    this database holds, which the renderer has no need of. See that class's own header.
+    """
     if isinstance(node, dict):
         result = {}
         for key, value in node.items():
@@ -218,7 +222,7 @@ def prepare(job: tuple, known: dict, compressor: DictionaryCompressor) -> tuple:
 
 
 def load(json_dir: Path, conn, workers: int, limit: int | None) -> dict:
-    stats = {"updated": 0, "inserted": 0, "skipped": 0, "raw": 0, "stored": 0}
+    stats = {"updated": 0, "inserted": 0, "skipped": 0, "stored": 0}
     language_id = get_id(conn, "Languages", "en-US")
     content_type_id, compress = get_content_type(conn, CONTENT_TYPE)
     if not compress:
@@ -267,6 +271,21 @@ def load(json_dir: Path, conn, workers: int, limit: int | None) -> dict:
     return stats
 
 
+# Every table this script reads or writes. Checked up front (see check_schema) because two of
+# them are only touched by record_version, at the very end: a database missing them would
+# otherwise take the whole load - 90 seconds locally, a quarter of an hour in CI - before saying
+# so. The same fail-fast the media optimizer does for its own content types.
+REQUIRED_TABLES = ("Content", "Languages", "ContentTypes", "Templates", "CompressionDictionary",
+                   "DocumentationDatabaseVersion", "LastChange")
+
+
+def check_schema(conn) -> list[str]:
+    """The tables in REQUIRED_TABLES this database does not have, in the order listed."""
+    present = {name for (name,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return [name for name in REQUIRED_TABLES if name not in present]
+
+
 def record_version(conn, stats: dict) -> None:
     """A row saying what changed, as the schema's own comment asks for. Minor, not major: nothing
     about the schema or the server's contract changes, a documentation set is re-expressed."""
@@ -305,6 +324,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"{args.out} exists; pass --force to replace it")
     if args.out.resolve() == args.source.resolve():
         parser.error("--out must not be --source: the source database is never written to")
+
+    source_conn = sqlite3.connect(f"file:{args.source}?mode=ro", uri=True)
+    try:
+        missing = check_schema(source_conn)
+    finally:
+        source_conn.close()
+    if missing:
+        parser.error(f"{args.source} is missing table(s) this loader writes: "
+                     + ", ".join(missing))
 
     print(f"==> copying {args.source} -> {args.out}")
     shutil.copy2(args.source, args.out)

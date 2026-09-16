@@ -1102,3 +1102,34 @@ class TestLinkClass:
         """
         page = parse(markup, "android/demo/Widget.html", linker, tmp_path)
         assert 'class="api-reference external-link"' in page["description"]
+
+
+class TestKindTablesAgree:
+    """Three tables have to name the same kinds, and none of them says so.
+
+    A kind is counted by `_MEMBER_KINDS`, described only if it is in `_MEMBER_ORDER`, and
+    labelled only if it is in `_PLURALS`. `describe_tally` iterates the order and skips anything
+    not in it, so a kind missing there is dropped from every package's prose while still riding
+    on the row as data; `count_label` subscripts `_PLURALS`, so a kind missing there raises
+    KeyError after the whole corpus has been converted.
+    """
+
+    def test_every_counted_member_kind_is_described(self):
+        counted = set(extractor._MEMBER_KINDS.values()) | {"nested type"}
+        assert counted == set(extractor._MEMBER_ORDER)
+
+    def test_every_described_kind_has_a_plural(self):
+        assert set(extractor._MEMBER_ORDER) <= set(extractor._PLURALS)
+        assert set(extractor._TYPE_ORDER) <= set(extractor._PLURALS)
+
+    def test_every_kind_class_kind_returns_is_described(self):
+        # package_tally falls back to "class" for a page whose kind could not be read, so that
+        # one has to be in the order too.
+        produced = {"annotation", "enum", "object", "record", "interface", "class"}
+        assert produced == set(extractor._TYPE_ORDER)
+
+    def test_count_label_covers_every_kind(self):
+        # The subscript in count_label is the crash; this is the cheapest proof it cannot fire.
+        for kind in (*extractor._TYPE_ORDER, *extractor._MEMBER_ORDER):
+            assert extractor.count_label(2, kind).startswith("2 ")
+

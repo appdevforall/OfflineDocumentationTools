@@ -46,9 +46,10 @@
 # Secrets: none are required. SLACK_WEBHOOK_URL is the only secret this workflow
 # reads, and it is optional - the two "Notify Slack" steps print a skip notice
 # and continue when it is unset. Export it if you want to see them actually fire
-# ("build complete" additionally needs --live, since it is gated on dry_run
-# being false). GitHub never exposes a stored secret's value through any API or
-# CLI, so if you do want the real webhook you have to supply your own copy.
+# (both need --live: the baton stands for the lock on db_path, so neither half
+# of the pair runs on a dry run, which rewrites nothing). GitHub never exposes a
+# stored secret's value through any API or CLI, so if you do want the real
+# webhook you have to supply your own copy.
 #
 # Inputs are host paths, bind-mounted into the job container at fixed locations
 # and passed to the workflow as those in-container paths (a GitHub-hosted runner
@@ -67,8 +68,8 @@
 #                        built database. Created if absent.
 #                        (default: ./build-android-docs-output)
 #   --live               dry_run=false: write the rebuilt database back over
-#                        --db-path when the run finishes. Also required for the
-#                        "build complete" Slack notification to fire. Default is
+#                        --db-path when the run finishes. Also required for
+#                        either Slack notification to fire. Default is
 #                        dry_run=true.
 #   --only SUBSTRING     Convert only pages whose path contains SUBSTRING, e.g.
 #                        "android/app/". Turns a multi-minute run into seconds.
@@ -172,9 +173,9 @@ add_mount "$OUTPUT_DIR" "$CONTAINER_OUTPUT_DIR"
 
 if [ "$DRY_RUN" = "true" ]; then
   echo "note: dry_run=true - '$DB_PATH' will NOT be modified; the built database is" >&2
-  echo "note: written to '$OUTPUT_DIR' only. The 'build started' Slack notification" >&2
-  echo "note: still fires (if SLACK_WEBHOOK_URL is set) but 'build complete' is gated" >&2
-  echo "note: on dry_run=false. Pass --live to write back and see it." >&2
+  echo "note: written to '$OUTPUT_DIR' only. Neither Slack notification fires: the" >&2
+  echo "note: baton stands for the lock on db_path, and a dry run never takes it." >&2
+  echo "note: Pass --live to write back and see both." >&2
 else
   echo "WARNING: --live - '$DB_PATH' will be OVERWRITTEN in place when the run finishes." >&2
 fi

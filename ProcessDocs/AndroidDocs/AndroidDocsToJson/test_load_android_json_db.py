@@ -7,6 +7,7 @@ in: the path a page lands at, the links it carries, and the row layout the serve
 
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -194,3 +195,68 @@ class TestStorePage:
         loader.store_page(db, "a/big.html", 1, 1, 7, bytes(CHUNK_SIZE + 10), [])
         assert db.execute("SELECT contentTypeID, templateId FROM Content "
                           "WHERE path='a/big.html-1'").fetchone() == (1, 7)
+
+
+# --------------------------------------------------------------------------------------------
+# Schema expectations
+# --------------------------------------------------------------------------------------------
+
+VERSION_TABLES = """
+    CREATE TABLE DocumentationDatabaseVersion (major INTEGER, minor INTEGER, patch INTEGER,
+        changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, who TEXT, comment TEXT);
+    CREATE TABLE LastChange (documentationSet TEXT,
+        changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, who TEXT);
+"""
+
+
+class TestSchemaPreflight:
+    """record_version writes two tables nothing else in this repository creates, at the very end
+    of a run that takes 90 seconds locally and a quarter of an hour in CI. Checking up front is
+    the difference between a one-line argument error and losing all of that."""
+
+    def test_a_database_with_every_table_passes(self, db):
+        db.executescript(VERSION_TABLES)
+        assert loader.check_schema(db) == []
+
+    def test_the_version_tables_are_required(self, db):
+        # The fixture is the rest of the schema, so these two are exactly what is missing.
+        assert loader.check_schema(db) == ["DocumentationDatabaseVersion", "LastChange"]
+
+    def test_a_missing_content_table_is_reported_too(self, tmp_path):
+        empty = sqlite3.connect(tmp_path / "empty.db")
+        assert set(loader.check_schema(empty)) == set(loader.REQUIRED_TABLES)
+
+    def test_every_required_table_is_one_the_loader_touches(self):
+        source = Path(loader.__file__).read_text(encoding="utf-8")
+        for table in loader.REQUIRED_TABLES:
+            assert table in source, f"{table} is required but never referenced"
+
+
+class TestRecordVersion:
+    """Untested until now, and the only writer of DocumentationDatabaseVersion in the repo."""
+
+    def test_the_minor_version_is_bumped_and_the_patch_reset(self, db):
+        db.executescript(VERSION_TABLES)
+        db.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
+                   "VALUES (2, 1, 3, 'someone', 'before')")
+        loader.record_version(db, {"updated": 12106, "inserted": 800})
+        assert db.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion "
+                          "ORDER BY rowid DESC LIMIT 1").fetchone() == (2, 2, 0)
+
+    def test_an_empty_version_table_starts_at_2_1_0(self, db):
+        db.executescript(VERSION_TABLES)
+        loader.record_version(db, {"updated": 1, "inserted": 0})
+        assert db.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion "
+                          "ORDER BY rowid DESC LIMIT 1").fetchone() == (2, 1, 0)
+
+    def test_the_documentation_set_is_named_in_lastchange(self, db):
+        db.executescript(VERSION_TABLES)
+        loader.record_version(db, {"updated": 1, "inserted": 0})
+        assert db.execute("SELECT documentationSet FROM LastChange").fetchone() == ("android",)
+
+    def test_the_comment_carries_the_counts(self, db):
+        db.executescript(VERSION_TABLES)
+        loader.record_version(db, {"updated": 12106, "inserted": 800})
+        comment = db.execute("SELECT comment FROM DocumentationDatabaseVersion").fetchone()[0]
+        assert "12,106 rows replaced" in comment and "800 added" in comment
+
