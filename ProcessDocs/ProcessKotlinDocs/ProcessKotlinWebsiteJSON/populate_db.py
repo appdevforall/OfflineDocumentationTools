@@ -594,6 +594,20 @@ def prune_blacklisted_elements(root: ET.Element, blacklisted_paths: set) -> tupl
 
 
 def main():
+    # Imported here rather than at module scope because they are only needed to convert the
+    # Writerside sources, which is what main() does. Everything else this module offers -- the
+    # dictionary compressor, the content-type lookups, the chunked row writer -- is used by other
+    # pipelines that have no markdown to convert, and a module-scope import made those unable to
+    # import this one at all whenever build_nav.py / md_to_json.py were not alongside it.
+    from build_nav import build_node
+    from md_to_json import (
+        Converter,
+        build_topic_index,
+        load_config,
+        load_variables,
+        make_markdown_it,
+    )
+
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("docs_root", type=Path, help="Path to kotlin-web-site/docs")
     parser.add_argument("config", type=Path,

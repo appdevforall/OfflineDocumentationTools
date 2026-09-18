@@ -1,0 +1,333 @@
+name: Build Android Docs (Local)
+
+# Local-filesystem counterpart of build-android-docs.yaml: the same five steps
+# (android_docs_to_json -> load_android_json_db -> verify_android_json_db ->
+# remint_dictionary -> verify_remint_dictionary), but reading its
+# documentation.db input from a path on the runner's own disk (db_path) instead
+# of Google Drive, and writing its outputs (the built database, a run-numbered
+# copy) back to disk (output_dir / db_path) instead of uploading them to Drive.
+# No GCP Workload Identity Federation, Drive API, or associated secrets are
+# used anywhere in this file. The Java equivalent is build-java-docs-local.yaml;
+# this file deliberately mirrors its shape.
+#
+# Since a GitHub-hosted runner is a fresh, disposable VM with no access to
+# anyone's actual local disk, db_path/output_dir only make sense here against a
+# self-hosted runner, or when this workflow is run locally (e.g. via
+# https://github.com/nektos/act) with those host paths bind-mounted into the
+# job's container at the paths you pass as inputs. run-build-android-docs-with-act.sh
+# does exactly that.
+#
+# CAUTION when invoking act by hand: act does NOT apply workflow_dispatch input
+# defaults. Every "default:" below applies on real GitHub and is simply absent
+# under act, so an input you don't pass arrives empty. That matters most for
+# dry_run, whose default is true: with it unset, "${{ !inputs.dry_run }}"
+# evaluates to true and the final step writes the rebuilt database back over
+# db_path. Always pass --input dry_run=true/false explicitly.
+#
+# NOTE ON DISK AND TIME: the conversion writes ~350 MB of JSON and the load
+# copies the whole database, so a run needs roughly 1 GB of free space beside
+# the checkout. The re-mint recompresses every row in the database at Brotli
+# q11 - not just the Android ones - and is most of the wall clock: ~5.5 minutes
+# against the real database, where converting takes ~1 and loading ~1.5. Use
+# --only for a subset run that exercises the whole pipeline in seconds, or
+# --skip-remint to leave the dictionary alone.
+#
+# NOTE ON MEMORY: nothing here is memory-hungry the way the Java pipeline's
+# Dokka pass is. The conversion runs one BeautifulSoup parse per page across
+# worker processes, and the largest page in the corpus (android.app.Activity,
+# 1.2 MB of HTML) parses in well under a second. A default container is fine.
+#
+# Optional secret (Slack notifications are skipped with a warning if unset) -
+# same as build-android-docs.yaml:
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, since this workflow mutates a
+#                        single shared local file, db_path).
+
+permissions:
+  contents: read
+
+# This workflow overwrites a single shared local file (db_path) - never let
+# two runs race to write it at the same time.
+concurrency:
+  group: build-android-docs-local
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_path:
+        description: >-
+          Path on this runner's disk to the input documentation.db. Read
+          directly (no download/unzip) and, unless dry_run is true, written
+          back to this same path when the run finishes.
+        required: true
+      output_dir:
+        description: >-
+          Directory on this runner's disk to write outputs into: a
+          run-numbered copy of the built database
+          (documentation-db-<run_number>.db). Created if it doesn't already
+          exist.
+        required: false
+        default: 'build-android-docs-output'
+      only:
+        description: >-
+          Convert only the pages whose path contains this substring, e.g.
+          "android/app/". Turns a multi-minute run into seconds, which is the
+          way to smoke-test a change. Links into the rest of the tree still
+          resolve (the whole corpus is indexed either way), but the database
+          will hold a mix of JSON and untouched HTML rows, so pair it with
+          verify_complete=false.
+        required: false
+        default: ''
+      sample_size:
+        description: >-
+          How many stored pages to pull back out of the built database and
+          render through their stored template. The check is not free - each
+          one starts a JVM - so this samples rather than rendering all 12,906.
+        required: false
+        default: '40'
+      verify_complete:
+        description: >-
+          Fail if any Android row is still serving raw HTML, i.e. if the load
+          did not cover the whole corpus. Turn it off only for an `only` run,
+          which by definition leaves the rest behind.
+        required: false
+        default: true
+        type: boolean
+      skip_remint:
+        description: >-
+          Skip re-training the shared Brotli dictionary and recompressing every
+          row. Right in two cases: a structural check whose output nobody will
+          ship, and a re-run against a database whose dictionary was already
+          minted for this corpus and whose content has not materially changed
+          since - re-minting is not cumulative, and a second pass over an
+          already-minted database measured -0.7%, i.e. five and a half minutes
+          to get marginally worse. Otherwise leave it off: on a database coming
+          from HTML it is worth about 16% (see WHY THE RE-MINT IS PART OF THE
+          JOB above).
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT write the result
+          back to db_path - the input file on disk is left untouched. Set to
+          false only once you trust a given commit.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-android-docs-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DB_PATH: ${{ inputs.db_path }}
+      OUTPUT_DIR: ${{ inputs.output_dir }}
+      ONLY: ${{ inputs.only }}
+      SAMPLE_SIZE: ${{ inputs.sample_size }}
+      # Where each stage writes. JSON_OUT is ~350 MB and STAGED_DB is the
+      # database being built; both stay in the workspace.
+      JSON_OUT: ${{ github.workspace }}/android-json-build
+      STAGED_DB: ${{ github.workspace }}/documentation-android.db
+      PREREMINT_DB: ${{ github.workspace }}/preremint.db
+      MODULE: ProcessDocs/AndroidDocs/AndroidDocsToJson
+      KOTLIN_PIPELINE: ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve local file paths
+        run: |
+          if [ ! -f "$DB_PATH" ]; then
+            echo "Error: db_path '$DB_PATH' does not exist on this runner - for a self-hosted runner this must be a path on that machine; for act, bind-mount it into the container so it's visible at this exact path" >&2
+            exit 1
+          fi
+          mkdir -p "$OUTPUT_DIR"
+          echo "Resolved DB_PATH: $DB_PATH"
+          echo "Resolved OUTPUT_DIR: $OUTPUT_DIR"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (for the Pebble renderer the verification step runs)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # The renderer's Gradle build targets 17 and its wrapper is happy on
+          # anything from 17 up. Nothing here is pinned to an old Kotlin the
+          # way kdoc-to-json is, so this has no upper bound.
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # brotli: the CLI, not the Python package. DictionaryCompressor shells
+          # out to it because no Python binding exposes a custom dictionary
+          # (ADFA-5153).
+          # zstd: its --train-fastcover trainer is what mints the Brotli
+          # dictionary; Brotli has no trainer of its own (see train_dictionary).
+          sudo apt-get install -y unzip zip sqlite3 brotli zstd
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # pytest: the "Run the unit tests" step below needs it, and nothing else installs it.
+          # setup-python gives a clean interpreter, so the runner image's own packages are not
+          # on this path - without this line that step dies on `No module named pytest`.
+          pip install pytest
+
+      - name: Build the Pebble renderer
+        run: |
+          # verify_android_json_db.py renders stored pages through their stored
+          # templates to prove the database works, and shells out to this jar to
+          # do it. Built once here rather than per page.
+          (cd "$MODULE/renderer" && ./gradlew --console=plain -q installDist)
+
+      - name: Run the unit tests
+        run: |
+          # Cheap (under a second for both suites) and worth having in front of
+          # a run that rewrites a shared database.
+          (cd "$MODULE" && python3 -m pytest -q)
+          (cd "$MODULE/renderer" && ./gradlew --console=plain test)
+
+      - name: Copy documentation.db from local disk
+        run: |
+          cp "$DB_PATH" documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      # dry_run-gated, and paired with the release below. The baton stands for the lock on the
+      # shared file this workflow rewrites, so a dry run - which rewrites nothing - should never
+      # take it. Before this was gated, the default dispatch (dry_run is true) grabbed a baton
+      # that the release, gated on dry_run being false, then never dropped.
+      - name: 'Notify Slack: build started'
+        id: slack_baton_taken
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: 'Step 1/5: android_docs_to_json.py (scraped HTML -> JSON documentation tree)'
+        run: |
+          ARGS=(ProcessDocs/AndroidDocs/android ProcessDocs/AndroidDocs/androidx --out "$JSON_OUT")
+          [ -n "$ONLY" ] && ARGS+=(--only "$ONLY")
+          python3 "$MODULE/android_docs_to_json.py" "${ARGS[@]}"
+
+      - name: 'Step 2/5: load_android_json_db.py (JSON -> Content rows, templates, stylesheet)'
+        run: |
+          python3 "$MODULE/load_android_json_db.py" "$JSON_OUT" \
+            --source documentation.db --out "$STAGED_DB" --force
+
+      - name: 'Step 3/5: verify_android_json_db.py (render stored pages from the database)'
+        run: |
+          # The question the loader cannot answer: do the rows it wrote render?
+          # This pulls the stored JSON and the stored template back out and runs
+          # them through Pebble configured the way the server configures it.
+          ARGS=("$STAGED_DB" --sample "$SAMPLE_SIZE")
+          python3 "$MODULE/verify_android_json_db.py" "${ARGS[@]}"
+
+      - name: 'Step 4/5: remint_dictionary.py (re-train the shared dictionary, recompress)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          cp "$STAGED_DB" "$PREREMINT_DB"
+          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --no-backup
+
+      - name: 'Step 5/5: verify_remint_dictionary.py (every row still decodes to the same bytes)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          # Not paranoia: a row recompressed against a mismatched dictionary
+          # decodes without error into *different* bytes (measured at 38% in
+          # that script's own header), so nothing at runtime would catch it.
+          python3 "$KOTLIN_PIPELINE/verify_remint_dictionary.py" "$PREREMINT_DB" "$STAGED_DB"
+
+      - name: Summary
+        run: |
+          python3 - "$STAGED_DB" "$JSON_OUT" "${{ inputs.verify_complete }}" <<'PYEOF'
+          import pathlib
+          import sqlite3
+          import sys
+
+          db_path, json_out, verify_complete = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
+          conn = sqlite3.connect(db_path)
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          android = "path LIKE 'a/android/%' OR path LIKE 'a/androidx/%' OR path = 'a/index.html'"
+          templated = count(f"({android}) AND templateId != 0")
+          raw_html = count(f"({android}) AND templateId = 0")
+          stored = conn.execute(
+              f"SELECT SUM(length(content)) FROM Content WHERE ({android}) AND templateId != 0"
+          ).fetchone()[0] or 0
+          pages_on_disk = sum(1 for _ in pathlib.Path(json_out).rglob("*.json"))
+
+          print(f"Database: {db_path}")
+          print(f"  JSON pages generated            : {pages_on_disk:,}")
+          print(f"  a/android* rows, JSON+template  : {templated:,}")
+          print(f"  a/android* rows, still raw HTML : {raw_html:,}")
+          summaries = count("path LIKE 'a/%package-summary.html'")
+          templates = [n for (n,) in conn.execute("SELECT name FROM Templates ORDER BY id")]
+          print(f"  package summaries               : {summaries:,}")
+          print(f"  stored bytes of the JSON rows   : {stored:,}")
+          print(f"  templates                       : {templates}")
+          conn.close()
+
+          if templated == 0:
+              print("FAIL: no Android rows are pointing at a template - the load did nothing.")
+              sys.exit(1)
+          # Fewer templated rows than pages generated means the load dropped some. More is
+          # normal and not an error: an `only` run against a database a previous full run
+          # already covered leaves every other page templated from before.
+          if templated < pages_on_disk:
+              print(f"FAIL: {pages_on_disk:,} pages were generated but only {templated:,} rows "
+                    f"are templated - the load did not cover what the conversion produced.")
+              sys.exit(1)
+          if verify_complete and raw_html:
+              print(f"FAIL: {raw_html:,} Android row(s) are still serving raw HTML. Every page in "
+                    f"the corpus should have been replaced; pass verify_complete=false only for "
+                    f"an `only` run, which deliberately leaves the rest behind.")
+              sys.exit(1)
+          print("PASS")
+          PYEOF
+
+      - name: Write built database to output_dir
+        run: |
+          cp "$STAGED_DB" "$OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+          echo "Wrote $OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+
+      - name: Write updated database back to db_path
+        if: ${{ !inputs.dry_run }}
+        run: |
+          cp "$STAGED_DB" "$DB_PATH"
+          echo "Wrote updated documentation.db back to $DB_PATH"
+
+      # always(), keyed off whether the acquire actually ran rather than off dry_run again.
+      # Everything from the checkout to the Drive download can fail before "build started" is
+      # reached, and a release gated only on dry_run announces a drop for a baton nobody took;
+      # without always(), a failure after it leaves the baton held. The acquire's own conclusion
+      # answers both - 'skipped' on a dry run and on an early failure, 'success' exactly when
+      # Slack was told the baton had been taken.
+      - name: 'Notify Slack: build complete'
+        if: ${{ always() && steps.slack_baton_taken.conclusion == 'success' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Updated Android documentation. Dropping baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
