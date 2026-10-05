@@ -46,13 +46,53 @@ allprojects {
         // 3. Maven Central (Keep this for standard standard stable libraries like Gson/Coroutines)
         mavenCentral()
 
-        // ALL REMOTE JETBRAINS SNAPSHOT SERVERS HAVE BEEN REMOVED!
+        // 4. Dokka's own dev-snapshot server - required by plugins:dokka-samples-transformer-plugin
+        // and plugins:dokka-version-filter-plugin (both included by kotlin-stdlib-docs'
+        // settings.gradle.kts and pulled onto the build graph by its dokka-convention plugin),
+        // which pin to a Dokka dev build rather than a Maven Central release. Same property +
+        // default kotlin-stdlib-docs' own settings.gradle.kts uses, so this only ever points
+        // wherever that project already expects it to.
+        maven(url = providers.gradleProperty("dokka_repository")
+            .getOrElse("https://redirector.kotlinlang.org/maven/dokka-dev"))
     }
 
     // --- ADDED THIS EXCLUSION BLOCK ---
     // Globally ignore the remote playground plugin since it is trapped on the dead 503 server.
     configurations.all {
         exclude(group = "org.jetbrains.dokka", module = "kotlin-playground-samples-plugin")
+    }
+
+    // kotlin-stdlib-docs' own two Dokka plugin subprojects
+    // (plugins:dokka-samples-transformer-plugin, plugins:dokka-version-filter-plugin)
+    // each hardcode `kotlin { jvmToolchain(8) }`. Both are pulled onto the build
+    // graph by the dokka-convention plugin, and dokkaGenerateModuleJson below
+    // depends on dokkaGeneratePublicationHtml, so their dependencies have to
+    // resolve even though this build only ever wants JSON out. Gradle then needs a
+    // JDK 8 toolchain, and with no toolchain download repository configured it
+    // fails during task-graph resolution before a single doc is generated:
+    //   > Failed to calculate the value of task
+    //     ':plugins:dokka-samples-transformer-plugin:compileJava' property 'javaCompiler'.
+    //      > Cannot find a Java installation on your machine ... matching:
+    //        {languageVersion=8, ...}. Toolchain download repositories have not been configured.
+    // That only survives on a runner that happens to have an EOL JDK 8 lying
+    // around for auto-detection to find; it fails on any that doesn't, which
+    // includes the act container build-kotlin-docs-local.yaml is written for.
+    // These two plugins are only ever loaded in-process by Dokka, under the same
+    // JVM this build is already running on, so compiling them for that JVM instead
+    // is sufficient - and it means the pipeline needs exactly one JDK (the 17 that
+    // .github/workflows/build-kotlin-docs*.yaml installs), not two.
+    //
+    // Deliberately keyed off the running JVM rather than a hardcoded 17: whatever
+    // JDK Gradle is on is guaranteed to be present, so this can never ask for a
+    // toolchain that isn't installed, even if the workflow's java-version moves.
+    // Registered via plugins.withId + afterEvaluate so it runs after each
+    // subproject's own jvmToolchain(8) call rather than being overwritten by it.
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        afterEvaluate {
+            extensions.findByType(JavaPluginExtension::class.java)?.toolchain {
+                languageVersion.set(JavaLanguageVersion.of(JavaVersion.current().majorVersion))
+            }
+        }
     }
 }
 
@@ -70,8 +110,38 @@ val defaultSnapshotVersion: String by rootProperties
 val kotlinLanguageVersion: String by rootProperties
 
 val githubRevision = if (isTeamcityBuild) project.property("githubRevision") else "master"
-val artifactsVersion by extra(if (isTeamcityBuild) project.property("deployVersion") as String else defaultSnapshotVersion)
-val artifactsRepo by extra(if (isTeamcityBuild) project.property("kotlinLibsRepo") as String else "$kotlin_root/build/repo")
+
+// Where kotlin_big pulls the kotlin-stdlib/-reflect/-test binaries it extracts
+// and documents from, and at what version.
+//
+// Upstream only honours -PkotlinLibsRepo/-PdeployVersion under TeamCity, and
+// otherwise hardcodes "$kotlin_root/build/repo" at defaultSnapshotVersion
+// (2.5.255-SNAPSHOT here) - i.e. the artifacts a *local build of the kotlin
+// repo itself* would have published. A plain `git clone --depth 1` has no such
+// build output, and that snapshot version is published nowhere public, so
+// :kotlin_big:extractStdlibCommonMain fails to resolve and the whole docs build
+// dies before generating anything:
+//   > Could not find org.jetbrains.kotlin:kotlin-stdlib:2.5.255-SNAPSHOT
+// Building the kotlin repo just to get them is hours of CI for artifacts that
+// already exist on Maven Central, so accept both as ordinary Gradle properties
+// regardless of TeamCity. kotlin_big already declares mavenCentral() alongside
+// artifactsRepo, so a released version resolves with no repo override at all -
+// -PkotlinLibsRepo is there for a private/snapshot repo (and to keep the pair
+// symmetric with upstream's own TeamCity path).
+//
+// Blank is treated as unset so a workflow input that defaults to '' falls
+// through to the upstream behaviour rather than resolving against an empty URL.
+fun overrideOrNull(name: String): String? =
+    (findProperty(name) as String?)?.takeIf { it.isNotBlank() }
+
+val artifactsVersion by extra(
+    overrideOrNull("deployVersion")
+        ?: if (isTeamcityBuild) project.property("deployVersion") as String else defaultSnapshotVersion
+)
+val artifactsRepo by extra(
+    overrideOrNull("kotlinLibsRepo")
+        ?: if (isTeamcityBuild) project.property("kotlinLibsRepo") as String else "$kotlin_root/build/repo"
+)
 val dokka_version: String by project
 
 println("# Parameters summary:")

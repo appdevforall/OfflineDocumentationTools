@@ -1,0 +1,235 @@
+html, body {
+  background: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.docs-layout {
+  display: flex;
+  align-items: flex-start;
+}
+
+.docs-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.docs-content {
+  flex: 1;
+  min-width: 0;
+  padding: 0 24px;
+}
+
+/* Source images/videos carry explicit width="..." attributes (from
+   Writerside's `{width="800"}` sizing hints, see md_to_json.py), which is an
+   intrinsic pixel size the img/video would otherwise render at even when
+   that's wider than the viewport. max-width: 100% lets it shrink to fit
+   instead of overflowing on narrow screens, while height: auto keeps its
+   aspect ratio as it scales down. */
+.docs-content img,
+.docs-content video,
+.docs-content iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long code lines can't shrink like an image can without breaking the code's
+   formatting, so let the block itself scroll horizontally instead - without
+   this the unconstrained width pushes out past the viewport and the whole
+   page grows a horizontal scrollbar on narrow screens. */
+.docs-content pre.code-block {
+  overflow-x: auto;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Sidebar tree: <ul>/<li> are only used for their document structure here,
+   not as a bulleted list, so strip the browser's default marker/indent/
+   margin on every level (root .nav-tree and each nested .nav-subtree share
+   the class) and build indentation and disclosure icons ourselves below. */
+.docs-nav {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #333333;
+}
+
+.docs-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.docs-nav .nav-subtree {
+  padding-left: 14px;
+}
+
+/* Per-topic collapse/expand (nav.peb: every node with children renders a
+   sibling .nav-toggle-group button next to its label/link, leaf nodes render
+   a same-sized .nav-spacer instead so labels still line up in a column).
+   Collapsed is the CSS default so the tree stays usable without JS;
+   assets/sidebar.js toggles .nav-expanded on click and auto-expands the
+   current page's ancestors. */
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.nav-row:hover {
+  background: #f0f1f2;
+}
+
+.nav-item > .nav-subtree {
+  display: none;
+}
+
+/* nav.peb emits this for nodes kr.tree marks hidden (Writerside's own
+   "hide from primary nav" flag) - without this rule the class was inert
+   and every hidden entry (e.g. individual Kotlin tour steps) rendered
+   identically to a normal one. */
+.nav-hidden {
+  display: none;
+}
+
+.nav-item.nav-expanded > .nav-subtree {
+  display: block;
+}
+
+.nav-toggle-group,
+.nav-spacer {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.nav-toggle-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #666666;
+}
+
+.nav-toggle-group::before {
+  content: "\25B8"; /* ▸ */
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.nav-item.nav-expanded > .nav-row > .nav-toggle-group::before {
+  transform: rotate(90deg);
+}
+
+.nav-link,
+.nav-group-title {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  text-decoration: underline;
+}
+
+.nav-group-title {
+  cursor: default;
+}
+
+.nav-link--active {
+  font-weight: 700;
+  color: #0b57d0;
+}
+
+.nav-item--current > .nav-row {
+  background: #e8f0fe;
+  border-left: 3px solid #0b57d0;
+  padding-left: 5px; /* 8px base padding - 3px border, so text doesn't shift */
+}
+
+/* Mobile off-canvas drawer (assets/sidebar.js: hamburger button, backdrop,
+   and edge-swipe open/close all toggle the classes below). Above the
+   breakpoint the sidebar stays a normal static column and these are inert. */
+.nav-toggle {
+  display: none;
+}
+
+.nav-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .docs-layout {
+    display: block;
+  }
+
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #ffffff;
+  }
+
+  .nav-toggle::before {
+    content: "\2630"; /* ☰ */
+    font-size: 1.3em;
+  }
+
+  .docs-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    max-height: 100%;
+    width: 85vw;
+    max-width: 320px;
+    background: #ffffff;
+    z-index: 1000;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    padding-top: 56px;
+  }
+
+  .docs-sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 999;
+  }
+
+  .nav-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .docs-content {
+    padding-top: 56px;
+  }
+}

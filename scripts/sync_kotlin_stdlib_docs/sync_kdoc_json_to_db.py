@@ -11,15 +11,30 @@ For every existing Content row whose path starts with "k/kotlin-stdlib",
   - If that file exists, re-compress it (matching the row's existing
     ContentTypes.compression) and overwrite the row's `content` blob only --
     `path`, `languageID`, `contentTypeID`, and `templateId` are left untouched.
-  - If it doesn't exist, delete the row.
+    A result too large for a single row is split into "<path>-1", "<path>-2",
+    ... continuation rows instead (see CHUNK_SIZE), the same fragmentation
+    populate_db.py writes and WebServer.kt reads back; that case replaces the
+    base row rather than updating it in place, so its `id` changes, but the
+    four columns above still carry over unchanged.
+  - If it doesn't exist, delete the row (and any continuation rows it owns).
 
-Any TooltipButtons row whose `uri` (ignoring a trailing "#fragment") matches one
-of the deleted Content paths is now a dead link. Its entire parent Tooltips
+Existing "<path>-N" continuation rows are not treated as pages of their own:
+they belong to their base row and are rewritten or removed along with it.
+
+Any TooltipButtons row whose `uri` (ignoring a "?query" and/or "#fragment",
+matching docdb-studio's own URI normalizer) matches one of the deleted Content
+paths is now a dead link. Its entire parent Tooltips
 record -- along with all of that tooltip's other TooltipButtons rows, dead or
 not -- is deleted too, since TooltipButtons has no ON DELETE CASCADE and a
 dangling tooltipId would otherwise be left behind.
 
-A timestamped backup of the database is made before anything is modified.
+A timestamped backup of the database is made before anything is modified - taken
+after the prechecks, so a run that refuses to proceed doesn't leave one behind.
+The database is VACUUMed at the end to reclaim the space freed by the rewrite.
+
+Pages present in the plugin output with no existing Content row are reported but
+not inserted: this script only ever updates or deletes rows it found in the
+database.
 """
 import argparse
 import atexit
@@ -34,6 +49,25 @@ from pathlib import Path
 
 import brotli
 
+# The Content chunking protocol lives in exactly one place, so this script and
+# the ProcessKotlinWebsiteJSON tools cannot drift apart on it again - four
+# divergent re-derivations of the same rules is what produced ADFA-5171's
+# undetected chains and an unrelated page being deleted as a "surplus fragment".
+# This script is otherwise standalone (stdlib + brotli), hence the explicit path
+# rather than a package import.
+# append, not insert(0): position 0 would search that directory ahead of the
+# standard library, so any module added there whose name collides with a stdlib
+# one (types.py, json.py, io.py are all plausible) would be imported in its
+# place, here and in everything imported transitively. This script needs the
+# directory reachable, not preferred.
+sys.path.append(str(Path(__file__).resolve().parents[2]
+                    / "ProcessDocs" / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON"))
+from content_chunking import (  # noqa: E402 - must follow the sys.path line above
+    CHUNK_SIZE,
+    is_continuation_path,
+    owned_fragment_paths,
+)
+
 PREFIXES = ["k/kotlin-stdlib", "k/kotlin-reflect", "k/kotlin-test"]
 
 # Refuse to run if this fraction or more of the matched rows resolve to no source
@@ -43,10 +77,93 @@ MAX_DELETE_FRACTION = 0.5
 
 
 def backup_database(db_path):
+    """Writes a timestamped backup beside db_path. Uses SQLite's own VACUUM
+    INTO rather than a file copy: it takes a read transaction for the
+    duration, so the result is always an internally consistent database even
+    if something else is mid-write (a plain copy of a live, or WAL-mode,
+    database can be torn). Same approach populate_db.py uses."""
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_path = f"{db_path}.bak.{timestamp}"
-    shutil.copy2(db_path, backup_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("VACUUM INTO ?", (backup_path,))
+    finally:
+        conn.close()
     return backup_path
+
+
+def is_fragment_path(path, lengths):
+    """True when path is a "<base>-<N>" chunk continuation row of a genuinely
+    chunked base - i.e. one whose own content is exactly CHUNK_SIZE bytes.
+
+    Takes {path: length}, not just the set of paths: "the base exists" is not
+    sufficient, because two unrelated pages may legitimately be named "X" and
+    "X-1", and treating the second as a fragment makes it invisible to this
+    sync (never updated, never deleted, never reported)."""
+    return is_continuation_path(lengths, path)
+
+
+def fragment_paths(conn, path):
+    """Every continuation row owned by `path`, ordered by suffix.
+
+    Delegates to content_chunking.owned_fragment_paths, which short-circuits
+    on the base row's length before going near the "<path>-%" LIKE. That
+    matters for cost as much as correctness here: this runs once per updated
+    row (tens of thousands for kotlin-stdlib), SQLite's default LIKE is
+    case-insensitive so UNIQUE(path) cannot serve it, and every one of those
+    calls used to scan the whole Content table - for a lookup that can only
+    return rows when the base is exactly CHUNK_SIZE bytes, which these pages
+    essentially never are."""
+    return owned_fragment_paths(conn, path)
+
+
+def delete_content_with_fragments(cur, content_id, path):
+    """Deletes a Content row along with any chunk continuation rows it owns.
+
+    Ownership is resolved before the base row goes: it is the base's own
+    length that decides whether it owns continuations at all, and that is
+    unreadable once it has been deleted."""
+    owned = fragment_paths(cur, path)
+    cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
+    for fragment_path in owned:
+        cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
+
+
+def write_content(cur, content_id, path, blob, language_id, content_type_id, template_id, chunked_log):
+    """Replaces the content stored at `path` with `blob`, honouring the
+    CHUNK_SIZE fragmentation contract.
+
+    The common case (blob fits in one row) is an in-place UPDATE, which keeps
+    the row's id stable; any stale fragments left over from a previous,
+    larger version of the page are removed. An oversized blob can't be stored
+    that way at all - the server would only ever serve the first row - so the
+    row is replaced by a fresh base row plus "<path>-1", "<path>-2", ...
+    continuations, each carrying the original row's languageID/contentTypeID/
+    templateId. Appends (path, total size, chunk count) to chunked_log for
+    anything that needed more than one row."""
+    stale = fragment_paths(cur, path)
+
+    if len(blob) <= CHUNK_SIZE:
+        cur.execute("UPDATE Content SET content = ? WHERE id = ?", (blob, content_id))
+        for fragment_path in stale:
+            cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
+        return
+
+    cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
+    for fragment_path in stale:
+        cur.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
+
+    insert = ("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+              "VALUES (?, ?, ?, ?, ?)")
+    cur.execute(insert, (path, language_id, blob[:CHUNK_SIZE], content_type_id, template_id))
+    fragment_number = 1
+    offset = CHUNK_SIZE
+    while offset < len(blob):
+        cur.execute(insert, (f"{path}-{fragment_number}", language_id, blob[offset:offset + CHUNK_SIZE],
+                             content_type_id, template_id))
+        offset += CHUNK_SIZE
+        fragment_number += 1
+    chunked_log.append((path, len(blob), fragment_number))  # fragment_number == total chunk count here
 
 
 def relative_target_path(content_path):
@@ -111,6 +228,49 @@ def compress_for(compression, raw_bytes, path, compressor=None):
     raise ValueError(f"Unknown compression '{compression}' needed for {path}")
 
 
+def content_path_for_source(plugin_output_root, source_file):
+    """Inverse of relative_target_path: the Content.path a Dokka output file
+    would populate. '<root>/kotlin-stdlib/kotlin.text/index.json' ->
+    'k/kotlin-stdlib/kotlin.text/index.html'."""
+    rel = os.path.relpath(source_file, plugin_output_root)
+    rel = rel.replace(os.sep, "/")
+    if rel.endswith(".json"):
+        rel = rel[: -len(".json")] + ".html"
+    return "k/" + rel
+
+
+def unmatched_source_pages(plugin_output_root, known_paths):
+    """Dokka output files that map to no existing Content row, sorted.
+
+    This script can only UPDATE or DELETE: its loop iterates rows read from the
+    database, so a page Dokka newly emits has nothing to match and is silently
+    dropped. Bumping --kotlin-libs-version to a release that adds stdlib API is
+    exactly that case, and the refreshed pages link to those missing pages, so
+    every such link 404s in the app. Reporting them is the minimum; actually
+    inserting them needs contentTypeID/templateId decisions this script has no
+    basis to make on its own."""
+    found = []
+    for dirpath, _dirnames, filenames in os.walk(plugin_output_root):
+        for name in filenames:
+            if not (name.endswith(".json") or name == "package-list"):
+                continue
+            candidate = content_path_for_source(plugin_output_root, os.path.join(dirpath, name))
+            if candidate not in known_paths:
+                found.append(candidate)
+    return sorted(found)
+
+
+def _content_path_for_uri(uri):
+    """The Content.path a TooltipButtons.uri addresses: everything before the
+    first '?' or '#'. Mirrors docdb-studio's _uri_path_for_content_lookup."""
+    u = uri or ""
+    if "?" in u:
+        u = u.split("?", 1)[0]
+    if "#" in u:
+        u = u.split("#", 1)[0]
+    return u
+
+
 def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run):
     """Delete any Tooltips (and all their TooltipButtons) that reference a
     now-deleted Content path via a TooltipButtons.uri. Returns (tooltips_removed,
@@ -129,8 +289,14 @@ def cleanup_orphaned_tooltips(cur, deleted_paths, dry_run):
         f"SELECT tooltipId, uri FROM TooltipButtons WHERE {where_clause}", params
     ).fetchall()
 
+    # Strip ?query as well as #fragment, matching this repo's canonical
+    # normalizer (docdb-studio's _uri_path_for_content_lookup). Splitting on
+    # "#" alone left a "...html?v=2" button pointing at a row this run just
+    # deleted - exactly the dangling state this cleanup exists to prevent, and
+    # one docdb-studio's "Validate URIs" audit then flags.
     orphaned_tooltip_ids = sorted(
-        {tooltip_id for tooltip_id, uri in candidate_buttons if uri.split("#", 1)[0] in deleted_path_set}
+        {tooltip_id for tooltip_id, uri in candidate_buttons
+         if _content_path_for_uri(uri) in deleted_path_set}
     )
     if not orphaned_tooltip_ids:
         return 0, 0
@@ -170,9 +336,6 @@ def main():
 
     if args.dry_run:
         print("Dry run: no backup will be made and no changes will be written.")
-    else:
-        backup_path = backup_database(args.db)
-        print(f"Backed up database to: {backup_path}")
 
     conn = sqlite3.connect(args.db)
     cur = conn.cursor()
@@ -184,16 +347,31 @@ def main():
     for prefix in PREFIXES:
         params.extend([prefix, prefix + "/%"])
 
-    rows = cur.execute(
-        f"SELECT id, path, contentTypeID FROM Content WHERE {where_clause}", params
+    all_rows = cur.execute(
+        f"SELECT id, path, contentTypeID, languageID, templateId, LENGTH(content) "
+        f"FROM Content WHERE {where_clause}", params
     ).fetchall()
 
-    print(f"Found {len(rows)} existing Content record(s) under {PREFIXES}.")
+    # A chunked page is stored as a base row plus "<path>-1", "<path>-2", ...
+    # continuation rows (see CHUNK_SIZE). Those fragments are part of their
+    # base row's content, not pages in their own right - handled wholesale by
+    # write_content below - so drop them from the work list. Left in, each
+    # would be looked up as its own source file, never found (there's no
+    # "index.html-1" in the plugin output), and counted as a deletion.
+    all_paths = {row[1] for row in all_rows}
+    # Keyed by length, not just presence: only a base row of exactly
+    # CHUNK_SIZE bytes actually owns "<base>-<N>" continuations.
+    lengths = {row[1]: row[5] for row in all_rows}
+    rows = [row[:5] for row in all_rows if not is_fragment_path(row[1], lengths)]
+    fragments = len(all_rows) - len(rows)
+
+    print(f"Found {len(rows)} existing Content record(s) under {PREFIXES}"
+          f"{f' (plus {fragments} chunk continuation row(s))' if fragments else ''}.")
 
     updated = 0
     deleted = 0
     deleted_paths = []
-    unknown_types = set()
+    chunked_log = []
 
     dictionary_data = load_compression_dictionary(conn)
     compressor = DictionaryBrotli(dictionary_data) if dictionary_data else None
@@ -206,8 +384,8 @@ def main():
 
     # Resolve every source file before touching anything, so a wholesale miss
     # aborts instead of deleting the rows one at a time (see MAX_DELETE_FRACTION).
-    missing = [path for _id, path, _type in rows
-               if not os.path.isfile(os.path.join(args.plugin_output_root, relative_target_path(path)))]
+    missing = [row[1] for row in rows
+               if not os.path.isfile(os.path.join(args.plugin_output_root, relative_target_path(row[1])))]
     if rows and len(missing) >= max(1, int(len(rows) * MAX_DELETE_FRACTION)):
         print(
             f"error: {len(missing)} of {len(rows)} matched Content rows resolve to no file under "
@@ -219,9 +397,31 @@ def main():
         conn.close()
         sys.exit(1)
 
+    # Reported, not inserted - see unmatched_source_pages. Printed before the
+    # transaction so it shows up even on a dry run.
+    # all_paths, not {row[0] ...}: row[0] is the integer Content.id, so the
+    # membership test could never match a path string and every source page
+    # was reported unmatched - tens of thousands of false warnings burying the
+    # one signal this check exists to surface.
+    unmatched = unmatched_source_pages(args.plugin_output_root, all_paths)
+    if unmatched:
+        print(
+            f"warning: {len(unmatched)} page(s) in {args.plugin_output_root!r} have no Content row and "
+            f"will NOT be inserted; links to them will 404. Examples: {', '.join(unmatched[:3])}",
+            file=sys.stderr,
+        )
+
+    # Backed up only once every check that can still refuse to run has passed -
+    # the MAX_DELETE_FRACTION precheck above is the last of them. Taking it
+    # earlier meant a run that correctly aborted on a layout mismatch still left
+    # a full-size copy of the database behind, for nothing.
+    if not args.dry_run:
+        backup_path = backup_database(args.db)
+        print(f"Backed up database to: {backup_path}")
+
     try:
         conn.execute("BEGIN")
-        for content_id, path, content_type_id in rows:
+        for content_id, path, content_type_id, language_id, template_id in rows:
             rel_target = relative_target_path(path)
             source_file = os.path.join(args.plugin_output_root, rel_target)
 
@@ -229,34 +429,44 @@ def main():
                 with open(source_file, "rb") as f:
                     raw_bytes = f.read()
 
+                # An unresolvable contentTypeID means this row's declared
+                # type isn't in ContentTypes at all, so there's no way to
+                # know whether the server will try to decompress what gets
+                # written here. Guessing "uncompressed" and committing anyway
+                # is how a row ends up serving bytes that contradict its own
+                # declared type - fail instead.
                 compression = compression_by_type.get(content_type_id)
                 if compression is None:
-                    unknown_types.add(content_type_id)
-                    compression = "none"
+                    raise RuntimeError(
+                        f"{path} has contentTypeID {content_type_id}, which has no row in ContentTypes; "
+                        "cannot tell how its content should be compressed. Fix the database's ContentTypes "
+                        "table (or this row's contentTypeID) and re-run."
+                    )
 
                 new_blob = compress_for(compression, raw_bytes, path, compressor)
 
                 if args.dry_run:
-                    print(f"  [UPDATE] {path}  <-  {rel_target}")
+                    chunks = -(-len(new_blob) // CHUNK_SIZE) or 1
+                    print(f"  [UPDATE] {path}  <-  {rel_target}"
+                          f"{f' ({len(new_blob):,} bytes -> {chunks} chunks)' if chunks > 1 else ''}")
                 else:
-                    cur.execute("UPDATE Content SET content = ? WHERE id = ?", (new_blob, content_id))
+                    write_content(cur, content_id, path, new_blob, language_id, content_type_id, template_id,
+                                  chunked_log)
                 updated += 1
             else:
                 if args.dry_run:
                     print(f"  [DELETE] {path}  (no matching {rel_target})")
                 else:
-                    cur.execute("DELETE FROM Content WHERE id = ?", (content_id,))
+                    delete_content_with_fragments(cur, content_id, path)
                 deleted += 1
                 deleted_paths.append(path)
 
         tooltips_removed, buttons_removed = cleanup_orphaned_tooltips(cur, deleted_paths, args.dry_run)
 
-        if unknown_types:
-            print(
-                f"WARNING: contentTypeID(s) {sorted(unknown_types)} not found in ContentTypes; "
-                "treated as uncompressed.",
-                file=sys.stderr,
-            )
+        if chunked_log:
+            print(f"Chunked {len(chunked_log)} file(s) over {CHUNK_SIZE:,} bytes:")
+            for path, total_size, chunk_count in chunked_log:
+                print(f"  {path}: {total_size:,} bytes -> {chunk_count} chunks")
 
         if args.dry_run:
             conn.rollback()
@@ -276,6 +486,22 @@ def main():
         raise
     finally:
         conn.close()
+
+    # SQLite only ever moves freed pages onto its internal freelist; the file
+    # itself never shrinks. This script rewrites every k/kotlin-stdlib* blob and
+    # deletes Content, Tooltips and TooltipButtons rows, so a run that replaces
+    # large pages with smaller ones leaves the difference as dead space. It is
+    # step 5/5 of the pipeline, so nothing downstream reclaims it and the bloat
+    # ships in the on-device database. Same trailing VACUUM as populate_db.py,
+    # insert_optimized_media.py and renumber_misnumbered_fragments.py, on its
+    # own connection because SQLite refuses to VACUUM inside a transaction.
+    if not args.dry_run:
+        print("Vacuuming database to reclaim freed space...")
+        vacuum_conn = sqlite3.connect(args.db)
+        try:
+            vacuum_conn.execute("VACUUM")
+        finally:
+            vacuum_conn.close()
 
 
 if __name__ == "__main__":
