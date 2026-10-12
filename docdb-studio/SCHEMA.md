@@ -54,3 +54,16 @@ CREATE TABLE LastChange (
         changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         who TEXT
     );
+CREATE TABLE DocumentationDatabaseVersion (
+  major      INT NOT NULL,
+  minor      INT NOT NULL,
+  patch      INT NOT NULL,
+  who        TEXT NOT NULL,
+  comment    TEXT NOT NULL,
+  changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+`DocumentationDatabaseVersion` holds **exactly one row**: the format version the
+file *is*, not a history of what it has been. Nothing in the DDL enforces that,
+so `populate_db.py` replaces the row rather than appending, and collapses a file
+that somehow accumulated several back to one.
