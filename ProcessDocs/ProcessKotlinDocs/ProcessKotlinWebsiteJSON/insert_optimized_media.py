@@ -39,9 +39,14 @@ What this does, inside a single transaction (rolled back on any error):
   6. VACUUMs the database afterwards (outside the transaction - SQLite
      refuses to VACUUM inside one), same as populate_db.py.
 
+Steps 3-5 all delete rows, so --dry-run does the entire run - optimization,
+inserts, rewrites, deletions, and their logging - and then rolls the
+transaction back instead of committing, to preview exactly what would change.
+
 Usage:
     python3 insert_optimized_media.py <media_dir> <db_path> [work_dir] [options]
     python3 insert_optimized_media.py --config myjob.config
+    python3 insert_optimized_media.py <media_dir> <db_path> --dry-run
 
 <options> are optimize_media.py's own tuning flags (--max-width,
 --jpeg-quality, --webp, --webp-quality, --pngquant-speed, --svg-precision,
@@ -51,8 +56,9 @@ work-dir can also be set via --config (as "input-dir"/"db-path"/
 "output-dir"), the same as optimize_media.py's own options.
 
 Note: --webp requires this database's ContentTypes table to already have an
-"image/webp" row (checked up front, before any optimization work starts) -
-this project's documentation.db doesn't ship with one.
+"image/webp" row (checked up front, before any optimization work starts).
+The current production documentation.db does have one (id 26); older copies
+taken before it was added do not, and need it inserted first.
 """
 import argparse
 import re
@@ -61,11 +67,13 @@ import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 from optimize_media import (
     BUILTIN_DEFAULTS, Logger, OPTION_SPECS, add_optimize_arguments, find_pngquant, optimize_directory,
     resolve_config,
 )
+from content_chunking import is_continuation_path, reassemble
 from populate_db import (
     CHUNK_SIZE, DictionaryCompressor, EXTENSION_TO_CONTENT_TYPE, IMAGES_DB_PATH_PREFIX, IMAGES_URL_PREFIX,
     LANGUAGE, PAGE_CONTENT_TYPE, backup_database, fragment_chain, get_content_type, get_id,
@@ -95,6 +103,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("output_dir", type=Path, nargs="?", default=None, metavar="work_dir",
                          help="Staging directory for optimized files; default: a temporary directory removed "
                               "afterwards (or set output-dir in --config)")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Do all the optimization and database work, log exactly what would change, then roll back instead of "
+             "committing. Nothing is written and no backup is taken",
+    )
     add_optimize_arguments(parser)
     return parser
 
@@ -111,18 +124,25 @@ def delete_content(conn, path: str) -> None:
     merely resemble a continuation - and those are never re-inserted, so the
     loss is permanent. populate_db.fragment_chain does the over-matching query
     once and re-checks every candidate's suffix, which is what makes the result
-    exact."""
+    exact.
+
+    The chain is resolved *before* the base row is deleted: ownership is
+    decided by the base row's own length (a row under CHUNK_SIZE was never
+    split, so anything named after it belongs to someone else), and that
+    length is unreadable once the row is gone."""
+    owned = [fragment_path for _number, fragment_path in fragment_chain(conn, path)]
     conn.execute("DELETE FROM Content WHERE path = ?", (path,))
-    for _number, fragment_path in fragment_chain(conn, path):
+    for fragment_path in owned:
         conn.execute("DELETE FROM Content WHERE path = ?", (fragment_path,))
 
 
 def insert_optimized_file(conn, data: bytes, name: str, db_path: str, language_id: int, content_type_cache: dict,
                            chunked_log: list, compressor: DictionaryCompressor) -> bool:
-    """Inserts one already-optimized file's bytes as-is. Unlike
-    populate_db.py's own insert_file, this does not run pngquant itself -
-    optimize_media.py already did, and running it again here would just
-    re-quantize an already-quantized image for no benefit. Returns False
+    """Inserts one already-optimized file's bytes as-is - optimize_media.py
+    (run just above) owns every optimization decision in this pipeline, and
+    re-quantizing an already-quantized image here would only lose quality for
+    no size win. populate_db.py's own insert_file inserts raw bytes for the
+    same reason: this step replaces every image row it wrote. Returns False
     (skipping the file, with a warning) for an extension with no known
     content type."""
     content_type_value = IMAGE_EXTENSION_TO_CONTENT_TYPE.get(Path(name).suffix.lower())
@@ -163,28 +183,48 @@ def build_rename_map(manifest: dict, logger: Logger) -> dict:
 
 
 def reassemble_content(conn, path: str, first_content: bytes) -> bytes:
-    """Reassembles a possibly-chunked row's full bytes - mirrors
-    WebServer.kt's own reassembly protocol (see CHUNK_SIZE's docstring in
-    populate_db.py): a row is fragmented purely when its content is exactly
-    CHUNK_SIZE bytes, in which case "<path>-1", "<path>-2", ... are
-    concatenated until a missing or shorter-than-CHUNK_SIZE row is hit."""
-    if len(first_content) < CHUNK_SIZE:
-        return first_content
-    parts = [first_content]
-    n = 1
-    while True:
-        row = conn.execute("SELECT content FROM Content WHERE path = ?", (f"{path}-{n}",)).fetchone()
-        if row is None:
-            break
-        parts.append(row[0])
-        if len(row[0]) < CHUNK_SIZE:
-            break
-        n += 1
-    return b"".join(parts)
+    """Reassembles a possibly-chunked row's full bytes exactly as
+    WebServer.kt would serve them - see content_chunking, which owns both
+    halves of that protocol.
+
+    Delegated rather than reimplemented because getting it half-right is
+    worse than either extreme. Probing constructed "<path>-1", "<path>-2",
+    ... truncates an ADFA-5171 chain numbered from -2; but concatenating the
+    whole discovered chain instead - which is what this did briefly - runs
+    past the short-fragment terminator, so on a gapped chain (p-1 full, p-2
+    short, p-4) it reassembles a blob the server never serves, which
+    rewrite_pages would then re-compress and store."""
+    return reassemble(conn, path, first_content)
+
+
+class RewriteResult(NamedTuple):
+    """rewrite_pages' two outputs: how many rows it rewrote, and every image
+    filename it saw referenced along the way (see delete_unreferenced_media,
+    which would otherwise decompress the same rows a second time to find
+    out)."""
+    changed: int
+    referenced: set
+
+
+# Matches a rewritten image src's filename, anchored the same way
+# rewrite_pages' own known-rename substitutions are: resolve_image_src/
+# rewrite_urls only ever embed an image reference as an HTML src="..."
+# attribute, which - JSON-encoded - always has the escaped quote (\") right
+# after it, so this can't accidentally swallow past the end of the filename.
+#
+# That anchoring is a real dependency on the block schema, not just a
+# convenience: an image carried as a bare JSON field ({"type": "image",
+# "src": "..."}) would have no escaped quote after the filename and so would
+# match neither this pattern nor rewrite_pages' substitutions - its
+# references would silently survive a rename. md_to_json.py emits no such
+# block (images are inline-only, rendered into the enclosing block's "html"),
+# and templates/page.peb says the same at the point where a branch for one
+# would go. Widen both patterns first if that ever changes.
+IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
 
 
 def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id: int, logger: Logger,
-                   chunked_log: list, compressor: DictionaryCompressor) -> int:
+                   chunked_log: list, compressor: DictionaryCompressor) -> RewriteResult:
     """Rewrites every k/html/*.html page (and the nav row) that references a
     renamed image, replacing "/k/html/images/<old-name>" with
     "/k/html/images/<new-name>" wherever it appears. Operates directly on
@@ -215,10 +255,18 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
     unrelated, foo.webp -> foo-2.webp), a later replace could re-match text
     an earlier replace just wrote, sending an original foo.png reference to
     foo-2.webp instead of foo.webp. Scanning the untouched original text
-    once makes that impossible."""
-    if not rename_map:
-        return 0
+    once makes that impossible.
 
+    Also returns every image filename it saw referenced, taken from each
+    row's *final* text (post-substitution where a substitution happened), so
+    delete_unreferenced_media can reuse it. That scan is the reason there is
+    no "nothing to rename, return immediately" shortcut here any more: this
+    function and collect_referenced_media were reassembling, and brotli-
+    decompressing, the same page rows one after the other, and a
+    decompression here is a `brotli` subprocess (the shared-dictionary CLI
+    fallback) - one spawn per row. Measured on the real corpus: 268 page
+    rows, 2.3s per pass, so that is what the second pass cost every run. One
+    pass now serves both, whether or not anything is being renamed."""
     rows = conn.execute(
         "SELECT path, content, templateId FROM Content WHERE path LIKE 'k/html/%.html' AND contentTypeID = ? "
         "AND templateId != 0",
@@ -229,30 +277,28 @@ def rewrite_pages(conn, rename_map: dict, language_id: int, page_content_type_id
         f'{IMAGES_URL_PREFIX}{old_name}\\"': f'{IMAGES_URL_PREFIX}{new_name}\\"'
         for old_name, new_name in rename_map.items()
     }
-    old_ref_pattern = re.compile("|".join(re.escape(old_ref) for old_ref in replacements))
+    # None rather than an empty alternation: "|".join(()) is "", and re.compile("")
+    # matches at every position, so an empty rename_map would report a "hit" on
+    # every row and rewrite the entire corpus to no effect.
+    old_ref_pattern = re.compile("|".join(re.escape(old_ref) for old_ref in replacements)) if replacements else None
 
     changed = 0
+    referenced = set()
     for path, first_content, template_id in rows:
         full = reassemble_content(conn, path, first_content)
         text = compressor.decompress(full).decode("utf-8")
-        hits = len(old_ref_pattern.findall(text))
+        hits = len(old_ref_pattern.findall(text)) if old_ref_pattern else 0
         if not hits:
+            referenced.update(IMAGE_REF_RE.findall(text))
             continue
         new_text = old_ref_pattern.sub(lambda m: replacements[m.group(0)], text)
+        referenced.update(IMAGE_REF_RE.findall(new_text))
         blob = compressor.compress(new_text.encode("utf-8"))
         delete_content(conn, path)
         insert_chunked_content(conn, path, language_id, page_content_type_id, template_id, blob, chunked_log)
         changed += 1
         logger.info(f"[URL FIX] {path}: updated {hits} image reference(s)")
-    return changed
-
-
-# Matches a rewritten image src's filename, anchored the same way
-# rewrite_pages' own known-rename substitutions are: resolve_image_src/
-# rewrite_urls only ever embed an image reference as an HTML src="..."
-# attribute, which - JSON-encoded - always has the escaped quote (\") right
-# after it, so this can't accidentally swallow past the end of the filename.
-IMAGE_REF_RE = re.compile(re.escape(IMAGES_URL_PREFIX) + r'([^\\"]+)\\"')
+    return RewriteResult(changed=changed, referenced=referenced)
 
 
 def collect_referenced_media(conn, page_content_type_id: int, compressor: DictionaryCompressor) -> set:
@@ -260,7 +306,13 @@ def collect_referenced_media(conn, page_content_type_id: int, compressor: Dictio
     src="/k/html/images/<name>" anywhere across current k/html/*.html page
     content and the nav row - the same row selection/reassembly
     rewrite_pages uses, just extracting every image reference found instead
-    of only substituting the ones in a known rename_map."""
+    of only substituting the ones in a known rename_map.
+
+    rewrite_pages collects the same set as a by-product of its own pass, and
+    main hands that to delete_unreferenced_media rather than calling this, so
+    a full run no longer decompresses every page twice. This remains the
+    reference implementation of "what does a page reference", used when
+    delete_unreferenced_media is called without one."""
     rows = conn.execute(
         "SELECT path, content FROM Content WHERE path LIKE 'k/html/%.html' AND contentTypeID = ? AND templateId != 0",
         (page_content_type_id,),
@@ -279,34 +331,57 @@ def list_stored_media(conn) -> dict:
     collapsing chunked continuation fragments ("<path>-1", "<path>-2", ...)
     back into their base row, since deleting the base via delete_content
     already takes its fragments with it (see CHUNK_SIZE's docstring in
-    populate_db.py for that fragmentation convention). A path is treated as
-    a fragment when stripping a trailing "-<digits>" yields another path
-    that's also present - the same convention this whole pipeline already
-    relies on elsewhere, ambiguous only for a base filename that itself
-    looks like "<other-existing-file>-<digits>", which no real optimized
-    media filename does."""
-    paths = {row[0] for row in conn.execute(
-        "SELECT path FROM Content WHERE path LIKE ?", (f"{IMAGES_DB_PATH_PREFIX}%",)
+    populate_db.py for that fragmentation convention).
+
+    Fragment detection is content_chunking.is_continuation_path: stripping a
+    trailing "-<digits>" has to yield a path that is present *and exactly
+    CHUNK_SIZE bytes*. Presence alone is not enough - an image genuinely
+    named "diagram.png-1" sitting next to an ordinary, un-chunked
+    "diagram.png" read as that page's continuation and was left out of this
+    listing entirely, so delete_unreferenced_media could never see it, let
+    alone remove it."""
+    lengths = {path: length for path, length in conn.execute(
+        "SELECT path, LENGTH(content) FROM Content WHERE path LIKE ?", (f"{IMAGES_DB_PATH_PREFIX}%",)
     )}
-
-    def is_fragment(path: str) -> bool:
-        prefix, sep, suffix = path.rpartition("-")
-        return sep == "-" and suffix.isdigit() and prefix in paths
-
-    return {path[len(IMAGES_DB_PATH_PREFIX):]: path for path in paths if not is_fragment(path)}
+    return {path[len(IMAGES_DB_PATH_PREFIX):]: path
+            for path in lengths if not is_continuation_path(lengths, path)}
 
 
 def delete_unreferenced_media(conn, page_content_type_id: int, logger: Logger,
-                               compressor: DictionaryCompressor) -> int:
+                               compressor: DictionaryCompressor, referenced: set = None) -> int:
     """Deletes every currently-stored k/html/images/<name> row (base row and
     any chunked fragments) that no page or the nav row references even once.
     Must run after insertion and rename-rewriting, so it sees the final,
     up-to-date state of both stored media and in-content references - a file
     renamed this run is only "unreferenced" under its stale old name, which
     rewrite_pages will have already fixed up by the time this runs. Returns
-    the number of images removed."""
+    the number of images removed.
+
+    KNOWN LIMITATION: only page/nav Content rows are scanned for references.
+    An image reached solely from assets/docs.css (a `url(...)` background) or
+    from a .peb template would read as unreferenced and be deleted. Neither
+    does that today - both were checked - but anything that starts to must
+    either be excluded here or referenced from page content as well.
+
+    Raises if the database holds images but no page references any of them at
+    all. That combination means the reference scan found nothing to compare
+    against - most likely because this ran against a database whose k/html/*
+    pages populate_db.py hasn't written yet - and deleting the entire image
+    corpus off the back of an empty scan is never the intended outcome.
+
+    `referenced` is rewrite_pages' own scan, which covers the same rows and
+    is already up to date with the renames it applied; main passes it so
+    those rows are not reassembled and decompressed twice per run. Left
+    unset, this does that scan itself, so calling it standalone still
+    works."""
     stored = list_stored_media(conn)
-    referenced = collect_referenced_media(conn, page_content_type_id, compressor)
+    if referenced is None:
+        referenced = collect_referenced_media(conn, page_content_type_id, compressor)
+    if stored and not referenced:
+        raise RuntimeError(
+            f"refusing to delete unreferenced media: {len(stored)} image(s) are stored but no page references "
+            "any image at all. Run populate_db.py first so there are pages to check against."
+        )
     removed = 0
     for name, path in sorted(stored.items()):
         if name in referenced:
@@ -376,8 +451,13 @@ def main() -> None:
         stats = {"raster": 0, "svg": 0, "svg_rasterized": 0, "copied": 0, "errors": 0, "original_bytes": 0,
                   "optimized_bytes": 0}
         logger.info(f"Optimizing media from {cfg['input_dir']} into {work_dir}...")
-        manifest = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
-                                       logger=logger, stats=stats)
+        try:
+            result = optimize_directory(cfg["input_dir"], work_dir, cfg=cfg, pngquant_path=pngquant_path,
+                                         logger=logger, stats=stats)
+            manifest = result.renamed
+        except ValueError as exc:
+            logger.error(f"error: {exc}")
+            sys.exit(1)
         if stats["errors"]:
             logger.error(
                 f"error: {stats['errors']} file(s) failed to optimize; aborting before touching the database"
@@ -385,9 +465,12 @@ def main() -> None:
             sys.exit(1)
         rename_map = build_rename_map(manifest, logger)
 
-        logger.info(f"Backing up {cfg['db_path']}...")
-        backup_path = backup_database(cfg["db_path"])
-        logger.info(f"Backup written to {backup_path}")
+        if args.dry_run:
+            logger.info("Dry run: no backup will be made and no changes will be committed.")
+        else:
+            logger.info(f"Backing up {cfg['db_path']}...")
+            backup_path = backup_database(cfg["db_path"])
+            logger.info(f"Backup written to {backup_path}")
 
         conn = sqlite3.connect(cfg["db_path"])
         try:
@@ -406,9 +489,38 @@ def main() -> None:
             inserted = 0
             seen_names = {}
             try:
-                for out_path in sorted(work_dir.rglob("*")):
-                    if out_path.is_dir():
-                        continue
+                # A renamed file's old basename no longer appears anywhere under
+                # work_dir (that's what makes it a rename), so the insert loop
+                # below never visits its old db_path to replace it - it'd
+                # otherwise linger forever as an orphaned, no-longer-referenced
+                # row.
+                #
+                # This has to run *before* the inserts, not after: if one
+                # rename's new name happens to equal another rename's old name
+                # (a.png -> b.webp alongside an unrelated b.webp -> c.webp), a
+                # delete pass running afterwards would remove the very row the
+                # insert pass just wrote for b.webp. Same chain-rename hazard
+                # rewrite_pages guards against by substituting in a single pass
+                # over the original text; deleting first makes the ordering
+                # irrelevant here for the same reason.
+                removed = 0
+                for old_name in rename_map:
+                    old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
+                    delete_content(conn, old_db_path)
+                    removed += 1
+                    if cfg["verbose"]:
+                        logger.info(
+                            f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})"
+                        )
+
+                # Driven by what optimize_directory actually wrote, not by
+                # whatever is sitting in work_dir. The work directory is a
+                # documented positional, so reusing one between runs to skip
+                # re-optimizing is supported - and an rglob over it would then
+                # insert files left by an earlier run whose sources have since
+                # been deleted, resurrecting a removed image (or, once
+                # delete_unreferenced_media has had its say, quietly not).
+                for out_path in sorted(result.written):
                     name = out_path.name
                     if name in seen_names:
                         logger.error(
@@ -424,45 +536,42 @@ def main() -> None:
                         if cfg["verbose"]:
                             logger.info(f"[OK] {out_path} -> {db_path}")
 
-                # A renamed file's old basename no longer appears anywhere under
-                # work_dir (that's what makes it a rename), so the loop above
-                # never visits its old db_path to replace it - it'd otherwise
-                # linger forever as an orphaned, no-longer-referenced row.
-                removed = 0
-                for old_name in rename_map:
-                    old_db_path = f"{IMAGES_DB_PATH_PREFIX}{old_name}"
-                    delete_content(conn, old_db_path)
-                    removed += 1
-                    if cfg["verbose"]:
-                        logger.info(
-                            f"[REMOVED] {old_db_path} (renamed to {IMAGES_DB_PATH_PREFIX}{rename_map[old_name]})"
-                        )
+                rewritten = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger,
+                                           chunked_log, compressor)
+                changed_pages = rewritten.changed
 
-                changed_pages = rewrite_pages(conn, rename_map, language_id, page_content_type_id, logger,
-                                               chunked_log, compressor)
-
-                unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger, compressor)
+                unreferenced_removed = delete_unreferenced_media(conn, page_content_type_id, logger, compressor,
+                                                                 referenced=rewritten.referenced)
             finally:
                 compressor.close()
 
-            conn.commit()
+            if args.dry_run:
+                conn.rollback()
+                logger.info("Dry run: rolled back, no changes written.")
+            else:
+                conn.commit()
         except Exception:
             conn.rollback()
             raise
         finally:
             conn.close()
 
-        logger.info("Vacuuming database to reclaim freed space...")
-        vacuum_conn = sqlite3.connect(cfg["db_path"])
-        try:
-            vacuum_conn.execute("VACUUM")
-        finally:
-            vacuum_conn.close()
+        # Nothing was committed on a dry run, so there's no freed space to
+        # reclaim - and VACUUM would rewrite the whole file for nothing.
+        if not args.dry_run:
+            logger.info("Vacuuming database to reclaim freed space...")
+            vacuum_conn = sqlite3.connect(cfg["db_path"])
+            try:
+                vacuum_conn.execute("VACUUM")
+            finally:
+                vacuum_conn.close()
 
         logger.info(
-            f"Done: inserted/updated {inserted} image(s) in {cfg['db_path']}, {removed} stale renamed-away row(s) "
+            f"{'Dry run complete: would have inserted/updated' if args.dry_run else 'Done: inserted/updated'} "
+            f"{inserted} image(s) in {cfg['db_path']}, {removed} stale renamed-away row(s) "
             f"removed, {changed_pages} page(s)/nav row(s) updated to match {len(rename_map)} renamed file(s), "
             f"{unreferenced_removed} unreferenced image(s) deleted."
+            f"{' No changes made.' if args.dry_run else ''}"
         )
         if chunked_log:
             logger.info(f"Chunked {len(chunked_log)} file(s) over {CHUNK_SIZE:,} bytes:")
