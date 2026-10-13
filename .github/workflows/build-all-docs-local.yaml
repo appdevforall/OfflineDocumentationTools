@@ -1,0 +1,570 @@
+name: Build All Docs (Local)
+
+# Local-filesystem counterpart of build-all-docs.yaml: the same chained rebuild of every
+# documentation set - Kotlin website, kotlin-stdlib, Java, Android/AndroidX - followed by the same
+# dictionary re-mint and the same whole-database verification, step for step and with the same
+# scripts and arguments, but reading its documentation.db / webHelpImages.zip from paths on the
+# runner's own disk and writing the new database to disk instead of Google Drive. No GCP Workload
+# Identity Federation, Drive API or associated secrets are used anywhere in this file. Everything
+# build-all-docs.yaml's header says about ORDER, TEMPLATES and the KNOWN LIMITATION applies here.
+#
+# Since a GitHub-hosted runner is a fresh, disposable VM with no access to anyone's actual local
+# disk, db_path / images_zip_path / output_dir only make sense here against a self-hosted runner,
+# or when this workflow is run locally (e.g. via https://github.com/nektos/act) with those host
+# paths bind-mounted into the job's container at the paths you pass as inputs.
+# run-build-all-docs-with-act.sh at the repo root drives exactly that and is the supported way to
+# run this file locally.
+#
+# INPUT AND OUTPUT ARE SEPARATE FILES, as in build-java-docs-local.yaml: db_path is read once and
+# never written, the new database goes to output_db_path, and run-build-all-docs-with-act.sh
+# mounts db_path read-only so the container could not write it even if a step tried.
+#
+# CAUTION when invoking act by hand: act does NOT apply workflow_dispatch input defaults. Every
+# "default:" below applies on real GitHub and is simply absent under act, so an input you don't
+# pass arrives empty - including the booleans, where an empty skip_* means "don't skip" but an
+# empty dry_run means "write output_db_path". Pass every input explicitly;
+# run-build-all-docs-with-act.sh does exactly that.
+#
+# NOTE ON MEMORY: the Java step's Dokka pass is the hungry one - see build-java-docs-local.yaml
+# and run-build-java-docs-with-act.sh for measured container sizes (the full JDK did not fit a
+# 7.7 GB container VM at any heap setting; 16 GB with dokka_worker_heap=8g works). java_modules
+# or skip_java make a run fit a small container.
+#
+# Optional secret (Slack notifications are skipped with a warning if unset):
+#   SLACK_WEBHOOK_URL - "Grabbing baton" / "...Dropping baton", kept in step with the Drive
+#                        workflow even though a local run writes only output_db_path.
+
+permissions:
+  contents: read
+
+# Two runs would write the same output_db_path and fight over output_dir.
+concurrency:
+  group: build-all-docs-local
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_path:
+        description: >-
+          Path on this runner's disk to the input documentation.db. Read directly and never
+          written to - the new database goes to output_db_path.
+        required: true
+      images_zip_path:
+        description: >-
+          Path on this runner's disk to Writerside's webHelpImages.zip matching
+          kotlin_web_site_ref. Required unless skip_kotlin_website is true.
+        required: false
+        default: ''
+      output_dir:
+        description: >-
+          Directory on this runner's disk for outputs: a run-numbered copy of the new database
+          (documentation-all-db-<run_number>.db), the missing-assets report, and output_db_path's
+          default location. Created if it doesn't already exist.
+        required: false
+        default: 'build-all-docs-output'
+      output_db_path:
+        description: >-
+          Path to save the new database to. Empty: <output_dir>/documentation.db. Naming db_path
+          is refused. Ignored when dry_run is true.
+        required: false
+        default: ''
+      kotlin_web_site_ref:
+        description: 'Branch/tag/commit of JetBrains/kotlin-web-site (empty: default branch).'
+        required: false
+        default: ''
+      kotlin_ref:
+        description: 'Branch/tag/commit of JetBrains/kotlin for kotlin-stdlib-docs (empty: default branch).'
+        required: false
+        default: ''
+      kotlin_libs_version:
+        description: >-
+          Published kotlin-stdlib/-reflect/-test version to document (Gradle -PdeployVersion).
+          Keep in step with kotlin_ref; empty falls back to the checkout's snapshot version.
+        required: false
+        default: '2.4.10'
+      kotlin_libs_repo:
+        description: 'Maven repo for those artifacts (Gradle -PkotlinLibsRepo). Empty: mavenCentral.'
+        required: false
+        default: ''
+      java_version:
+        description: >-
+          JDK whose lib/src.zip is documented and which every Gradle build runs on. 17 to 21
+          (kdoc-to-json is pinned to Kotlin 1.9.24); 17 matches SourceDocs/JavaDocs.
+        required: false
+        default: '17'
+      java_modules:
+        description: >-
+          Comma-separated JPMS modules to document instead of the whole JDK (a smoke-test
+          knob). Needs verify_java_parity=false.
+        required: false
+        default: ''
+      dokka_worker_heap:
+        description: 'Max heap for the Java Dokka worker, e.g. 8g. Empty: the build default.'
+        required: false
+        default: ''
+      verify_java_parity:
+        description: 'Compare the Java JSON tree against SourceDocs/JavaDocs/html/api (full JDK 17 runs only).'
+        required: false
+        default: true
+        type: boolean
+      java_delete_missing:
+        description: >-
+          Also delete j/html/api/ rows with no JSON counterpart (class-use/, package-use, tree
+          pages - about half the rows). Off by default, as in build-java-docs.yaml.
+        required: false
+        default: false
+        type: boolean
+      android_only:
+        description: >-
+          Convert only Android pages whose path contains this substring, e.g. "android/app/"
+          (a smoke-test knob; the rest of a/ stays as it was).
+        required: false
+        default: ''
+      android_sample_size:
+        description: 'Android pages verify_android_json_db.py renders from the database.'
+        required: false
+        default: '40'
+      render_sample_size:
+        description: 'Pages per documentation set the final verification renders.'
+        required: false
+        default: '20'
+      skip_kotlin_website:
+        description: 'Leave k/html/ as it is.'
+        required: false
+        default: false
+        type: boolean
+      skip_kotlin_stdlib:
+        description: 'Leave k/kotlin-stdlib, -reflect and -test as they are.'
+        required: false
+        default: false
+        type: boolean
+      skip_java:
+        description: 'Leave j/html/api/ as it is.'
+        required: false
+        default: false
+        type: boolean
+      skip_android:
+        description: 'Leave a/ as it is.'
+        required: false
+        default: false
+        type: boolean
+      skip_remint:
+        description: 'Do not re-train the shared dictionary at the end (structural checks only).'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT write output_db_path. The run-numbered
+          copy in output_dir is written either way. db_path is never written regardless.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-all-docs-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      # The repo's uv convention: `$UV_RUN python3 <script>`. A fixed literal, expanded unquoted.
+      UV_RUN: uv run --with-requirements requirements.txt --
+      DB_PATH: ${{ inputs.db_path }}
+      IMAGES_ZIP_PATH: ${{ inputs.images_zip_path }}
+      OUTPUT_DIR: ${{ inputs.output_dir }}
+      OUTPUT_DB_PATH_INPUT: ${{ inputs.output_db_path }}
+      KOTLIN_WEB_SITE_REF: ${{ inputs.kotlin_web_site_ref }}
+      KOTLIN_REF: ${{ inputs.kotlin_ref }}
+      KOTLIN_LIBS_VERSION: ${{ inputs.kotlin_libs_version }}
+      KOTLIN_LIBS_REPO: ${{ inputs.kotlin_libs_repo }}
+      JAVA_MODULES: ${{ inputs.java_modules }}
+      DOKKA_WORKER_HEAP: ${{ inputs.dokka_worker_heap }}
+      VERIFY_JAVA_PARITY: ${{ inputs.verify_java_parity }}
+      JAVA_DELETE_MISSING: ${{ inputs.java_delete_missing }}
+      ANDROID_ONLY: ${{ inputs.android_only }}
+      ANDROID_SAMPLE_SIZE: ${{ inputs.android_sample_size }}
+      RENDER_SAMPLE_SIZE: ${{ inputs.render_sample_size }}
+      SKIP_KOTLIN_WEBSITE: ${{ inputs.skip_kotlin_website }}
+      SKIP_KOTLIN_STDLIB: ${{ inputs.skip_kotlin_stdlib }}
+      SKIP_JAVA: ${{ inputs.skip_java }}
+      SKIP_ANDROID: ${{ inputs.skip_android }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      STAGED_DB: ${{ github.workspace }}/documentation-all.db
+      ORIGINAL_DB: ${{ github.workspace }}/documentation-original.db
+      PREREMINT_DB: ${{ github.workspace }}/documentation-preremint.db
+      KOTLIN_PIPELINE: ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON
+      ANDROID_MODULE: ProcessDocs/AndroidDocs/AndroidDocsToJson
+      JAVA_JSON_OUT: ${{ github.workspace }}/java-json-build/api
+      JAVA_WORK_DIR: ${{ github.workspace }}/java-json-build/work
+      JAVA_REFERENCE_API: ${{ github.workspace }}/SourceDocs/JavaDocs/html/api
+      ANDROID_JSON_OUT: ${{ github.workspace }}/android-json-build
+      # The ADFA-4737 blacklist, exactly as build-kotlin-docs.yaml defines it.
+      BLACKLISTED_ELEMENT_TITLES: |-
+        Development\/Web development
+        Interoperability\/Swift/Objective-C and C interop
+        Interoperability\/JavaScript interop
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve inputs and local file paths
+        run: |
+          if [ "$SKIP_KOTLIN_WEBSITE" = "true" ] && [ "$SKIP_KOTLIN_STDLIB" = "true" ] \
+             && [ "$SKIP_JAVA" = "true" ] && [ "$SKIP_ANDROID" = "true" ]; then
+            echo "Error: every documentation set is skipped - nothing for this run to do" >&2
+            exit 1
+          fi
+          if [ -n "$JAVA_MODULES" ] && [ "$VERIFY_JAVA_PARITY" = "true" ] && [ "$SKIP_JAVA" != "true" ]; then
+            echo "Error: java_modules documents part of the JDK, so the parity check against the full reference docs is guaranteed to fail. Set verify_java_parity=false as well." >&2
+            exit 1
+          fi
+          if [ ! -f "$DB_PATH" ]; then
+            echo "Error: db_path '$DB_PATH' does not exist on this runner - for a self-hosted runner this must be a path on that machine; for act, bind-mount it into the container so it's visible at this exact path" >&2
+            exit 1
+          fi
+          if [ "$SKIP_KOTLIN_WEBSITE" != "true" ] && [ ! -f "$IMAGES_ZIP_PATH" ]; then
+            echo "Error: images_zip_path '${IMAGES_ZIP_PATH}' does not exist - the Kotlin website step needs webHelpImages.zip (or set skip_kotlin_website=true)" >&2
+            exit 1
+          fi
+
+          mkdir -p "$OUTPUT_DIR"
+          OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+          OUTPUT_DB_PATH="${OUTPUT_DB_PATH_INPUT:-$OUTPUT_DIR/documentation.db}"
+          mkdir -p "$(dirname "$OUTPUT_DB_PATH")"
+          if [ "$(readlink -f "$OUTPUT_DB_PATH")" = "$(readlink -f "$DB_PATH")" ]; then
+            echo "Error: output_db_path resolves to the same file as db_path ('$DB_PATH'). This workflow produces a new database and never writes the one it reads." >&2
+            exit 1
+          fi
+
+          SETS=()
+          [ "$SKIP_KOTLIN_WEBSITE" != "true" ] && SETS+=(kotlin-website)
+          [ "$SKIP_KOTLIN_STDLIB" != "true" ] && SETS+=(kotlin-stdlib)
+          [ "$SKIP_JAVA" != "true" ] && SETS+=(java)
+          [ "$SKIP_ANDROID" != "true" ] && SETS+=(android)
+          REBUILT_SETS="$(IFS=,; echo "${SETS[*]}")"
+          if [ -n "$JAVA_MODULES$ANDROID_ONLY" ] || [ "${#SETS[@]}" -lt 4 ]; then
+            echo "note: partial run (sets: $REBUILT_SETS; java_modules='${JAVA_MODULES}'; android_only='${ANDROID_ONLY}')." >&2
+            echo "note: the new database will hold the rest of the documentation as the source had it." >&2
+          fi
+
+          echo "Resolved DB_PATH (input, read-only): $DB_PATH"
+          echo "Resolved IMAGES_ZIP_PATH:            ${IMAGES_ZIP_PATH:-(skipped)}"
+          echo "Resolved OUTPUT_DB_PATH:             $OUTPUT_DB_PATH"
+          echo "Resolved OUTPUT_DIR:                 $OUTPUT_DIR"
+          echo "Documentation sets rebuilt:          $REBUILT_SETS"
+          {
+            echo "OUTPUT_DIR=$OUTPUT_DIR"
+            echo "OUTPUT_DB_PATH=$OUTPUT_DB_PATH"
+            echo "REBUILT_SETS=$REBUILT_SETS"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up JDK (documented Java sources + every Gradle build)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Verify the JDK
+        run: |
+          "$JAVA_HOME/bin/java" -version
+          MAJOR="$("$JAVA_HOME/bin/java" -XshowSettings:properties -version 2>&1 \
+            | sed -n -E 's/^[[:space:]]*java\.specification\.version = ([0-9]+).*/\1/p' | head -n1)"
+          if [ -z "$MAJOR" ] || [ "$MAJOR" -lt 17 ] || [ "$MAJOR" -gt 21 ]; then
+            echo "Error: java_version must be 17 to 21 (got '${MAJOR:-unknown}') - kdoc-to-json is pinned to Kotlin 1.9.24, which cannot run on a newer JDK" >&2
+            exit 1
+          fi
+          if [ "$SKIP_JAVA" != "true" ] && [ ! -f "$JAVA_HOME/lib/src.zip" ]; then
+            echo "Error: $JAVA_HOME/lib/src.zip not found - java_version must name a JDK that ships sources" >&2
+            exit 1
+          fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # brotli: the CLI - the shared-dictionary compression shells out to it (ADFA-5153).
+          # zstd:   --train-fastcover is what re-mints the dictionary (remint_dictionary.py).
+          # pngquant: insert_optimized_media.py's PNG optimizer.
+          sudo apt-get install -y pngquant unzip zip sqlite3 brotli zstd
+
+      - name: Build the Pebble renderer used by the render checks
+        run: |
+          # verify_android_json_db.py and the final verification both render stored pages
+          # through this jar's TemplateCheck, Pebble configured the way the server configures it.
+          (cd "$ANDROID_MODULE/renderer" && ./gradlew --console=plain -q installDist)
+
+      - name: Copy documentation.db from local disk and set the original aside
+        run: |
+          # db_path is only ever read. ORIGINAL_DB is the untouched copy the final verification
+          # compares against; STAGED_DB is the database being built.
+          cp "$DB_PATH" "$ORIGINAL_DB"
+          chmod a-w "$ORIGINAL_DB"
+          cp "$ORIGINAL_DB" "$STAGED_DB"
+          chmod u+w "$STAGED_DB"
+          sqlite3 "$STAGED_DB" "SELECT 1;" > /dev/null
+          echo "Original: $DB_PATH ($(stat -c%s "$ORIGINAL_DB") bytes)"
+          echo "  sha256: $(sha256sum "$ORIGINAL_DB" | cut -d' ' -f1)"
+          sqlite3 "$ORIGINAL_DB" \
+            "SELECT 'declared version: ' || major || '.' || minor || '.' || patch FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1;" \
+            2>/dev/null || echo "declared version: (none)"
+
+      - name: 'Notify Slack: build started'
+        id: slack_started
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      # ---------------------------------------------------------------------------------------
+      # Kotlin website (build-kotlin-docs.yaml steps 1-3)
+      # ---------------------------------------------------------------------------------------
+      - name: 'Kotlin website: clone kotlin-web-site'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_WEB_SITE_REF" ] && ARGS+=(--branch "$KOTLIN_WEB_SITE_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin-web-site.git kotlin-web-site
+
+      - name: 'Kotlin website: copy the Writerside image export from local disk'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: cp "$IMAGES_ZIP_PATH" webHelpImages.zip
+
+      - name: 'Kotlin website 1/3: find_missing_assets.py (source QA report)'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          $UV_RUN python3 "$KOTLIN_PIPELINE/find_missing_assets.py" \
+            kotlin-web-site/docs missing-assets-report.md
+
+      - name: 'Kotlin website 2/3: populate_db.py (convert docs, prune blacklist, insert page.peb/nav.peb + pages)'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
+          $UV_RUN python3 "$KOTLIN_PIPELINE/populate_db.py" \
+            kotlin-web-site/docs \
+            "$KOTLIN_PIPELINE/config.json" \
+            webHelpImages.zip \
+            "$STAGED_DB" \
+            --blacklisted-element-titles "${BLACKLIST[@]}"
+
+      - name: 'Kotlin website 3/3: insert_optimized_media.py (re-optimize + reinsert images)'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          sqlite3 "$STAGED_DB" \
+            "INSERT OR IGNORE INTO ContentTypes (value, compression) VALUES ('image/webp', 'brotli');"
+          mkdir -p media
+          unzip -q webHelpImages.zip -d media
+          $UV_RUN python3 "$KOTLIN_PIPELINE/insert_optimized_media.py" \
+            media "$STAGED_DB" \
+            --jpeg-quality 85 --webp --webp-quality 90 --verbose
+
+      - name: 'Kotlin website: blacklist pruning verification'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          mapfile -t BLACKLIST <<< "$BLACKLISTED_ELEMENT_TITLES"
+          $UV_RUN python3 - "$KOTLIN_PIPELINE" kotlin-web-site/docs "$STAGED_DB" \
+            "${BLACKLIST[@]}" <<'PYEOF'
+          import sqlite3
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          process_dir, docs_root, db_path, *blacklist_raw = sys.argv[1:]
+          sys.path.insert(0, process_dir)
+          import populate_db  # noqa: E402
+
+          root = ET.parse(Path(docs_root) / "kr.tree").getroot()
+          blacklisted_paths = {populate_db.parse_blacklist_path(raw) for raw in blacklist_raw}
+          blacklisted_stems, unmatched_paths = populate_db.prune_blacklisted_elements(root, blacklisted_paths)
+
+          conn = sqlite3.connect(db_path)
+          leftover = [f"k/html/{stem}.html" for stem in sorted(blacklisted_stems)
+                      if conn.execute("SELECT 1 FROM Content WHERE path = ?", (f"k/html/{stem}.html",)).fetchone()]
+          conn.close()
+
+          for path in sorted(blacklisted_paths):
+              status = "unmatched (no such element in kr.tree)" if path in unmatched_paths else "matched"
+              print(f"  {' > '.join(path)}: {status}")
+          if unmatched_paths:
+              print(f"FAIL: {len(unmatched_paths)} blacklist path(s) never matched a <toc-element>.")
+              sys.exit(1)
+          if leftover:
+              print(f"FAIL: {len(leftover)} blacklisted page(s) still present: {leftover[:10]}")
+              sys.exit(1)
+          print(f"PASS: all {len(blacklisted_stems)} blacklisted topic page(s) confirmed absent.")
+          PYEOF
+
+      - name: 'Kotlin website: drop the scripts'' own safety backups'
+        if: ${{ !inputs.skip_kotlin_website }}
+        run: |
+          # populate_db.py and insert_optimized_media.py each VACUUM INTO a full copy beside the
+          # database. ORIGINAL_DB already is the backup, and the runner's disk is finite.
+          rm -f "$STAGED_DB".backup-* "$STAGED_DB".bak.*
+          rm -rf media
+
+      # ---------------------------------------------------------------------------------------
+      # kotlin-stdlib / -reflect / -test (build-kotlin-docs.yaml steps 4-5)
+      # ---------------------------------------------------------------------------------------
+      - name: 'kotlin-stdlib: clone JetBrains/kotlin'
+        if: ${{ !inputs.skip_kotlin_stdlib }}
+        run: |
+          ARGS=(--depth 1)
+          [ -n "$KOTLIN_REF" ] && ARGS+=(--branch "$KOTLIN_REF")
+          git clone "${ARGS[@]}" https://github.com/JetBrains/kotlin.git kotlin-repo
+
+      - name: 'kotlin-stdlib 1/2: build-stdlib-json-docs.sh (fresh plugin build -> JSON)'
+        if: ${{ !inputs.skip_kotlin_stdlib }}
+        id: stdlib_docs
+        run: |
+          ARGS=()
+          [ -n "$KOTLIN_LIBS_VERSION" ] && ARGS+=(--kotlin-libs-version "$KOTLIN_LIBS_VERSION")
+          [ -n "$KOTLIN_LIBS_REPO" ] && ARGS+=(--kotlin-libs-repo "$KOTLIN_LIBS_REPO")
+          OUTPUT="$(Dokka-plugin-kdoc2json/scripts/kotlin/build-stdlib-json-docs.sh \
+            ${ARGS[@]+"${ARGS[@]}"} kotlin-repo stdlib-json-build)"
+          echo "Generated JSON docs at $OUTPUT"
+          echo "all_libs_dir=$OUTPUT" >> "$GITHUB_OUTPUT"
+
+      - name: 'kotlin-stdlib 2/2: sync_kdoc_json_to_db.py (overwrite kotlin-stdlib/-reflect/-test content)'
+        if: ${{ !inputs.skip_kotlin_stdlib }}
+        env:
+          ALL_LIBS_DIR: ${{ steps.stdlib_docs.outputs.all_libs_dir }}
+        run: |
+          $UV_RUN python3 scripts/sync_kotlin_stdlib_docs/sync_kdoc_json_to_db.py \
+            "$ALL_LIBS_DIR" --db "$STAGED_DB"
+          rm -f "$STAGED_DB".backup-* "$STAGED_DB".bak.*
+          # The JSON is all that is needed from here on; the checkout is several GB.
+          rm -rf kotlin-repo
+
+      # ---------------------------------------------------------------------------------------
+      # Java (build-java-docs.yaml step 3)
+      # ---------------------------------------------------------------------------------------
+      - name: 'Java 1/3: build-jdk-json-docs.sh (stage JDK sources -> javadoc-mode JSON)'
+        if: ${{ !inputs.skip_java }}
+        run: |
+          ARGS=(-j "$JAVA_HOME" -o "$JAVA_JSON_OUT" -w "$JAVA_WORK_DIR")
+          [ -n "$JAVA_MODULES" ] && ARGS+=(-m "$JAVA_MODULES")
+          [ -n "$DOKKA_WORKER_HEAP" ] && ARGS+=(--dokka-worker-heap "$DOKKA_WORKER_HEAP")
+          Dokka-plugin-kdoc2json/scripts/java/build-jdk-json-docs.sh "${ARGS[@]}"
+
+      - name: 'Java 2/3: flatten_templates.py (compose javadoc.peb)'
+        if: ${{ !inputs.skip_java }}
+        run: $UV_RUN python3 scripts/sync_java_docs/flatten_templates.py
+
+      - name: 'Java 3/3: sync_javadoc_json_to_db.py (replace j/html/api content, install javadoc.peb)'
+        if: ${{ !inputs.skip_java }}
+        run: |
+          # No --plain-brotli: see ORDER, and why in this file's header.
+          ARGS=("$JAVA_JSON_OUT" --db "$STAGED_DB")
+          [ "$JAVA_DELETE_MISSING" = "true" ] && ARGS+=(--delete-missing)
+          $UV_RUN python3 scripts/sync_java_docs/sync_javadoc_json_to_db.py "${ARGS[@]}"
+          rm -f "$STAGED_DB".backup-* "$STAGED_DB".bak.*
+
+      - name: 'Java: parity verification against the reference javadoc'
+        if: ${{ !inputs.skip_java && inputs.verify_java_parity }}
+        run: |
+          $UV_RUN python3 Dokka-plugin-kdoc2json/scripts/java/compare_with_javadoc.py \
+            "$JAVA_JSON_OUT" "$JAVA_REFERENCE_API"
+
+      # ---------------------------------------------------------------------------------------
+      # Android / AndroidX (build-android-docs.yaml steps 1-3)
+      # ---------------------------------------------------------------------------------------
+      - name: 'Android 1/3: android_docs_to_json.py (scraped HTML -> JSON documentation tree)'
+        if: ${{ !inputs.skip_android }}
+        run: |
+          ARGS=(ProcessDocs/AndroidDocs/android ProcessDocs/AndroidDocs/androidx --out "$ANDROID_JSON_OUT")
+          [ -n "$ANDROID_ONLY" ] && ARGS+=(--only "$ANDROID_ONLY")
+          $UV_RUN python3 "$ANDROID_MODULE/android_docs_to_json.py" "${ARGS[@]}"
+
+      - name: 'Android 2/3: load_android_json_db.py (Content rows, android-*.peb templates, stylesheet)'
+        if: ${{ !inputs.skip_android }}
+        run: |
+          # The loader never writes its --source; it builds --out from a copy. So build beside
+          # the staged database and move the result into its place.
+          $UV_RUN python3 "$ANDROID_MODULE/load_android_json_db.py" "$ANDROID_JSON_OUT" \
+            --source "$STAGED_DB" --out "$STAGED_DB.android" --force
+          mv -f "$STAGED_DB.android" "$STAGED_DB"
+
+      - name: 'Android 3/3: verify_android_json_db.py (render stored Android pages)'
+        if: ${{ !inputs.skip_android }}
+        run: |
+          $UV_RUN python3 "$ANDROID_MODULE/verify_android_json_db.py" "$STAGED_DB" \
+            --sample "$ANDROID_SAMPLE_SIZE"
+
+      # ---------------------------------------------------------------------------------------
+      # Whole database
+      # ---------------------------------------------------------------------------------------
+      - name: 'Re-mint 1/2: remint_dictionary.py (re-train the shared dictionary, recompress every row)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          cp "$STAGED_DB" "$PREREMINT_DB"
+          $UV_RUN python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --no-backup
+
+      - name: 'Re-mint 2/2: verify_remint_dictionary.py (every row still decodes to the same bytes)'
+        if: ${{ !inputs.skip_remint }}
+        run: |
+          $UV_RUN python3 "$KOTLIN_PIPELINE/verify_remint_dictionary.py" "$PREREMINT_DB" "$STAGED_DB"
+          rm -f "$PREREMINT_DB"
+
+      - name: 'Verify the new database (every set, every templated row, against the original)'
+        run: |
+          $UV_RUN python3 scripts/build_all_docs/verify_all_docs_db.py "$STAGED_DB" \
+            --original "$ORIGINAL_DB" --sets "$REBUILT_SETS" --sample "$RENDER_SAMPLE_SIZE"
+          echo "New database: $(stat -c%s "$STAGED_DB") bytes (original $(stat -c%s "$ORIGINAL_DB"))"
+
+      - name: Write the missing-assets report to output_dir
+        if: ${{ always() && !inputs.skip_kotlin_website }}
+        run: |
+          [ -f missing-assets-report.md ] && cp missing-assets-report.md "$OUTPUT_DIR/missing-assets-report.md" || true
+
+      # always(): the runs worth inspecting are the ones where a check failed.
+      - name: Write the new database to output_dir
+        if: always()
+        run: |
+          if [ -f "$STAGED_DB" ] && [ -n "${OUTPUT_DIR:-}" ]; then
+            cp "$STAGED_DB" "$OUTPUT_DIR/documentation-all-db-${{ github.run_number }}.db"
+            echo "Wrote $OUTPUT_DIR/documentation-all-db-${{ github.run_number }}.db"
+          fi
+
+      - name: Save the new database to output_db_path
+        if: ${{ !inputs.dry_run }}
+        run: |
+          # Re-checked here, where it matters: db_path is never written.
+          if [ "$(readlink -f "$OUTPUT_DB_PATH")" = "$(readlink -f "$DB_PATH")" ]; then
+            echo "Error: refusing to write db_path" >&2
+            exit 1
+          fi
+          cp "$STAGED_DB" "$OUTPUT_DB_PATH"
+          echo "Saved the new database to $OUTPUT_DB_PATH"
+
+      - name: 'Notify Slack: build complete'
+        if: always() && steps.slack_started.outcome == 'success'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" != "success" ]; then
+            TEXT="Full documentation rebuild (local) FAILED ($JOB_STATUS) - nothing saved. Dropping baton"
+          elif [ "$DRY_RUN" = "true" ]; then
+            TEXT="Full documentation rebuild (local) dry run complete ($REBUILT_SETS) - nothing saved. Dropping baton"
+          else
+            TEXT="Built a new documentation database locally ($REBUILT_SETS). Dropping baton"
+          fi
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data "$(printf '{"text": "%s"}' "$TEXT")" \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
