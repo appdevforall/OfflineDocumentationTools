@@ -187,41 +187,71 @@ def csv_to_tooltips(conn, csv_file, name):
         conn.close()
 
 
+INDEX_NAME = "TooltipButtonsByTooltip"
+INDEX_COLUMNS = ("tooltipId", "buttonNumberId")
+
+
+"""
+existing_tooltip_buttons_index(conn)
+
+Finds an index named INDEX_NAME. SQLite matches names without regard to case, so this does too: a
+differently cased name would make CREATE INDEX IF NOT EXISTS silently do nothing.
+
+Returns:
+    (table, columns) of that index, or None if there is none.
+"""
+def existing_tooltip_buttons_index(conn):
+    row = conn.execute("SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name = ? COLLATE NOCASE",
+                       (INDEX_NAME,)).fetchone()
+    if row is None:
+        return None
+    return row[1], tuple(info[2] for info in conn.execute(f'PRAGMA index_info("{row[0]}")'))
+
+
 """
 index_tooltip_buttons(conn)
 
 Adds the TooltipButtons index (see INDEX_TOOLTIP_BUTTONS) to a database built before it existed.
-Does nothing if the index is already there.
+Does nothing if the index is already there with that definition; refuses, rather than reporting
+success, if an index of that name covers another table or other columns.
 
 Args:
     conn: A SQLite database connection object to the documentation database.
 
 Returns:
     True if the index was created, False if it already existed.
+
+Raises:
+    ValueError: an index named INDEX_NAME exists with a different definition.
 """
 def index_tooltip_buttons(conn):
-    exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'TooltipButtonsByTooltip'").fetchone()
-    if exists:
-        print("TooltipButtonsByTooltip already exists; nothing to do.")
+    found = existing_tooltip_buttons_index(conn)
+    if found is not None:
+        table, columns = found
+        if table.lower() != "tooltipbuttons" or tuple(c.lower() for c in columns) != tuple(c.lower() for c in INDEX_COLUMNS):
+            raise ValueError(f"an index named {INDEX_NAME} already exists on {table} ({', '.join(columns)}), "
+                             f"not on TooltipButtons ({', '.join(INDEX_COLUMNS)}); drop it, then run this again")
+        print(f"{INDEX_NAME} already exists; nothing to do.")
         return False
     conn.execute(INDEX_TOOLTIP_BUTTONS)
     conn.commit()
-    print("Created index TooltipButtonsByTooltip on TooltipButtons (tooltipId, buttonNumberId).")
+    print(f"Created index {INDEX_NAME} on TooltipButtons ({', '.join(INDEX_COLUMNS)}).")
     return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Dump or build a SQLite database for tooltips.')
+    parser = argparse.ArgumentParser(description='Dump a SQLite database\'s tooltips to a CSV, build them from a CSV, '
+                                                 'or add the TooltipButtons index to a copy of the database.')
 
     # Define required arguments
     parser.add_argument('--operation', choices=['dump', 'build', 'index'], required=True,
                         help='Dump the database to a CSV, build the database from a CSV, or add the TooltipButtons '
                              'index to a copy of a database built before it existed.')
-    parser.add_argument('--name', required=True,
-                        help='The name of the person updating the database.')
+    parser.add_argument('--name',
+                        help='The name of the person updating the database; build records it in LastChange and '
+                             'requires it.')
     parser.add_argument('--input-db', required=True,
-                        help='The path to the input database for both operations.')
+                        help='The path to the input database, for every operation.')
 
     # Define conditional arguments
     parser.add_argument('--output-csv',
@@ -235,7 +265,7 @@ def main():
 
     conn = None
     try:
-        # Check if the input database exists for both operations
+        # Check that the input database exists, for every operation
         if not os.path.exists(args.input_db):
             print(f"Error: Input database file '{args.input_db}' does not exist.")
             sys.exit(1)
@@ -248,8 +278,8 @@ def main():
             db_tooltips_to_csv(conn, args.output_csv)
 
         elif args.operation == 'build':
-            if not args.input_csv or not args.output_db:
-                parser.error("--input-csv and --output-db are required for the 'build' operation.")
+            if not args.input_csv or not args.output_db or not args.name:
+                parser.error("--input-csv, --output-db and --name are required for the 'build' operation.")
 
             if not os.path.exists(args.input_csv):
                 print(f"Error: Input CSV file '{args.input_csv}' does not exist.")
@@ -275,6 +305,9 @@ def main():
 
     except sqlite3.Error as e:
         print(f"A database error occurred: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
     except shutil.SameFileError:
         print("Error: Input and output database files are the same. Please specify different paths.")

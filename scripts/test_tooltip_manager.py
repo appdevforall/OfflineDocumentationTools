@@ -54,6 +54,21 @@ def _plan(path: Path) -> list:
         return [row[3] for row in conn.execute("EXPLAIN QUERY PLAN " + BUTTONS_QUERY, (7,))]
 
 
+def _searches_by_tooltip(plan: list) -> bool:
+    """A SEARCH on tooltipId through the index. "SEARCH", not just "USING INDEX": an index with the
+    columns the other way round still appears, in a full SCAN of it. Either INDEX or COVERING INDEX."""
+    return any(line.startswith("SEARCH") and "TooltipButtonsByTooltip (tooltipId=?)" in line for line in plan)
+
+
+def _scans_table(plan: list) -> bool:
+    """"SCAN TooltipButtons" from SQLite 3.36 on, "SCAN TABLE TooltipButtons" before."""
+    return any(line.startswith("SCAN") and "TooltipButtons" in line for line in plan)
+
+
+def _index(path: Path, args: list) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, str(Path(tm.__file__)), "--operation", "index", *args], capture_output=True, text=True)
+
+
 def _has_index(path: Path) -> bool:
     with sqlite3.connect(path) as conn:
         return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'index' "
@@ -62,19 +77,18 @@ def _has_index(path: Path) -> bool:
 
 def test_an_older_database_reads_the_whole_table_for_a_tooltips_buttons(tmp_path):
     plan = _plan(_old_database(tmp_path / "old.db"))
-    assert any(line.startswith("SCAN TooltipButtons") for line in plan), plan
+    assert _scans_table(plan) and not _searches_by_tooltip(plan), plan
 
 
 def test_the_index_operation_adds_the_index_to_a_copy_and_leaves_the_input_alone(tmp_path):
     source, output = _old_database(tmp_path / "old.db"), tmp_path / "indexed.db"
     before = source.read_bytes()
-    result = subprocess.run([sys.executable, str(Path(tm.__file__)), "--operation", "index", "--name", "test",
-                             "--input-db", str(source), "--output-db", str(output)], capture_output=True, text=True)
+    result = _index(source, ["--input-db", str(source), "--output-db", str(output)])
     assert result.returncode == 0, result.stdout + result.stderr
     assert source.read_bytes() == before and not _has_index(source)
     assert _has_index(output)
     plan = _plan(output)
-    assert any("USING INDEX TooltipButtonsByTooltip" in line for line in plan), plan
+    assert _searches_by_tooltip(plan), plan
     assert not any("TEMP B-TREE" in line for line in plan), plan
     with sqlite3.connect(output) as conn:
         assert conn.execute(BUTTONS_QUERY, (7,)).fetchall() == [("b1", "u7-1.html"), ("b2", "u7-2.html"),
@@ -86,6 +100,26 @@ def test_indexing_twice_changes_nothing(tmp_path):
     conn = sqlite3.connect(path)
     assert tm.index_tooltip_buttons(conn) is True
     assert tm.index_tooltip_buttons(conn) is False
+    conn.close()
+
+
+def test_an_index_of_that_name_on_other_columns_is_refused_not_reported_as_done(tmp_path):
+    source, output = _old_database(tmp_path / "old.db"), tmp_path / "indexed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("CREATE INDEX TooltipButtonsByTooltip ON TooltipButtons (tooltipId)")
+    result = _index(source, ["--input-db", str(source), "--output-db", str(output)])
+    assert result.returncode == 1, result.stdout
+    assert "already exists on TooltipButtons (tooltipId)" in result.stdout, result.stdout
+
+
+def test_the_index_under_a_differently_cased_name_counts_as_there(tmp_path):
+    # SQLite matches index names without regard to case, so IF NOT EXISTS would have done nothing
+    # while the function reported "Created".
+    path = _old_database(tmp_path / "old.db")
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE INDEX tooltipbuttonsbytooltip ON TooltipButtons (tooltipId, buttonNumberId)")
+    assert tm.index_tooltip_buttons(conn) is False
+    assert conn.execute("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'TooltipButtons'").fetchone()[0] == 1
     conn.close()
 
 
@@ -101,7 +135,7 @@ def test_a_build_from_csv_recreates_the_index(tmp_path):
                         "1,b,s,d,only,b1.html,,,,\n", encoding="utf-8")
     tm.csv_to_tooltips(sqlite3.connect(path), str(csv_file), "test")
     assert _has_index(path)
-    assert any("USING INDEX TooltipButtonsByTooltip" in line for line in _plan(path))
+    assert _searches_by_tooltip(_plan(path))
     with sqlite3.connect(path) as conn:
         assert conn.execute(BUTTONS_QUERY, (1,)).fetchall() == [("first", "a1.html"), ("second", "a2.html")]
 
