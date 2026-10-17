@@ -164,9 +164,25 @@ def test_pack_renumbers_rows_and_their_references_follow(tmp_path):
     assert rebuild.run({"source": source, "output": packed, "pack": ["Pages"]}) == 0
     with sqlite3.connect(source) as a, sqlite3.connect(packed) as b:
         assert a.execute("SELECT id, path FROM Pages").fetchall() != b.execute("SELECT id, path FROM Pages").fetchall()
-        assert b.execute("SELECT seq FROM sqlite_sequence").fetchone() == a.execute(
-            "SELECT seq FROM sqlite_sequence").fetchone()
+        (count,) = a.execute("SELECT COUNT(*) FROM Pages").fetchone()
+        (old_seq,) = a.execute("SELECT seq FROM sqlite_sequence WHERE name = 'Pages'").fetchone()
+        assert b.execute("SELECT seq FROM sqlite_sequence WHERE name = 'Pages'").fetchone() == (old_seq + count,)
     assert _pairs(packed) == _pairs(source)
+
+
+def test_packed_ids_continue_after_the_old_sequence(tmp_path):
+    """AUTOINCREMENT never hands out an id twice, so neither does packing: an
+    id quoted before the rebuild can stop naming a row, never name another."""
+    source, packed = _packable(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("DELETE FROM Links WHERE pageId = 80")
+        conn.execute("DELETE FROM Pages WHERE id = 80")  # the sequence now runs past the largest id
+        (old_seq,) = conn.execute("SELECT seq FROM sqlite_sequence WHERE name = 'Pages'").fetchone()
+        old_ids = {row[0] for row in conn.execute("SELECT id FROM Pages")}
+    assert rebuild.run({"source": source, "output": packed, "pack": ["Pages"]}) == 0
+    with sqlite3.connect(packed) as conn:
+        new_ids = sorted(row[0] for row in conn.execute("SELECT id FROM Pages"))
+    assert new_ids == list(range(old_seq + 1, old_seq + 1 + len(old_ids))) and not set(new_ids) & old_ids
 
 
 def test_pack_refuses_a_table_with_orphaned_references(tmp_path):

@@ -10,7 +10,7 @@ Copies a documentation.db into a fresh file - same schema, same rows with the
 same rowids, same page size - to drop the space SQLite gives back no other way:
 the bytes reserved at the end of every page.
 
-    uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content
+    uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content,Tooltips
 
 Why (ADFA-3305): the database reserves 12 bytes at the end of every 1 KB page
 (file header byte 20), and on the 2026-10-13 database all of them, on all
@@ -27,16 +27,17 @@ and every later VACUUM keeps the zero. Packing, below, is not a one-off.
 Packing (--pack TABLE): SQLite appends rows in rowid order and starts a new
 leaf page when the next row does not fit, so how much of each page is left
 over follows from which rows happen to be numbered next to each other.
---pack renumbers the named tables' rows in an order that packs their leaf
-pages best-fit (packing_order) and makes every declared foreign key naming
-those rows follow. On the 2026-10-13 database Content goes from 19,158 leaf
-pages to 14,524. Only for tables nothing outside the database knows the ids
-of: Content is looked up by path everywhere; Tooltips is not a candidate,
-because the tooltip feedback email and debug dialog show its ids, so
-renumbering it each release would change the numbers people report. A table
-some row references without a match is refused - that orphan's old id could
-match a new one. The gain lasts only until rows are added, which append in
-arrival order, so packing belongs in every release's rebuild.
+--pack inserts the named tables' rows in an order that packs their leaf
+pages best-fit (packing_order), each taking the next id AUTOINCREMENT would
+hand it, and links every declared foreign key to the ids handed out - what a
+fresh build does when it records each row's new id. Ids continue after the
+old sequence, so an id can stop naming a row (one quoted in an old tooltip
+feedback email, say) but never come to name a different one. On the
+2026-10-13 database Content goes from 19,158 leaf pages to 14,524 and
+Tooltips from 16,069 to 12,402. A table some row references without
+a match is refused, since that orphan's id could otherwise name a new row.
+The gain lasts only until rows are added, which append in arrival order, so
+packing belongs in every release's rebuild.
 
 How: a new file with the source's page size and auto_vacuum off - set
 explicitly, because some SQLite builds default it on (the sqlite3 shell this
@@ -135,14 +136,14 @@ def leaf_cell_size(rowid: int, stored: list, usable: int) -> int:
     return _varint_len(payload) + _varint_len(rowid) + local + overflow + 2
 
 
-def packing_order(conn, table: str, page_size: int) -> list:
+def packing_order(conn, table: str, page_size: int, largest: int) -> list:
     """The table's rowids in an order that fills its leaf pages well.
 
     SQLite appends rows in rowid order and starts a new leaf page when the next
     row does not fit, so which rows share a page - and how much of each page is
     left over - follows from the rowid order alone. Each row's exact cell size
-    is computed (leaf_cell_size; its rowid sized as the largest new one, so no
-    estimate is ever low) and the rows are packed best-fit-decreasing into
+    is computed (leaf_cell_size; its rowid sized as `largest`, the largest new
+    one, so no estimate is ever low) and the rows are packed best-fit-decreasing into
     pages of a fresh file's leaf room, page_size - 8. Inserting in this order
     produces exactly the predicted page count: 14,524 leaf pages for Content
     on the 2026-10-13 database, against 19,158 in rowid order."""
@@ -154,7 +155,6 @@ def packing_order(conn, table: str, page_size: int) -> list:
                        f'WHEN \'text\' THEN length(CAST("{c}" AS BLOB)) '
                        f'WHEN \'blob\' THEN length("{c}") END' for c in columns)
     rows = conn.execute(f'SELECT rowid, {probes} FROM "{table}"').fetchall()
-    largest = len(rows)
     cells = []
     for row in rows:
         stored = [(0, 0) if index == alias else _stored(row[1 + 2 * index], row[2 + 2 * index])
@@ -245,7 +245,8 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
 
 
 def rebuild(source: Path, output: Path, pack=()) -> tuple:
-    """Writes the copy; returns (renumbered, followed) for fingerprint()."""
+    """Writes the copy; returns (renumbered, followed, advanced): the id maps for
+    fingerprint(), and {table: new sqlite_sequence value} for each packed table."""
     src = sqlite3.connect(read_only_uri(source), uri=True)
     try:
         page_size = src.execute("PRAGMA page_size").fetchone()[0]
@@ -254,7 +255,9 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
         tables = user_tables(src)
         aliases = {name: alias_column(src, name) for name, _sql, _w in tables}
         without = {name: without_rowid for name, _sql, without_rowid in tables}
-        renumbered, followed = {}, {}
+        has_sequence = bool(src.execute("SELECT 1 FROM sqlite_master WHERE name = 'sqlite_sequence'").fetchone())
+        sequence = dict(src.execute("SELECT name, seq FROM sqlite_sequence")) if has_sequence else {}
+        renumbered, followed, advanced = {}, {}, {}
         for table in pack:
             if table not in without:
                 raise RuntimeError(f"--pack {table}: no such table")
@@ -267,11 +270,18 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
                     raise RuntimeError(f"--pack {table}: {orphans} row(s) of {child}.{column} name no {table} "
                                        "row, and an orphan's old id could match a new one; fix them first")
                 followed.setdefault(child, {})[column] = table
-            order = packing_order(src, table, page_size)
-            renumbered[table] = {new: old for new, old in enumerate(order, start=1)}
+            # Each row takes the next id AUTOINCREMENT would hand out - after both
+            # the old sequence and the largest old id - so no id ever comes to
+            # name a different row than it used to; it can only stop naming one.
+            base = max(sequence.get(table, 0),
+                       src.execute(f'SELECT COALESCE(MAX(rowid), 0) FROM "{table}"').fetchone()[0])
+            count = src.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            order = packing_order(src, table, page_size, base + count)
+            renumbered[table] = {base + n: old for n, old in enumerate(order, start=1)}
+            if table in sequence:
+                advanced[table] = base + count
         others = src.execute("SELECT sql FROM sqlite_master WHERE type IN ('index', 'trigger', 'view') "
                              "AND sql IS NOT NULL ORDER BY rowid").fetchall()
-        has_sequence = bool(src.execute("SELECT 1 FROM sqlite_master WHERE name = 'sqlite_sequence'").fetchone())
     finally:
         src.close()
 
@@ -318,6 +328,8 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
         if has_sequence:
             dst.execute("DELETE FROM main.sqlite_sequence")
             dst.execute("INSERT INTO main.sqlite_sequence SELECT * FROM source.sqlite_sequence")
+            dst.executemany("UPDATE main.sqlite_sequence SET seq = ? WHERE name = ?",
+                            [(seq, name) for name, seq in advanced.items()])
         dst.execute("COMMIT")
         dst.execute("DETACH DATABASE source")
         dst.execute(f"PRAGMA user_version = {int(user_version)}")
@@ -325,7 +337,7 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
         dst.execute("VACUUM")
     finally:
         dst.close()
-    return renumbered, followed
+    return renumbered, followed, advanced
 
 
 def leaf_pages(path: Path, table: str) -> int:
@@ -346,8 +358,10 @@ def run(cfg: dict) -> int:
         return 1
     pack = cfg.get("pack") or ()
     try:
-        renumbered, followed = rebuild(source, output, pack)
+        renumbered, followed, advanced = rebuild(source, output, pack)
         before, after = fingerprint(source), fingerprint(output, renumbered, followed)
+        # A packed table's sequence moves on by its row count; nothing else may.
+        before["sequence"] = sorted((name, advanced.get(name, seq)) for name, seq in before["sequence"])
     except (sqlite3.Error, RuntimeError) as exc:
         output.unlink(missing_ok=True)
         print(f"error: {exc}", file=sys.stderr)
@@ -377,8 +391,8 @@ def main() -> None:
     p.add_argument("output", type=Path, help="Path for the rebuilt copy; must not exist")
     p.add_argument("--pack", default=None, metavar="TABLE[,TABLE...]",
                    type=lambda value: [t.strip() for t in value.split(",") if t.strip()],
-                   help="Renumber these tables' rows so their leaf pages fill well. Their rowids change, so "
-                        "only for tables nothing outside the database knows the ids of (Content: yes)")
+                   help="Insert these tables' rows in an order that fills their leaf pages, each taking the next "
+                        "AUTOINCREMENT id, with declared foreign keys following (e.g. Content,Tooltips)")
     args = p.parse_args()
     sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack}))
 
