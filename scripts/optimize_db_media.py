@@ -489,7 +489,9 @@ def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> by
     pinned to 1 ms too: left to itself it follows a frame rate guessed from
     the delays, and delays of 30, 70 and 130 ms came out on a 1/30 s grid.
     Identical consecutive frames come out merged, their delays added, so the
-    timeline is unchanged."""
+    timeline is unchanged. -fflags +bitexact keeps the muxer's random track ID
+    and its version strings out of the file, so a rerun writes the same bytes
+    and a rebuilt database differs from the last one only where content did."""
     with tempfile.TemporaryDirectory(prefix="optimize_db_media_webm_") as work:
         work = Path(work)
         rgb = [frame.convert("RGB") for frame in frames]
@@ -499,7 +501,8 @@ def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> by
             [ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
              "-i", str(work / "frames.apng"), "-fps_mode", "passthrough", "-enc_time_base", "1/1000",
              "-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0", "-pix_fmt", "yuv420p",
-             "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-an", str(work / "out.webm")],
+             "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-an", "-fflags", "+bitexact",
+             str(work / "out.webm")],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg failed: {result.stderr.decode(errors='replace').strip()[-400:]}")

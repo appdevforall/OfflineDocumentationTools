@@ -440,6 +440,15 @@ def test_a_webm_keeps_every_frames_own_timing(tmp_path):
     assert starts == [start for start, _d, _p in shown]
 
 
+
+def test_a_webm_encodes_to_the_same_bytes_every_time():
+    """Without bitexact, ffmpeg's muxer writes a random 8-byte track ID, so
+    two runs differ and so does every database rebuilt from them."""
+    with Image.open(io.BytesIO(_uneven_animation())) as img:
+        frames, durations, _alpha = opt.animation_frames(img, 500)
+    ffmpeg = shutil.which("ffmpeg")
+    assert opt.encode_webm(frames, durations, 32, ffmpeg) == opt.encode_webm(frames, durations, 32, ffmpeg)
+
 def _webm_cfg(db_path: Path, **overrides) -> dict:
     return base._optimize_cfg(db_path, webm=True, **overrides)
 
