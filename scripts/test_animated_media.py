@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import random
 import shutil
 import sqlite3
@@ -502,7 +503,6 @@ def test_a_webm_keeps_every_frames_own_timing(tmp_path):
     assert starts == [start for start, _d, _p in shown]
 
 
-
 def test_a_webm_encodes_to_the_same_bytes_every_time():
     """Without bitexact, ffmpeg's muxer writes a random 8-byte track ID, so
     two runs differ and so does every database rebuilt from them."""
@@ -510,6 +510,27 @@ def test_a_webm_encodes_to_the_same_bytes_every_time():
         frames, durations, _alpha = opt.animation_frames(img, 500)
     ffmpeg = shutil.which("ffmpeg")
     assert opt.encode_webm(frames, durations, 32, ffmpeg) == opt.encode_webm(frames, durations, 32, ffmpeg)
+
+
+def test_a_webm_encodes_to_the_same_bytes_on_one_cpu_as_on_many():
+    """libvpx takes a thread per CPU it may use unless told how many, and with
+    one its row multithreading is off, so a 1-CPU machine or container wrote
+    other bytes. ffmpeg inherits the affinity set here."""
+    if not hasattr(os, "sched_setaffinity"):
+        pytest.skip("needs os.sched_setaffinity, which this platform lacks")
+    cpus = os.sched_getaffinity(0)
+    if len(cpus) < 2:
+        pytest.skip("needs two or more CPUs to compare one against")
+    with Image.open(io.BytesIO(_uneven_animation())) as img:
+        frames, durations, _alpha = opt.animation_frames(img, 500)
+    ffmpeg = shutil.which("ffmpeg")
+    os.sched_setaffinity(0, {min(cpus)})
+    try:
+        one_cpu = opt.encode_webm(frames, durations, 32, ffmpeg)
+    finally:
+        os.sched_setaffinity(0, cpus)
+    assert one_cpu == opt.encode_webm(frames, durations, 32, ffmpeg)
+
 
 def _webm_cfg(db_path: Path, **overrides) -> dict:
     return base._optimize_cfg(db_path, webm=True, **overrides)

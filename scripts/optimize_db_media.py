@@ -508,9 +508,21 @@ def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> by
     pinned to 1 ms too: left to itself it follows a frame rate guessed from
     the delays, and delays of 30, 70 and 130 ms came out on a 1/30 s grid.
     Identical consecutive frames come out merged, their delays added, so the
-    timeline is unchanged. -fflags +bitexact keeps the muxer's random track ID
-    and its version strings out of the file, so a rerun writes the same bytes
-    and a rebuilt database differs from the last one only where content did."""
+    timeline is unchanged.
+
+    A rerun writes the same bytes on any machine with the same ffmpeg and
+    libvpx, so a rebuilt database differs from the last one only where content
+    did. -fflags +bitexact keeps the muxer's random track ID and its version
+    strings out of the file. -threads is pinned because libvpx otherwise takes
+    one thread per CPU the process may use, and with one thread -row-mt does
+    nothing: on one CPU bounce-demo.gif came out 11,970 bytes, not 12,039. Over
+    the eight largest animations in the database, and 1920 px frames, each
+    count tried from 2 to 64 gave the bytes an unpinned run gives on 20 CPUs,
+    whether ffmpeg had one CPU or all of them. 8 was as fast as any: 6.0 s for
+    conversations-bubble.gif against 8.5 s with 2, and 17.4 s on one CPU
+    against 14.6 s unpinned. Tile columns do not follow the thread count - the
+    same at 1 and 8 threads, at 500 and 1920 px - so they keep libvpx's
+    default."""
     with tempfile.TemporaryDirectory(prefix="optimize_db_media_webm_") as work:
         work = Path(work)
         rgb = [frame.convert("RGB") for frame in frames]
@@ -520,7 +532,8 @@ def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> by
             [ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
              "-i", str(work / "frames.apng"), "-fps_mode", "passthrough", "-enc_time_base", "1/1000",
              "-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0", "-pix_fmt", "yuv420p",
-             "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-an", "-fflags", "+bitexact",
+             "-row-mt", "1", "-threads", "8", "-deadline", "good", "-cpu-used", "2", "-an",
+             "-fflags", "+bitexact",
              str(work / "out.webm")],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         if result.returncode != 0:

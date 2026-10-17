@@ -514,6 +514,9 @@ def _main(namespace: dict = None) -> int:
             # a failing assertion escape and abort the whole run.
             except (KeyboardInterrupt, SystemExit):
                 raise
+            except pytest.skip.Exception as skip:
+                # Also a BaseException; a test that cannot run here is not a failure.
+                print(f"skip {name}: {skip}")
             except BaseException as exc:  # noqa: BLE001 - a failure is the result here
                 frame = traceback.extract_tb(exc.__traceback__)[-1]
                 failures.append(f"{name} (line {frame.lineno}: {frame.line}): "
