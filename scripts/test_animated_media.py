@@ -374,6 +374,18 @@ def test_the_rename_map_follows_a_gif_into_video(tmp_path):
         assert ref.build_rename_map(after, before) == {"spring.gif": "spring.webm"}
 
 
+def test_the_rename_map_ignores_a_new_files_chunk_continuations(tmp_path):
+    """conversations-bubble.gif became a 1.09 MB WebM, stored as "...webm" and
+    "...webm-1"; counting the continuation as a second replacement made the
+    rename ambiguous and left its page naming the deleted GIF."""
+    before_path, after_path = tmp_path / "before.db", tmp_path / "after.db"
+    _build_database(before_path, [("a/media/bubble.gif", "image/gif", b"GIF89a")], WEBM_TYPES)
+    _build_database(after_path, [("a/media/bubble.webm", "video/webm", b"\x00" * opt.CHUNK_SIZE),
+                                 ("a/media/bubble.webm-1", "video/webm", b"\x00" * 5)], WEBM_TYPES)
+    with sqlite3.connect(after_path) as after, sqlite3.connect(before_path) as before:
+        assert ref.build_rename_map(after, before) == {"bubble.gif": "bubble.webm"}
+
+
 def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
     db_path = tmp_path / "documentation.db"
     _build_database(db_path, [

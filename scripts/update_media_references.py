@@ -306,15 +306,20 @@ def build_rename_map(conn, before_conn, logger=print) -> dict:
     and came back under a different extension here. See the module docstring
     for why this is a diff rather than an inference.
 
-    Chunk continuation rows ("<path>-2") are skipped: they disappear because
-    their base was rewritten, which is a deletion, not a rename. Anything
-    whose stem gained no replacement, or gained an ambiguous one, is reported
-    and left out rather than guessed at."""
+    Chunk continuation rows ("<path>-2") are skipped on both sides: an old
+    one disappears because its base was rewritten, which is a deletion, not a
+    rename, and a new one belongs to a new file rather than being one. Missing
+    the new side once made a converted file over CHUNK_SIZE look like two
+    replacements - "foo.webm" and "foo.webm-1" share the stem "foo" - so its
+    references were left naming the deleted original. Anything whose stem
+    gained no replacement, or gained an ambiguous one, is reported and left out
+    rather than guessed at."""
     before, after = media_paths(before_conn), media_paths(conn)
     gone = {p for p in before - after if not _FRAGMENT_RE.search(p)}
     by_stem = {}
     for path in after - before:
-        by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
+        if not _FRAGMENT_RE.search(path):
+            by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
 
     renames, unresolved = {}, []
     for old_path in sorted(gone):
