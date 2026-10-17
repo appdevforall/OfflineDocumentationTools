@@ -41,7 +41,11 @@ in whatever form each doc set happens to use - root-relative
 Content.path. The filename is the one component every form shares. It's
 unambiguous in this database because no two images share a basename within a
 doc set, and no converted basename collides with an image that was left
-alone (both verified before this was written). Matches are still anchored so
+alone (both verified before this was written). The optimizer picks each
+file's output on its own, though - an animated GIF can become WebM, WebP or
+stay a GIF - so every run checks it again: a filename converted one way in one
+directory and another way, or not at all, in another stops the run before
+anything is written, naming the paths. Matches are still anchored so
 a filename only counts when it appears as a reference - not as a substring
 of a longer name ("my_copy.png" when rewriting "copy.png") and not with
 trailing junk.
@@ -309,6 +313,17 @@ def check_same_lineage(conn, before_conn) -> str:
     return ""
 
 
+class AmbiguousRename(ValueError):
+    """A filename the conversion did not treat the same way everywhere it is
+    stored. References are matched by filename alone, so one rename for it
+    would point some pages at a file their directory does not hold.
+    `conflicts` is {filename: [what happened at each path that has it]}."""
+
+    def __init__(self, conflicts: dict):
+        self.conflicts = conflicts
+        super().__init__(f"{len(conflicts)} filename(s) were converted differently in different places")
+
+
 def build_rename_map(conn, before_conn, logger=print) -> dict:
     """{old_basename: new_basename} for every image that left `before_conn`
     and came back under a different extension here. See the module docstring
@@ -319,9 +334,17 @@ def build_rename_map(conn, before_conn, logger=print) -> dict:
     rename, and a new one belongs to a new file rather than being one. Missing
     the new side once made a converted file over CHUNK_SIZE look like two
     replacements - "foo.webm" and "foo.webm-1" share the stem "foo" - so its
-    references were left naming the deleted original. Anything whose stem
-    gained no replacement, or gained an ambiguous one, is reported and left out
-    rather than guessed at."""
+    references were left naming the deleted original.
+
+    The map is keyed by filename, as references are matched, so a converted
+    filename must have had one outcome at every path that holds it. The
+    optimizer picks the output per file, so two same-named GIFs can part ways:
+    a/x/foo.gif became foo.webm while b/y/foo.gif became foo.webp, or stayed a
+    GIF. The first rename used to win, sending b's pages to y/foo.webm, which
+    does not exist. Same-named files converted alike are agreement, not a
+    conflict; anything else raises AmbiguousRename naming every path. A
+    filename that only left with no single replacement is noted and left out:
+    with no entry, nothing is rewritten."""
     before, after = media_paths(before_conn), media_paths(conn)
     gone = {p for p in before - after if not _FRAGMENT_RE.search(p)}
     by_stem = {}
@@ -329,20 +352,32 @@ def build_rename_map(conn, before_conn, logger=print) -> dict:
         if not _FRAGMENT_RE.search(path):
             by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
 
-    renames, unresolved = {}, []
+    # {old filename: {path holding it before: new filename, or None if it did not convert}}
+    outcomes, unresolved = {}, []
     for old_path in sorted(gone):
         candidates = by_stem.get(old_path.rsplit(".", 1)[0], [])
         if len(candidates) != 1:
             unresolved.append(old_path)
+        new_name = candidates[0].rsplit("/", 1)[-1] if len(candidates) == 1 else None
+        outcomes.setdefault(old_path.rsplit("/", 1)[-1], {})[old_path] = new_name
+    for path in sorted(after):
+        name = path.rsplit("/", 1)[-1]
+        if name in outcomes and not _FRAGMENT_RE.search(path):
+            outcomes[name][path] = None  # still stored under the old name
+
+    renames, conflicts = {}, {}
+    for name, by_path in outcomes.items():
+        converted = {new for new in by_path.values() if new is not None}
+        if not converted:
             continue
-        old_name = old_path.rsplit("/", 1)[-1]
-        new_name = candidates[0].rsplit("/", 1)[-1]
-        # Two doc sets can hold same-named files; both convert to the same new
-        # name, so an identical mapping is agreement, not a conflict.
-        if renames.get(old_name, new_name) != new_name:
-            unresolved.append(old_path)
+        if len(set(by_path.values())) == 1:
+            renames[name] = converted.pop()
             continue
-        renames[old_name] = new_name
+        conflicts[name] = [f"{path} -> {new}" if new else
+                           f"{path} {'not converted' if path in after else 'removed with no single replacement'}"
+                           for path, new in sorted(by_path.items())]
+    if conflicts:
+        raise AmbiguousRename(conflicts)
     if unresolved:
         logger(f"note: {len(unresolved)} removed image(s) had no unambiguous replacement and are "
                f"not being rewritten (e.g. {unresolved[0]})")
@@ -676,7 +711,16 @@ def run(cfg: dict) -> int:
                   file=sys.stderr)
             return 1
         codec = BrotliCodec(load_dictionary(conn))
-        renames = build_rename_map(conn, before_conn)
+        try:
+            renames = build_rename_map(conn, before_conn)
+        except AmbiguousRename as exc:
+            for name, fates in sorted(exc.conflicts.items()):
+                print(f"  error: {name}: {'; '.join(fates)}", file=sys.stderr)
+            print(f"error: {exc}. References are matched by filename alone, so rewriting them would point "
+                  "some pages at a file their directory does not hold; nothing was rewritten. Restore the "
+                  "originals (optimize_db_media.py --restore-originals), give each of those files a name of "
+                  "its own, with the references to it, and convert again.", file=sys.stderr)
+            return 1
         if not renames:
             print("No converted media found - nothing to rewrite.")
             return 0

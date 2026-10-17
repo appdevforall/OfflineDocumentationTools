@@ -29,6 +29,7 @@ or under pytest:
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import random
 import shutil
@@ -408,6 +409,43 @@ def test_the_rename_map_ignores_a_new_files_chunk_continuations(tmp_path):
                                  ("a/media/bubble.webm-1", "video/webm", b"\x00" * 5)], WEBM_TYPES)
     with sqlite3.connect(after_path) as after, sqlite3.connect(before_path) as before:
         assert ref.build_rename_map(after, before) == {"bubble.gif": "bubble.webm"}
+
+
+SAME_NAMED_PAGES = [("a/page.html", "text/html", b'<img alt="A" src="x/foo.gif">'),
+                    ("b/page.html", "text/html", b'<img alt="B" src="y/foo.gif">')]
+SAME_NAMED_GIFS = [("a/x/foo.gif", "image/gif", b"GIF89a-a"), ("b/y/foo.gif", "image/gif", b"GIF89a-b")]
+
+
+def test_a_filename_converted_two_ways_stops_the_rewrite(tmp_path):
+    """References are matched by filename, so one rename for foo.gif sent b's
+    page to y/foo.webm, which only a/x has - or, where b's GIF was left alone,
+    to y/foo.webp. Both tools exited 0. The run is refused instead, naming
+    both paths, with nothing written."""
+    cases = {"two-outputs": [("a/x/foo.webm", "video/webm", b"\x1aE\xdf\xa3"),
+                             ("b/y/foo.webp", "image/webp", b"RIFF-b")],
+             "one-left-alone": [("a/x/foo.webp", "image/webp", b"RIFF-a"), SAME_NAMED_GIFS[1]]}
+    for label, media in cases.items():
+        (tmp_path / label).mkdir()
+        before_path, db_path = tmp_path / label / "before.db", tmp_path / label / "documentation.db"
+        _build_database(before_path, SAME_NAMED_PAGES + SAME_NAMED_GIFS, WEBM_TYPES)
+        _build_database(db_path, SAME_NAMED_PAGES + media, WEBM_TYPES)
+        snapshot = base._snapshot(db_path)
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            code = ref.run({"db_path": db_path, "before": before_path, "dry_run": False, "workers": 2,
+                            "verbose": False, "save_originals": None, "restore_originals": None})
+        assert base._snapshot(db_path) == snapshot, f"{label}: the pages were rewritten"
+        assert code == 1, label
+        assert "a/x/foo.gif" in errors.getvalue() and "b/y/foo.gif" in errors.getvalue(), errors.getvalue()
+
+
+def test_same_named_files_converted_alike_share_one_rename(tmp_path):
+    before_path, after_path = tmp_path / "before.db", tmp_path / "after.db"
+    _build_database(before_path, SAME_NAMED_PAGES + SAME_NAMED_GIFS, WEBM_TYPES)
+    _build_database(after_path, SAME_NAMED_PAGES + [("a/x/foo.webm", "video/webm", b"\x1aE\xdf\xa3"),
+                                                    ("b/y/foo.webm", "video/webm", b"\x1aE\xdf\xa4")], WEBM_TYPES)
+    with sqlite3.connect(after_path) as after, sqlite3.connect(before_path) as before:
+        assert ref.build_rename_map(after, before) == {"foo.gif": "foo.webm"}
 
 
 def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
