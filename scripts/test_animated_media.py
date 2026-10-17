@@ -337,6 +337,19 @@ def test_webp_loop_counts_plays_where_gif_counts_repeats():
     assert loop_of() == 1, "a GIF with no loop count plays once"
     assert loop_of(loop=0) == 0, "forever"
     assert loop_of(loop=2) == 3, "two repeats after the first play"
+    assert loop_of(loop=65535) == 65535, "WebP's count is 16 bits too"
+
+
+def test_a_gif_repeating_65535_times_still_converts():
+    """GIF's largest count, 65,535 repeats, is 65,536 plays: one more than
+    WebP's 16 bits hold. libwebp refused it, and the row failed with the GIF
+    candidate lost too."""
+    source = _gradient_animation(loop=65535)
+    with Image.open(io.BytesIO(source)) as img:
+        out, _value = opt.optimize_animation(img, source, "demo.gif", base._optimize_cfg(Path("unused.db")),
+                                             shutil.which("gifsicle"))
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.info.get("loop") == 65535
 
 
 VIDEO_RENAMES = {"spring.gif": "spring.webm", "hero.png": "hero.webp"}

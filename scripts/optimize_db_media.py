@@ -438,10 +438,12 @@ def animation_frames(img: Image.Image, max_width: int) -> tuple:
 def webp_loop(img: Image.Image) -> int:
     """The source GIF's loop count in WebP's terms. A GIF's NETSCAPE count is
     how many times to repeat after the first play, and a GIF without one plays
-    once; WebP counts total plays, with 0 meaning forever either way."""
+    once; WebP counts total plays, with 0 meaning forever either way. Both
+    counts are 16 bits, so GIF's largest, 65,535 repeats, is capped at 65,535
+    plays: 65,536 made libwebp refuse the file, and the row failed."""
     if "loop" not in img.info:
         return 1
-    return img.info["loop"] + 1 if img.info["loop"] else 0
+    return min(img.info["loop"] + 1, 65535) if img.info["loop"] else 0
 
 
 def encode_animated_webp(frames: list, durations: list, loop: int, quality: int) -> bytes:
