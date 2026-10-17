@@ -46,9 +46,11 @@ any error), mirroring optimize_media.py's own encoders and defaults:
     which only makes sense for PNG output).
   - image/jpeg: downscale, re-encode JPEG (--jpeg-quality, progressive). Raw.
     With --webp: WEBP instead.
-  - image/gif : downscale. Animated GIFs get every frame resized (frame
-    count/durations/loop preserved) and stay GIFs even under --webp, since
-    animated-WEBP encoding isn't implemented here. Raw.
+  - image/gif : downscale. An animated GIF that needs no resizing only goes
+    through gifsicle -O3, which is lossless; one that does is resized frame by
+    frame (timing and loop count preserved), saved with sub-rectangle frames,
+    and replaced by gifsicle -O3 of that when smaller. Animated GIFs stay GIFs
+    even under --webp, since animated-WEBP encoding isn't implemented here. Raw.
   - image/webp: downscale, re-encode WEBP (--webp-quality). Animated WEBP is
     left untouched. Brotli-compressed on store, matching the ContentTypes row.
   - image/svg+xml: Scour-optimized (metadata/comment/id stripping, numbers
@@ -161,9 +163,9 @@ Python dependencies (Pillow, scour, brotli) are declared inline above (PEP
 
     uv run scripts/optimize_db_media.py documentation.db
 
-The "pngquant" and "brotli" command-line tools must also be on PATH (e.g.
-`brew install pngquant brotli`); those are system binaries, not pip packages,
-so uv can't provide them.
+The "pngquant" and "brotli" command-line tools must also be on PATH, and
+"gifsicle" for animated GIFs (e.g. `brew install pngquant brotli gifsicle`);
+those are system binaries, not pip packages, so uv can't provide them.
 """
 from __future__ import annotations
 
@@ -379,20 +381,66 @@ def encode_static_gif(img: Image.Image, max_width: int) -> bytes:
     return buf.getvalue()
 
 
-def optimize_animated_gif(img: Image.Image, max_width: int) -> bytes:
-    """Resizes every frame of an already-open animated GIF, preserving frame
-    count, each frame's own duration, and the loop count."""
-    n_frames = getattr(img, "n_frames", 1)
-    loop = img.info.get("loop", 0)
-    frames, durations = [], []
-    for i in range(n_frames):
+def gifsicle_optimize(data: bytes, gifsicle_path: str) -> bytes:
+    """`gifsicle -O3` over GIF bytes (stdin->stdout). Lossless: it crops each
+    frame to what changed, lets transparency stand in for unchanged pixels, and
+    merges identical consecutive frames into one longer frame, keeping the
+    timing. Falls back to the input if gifsicle fails - an unoptimized GIF
+    beats a broken one."""
+    result = subprocess.run([gifsicle_path, "-O3", "--no-warnings"], input=data,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if result.returncode != 0 or not result.stdout:
+        return data
+    return result.stdout
+
+
+def loop_count(img: Image.Image) -> dict:
+    """The source's loop count as save() keywords. A GIF without one plays
+    once; defaulting it to loop=0, as this tool once did, made it loop forever."""
+    return {"loop": img.info["loop"]} if "loop" in img.info else {}
+
+
+def animation_frames(img: Image.Image, max_width: int) -> tuple:
+    """(frames, durations, has_alpha) for an already-open animation: every
+    frame as the full RGBA picture it displays, resized to `max_width`, with its
+    own duration. `has_alpha` says whether any displayed pixel is not opaque."""
+    frames, durations, has_alpha = [], [], False
+    for i in range(img.n_frames):
         img.seek(i)
-        frames.append(resize_if_needed(img.convert("RGBA"), max_width))
+        frame = img.convert("RGBA")
+        has_alpha = has_alpha or frame.getchannel("A").getextrema()[0] < 255
+        frames.append(resize_if_needed(frame, max_width))
         durations.append(img.info.get("duration", 100))
+    return frames, durations, has_alpha
+
+
+def optimize_animated_gif(img: Image.Image, data: bytes, max_width: int, gifsicle_path) -> bytes:
+    """An already-open animated GIF, optimized as a GIF: frame timing and loop
+    count kept.
+
+    One that needs no resizing only goes through gifsicle -O3, which is
+    lossless. One that does is resized frame by frame and saved by Pillow, and
+    whichever is smaller of that and gifsicle -O3 of it is kept.
+
+    Pillow saves with disposal=1 ("leave in place"), so it stores each frame as
+    only the rectangle that changed. disposal=2, which this used to pass for
+    every GIF, makes every frame full-canvas: kotlin-wasm-wasi-http.gif came out
+    at 1,741,772 bytes that way against 429,792 with disposal=1, and a GIF
+    already stored as sub-rectangles grew up to 10x, so the never-larger rule
+    discarded it and it was never downscaled (ADFA-6586). disposal=2 stays for
+    a GIF with real transparency, the one thing leave-in-place cannot draw: a
+    pixel that turns transparent would keep showing the frame before."""
+    if gifsicle_path is None:
+        raise RuntimeError("gifsicle not found on PATH; install it (e.g. `brew install gifsicle`) and retry")
+    if img.width <= max_width:
+        return gifsicle_optimize(data, gifsicle_path)
+    loop = loop_count(img)
+    frames, durations, has_alpha = animation_frames(img, max_width)
     buf = io.BytesIO()
     frames[0].save(buf, "GIF", save_all=True, append_images=frames[1:], duration=durations,
-                   loop=loop, disposal=2, optimize=True)
-    return buf.getvalue()
+                   disposal=2 if has_alpha else 1, optimize=True, **loop)
+    resaved = buf.getvalue()
+    return min(resaved, gifsicle_optimize(resaved, gifsicle_path), key=len)
 
 
 def encode_webp(img: Image.Image, quality: int, max_width: int) -> bytes:
@@ -459,7 +507,8 @@ OPTIMIZABLE = {
 }
 
 
-def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path: str, logger) -> tuple:
+def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path: str, logger,
+                   gifsicle_path: str = None) -> tuple:
     """Optimizes one media file's bytes. Returns (new_bytes, produced_type) -
     the CONTENT TYPE actually produced, which differs from `value` only when
     --webp converts a raster or rasterizes an oversized SVG - or None when this
@@ -495,7 +544,7 @@ def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path:
             # since re-encoding those animations isn't implemented and
             # flattening them to one frame would silently break them.
             if value == "image/gif":
-                return optimize_animated_gif(img, cfg["max_width"]), "image/gif"
+                return optimize_animated_gif(img, data, cfg["max_width"], gifsicle_path), "image/gif"
             return None
         if cfg["webp"]:
             # --webp: every static raster becomes WEBP regardless of its source
@@ -1044,6 +1093,10 @@ def run(cfg: dict) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
+    # Looked up, not required: only an animated GIF needs it, and one that finds
+    # it missing fails on its own row with an install hint.
+    gifsicle_path = shutil.which("gifsicle")
+
     known = {}
     if cfg["manifest_in"] is not None:
         if not cfg["manifest_in"].is_file():
@@ -1222,7 +1275,8 @@ def run(cfg: dict) -> int:
             try:
                 if media_bytes is None:
                     media_bytes = codec.decompress(stored_full, compression)
-                result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn)
+                result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
+                                        gifsicle_path=gifsicle_path)
                 if result is None:  # animated WEBP/APNG: deliberately left alone
                     stats["skipped_animated"] += 1
                     manifest_out[path] = (digest(stored_full), original_stored, None)

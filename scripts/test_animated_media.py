@@ -31,12 +31,13 @@ from __future__ import annotations
 
 import io
 import random
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
 
 import brotli
-from PIL import Image
+from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -119,6 +120,139 @@ def test_types_keeps_the_manifest_entries_of_types_it_skips(tmp_path):
     assert opt.run(base._optimize_cfg(db_path, types={"image/gif"}, manifest_in=first,
                                       manifest_out=second)) == 0
     assert opt.read_manifest(second) == opt.read_manifest(first)
+
+
+SQUARE = (200, 30, 30)
+
+
+def _animated_gif(width, height, frames=20, loop=0, transparent=False, full_canvas=False) -> bytes:
+    """A square moving across a still background drawn like a screen recording:
+    rows of dark text-like bars on light grey, which is what most of these GIFs
+    are. The detail is what makes a full-canvas frame expensive.
+
+    Saved with disposal=1, Pillow stores every frame after the first as just the
+    rectangle that changed - the layout most real GIFs here have. full_canvas
+    stores every frame whole (disposal=2), as the old re-save did. transparent
+    leaves the background clear instead."""
+    background = Image.new("RGBA", (width, height), (0, 0, 0, 0) if transparent else (236, 236, 236, 255))
+    if not transparent:
+        draw = ImageDraw.Draw(background)
+        for row in range(8, height - 8, 14):
+            for col in range(8, width - 60, 70):
+                draw.rectangle([col, row, col + 50 - (row * 7 + col) % 23, row + 6], fill=(60, 60, 70, 255))
+    images = []
+    for i in range(frames):
+        frame = background.copy()
+        x = 4 + i * (width - 40) // frames
+        frame.paste(SQUARE + (255,), (x, height // 3, x + 24, height // 3 + 24))
+        images.append(frame)
+    buffer = io.BytesIO()
+    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=[40] * frames,
+                   disposal=2 if (full_canvas or transparent) else 1,
+                   **({} if loop is None else {"loop": loop}))
+    return buffer.getvalue()
+
+
+def _displayed(data: bytes) -> list:
+    """[(start ms, duration, RGB picture flattened onto white)] for every frame
+    an animation shows - what a viewer sees, independent of how it is stored."""
+    shown, start = [], 0
+    with Image.open(io.BytesIO(data)) as img:
+        for i in range(getattr(img, "n_frames", 1)):
+            img.seek(i)
+            img.load()
+            rgba = img.convert("RGBA")
+            flat = Image.new("RGB", rgba.size, "white")
+            flat.paste(rgba, mask=rgba.getchannel("A"))
+            duration = img.info.get("duration", 100)
+            shown.append((start, duration, flat))
+            start += duration
+    return shown
+
+
+def _same_on_the_timeline(a: bytes, b: bytes) -> bool:
+    """Whether b shows exactly a's pictures at a's frame start times, and runs
+    as long. Frame counts may differ: gifsicle and libwebp both merge identical
+    consecutive frames into one longer frame."""
+    shown_a, shown_b = _displayed(a), _displayed(b)
+    if sum(d for _s, d, _p in shown_a) != sum(d for _s, d, _p in shown_b):
+        return False
+    j = 0
+    for start, _duration, picture in shown_a:
+        while j + 1 < len(shown_b) and shown_b[j + 1][0] <= start:
+            j += 1
+        if picture.tobytes() != shown_b[j][2].tobytes():
+            return False
+    return True
+
+
+def _stored_media(db_path: Path, stem: str) -> tuple:
+    """(path, content type, decoded bytes) of the one media row whose path
+    starts with `stem` - whatever extension a conversion gave it."""
+    with sqlite3.connect(db_path) as conn:
+        codec = opt.BrotliCodec(opt.load_dictionary(conn))
+        rows = conn.execute("SELECT c.path, c.content, ct.value, ct.compression FROM Content c "
+                            "JOIN ContentTypes ct ON c.contentTypeID = ct.id WHERE c.path LIKE ?",
+                            (stem + ".%",)).fetchall()
+        assert len(rows) == 1, rows
+        path, blob, value, compression = rows[0]
+        data = codec.decompress(opt.reassemble(conn, path, blob), compression)
+        codec.close()
+    return path, value, data
+
+
+def test_a_subrectangle_gif_wider_than_max_width_is_downscaled(tmp_path):
+    """ADFA-6586: re-saving every frame full-canvas made this GIF several times
+    larger, so the never-larger rule threw the re-save away and the GIF was
+    never downscaled at all."""
+    db_path = tmp_path / "documentation.db"
+    source = _animated_gif(1000, 250)
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", source)])
+
+    assert opt.run(base._optimize_cfg(db_path, webp=False)) == 0
+
+    _path, value, stored = _stored_media(db_path, "a/media/demo")
+    assert value == "image/gif"
+    with Image.open(io.BytesIO(stored)) as img:
+        assert img.width == opt.DEFAULTS["max_width"], f"still {img.width} px wide"
+    assert len(stored) < len(source)
+
+
+def test_a_full_canvas_gif_needing_no_resize_shrinks_losslessly(tmp_path):
+    """A GIF already within --max-width only goes through gifsicle -O3: no
+    Pillow re-save, so nothing it shows can change."""
+    db_path = tmp_path / "documentation.db"
+    source = _animated_gif(300, 150, full_canvas=True)
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", source)])
+
+    assert opt.run(base._optimize_cfg(db_path, webp=False)) == 0
+
+    _path, _value, stored = _stored_media(db_path, "a/media/demo")
+    assert len(stored) < len(source) / 2, f"{len(stored)} of {len(source)} bytes"
+    assert _same_on_the_timeline(source, stored)
+
+
+def test_a_gif_that_plays_once_still_plays_once():
+    source = _animated_gif(600, 150, loop=None)
+    with Image.open(io.BytesIO(source)) as img:
+        assert "loop" not in img.info
+        out = opt.optimize_animated_gif(img, source, 500, shutil.which("gifsicle"))
+    with Image.open(io.BytesIO(out)) as img:
+        assert "loop" not in img.info, f"now loops {img.info.get('loop')} time(s)"
+
+
+def test_a_transparent_gif_leaves_no_trail():
+    """Leave-in-place cannot turn a pixel transparent again, so a transparent
+    GIF is re-saved with restore-to-background; otherwise the moving square
+    would smear across every place it has been."""
+    source = _animated_gif(600, 150, transparent=True)
+    with Image.open(io.BytesIO(source)) as img:
+        out = opt.optimize_animated_gif(img, source, 500, shutil.which("gifsicle"))
+    _start, _duration, last = _displayed(out)[-1]
+    rgb = last.tobytes()
+    red = sum(1 for i in range(0, len(rgb), 3) if rgb[i] > 150 and rgb[i + 1] < 90)
+    square = 24 * 24 * (500 / 600) ** 2
+    assert red < square * 1.5, f"{red} red pixels in the last frame; one square is about {square:.0f}"
 
 
 if __name__ == "__main__":
