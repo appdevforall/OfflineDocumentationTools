@@ -93,6 +93,14 @@ Re-running over a database someone else has edited (--manifest-out/--manifest-in
   Everything else in the manifest is skipped untouched. Rows that errored are
   deliberately left out, so a later run retries them.
 
+Optimizing only some types (--types):
+  Without the manifest from the run that optimized a database, nothing tells
+  this tool's own lossy output apart from an original, so a full run would
+  re-encode every already-optimized WebP and PNG from its own lossy output.
+  --types image/gif (any comma-separated list of the types above) limits a run
+  to those types. Every other row is left exactly as it is - archived if
+  --save-originals asks for it, its manifest entry carried over.
+
 Keeping the originals (--save-originals / --restore-originals):
   Optimizing is lossy, and under --webp it renames files too, so once this has
   run the database no longer holds what it started from. --save-originals
@@ -1017,8 +1025,19 @@ def run(cfg: dict) -> int:
             print(f"warning: {', '.join(ignored)} has no effect with --webp (no PNG/JPEG is written); "
                   "use --webp-quality instead", file=sys.stderr)
 
+    # --types limits which content types this run optimizes. Every other row is
+    # handled as an untouchable type would be: archived if a bundle was asked
+    # for, its manifest entry carried over, its bytes left alone.
+    types = cfg.get("types")
+    if types is not None:
+        unknown = sorted(set(types) - set(OPTIMIZABLE))
+        if unknown:
+            print(f"error: --types {', '.join(unknown)}: not a type this tool optimizes "
+                  f"({', '.join(sorted(OPTIMIZABLE))})", file=sys.stderr)
+            return 1
+
     pngquant_path = None
-    if not cfg["webp"]:
+    if not cfg["webp"] and (types is None or "image/png" in types):
         try:
             pngquant_path = find_pngquant()
         except RuntimeError as exc:
@@ -1134,10 +1153,11 @@ def run(cfg: dict) -> int:
             if path in superseded:
                 continue  # already rewritten this run as another row's target
 
-            optimizable = value in OPTIMIZABLE
-            if not optimizable and archive is None:
-                # Nothing to do with it and nothing to keep a copy of: skip it
-                # without paying for a reassemble.
+            optimizable = value in OPTIMIZABLE and (types is None or value in types)
+            if not optimizable and archive is None and (value not in OPTIMIZABLE or path not in known):
+                # Nothing to do with it, nothing to keep a copy of, and no
+                # manifest entry to carry over: skip it without paying for a
+                # reassemble.
                 stats["skipped_type"] += 1
                 continue
 
@@ -1178,6 +1198,11 @@ def run(cfg: dict) -> int:
                         archived = archive.add(path, value, row_language_id, template_id, media_bytes)
 
             if not optimizable:
+                # A type this run leaves alone may still be one an earlier run
+                # managed; its entry is carried over so the manifest keeps
+                # describing the whole database rather than just this run's types.
+                if already_ours:
+                    manifest_out[path] = recorded
                 stats["skipped_type"] += 1
                 continue
             if not archived:
@@ -1350,7 +1375,7 @@ def run(cfg: dict) -> int:
     print(f"{'Dry run complete. ' if cfg['dry_run'] else 'Done. '}"
           f"{verb} {stats['optimized']} image(s), of which {stats['converted']} changed format "
           f"(new extension, old row deleted); {stats['no_gain']} already minimal, "
-          f"{stats['skipped_type']} untouched (non-optimizable type), "
+          f"{stats['skipped_type']} untouched (a type this run does not optimize), "
           f"{stats['skipped_animated']} animated WEBP/APNG left alone, "
           f"{stats['skipped_manifest']} already optimized per the manifest, "
           f"{stats['skipped_fragment']} chunk-fragment row(s) folded into their base, "
@@ -1614,6 +1639,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="With --restore-originals, proceed even though the bundle does not look like an "
                         "archive of this database. Only for when media was legitimately deleted since the "
                         "bundle was made - it is otherwise the guard against restoring into the wrong one")
+    p.add_argument("--types", default=None, metavar="TYPE[,TYPE...]",
+                   type=lambda value: {t.strip() for t in value.split(",") if t.strip()},
+                   help="Optimize only these content types (e.g. image/gif) and leave every other row as it "
+                        "is. Without a manifest from the run that optimized the rest, this is how to avoid "
+                        "re-encoding lossy output from lossy input")
     p.add_argument("--verbose", action="store_true", help="Log every optimized image, with byte sizes")
     return p
 
@@ -1633,7 +1663,7 @@ def main() -> None:
         "webp": args.webp, "svg_rasterize_threshold": args.svg_rasterize_threshold,
         "manifest_out": args.manifest_out, "manifest_in": args.manifest_in,
         "save_originals": args.save_originals, "restore_originals": args.restore_originals,
-        "force_restore": args.force_restore,
+        "force_restore": args.force_restore, "types": args.types,
     }
     sys.exit(restore_originals(cfg) if args.restore_originals is not None else run(cfg))
 
