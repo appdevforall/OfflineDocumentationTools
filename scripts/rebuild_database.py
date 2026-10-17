@@ -29,15 +29,20 @@ leaf page when the next row does not fit, so how much of each page is left
 over follows from which rows happen to be numbered next to each other.
 --pack inserts the named tables' rows in an order that packs their leaf
 pages best-fit (packing_order), each taking the next id AUTOINCREMENT would
-hand it, and links every declared foreign key to the ids handed out - what a
-fresh build does when it records each row's new id. Ids continue after the
-old sequence, so an id can stop naming a row (one quoted in an old tooltip
-feedback email, say) but never come to name a different one. On the
-2026-10-13 database Content goes from 19,158 leaf pages to 14,524 and
-Tooltips from 16,069 to 12,402. A table some row references without
-a match is refused, since that orphan's id could otherwise name a new row.
-The gain lasts only until rows are added, which append in arrival order, so
-packing belongs in every release's rebuild.
+hand it, and links every reference to the ids handed out - what a fresh
+build does when it records each row's new id. A reference is a declared
+foreign key or a column listed in UNDECLARED_REFERENCES: Bookshelf.contentID
+names a Content row with no FOREIGN KEY, kept in step only by Content's
+AddBook and DeleteBook triggers. Ids continue after the old sequence, so an
+id can stop naming a row (one quoted in an old tooltip feedback email, say)
+but never come to name a different one. On the 2026-10-13 database Content
+goes from 19,158 leaf pages to 14,524 and Tooltips from 16,069 to 12,402. A
+table some row references without a match is refused, since that orphan's
+id could otherwise name a new row; so is a table with a trigger that ties
+its id to a column that is neither kind of reference (check_triggers),
+since that link would keep the old ids. The gain lasts only until rows are
+added, which append in arrival order, so packing belongs in every release's
+rebuild.
 
 How: a new file with the source's page size and auto_vacuum off - set
 explicitly, because some SQLite builds default it on (the sqlite3 shell this
@@ -47,8 +52,9 @@ keeping each row's rowid; then the indexes, triggers and views, then
 sqlite_sequence, user_version and application_id; then VACUUM. Before the
 result is kept, it is compared with the source - schema, every row of every
 table with its rowid, sqlite_sequence, both pragmas, integrity_check and
-foreign_key_check, with any ids --pack renumbered mapped back first - and
-any difference deletes it and fails the run.
+foreign_key_check, with any ids --pack renumbered mapped back first (a
+reference still on an old id is a difference) - and any difference deletes
+it and fails the run.
 
 The source is opened read-only and never changed. OUTPUT must not exist
 (ADFA-5296: a rebuilt database is saved somewhere other than where it came
@@ -58,9 +64,21 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import sqlite3
 import sys
 from pathlib import Path
+
+# Columns holding another table's rowid with no FOREIGN KEY declaring it, so
+# PRAGMA foreign_key_list cannot find them: (table, column, parent table).
+# --pack follows these exactly like a declared key.
+UNDECLARED_REFERENCES = (
+    # Kept in step with Content.id only by Content's AddBook and DeleteBook triggers.
+    ("Bookshelf", "contentID", "Content"),
+    # WebServer.kt renders a row through the template it names. 0 means none
+    # and names no row, so --pack Templates is refused while any row has it.
+    ("Content", "templateId", "Templates"),
+)
 
 
 def read_only_uri(path: Path) -> str:
@@ -175,8 +193,9 @@ def packing_order(conn, table: str, page_size: int, largest: int) -> list:
 
 
 def references_to(conn, tables: list, parent: str) -> list:
-    """[(child table, column)] for every declared foreign key naming `parent`'s
-    rowid - the values a renumbering of `parent` has to follow."""
+    """[(child table, column)] for every column holding `parent`'s rowid - the
+    values a renumbering of `parent` has to follow: each declared foreign key
+    naming it, and each UNDECLARED_REFERENCES entry present in this database."""
     alias = alias_column(conn, parent)
     key = None if alias is None else list(conn.execute(f'PRAGMA table_info("{parent}")'))[alias][1]
     found = []
@@ -184,7 +203,64 @@ def references_to(conn, tables: list, parent: str) -> list:
         for fk in conn.execute(f'PRAGMA foreign_key_list("{child}")'):
             if fk[2] == parent and (fk[4] is None or fk[4] == key):
                 found.append((child, fk[3]))
+        for table, column, target in UNDECLARED_REFERENCES:
+            if table.lower() == child.lower() and target.lower() == parent.lower():
+                found += [(child, name) for _cid, name, *_rest in conn.execute(f'PRAGMA table_info("{child}")')
+                          if name.lower() == column.lower() and (child, name) not in found]
     return found
+
+
+_LITERAL_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/", re.S)
+_NAME = r'"[^"]+"|\[[^\]]+\]|`[^`]+`|\w+'
+_ROW_FIELD = re.compile(rf"\b(?:NEW|OLD)\s*\.\s*({_NAME})", re.I)
+_WRITE_TARGET = re.compile(rf"\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)"
+                           rf"\s+({_NAME})", re.I)
+
+
+def _unquoted(name: str) -> str:
+    return name[1:-1] if name[0] in "\"[`" else name
+
+
+def check_triggers(conn, table: str, references: list) -> None:
+    """Refuses to pack `table` when one of its triggers ties its id to a column
+    the pack would not renumber - a reference with no FOREIGN KEY that only
+    the trigger knows about, as Bookshelf.contentID was.
+
+    Each statement in a trigger ON `table` that uses NEW.<id> or OLD.<id> (its
+    INTEGER PRIMARY KEY, rowid, oid or _rowid_) and writes - INSERT, REPLACE,
+    UPDATE or DELETE - is taken to store or match that id in the table it
+    writes, so that table must hold one of `references` and the statement must
+    name it. AddBook passes: it writes NEW.id into Bookshelf.contentID, and
+    into the placeholder title too, which is why the check is per statement
+    and not per column. Limits of reading the SQL with a regex (string
+    literals and comments are blanked first): it cannot tell which column
+    receives the id, so a statement naming a followed column and writing the
+    id into another one as well passes; it reads only triggers ON `table`, not
+    ones on other tables that copy a reference on; it does not follow UPDATE
+    ... FROM. A statement using the id whose target it cannot read is refused."""
+    alias = alias_column(conn, table)
+    ids = {"rowid", "oid", "_rowid_"}
+    if alias is not None:
+        ids.add(list(conn.execute(f'PRAGMA table_info("{table}")'))[alias][1].lower())
+    followed = {}
+    for child, column in references:
+        followed.setdefault(child.lower(), set()).add(column.lower())
+    for name, sql in conn.execute("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' "
+                                  "AND tbl_name = ? COLLATE NOCASE", (table,)).fetchall():
+        body = re.split(r"\bBEGIN\b", _LITERAL_OR_COMMENT.sub("''", sql), maxsplit=1, flags=re.I)[-1]
+        for statement in body.split(";"):
+            if not any(_unquoted(field).lower() in ids for field in _ROW_FIELD.findall(statement)):
+                continue
+            if re.match(r"\s*SELECT\b", statement, re.I):
+                continue  # writes nothing
+            target = _WRITE_TARGET.match(statement)
+            child = _unquoted(target.group(1)) if target else None
+            named = {_unquoted(word).lower() for word in re.findall(_NAME, statement)}
+            if not followed.get((child or "").lower(), set()) & named:
+                where = f"writes to {child}" if child else "writes somewhere this tool cannot read"
+                raise RuntimeError(f"--pack {table}: trigger {name} uses {table}'s id in a statement that {where} "
+                                   f"through no column the pack renumbers, so that link would keep the old ids; "
+                                   f"declare the column a FOREIGN KEY or add it to UNDECLARED_REFERENCES")
 
 
 def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> dict:
@@ -194,13 +270,21 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
 
     For a copy made with --pack, `renumbered` ({table: {new rowid: old}}) and
     `followed` ({table: {column: parent}}) map every renumbered id back, so the
-    copy must still match the source exactly. Rows are compared through a
+    copy must still match the source exactly. A followed column holding
+    anything but NULL or a new id - an old id the pack left behind - maps to a
+    marker no source row holds, so it differs. Rows are compared through a
     digest per row, sorted by (original) rowid."""
     renumbered, followed = renumbered or {}, followed or {}
     conn = sqlite3.connect(read_only_uri(path), uri=True)
     try:
         def unmap(table, rowid):
             return renumbered.get(table, {}).get(rowid, rowid)
+
+        def follow(parent, value):
+            if value is None:
+                return None
+            ids = renumbered.get(parent, {})
+            return ids[value] if value in ids else ("not renumbered", value)
 
         out = {
             "schema": sorted(conn.execute("SELECT type, name, tbl_name, sql FROM sqlite_master")),
@@ -228,7 +312,7 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
                 else:
                     row, offset = list(row), 0
                 for index, parent in remap.items():
-                    row[index + offset] = unmap(parent, row[index + offset])
+                    row[index + offset] = follow(parent, row[index + offset])
                 digest = hashlib.sha256()
                 for value in row:
                     if isinstance(value, bytes):
@@ -263,7 +347,9 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
                 raise RuntimeError(f"--pack {table}: no such table")
             if without[table]:
                 raise RuntimeError(f"--pack {table}: a WITHOUT ROWID table has no rowids to renumber")
-            for child, column in references_to(src, tables, table):
+            references = references_to(src, tables, table)
+            check_triggers(src, table, references)
+            for child, column in references:
                 orphans = src.execute(f'SELECT COUNT(*) FROM "{child}" WHERE "{column}" IS NOT NULL AND '
                                       f'"{column}" NOT IN (SELECT rowid FROM "{table}")').fetchone()[0]
                 if orphans:
@@ -323,6 +409,7 @@ def rebuild(source: Path, output: Path, pack=()) -> tuple:
                 dst.execute(f'INSERT INTO main."{name}" ({targets}) SELECT {", ".join(values)} '
                             f'FROM source."{name}" AS s ORDER BY s.rowid')
         # Indexes after the rows: building one over sorted data packs it.
+        # Triggers too, so AddBook adds no Bookshelf row for each .pdf copied.
         for (sql,) in others:
             dst.execute(sql)
         if has_sequence:
@@ -392,7 +479,8 @@ def main() -> None:
     p.add_argument("--pack", default=None, metavar="TABLE[,TABLE...]",
                    type=lambda value: [t.strip() for t in value.split(",") if t.strip()],
                    help="Insert these tables' rows in an order that fills their leaf pages, each taking the next "
-                        "AUTOINCREMENT id, with declared foreign keys following (e.g. Content,Tooltips)")
+                        "AUTOINCREMENT id, with declared foreign keys and UNDECLARED_REFERENCES following "
+                        "(e.g. Content,Tooltips)")
     args = p.parse_args()
     sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack}))
 

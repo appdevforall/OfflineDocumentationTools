@@ -20,6 +20,8 @@ file reserved bytes, so it must be on PATH.
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import sqlite3
 import subprocess
 import sys
@@ -197,6 +199,145 @@ def test_pack_refuses_a_table_that_does_not_exist(tmp_path):
     source, packed = _packable(tmp_path), tmp_path / "packed.db"
     assert rebuild.run({"source": source, "output": packed, "pack": ["Nope"]}) == 1
     assert not packed.exists()
+
+
+def _run_spoiled(source: Path, output: Path, sql: str, pack=()) -> tuple:
+    """run() with the copy changed by `sql` once it is written, as a bug in the
+    copy would change it; returns (exit code, what run() printed to stderr)."""
+    unpatched = rebuild.rebuild
+
+    def spoiled(src, out, pack=()):
+        maps = unpatched(src, out, pack)
+        with sqlite3.connect(out) as conn:
+            conn.executescript(sql)
+        return maps
+
+    rebuild.rebuild = spoiled
+    try:
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            code = rebuild.run({"source": source, "output": output, "pack": list(pack)})
+    finally:
+        rebuild.rebuild = unpatched
+    return code, err.getvalue()
+
+
+# documentation.db's own triggers, verbatim.
+ADD_BOOK = """CREATE TRIGGER AddBook AFTER INSERT ON Content WHEN NEW.path LIKE '%.pdf'
+BEGIN
+    INSERT INTO Bookshelf (contentID, title) VALUES (NEW.id, CURRENT_TIMESTAMP || NEW.id);
+END"""
+DELETE_BOOK = """CREATE TRIGGER DeleteBook AFTER DELETE ON Content WHEN OLD.path LIKE '%.pdf'
+BEGIN
+DELETE FROM Bookshelf WHERE contentID = OLD.id;
+END"""
+
+
+def _bookshelf(tmp_path: Path) -> Path:
+    """Content, Templates and Bookshelf as documentation.db has them -
+    Bookshelf.contentID and Content.templateId name rows through no FOREIGN
+    KEY - with Content rows that pack in another order than their ids (as
+    _packable's do), and a curated Bookshelf row for every .pdf."""
+    path = tmp_path / "bookshelf.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(f"""
+        PRAGMA page_size = 1024;
+        CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL,
+                                UNIQUE(name));
+        CREATE TABLE Content (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, content BLOB NOT NULL,
+                              templateId INTEGER NOT NULL DEFAULT 0, UNIQUE(path));
+        CREATE TABLE BookCategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category STRING,
+                                     description STRING DEFAULT '', UNIQUE(category));
+        CREATE TABLE Bookshelf (contentID INTEGER NOT NULL, title STRING DEFAULT '', description STRING DEFAULT '',
+                                bookCategoryID INTEGER, FOREIGN KEY (bookCategoryID) REFERENCES BookCategories(id),
+                                UNIQUE(title, bookCategoryId));
+        {ADD_BOOK};
+        {DELETE_BOOK};
+        INSERT INTO Templates (name, content) VALUES ('page.peb', x'01'), ('nav.peb', x'02');
+        INSERT INTO BookCategories (category) VALUES ('Java'), ('Kotlin');
+    """)
+    sizes = [560] * 40 + [400] * 40
+    conn.executemany("INSERT INTO Content (path, content, templateId) VALUES (?, ?, ?)",
+                     [(f"p{i}.{'pdf' if i % 5 == 0 else 'html'}", bytes([i % 251]) * size, 1 + i % 2)
+                      for i, size in enumerate(sizes)])
+    conn.execute("DELETE FROM Bookshelf")  # AddBook's placeholder rows, replaced by curated ones
+    conn.execute("INSERT INTO Bookshelf (contentID, title, description, bookCategoryID) "
+                 "SELECT id, 'Book ' || id, 'About ' || path, 1 + id % 2 FROM Content WHERE path LIKE '%.pdf'")
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _shelf(path: Path) -> list:
+    with sqlite3.connect(path) as conn:
+        return sorted(conn.execute("SELECT b.rowid, c.path, b.title, b.description, b.bookCategoryID "
+                                   "FROM Bookshelf b JOIN Content c ON c.id = b.contentID"))
+
+
+def test_pack_relinks_bookshelf_which_no_foreign_key_ties_to_content(tmp_path):
+    """Only the AddBook and DeleteBook triggers tie Bookshelf.contentID to
+    Content.id, so foreign_key_list cannot find it; packing Content must move
+    it to the new ids all the same, keep the rest of each row, and add no row
+    (the triggers must not fire while the rows are copied)."""
+    source, packed = _bookshelf(tmp_path), tmp_path / "packed.db"
+    shelf = _shelf(source)
+    assert len(shelf) == 16
+    assert rebuild.run({"source": source, "output": packed, "pack": ["Content"]}) == 0
+    assert _shelf(packed) == shelf
+    with sqlite3.connect(packed) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM Bookshelf").fetchone() == (len(shelf),)
+        assert conn.execute("SELECT MIN(id) FROM Content").fetchone() == (81,), "the ids did change"
+        # DeleteBook still finds a book's shelf row by its new id.
+        conn.execute("DELETE FROM Content WHERE path = 'p5.pdf'")
+        assert conn.execute("SELECT COUNT(*) FROM Bookshelf").fetchone() == (len(shelf) - 1,)
+
+
+def test_a_bookshelf_row_left_on_its_old_id_fails_the_run(tmp_path):
+    """The comparison must see a reference the pack missed: an old id names no
+    row of the copy, so it may not map back to a match."""
+    source, packed = _bookshelf(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        rowid, old_id = conn.execute("SELECT rowid, contentID FROM Bookshelf ORDER BY rowid LIMIT 1").fetchone()
+    code, err = _run_spoiled(source, packed, f"UPDATE Bookshelf SET contentID = {old_id} WHERE rowid = {rowid}",
+                             pack=["Content"])
+    assert code == 1 and "table Bookshelf" in err, err
+    assert not packed.exists()
+
+
+def test_pack_templates_relinks_content_templateid(tmp_path):
+    source, packed = _bookshelf(tmp_path), tmp_path / "packed.db"
+    query = "SELECT c.path, t.name FROM Content c JOIN Templates t ON t.id = c.templateId"
+    with sqlite3.connect(source) as conn:
+        pages = sorted(conn.execute(query))
+    assert len(pages) == 80
+    assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 0
+    with sqlite3.connect(packed) as conn:
+        assert sorted(conn.execute(query)) == pages
+        assert conn.execute("SELECT MIN(id) FROM Templates").fetchone() == (3,), "the ids did change"
+    # 0, "no template", names no row: refused like any other orphan.
+    with sqlite3.connect(source) as conn:
+        conn.execute("UPDATE Content SET templateId = 0 WHERE path = 'p1.html'")
+    assert rebuild.run({"source": source, "output": tmp_path / "again.db", "pack": ["Templates"]}) == 1
+
+
+def test_pack_refuses_a_table_whose_trigger_links_its_id_elsewhere(tmp_path):
+    """A trigger that stores or matches the id in a column no followed
+    reference covers is a link the pack would leave on the old ids."""
+    triggers = {
+        "LogPage": "CREATE TRIGGER LogPage AFTER INSERT ON Pages BEGIN INSERT INTO Log (pageId) VALUES (NEW.id); END",
+        "ForgetPage": 'CREATE TRIGGER "ForgetPage" AFTER DELETE ON Pages BEGIN '
+                      'DELETE FROM "Log" WHERE pageId = OLD.rowid; END',
+    }
+    for name, trigger in triggers.items():
+        directory = tmp_path / name
+        directory.mkdir()
+        source, packed = _packable(directory), directory / "packed.db"
+        with sqlite3.connect(source) as conn:
+            conn.execute("CREATE TABLE Log (pageId INTEGER)")
+            conn.execute(trigger)
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            assert rebuild.run({"source": source, "output": packed, "pack": ["Pages"]}) == 1
+        assert f"trigger {name} " in err.getvalue(), err.getvalue()
+        assert not packed.exists()
 
 
 if __name__ == "__main__":
