@@ -161,17 +161,17 @@ def test_a_copy_that_turns_null_into_an_empty_blob_is_deleted(tmp_path):
                                "UPDATE TooltipButtons SET description = x'' WHERE rowid = 40")
 
 
-def _packable(tmp_path: Path, orphan=False) -> Path:
+def _packable(tmp_path: Path, orphan=False, autoincrement=True) -> Path:
     """Pages whose rowid order packs badly - forty 560-byte rows, then forty
     400-byte ones, so each big row sits alone on a page where a small one
     would have fitted beside it - plus Links naming them by id through a
     declared foreign key."""
     path = tmp_path / "packable.db"
     conn = sqlite3.connect(path)
-    conn.executescript("""
+    conn.executescript(f"""
         PRAGMA page_size = 1024;
-        CREATE TABLE Pages (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, body BLOB NOT NULL,
-                            UNIQUE(path));
+        CREATE TABLE Pages (id INTEGER PRIMARY KEY{' AUTOINCREMENT' if autoincrement else ''}, path TEXT NOT NULL,
+                            body BLOB NOT NULL, UNIQUE(path));
         CREATE TABLE Links (pageId INTEGER, label TEXT, FOREIGN KEY(pageId) REFERENCES Pages(id));
     """)
     sizes = [560] * 40 + [400] * 40
@@ -224,6 +224,34 @@ def test_packed_ids_continue_after_the_old_sequence(tmp_path):
     with sqlite3.connect(packed) as conn:
         new_ids = sorted(row[0] for row in conn.execute("SELECT id FROM Pages"))
     assert new_ids == list(range(old_seq + 1, old_seq + 1 + len(old_ids))) and not set(new_ids) & old_ids
+
+
+def _pack_and_check_ids_follow_the_largest(source: Path, packed: Path) -> None:
+    with sqlite3.connect(source) as conn:
+        old_ids = sorted(row[0] for row in conn.execute("SELECT id FROM Pages"))
+    assert rebuild.run({"source": source, "output": packed, "pack": ["Pages"]}) == 0
+    with sqlite3.connect(packed) as conn:
+        new_ids = sorted(row[0] for row in conn.execute("SELECT id FROM Pages"))
+    assert new_ids == list(range(old_ids[-1] + 1, old_ids[-1] + 1 + len(old_ids))), (new_ids[0], old_ids[-1])
+    assert _pairs(packed) == _pairs(source)
+
+
+def test_packed_ids_continue_after_the_largest_id_when_the_sequence_lags(tmp_path):
+    """A hand-edited or cleared sqlite_sequence row can sit below the largest
+    id. AUTOINCREMENT then hands out the id after the largest, and so must
+    packing, or an old id would come to name a different row."""
+    source, packed = _packable(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("UPDATE sqlite_sequence SET seq = 10 WHERE name = 'Pages'")
+    _pack_and_check_ids_follow_the_largest(source, packed)
+    with sqlite3.connect(packed) as conn:
+        assert conn.execute("SELECT seq FROM sqlite_sequence WHERE name = 'Pages'").fetchone() == (160,)
+
+
+def test_packed_ids_continue_after_the_largest_id_without_autoincrement(tmp_path):
+    """A table with no AUTOINCREMENT has no sequence at all."""
+    source, packed = _packable(tmp_path, autoincrement=False), tmp_path / "packed.db"
+    _pack_and_check_ids_follow_the_largest(source, packed)
 
 
 def test_pack_refuses_a_table_with_orphaned_references(tmp_path):

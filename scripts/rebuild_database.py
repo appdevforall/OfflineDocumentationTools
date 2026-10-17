@@ -33,9 +33,10 @@ hand it, and links every reference to the ids handed out - what a fresh
 build does when it records each row's new id. A reference is a declared
 foreign key or a column listed in UNDECLARED_REFERENCES: Bookshelf.contentID
 names a Content row with no FOREIGN KEY, kept in step only by Content's
-AddBook and DeleteBook triggers. Ids continue after the old sequence, so an
-id can stop naming a row (one quoted in an old tooltip feedback email, say)
-but never come to name a different one. On the 2026-10-13 database Content
+AddBook and DeleteBook triggers. Ids continue after the old sequence or the
+largest id, whichever is higher, as AUTOINCREMENT's do, so an id can stop
+naming a row (one quoted in an old tooltip feedback email, say) but never
+come to name a different one. On the 2026-10-13 database Content
 goes from 19,158 leaf pages to 14,524 and Tooltips from 16,069 to 12,402. A
 table some row references without a match is refused, since that orphan's
 id could otherwise name a new row; so is a table with a trigger that ties
