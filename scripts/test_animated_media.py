@@ -607,5 +607,48 @@ def test_a_webm_keeps_its_manifest_entry_and_provenance(tmp_path):
     assert opt.read_manifest(second) == opt.read_manifest(first)
 
 
+def _convert_link_and_reinsert(tmp_path: Path, reinserted: bytes) -> tuple:
+    """demo.gif converted to demo.webm and its page rewritten to a <video>,
+    then a GIF put back at demo.gif by an author: (database, first manifest)."""
+    db_path, first, pre_conversion = tmp_path / "documentation.db", tmp_path / "first.tsv", tmp_path / "before.db"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                              ("a/page.html", "text/html", b'<img alt="Demo" src="media/demo.gif">')], WEBM_TYPES)
+    shutil.copy(db_path, pre_conversion)
+    assert opt.run(_webm_cfg(db_path, manifest_out=first)) == 0
+    assert ref.run({"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                    "verbose": False, "save_originals": None, "restore_originals": None}) == 0
+    assert b'src="media/demo.webm"' in _stored_media(db_path, "a/page")[2]
+    conn = sqlite3.connect(db_path)
+    conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES ('a/media/demo.gif', 1, ?, 11)",
+                 (reinserted,))
+    conn.commit()
+    conn.close()
+    return db_path, first
+
+
+def test_a_reinserted_gif_that_cannot_become_its_webm_again_is_left_alone(tmp_path):
+    """With transparency it can only become demo.webp. Writing that left the
+    page's demo.webm stale and demo.webp linked from nowhere, with exit 0."""
+    db_path, first = _convert_link_and_reinsert(tmp_path, _gradient_animation(clear_corner=True))
+    before, second = base._snapshot(db_path), tmp_path / "second.tsv"
+    errors = io.StringIO()
+    with contextlib.redirect_stderr(errors):
+        code = opt.run(_webm_cfg(db_path, manifest_in=first, manifest_out=second))
+    assert base._snapshot(db_path) == before, "a second output was written beside a/media/demo.webm"
+    assert code == 1
+    assert "a/media/demo.webm" in errors.getvalue() and "references" in errors.getvalue(), errors.getvalue()
+    assert "a/media/demo.gif" not in opt.read_manifest(second), "an errored row must be retried next time"
+
+
+def test_a_reinserted_gif_that_becomes_webm_again_replaces_its_webm(tmp_path):
+    db_path, first = _convert_link_and_reinsert(tmp_path, _gradient_animation(frames=12))
+    conn = sqlite3.connect(db_path)
+    (old_webm,) = conn.execute("SELECT content FROM Content WHERE path = 'a/media/demo.webm'").fetchone()
+    conn.close()
+    assert opt.run(_webm_cfg(db_path, manifest_in=first)) == 0
+    path, value, data = _stored_media(db_path, "a/media/demo")
+    assert (path, value) == ("a/media/demo.webm", "video/webm") and data != old_webm
+
+
 if __name__ == "__main__":
     sys.exit(base._main(globals()))

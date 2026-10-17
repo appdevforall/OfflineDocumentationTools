@@ -102,7 +102,13 @@ Re-running over a database someone else has edited (--manifest-out/--manifest-in
       manifest's provenance column and converted back over that same .webp,
       replacing it. Without that column the new .png would convert to a
       de-conflicted name like foo-png.webp, which nothing links to, while the
-      stale foo.webp every page still points at stayed put.
+      stale foo.webp every page still points at stayed put. That needs the
+      new file to come out in the same format: a GIF's output depends on its
+      content, so one that became foo.webm can come back with transparency
+      and only make foo.webp. A file that would land anywhere but over its
+      earlier output, while that output is still stored, is left as it is and
+      counted as an error, with what to do first: put the references to the
+      earlier output back, and delete it.
 
   Everything else in the manifest is skipped untouched. Rows that errored are
   deliberately left out, so a later run retries them.
@@ -1452,36 +1458,24 @@ def run(cfg: dict) -> int:
                 result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
                                         gifsicle_path=gifsicle_path, ffmpeg_path=ffmpeg_path,
                                         webm_blocked=webm_blocked)
-                if result is None:  # animated WEBP/APNG: deliberately left alone
-                    stats["skipped_animated"] += 1
-                    manifest_out[path] = (digest(stored_full), original_stored, None)
-                    continue
-                new_media, new_type = result
-                # A converted file is stored under the content type of the
-                # format actually produced, and compressed the way *that* type
-                # says to - not however the source happened to be stored.
-                new_type_id, new_compression = type_info.get(new_type, (content_type_id, compression))
-                new_stored = codec.compress(new_media, new_compression)
+                if result is not None:
+                    new_media, new_type = result
+                    # A converted file is stored under the content type of the
+                    # format actually produced, and compressed the way *that*
+                    # type says to - not however the source happened to be stored.
+                    new_type_id, new_compression = type_info.get(new_type, (content_type_id, compression))
+                    new_stored = codec.compress(new_media, new_compression)
             except Exception as exc:  # noqa: BLE001 - one bad image is not the whole run
                 stats["errors"] += 1
                 print(f"  error: failed to optimize {path}: {exc}", file=sys.stderr)
                 continue
 
-            stats["before"] += original_stored
-            if len(new_stored) >= original_stored:
-                # Never grow a file, and never rename one for no benefit. It is
-                # still recorded: it is in its final state, and a later run
-                # should not spend the work discovering that again.
-                stats["no_gain"] += 1
-                stats["after"] += original_stored
-                manifest_out[path] = (digest(stored_full), original_stored, recorded[2] if recorded else None)
-                continue
-
-            # Only a genuine format change renames anything: a file already
-            # stored under the type it was re-encoded to keeps its own path,
-            # whatever extension that path happens to use.
+            # Where this row's media ends up. Only a genuine format change that
+            # also gains renames anything: a file already stored under the type
+            # it was re-encoded to keeps its own path, whatever extension that
+            # path happens to use, and nothing is renamed for no benefit.
             replaces_stale = None
-            if new_type == value:
+            if result is None or len(new_stored) >= original_stored or new_type == value:
                 new_path = path
             else:
                 # An author who re-inserts a source image (a .png whose .webp
@@ -1493,12 +1487,47 @@ def run(cfg: dict) -> int:
                 # served.
                 natural = f"{path.rsplit('.', 1)[0]}{OUTPUT_EXTENSIONS[new_type]}"
                 if produced_from_source.get(path) == natural:
-                    new_path, replaces_stale = natural, natural
-                    # Marked whether or not we are writing, so a --dry-run
-                    # prediction matches what a real run would do.
-                    superseded.add(natural)
+                    new_path = replaces_stale = natural
                 else:
                     new_path = target_path(path, OUTPUT_EXTENSIONS[new_type], claimed)
+
+            # That reclaiming only works when the re-inserted file comes out
+            # where its earlier output is. A GIF's output depends on its
+            # content: demo.gif became demo.webm, its page a <video>, and
+            # re-inserted with transparency it can only be demo.webp. Writing
+            # that left the stale demo.webm still linked and demo.webp linked
+            # from nowhere, with a clean exit. Nothing here can move the
+            # references across, so the row is an error, left as it is.
+            previous = produced_from_source.get(path)
+            if previous is not None and new_path != previous and conn.execute(
+                    "SELECT 1 FROM Content WHERE path = ?", (previous,)).fetchone():
+                stats["errors"] += 1
+                outcome = f"keep it at {path}" if new_path == path else f"store it as {new_path}"
+                warn(f"  error: an earlier run converted {path} to {previous}, which is still here and is what "
+                     f"the pages link to; this run would {outcome}, a second copy linked from nowhere. Point "
+                     f"the references to {previous} back at {name} first (update_media_references.py "
+                     f"--restore-originals over that run's bundle), delete {previous}, then run this again.")
+                continue
+
+            if result is None:  # animated WEBP/APNG: deliberately left alone
+                stats["skipped_animated"] += 1
+                manifest_out[path] = (digest(stored_full), original_stored, None)
+                continue
+
+            stats["before"] += original_stored
+            if len(new_stored) >= original_stored:
+                # Never grow a file. It is still recorded: it is in its final
+                # state, and a later run should not spend the work discovering
+                # that again.
+                stats["no_gain"] += 1
+                stats["after"] += original_stored
+                manifest_out[path] = (digest(stored_full), original_stored, recorded[2] if recorded else None)
+                continue
+
+            if replaces_stale:
+                # Marked whether or not we are writing, so a --dry-run
+                # prediction matches what a real run would do.
+                superseded.add(replaces_stale)
             converted = new_path != path
             if not cfg["dry_run"]:
                 if replaces_stale:
