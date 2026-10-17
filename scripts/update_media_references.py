@@ -11,9 +11,10 @@
 """
 update_media_references.py
 
-Fixes up the references left dangling by optimize_db_media.py --webp, which
-converts stored media to WEBP under a new path/extension and deletes the old
-row without touching the pages that link to it. This script rewrites those
+Fixes up the references left dangling by optimize_db_media.py --webp, --webm
+and --video-webm, which convert stored media to WEBP or VP9 WebM under a new
+path/extension and delete the old row without touching the pages that link
+to it. This script rewrites those
 links, across every doc set, so pages stop pointing at filenames that no
 longer exist.
 
@@ -59,6 +60,12 @@ the run before anything is written. optimize_db_media.py --webm makes the
 same check before converting (names_not_convertible_to_video), so only a page
 edited between the two runs can trip it.
 
+A video converted to video (optimize_db_media.py --video-webm, H.264 to VP9
+WebM) is renamed like an image: <video src> and <source src> play WebM as
+they played MP4. The exception is a <source> that declares a type, which a
+browser checks before fetching the file: that tag is rewritten whole with its
+type set to video/webm. A <source> without a type is not given one.
+
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
 would change without writing. Decompression/recompression is parallelised
@@ -83,8 +90,9 @@ Putting the references back (--save-originals / --restore-originals):
   reference instead of a megabyte per page. The two digests bracket it: the
   "after" one identifies the row this run actually produced, and the "before"
   one is what undoing the edits has to reproduce. A whole-tag rewrite (an
-  <img> become a <video>) changes more than a name, so its site records the
-  old and the new tag in full instead (reference log v2).
+  <img> become a <video>, a <source> given a new type) changes more than a
+  name, so its site records the old and the new tag in full instead (reference
+  log v2).
 
   Reversing cannot be inferred from renames.tsv alone, which is why the
   offsets are recorded at all. Rewriting every "foo.webp" back to "foo.png"
@@ -129,8 +137,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from optimize_db_media import (
-    BrotliCodec, CHUNK_SIZE, backup_database, clear_fragment_slots, digest, is_continuation_path,
-    load_dictionary, owned_fragment_paths, reassemble, write_atomically,
+    BrotliCodec, CHUNK_SIZE, VIDEO_SOURCE_TYPES, backup_database, clear_fragment_slots, digest,
+    is_continuation_path, load_dictionary, owned_fragment_paths, reassemble, write_atomically,
 )
 
 # The two files this script contributes to optimize_db_media.py's rollback
@@ -182,15 +190,20 @@ TEXT_TYPES = ("text/html", "application/json", "text/css", "text/markdown",
 # --webm turns animated GIFs into VP9 WebM. A reference to one cannot simply be
 # renamed - an <img> does not play video - so its whole tag is rewritten.
 VIDEO_TYPES = ("video/webm",)
-VIDEO_EXTENSIONS = (".webm",)
+# optimize_db_media.py --video-webm converts H.264 video (VIDEO_SOURCE_TYPES)
+# into WebM as well. Video to video is a rename, as image to image is, with one
+# exception: a <source> declaring the old type (source_tag_to_webm).
+VIDEO_EXTENSIONS = (".webm", ".mp4", ".mov")
 # A "<path>-<N>" chunk continuation row, which vanishes with its base rather
 # than being renamed.
 _FRAGMENT_RE = re.compile(r"-\d+$")
-_MEDIA_WHERE = "(ct.value LIKE 'image/%' OR ct.value IN ({}))".format(", ".join(f"'{v}'" for v in VIDEO_TYPES))
+_MEDIA_WHERE = "(ct.value LIKE 'image/%' OR ct.value IN ({}))".format(
+    ", ".join(f"'{v}'" for v in VIDEO_TYPES + VIDEO_SOURCE_TYPES))
 
 
 def media_paths(conn) -> set:
-    """Every image or converted-to video path - the set a rename is diffed over."""
+    """Every image or video path a conversion can produce or remove - the set a
+    rename is diffed over."""
     return {
         row[0] for row in conn.execute(
             "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
@@ -283,6 +296,57 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
     parts.append("></video>")
     video = "".join(parts)
     return video.replace('"', '\\"') if escaped else video
+
+
+_SOURCE_TAG_RE = re.compile(r"<source\b", re.IGNORECASE)
+
+
+def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
+    """A <source> whose src names a video converted to WebM, with that name
+    and its type rewritten - or None when it declares no type to change, or
+    the converted video is not its src.
+
+    A browser decides by the type whether it can play a source before fetching
+    it, so one still saying video/mp4 would describe a WebM as MP4, and a
+    browser that cannot play MP4 would skip it unfetched. A <source> with no
+    type is chosen by fetching it, and is left with none: renaming its src is
+    enough.
+
+    Everything else in the tag stays as written, attribute order, quoting and
+    spacing included; only the renamed filenames and the type's value change.
+    Like img_tag_to_video it works on JSON-escaped markup, undoing the
+    escaping to parse the tag and applying it again to the result."""
+    escaped = '\\"' in tag
+    markup = tag.replace('\\"', '"') if escaped else tag
+    match = re.fullmatch(r"<source\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
+    if match is None:
+        return None
+    body, offset, attributes, position = match.group(1), match.start(1), {}, 0
+    while True:
+        attribute = _ATTRIBUTE_RE.match(body, position)
+        if attribute is None or attribute.end() == position:
+            break
+        attributes.setdefault(attribute.group(1).lower(), attribute)  # the first one counts, as in HTML
+        position = attribute.end()
+    src, kind = attributes.get("src"), attributes.get("type")
+    if body[position:].strip() or src is None or kind is None or src.group(2) is None or kind.group(2) is None:
+        return None
+    src_start, src_end = offset + src.start(2), offset + src.end(2)
+    if not any(is_video(m.group(1)) and is_video(renames[m.group(1)])
+               for m in pattern.finditer(markup, src_start, src_end)):
+        return None
+    type_start, type_end = offset + kind.start(2), offset + kind.end(2)
+    quote = kind.group(2)[0] if kind.group(2)[0] in "\"'" else ""
+    edits = [(type_start, type_end, f"{quote}video/webm{quote}")]
+    edits += [(m.start(), m.end(), renames[m.group(1)]) for m in pattern.finditer(markup)
+              if not type_start <= m.start() < type_end]
+    pieces, read = [], 0
+    for start, end, new in sorted(edits):
+        pieces += [markup[read:start], new]
+        read = end
+    pieces.append(markup[read:])
+    source = "".join(pieces)
+    return source.replace('"', '\\"') if escaped else source
 
 
 def check_same_lineage(conn, before_conn) -> str:
@@ -411,41 +475,53 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
     every substitution made - the offset being where the NEW name starts in
     new_text, which is what undo_rewrite needs to walk it back.
 
-    A file converted to video is referenced through its whole tag instead:
+    An image converted to video is referenced through its whole tag instead:
     the <img> becomes a <video> (img_tag_to_video) and its site is
     (offset, TagEdit) - every other renamed name inside that tag is rewritten
-    as part of it. A reference to a video that is not inside an <img> raises
-    UnconvertibleReference.
+    as part of it. A reference to such a video that is not inside an <img>
+    raises UnconvertibleReference.
+
+    A video converted to video is renamed like an image, wherever it is
+    referenced, except as the src of a <source> declaring a type: that tag is
+    a TagEdit too, its type set to video/webm (source_tag_to_webm).
 
     Still a single pass over the original text, so a replacement can never be
     re-matched by another; the output is assembled piece by piece instead of
     through pattern.sub purely so those offsets can be counted as it grows."""
     matches = list(pattern.finditer(text))
-    tags = {}
+    tags = {}  # {tag start: (tag end, the tag that replaces it)}
     for match in matches:
-        if is_video(renames[match.group(1)]):
-            span = enclosing_tag(text, match.start(), match.end())
-            if span is None or not _IMG_TAG_RE.match(text, span[0]):
-                context = text[max(0, match.start() - 60):match.end() + 20]
-                raise UnconvertibleReference(f"{match.group(1)} became {renames[match.group(1)]}, but it is "
-                                             f"referenced outside an <img> tag: {context!r}")
-            tags[span[0]] = span
-    edits = sorted([(start, end, None) for start, end in tags.values()]
+        old, new = match.group(1), renames[match.group(1)]
+        if not is_video(new):
+            continue
+        span = enclosing_tag(text, match.start(), match.end())
+        if is_video(old):
+            if span is not None and span[0] not in tags and _SOURCE_TAG_RE.match(text, span[0]):
+                source = source_tag_to_webm(text[span[0]:span[1]], pattern, renames)
+                if source is not None:
+                    tags[span[0]] = (span[1], source)
+            continue
+        if span is None or not _IMG_TAG_RE.match(text, span[0]):
+            context = text[max(0, match.start() - 60):match.end() + 20]
+            raise UnconvertibleReference(f"{old} became {new}, but it is referenced outside an <img> tag: "
+                                         f"{context!r}")
+        if span[0] not in tags:
+            tags[span[0]] = (span[1], img_tag_to_video(text[span[0]:span[1]], pattern, renames))
+    edits = sorted([(start, end, new_tag) for start, (end, new_tag) in tags.items()]
                    + [(m.start(), m.end(), m) for m in matches
-                      if not any(start <= m.start() < end for start, end in tags.values())],
-                   key=lambda edit: edit[0])
+                      if not any(start <= m.start() < end for start, (end, _tag) in tags.items())],
+                   key=lambda item: item[0])
     pieces, sites = [], []
     read = written = 0
-    for start, end, match in edits:
+    for start, end, edit in edits:
         pieces.append(text[read:start])
         written += start - read
-        if match is None:
-            old_tag = text[start:end]
-            new = img_tag_to_video(old_tag, pattern, renames)
-            sites.append((written, TagEdit(old_tag, new)))
+        if isinstance(edit, str):
+            new = edit
+            sites.append((written, TagEdit(text[start:end], new)))
         else:
-            new = renames[match.group(1)]
-            sites.append((written, match.group(1)))
+            new = renames[edit.group(1)]
+            sites.append((written, edit.group(1)))
         pieces.append(new)
         written += len(new)
         read = end

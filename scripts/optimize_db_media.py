@@ -44,8 +44,11 @@ Two modes:
     second generation of loss, which is what the originals are for. A row with
     no original there, or one whose original is not plausibly the same clip
     (see encode_video_webm), is left as it is and listed in the summary, never
-    re-encoded from the stored copy. Needs ffmpeg and ffprobe, and the
-    video/webm content type --webm needs.
+    re-encoded from the stored copy. Pages reference video by <video src> or
+    <source src>, which play WebM as well, so update_media_references.py only
+    renames those references, setting a <source>'s type to video/webm where it
+    has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
+    needs.
 
     NOTE: --webp does NOT rewrite the references that point at the old
     filenames, so pages will link to names that no longer exist until those
@@ -2037,7 +2040,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Convert every video/mp4 and video/quicktime row to VP9 WebM (15 fps, at most 480 px "
                         "wide), encoded from its original in --video-originals rather than from the stored "
                         "copy, and kept only when smaller. A row with no original there is left as it is and "
-                        "listed. Needs ffmpeg, ffprobe and a video/webm content type")
+                        "listed. Needs ffmpeg, ffprobe and a video/webm content type; run "
+                        "update_media_references.py afterwards to rename the references")
     p.add_argument("--video-originals", type=Path, default=None, metavar="DIR",
                    help="With --video-webm (and required by it): the directory holding each video row's "
                         "original under the row's own file name, e.g. DIR/foo.mp4 for a/devsite/media/foo.mp4")
