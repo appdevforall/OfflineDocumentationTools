@@ -302,6 +302,30 @@ def test_indexed_webp_reproduces_a_few_colour_animation_exactly():
     assert _same_on_the_timeline(source, out)
 
 
+def test_indexed_webp_keeps_colours_only_late_frames_show():
+    """The palette comes from frames spread over the whole animation. Taking
+    the first 16 of these 31 lost the green banner of frames 16-30, which came
+    out dark grey, and the blue mark only the last frame has."""
+    background = Image.new("RGB", (300, 150), (236, 236, 236))
+    ImageDraw.Draw(background).rectangle([8, 100, 250, 106], fill=(60, 60, 70))
+    images = []
+    for i in range(31):
+        frame = background.copy()
+        frame.paste(SQUARE, (4 + i * 8, 50, 28 + i * 8, 74))
+        if i >= 16:
+            frame.paste((40, 170, 60), (0, 0, 300, 20))
+        if i == 30:
+            frame.paste((30, 60, 200), (270, 120, 290, 140))
+        images.append(frame)
+    buffer = io.BytesIO()
+    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=[40] * 31, loop=2)
+    source = buffer.getvalue()
+    with Image.open(io.BytesIO(source)) as img:
+        frames, durations, _alpha = opt.animation_frames(img, 500)
+    out = opt.encode_indexed_webp(frames, durations, opt.webp_loop(img), 64)
+    assert _same_on_the_timeline(source, out)
+
+
 def test_webp_loop_counts_plays_where_gif_counts_repeats():
     def loop_of(**info):
         image = Image.new("RGB", (1, 1))

@@ -447,18 +447,31 @@ def encode_animated_webp(frames: list, durations: list, loop: int, quality: int)
     return buf.getvalue()
 
 
+def palette_sample(frames: list, limit: int = 16) -> list:
+    """Up to `limit` frames spread evenly from the first to the last: what
+    encode_indexed_webp chooses its one palette from.
+
+    Stepping by len // limit and keeping the first `limit` stopped at frame 15
+    for any animation of 17 to 31 frames - four of the 37 in the database - so
+    a colour shown only in the second half had no palette entry. A green banner
+    appearing in frames 16-30 of 31 came out dark grey."""
+    count = min(limit, len(frames))
+    return [frames[i * (len(frames) - 1) // max(1, count - 1)] for i in range(count)]
+
+
 def encode_indexed_webp(frames: list, durations: list, loop: int, colors: int) -> bytes:
     """Animated WebP quantized to `colors` colours and stored lossless.
 
     GIFs often use few colours, and lossless WebP stores a frame of 256 colours
     or fewer as palette indices, packing several pixels per byte at 16 or fewer.
-    One palette serves every frame - chosen from up to 16 frames spread across
-    the animation - so a colour cannot flicker between frames. No dithering:
-    dither noise defeats both the palette and the frame-to-frame prediction.
-    Over the 37 animated GIFs in the 2026-10-13 database, 64 colours came out
-    both smaller than lossy WebP and closer to the GIF (24.0 vs 28.0 MB)."""
+    One palette serves every frame - chosen from up to 16 frames spread evenly
+    over the animation, first and last included (palette_sample) - so a colour
+    cannot flicker between frames. No dithering: dither noise defeats both the
+    palette and the frame-to-frame prediction. Over the 37 animated GIFs in the
+    2026-10-13 database, 64 colours came out both smaller than lossy WebP and
+    closer to the GIF (24.0 vs 28.0 MB)."""
     method = Image.Quantize.LIBIMAGEQUANT if features.check_feature("libimagequant") else Image.Quantize.MEDIANCUT
-    sample = frames[::max(1, len(frames) // 16)][:16]
+    sample = palette_sample(frames)
     width, height = sample[0].size
     mosaic = Image.new("RGB", (width, height * len(sample)))
     for i, frame in enumerate(sample):
