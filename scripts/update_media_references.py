@@ -20,9 +20,14 @@ longer exist.
 
 How the rename map is derived - by diffing this database against the
 pre-conversion copy given as --before (the backup optimize_db_media.py makes
-for itself): an image path present there and gone here, whose directory and
-stem now hold a file with a different extension, was converted, and only
-those names are rewritten.
+for itself): a media path present there and gone here was converted, and only
+those names are rewritten. What each became is read from the optimizer's
+--manifest-out, passed as --manifest, whose converted-from column names the
+source of every file it produced. Without one, it is the one new file with
+the same directory and stem, which cannot follow a file the optimizer had to
+give another name (foo-mp4.webm, beside a foo.webm already stored); a removed
+file with no single replacement stops the run before anything is written,
+naming it.
 
 That diff is deliberate rather than inferring renames from this database
 alone. Inference - "for every stored <stem>.webp, treat <stem>.png as a name
@@ -35,9 +40,9 @@ link to a WEBP that has nothing to do with it. The diff cannot make that
 mistake, because a name only enters the map when a file really did leave.
 
 Why matching on the filename is safe here, rather than on the full stored
-path: the conversion changes only the extension, and references are written
-in whatever form each doc set happens to use - root-relative
-("/images/foo.png"), relative ("media/static_..._foo.gif",
+path: the conversion changes the filename and never the directory, and
+references are written in whatever form each doc set happens to use -
+root-relative ("/images/foo.png"), relative ("media/static_..._foo.gif",
 "./images/foo.gif"), or absolute URL - with no single form that maps onto
 Content.path. The filename is the one component every form shares. It's
 unambiguous in this database because no two images share a basename within a
@@ -132,13 +137,14 @@ import re
 import sqlite3
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 from optimize_db_media import (
     BrotliCodec, CHUNK_SIZE, VIDEO_SOURCE_TYPES, backup_database, clear_fragment_slots, digest,
-    is_continuation_path, load_dictionary, owned_fragment_paths, reassemble, write_atomically,
+    is_continuation_path, load_dictionary, owned_fragment_paths, read_manifest, reassemble, write_atomically,
 )
 
 # The two files this script contributes to optimize_db_media.py's rollback
@@ -388,10 +394,30 @@ class AmbiguousRename(ValueError):
         super().__init__(f"{len(conflicts)} filename(s) were converted differently in different places")
 
 
-def build_rename_map(conn, before_conn, logger=print) -> dict:
-    """{old_basename: new_basename} for every image that left `before_conn`
-    and came back under a different extension here. See the module docstring
-    for why this is a diff rather than an inference.
+class UnresolvedRename(ValueError):
+    """Media files that left with no one file to say what replaced them.
+    Rewriting their references would mean guessing, and a guess either
+    leaves the pages naming a deleted file or points them at the wrong one.
+    `paths` lists them."""
+
+    def __init__(self, paths: list):
+        self.paths = paths
+        super().__init__(f"{len(paths)} removed media file(s) have no single replacement")
+
+
+def build_rename_map(conn, before_conn, manifest: dict = None) -> dict:
+    """{old_basename: new_basename} for every image or video that left
+    `before_conn` and was replaced by a converted file here. See the module
+    docstring for why this is a diff rather than an inference.
+
+    Each file that left is paired with its replacement through `manifest`, the
+    optimizer's --manifest-out ({stored path: (sha256, size, converted-from)}),
+    when there is one: its converted-from column names the source of every
+    file it produced. Without it, the pairing is by directory and stem, which
+    fails whenever the optimizer had to pick another name: beside a stored
+    foo.webm, foo.mp4 became foo-mp4.webm, whose stem is not its own; and
+    where foo.gif became foo.webm, foo.mp4 claims that file too. A new file
+    claimed by two that left pairs with neither.
 
     Chunk continuation rows ("<path>-2") are skipped on both sides: an old
     one disappears because its base was rewritten, which is a deletion, not a
@@ -406,23 +432,32 @@ def build_rename_map(conn, before_conn, logger=print) -> dict:
     a/x/foo.gif became foo.webm while b/y/foo.gif became foo.webp, or stayed a
     GIF. The first rename used to win, sending b's pages to y/foo.webm, which
     does not exist. Same-named files converted alike are agreement, not a
-    conflict; anything else raises AmbiguousRename naming every path. A
-    filename that only left with no single replacement is noted and left out:
-    with no entry, nothing is rewritten."""
+    conflict; anything else raises AmbiguousRename naming every path. A file
+    that left with no replacement raises UnresolvedRename: a note, as it
+    used to be, let the run end cleanly with its pages naming a deleted file."""
     before, after = media_paths(before_conn), media_paths(conn)
     gone = {p for p in before - after if not _FRAGMENT_RE.search(p)}
-    by_stem = {}
-    for path in after - before:
-        if not _FRAGMENT_RE.search(path):
-            by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
+    if manifest is not None:
+        # The replacement may have been stored before as well: a re-inserted
+        # source converts over the output an earlier run made from it.
+        produced = {source: path for path, (_sha, _size, source) in manifest.items() if source}
+        replacement = {old: produced[old] for old in gone if produced.get(old) in after}
+    else:
+        by_stem = {}
+        for path in after - before:
+            if not _FRAGMENT_RE.search(path):
+                by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
+        candidates = {old: by_stem.get(old.rsplit(".", 1)[0], []) for old in gone}
+        claims = Counter(found[0] for found in candidates.values() if len(found) == 1)
+        replacement = {old: found[0] for old, found in candidates.items() if len(found) == 1 and claims[found[0]] == 1}
 
     # {old filename: {path holding it before: new filename, or None if it did not convert}}
     outcomes, unresolved = {}, []
     for old_path in sorted(gone):
-        candidates = by_stem.get(old_path.rsplit(".", 1)[0], [])
-        if len(candidates) != 1:
+        new_path = replacement.get(old_path)
+        if new_path is None:
             unresolved.append(old_path)
-        new_name = candidates[0].rsplit("/", 1)[-1] if len(candidates) == 1 else None
+        new_name = new_path.rsplit("/", 1)[-1] if new_path else None
         outcomes.setdefault(old_path.rsplit("/", 1)[-1], {})[old_path] = new_name
     for path in sorted(after):
         name = path.rsplit("/", 1)[-1]
@@ -443,8 +478,7 @@ def build_rename_map(conn, before_conn, logger=print) -> dict:
     if conflicts:
         raise AmbiguousRename(conflicts)
     if unresolved:
-        logger(f"note: {len(unresolved)} removed image(s) had no unambiguous replacement and are "
-               f"not being rewritten (e.g. {unresolved[0]})")
+        raise UnresolvedRename(unresolved)
     return renames
 
 
@@ -775,6 +809,13 @@ def run(cfg: dict) -> int:
     if not before_path.is_file():
         print(f"error: --before database {before_path} does not exist", file=sys.stderr)
         return 1
+    manifest = None
+    if cfg.get("manifest") is not None:
+        try:
+            manifest = read_manifest(cfg["manifest"])
+        except (OSError, RuntimeError) as exc:
+            print(f"error: cannot read --manifest {cfg['manifest']}: {exc}", file=sys.stderr)
+            return 1
 
     conn = sqlite3.connect(db_path)
     before_conn = sqlite3.connect(before_path)
@@ -788,7 +829,17 @@ def run(cfg: dict) -> int:
             return 1
         codec = BrotliCodec(load_dictionary(conn))
         try:
-            renames = build_rename_map(conn, before_conn)
+            renames = build_rename_map(conn, before_conn, manifest)
+        except UnresolvedRename as exc:
+            for path in exc.paths:
+                print(f"  error: {path}", file=sys.stderr)
+            remedy = ("the manifest records no conversion of them into a file stored here; pass the "
+                      "--manifest-out of the optimizer run that converted them" if manifest is not None else
+                      "pass the optimizer's --manifest-out as --manifest, which records what each file was "
+                      "converted from")
+            print(f"error: {exc}, so their references cannot be rewritten without guessing; nothing was "
+                  f"rewritten. To pair them, {remedy}.", file=sys.stderr)
+            return 1
         except AmbiguousRename as exc:
             for name, fates in sorted(exc.conflicts.items()):
                 print(f"  error: {name}: {'; '.join(fates)}", file=sys.stderr)
@@ -1180,6 +1231,11 @@ def main() -> None:
                    help="The pre-conversion copy of this database (the backup optimize_db_media.py wrote), "
                         "diffed against it to learn exactly which files were renamed. Required unless "
                         "--restore-originals is given")
+    p.add_argument("--manifest", type=Path, default=None, metavar="PATH",
+                   help="The optimizer's --manifest-out from the same run. Each removed file is paired with "
+                        "the file converted from it, as the manifest records, rather than by directory and "
+                        "stem, which cannot follow a file the optimizer had to give another name "
+                        "(foo-mp4.webm beside an existing foo.webm)")
     p.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
     p.add_argument("--workers", type=int, default=8,
                    help="Parallel (de)compression workers (default: 8)")
@@ -1203,7 +1259,8 @@ def main() -> None:
                 "only --restore-originals can go without it")
     cfg = {"db_path": args.db_path, "before": args.before, "dry_run": args.dry_run,
            "workers": args.workers, "verbose": args.verbose, "force_restore": args.force_restore,
-           "save_originals": args.save_originals, "restore_originals": args.restore_originals}
+           "save_originals": args.save_originals, "restore_originals": args.restore_originals,
+           "manifest": args.manifest}
     sys.exit(restore_references(cfg) if args.restore_originals is not None else run(cfg))
 
 

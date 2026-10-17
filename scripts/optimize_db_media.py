@@ -2185,7 +2185,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest-out", type=Path, default=None, metavar="PATH",
                    help="After a successful run, write a text manifest of every media file this tool "
                         "manages - its stored size, a digest, and what it was converted from. Feed it "
-                        "back as --manifest-in on a later run")
+                        "back as --manifest-in on a later run, and to update_media_references.py as "
+                        "--manifest, which pairs each converted file with its source through it")
     p.add_argument("--manifest-in", type=Path, default=None, metavar="PATH",
                    help="A manifest from an earlier run. Media matching it byte for byte is left alone "
                         "instead of being re-encoded (which would lose quality each time), while new or "

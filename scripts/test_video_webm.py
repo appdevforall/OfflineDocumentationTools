@@ -413,6 +413,65 @@ def test_the_rename_map_follows_video_into_webm(tmp_path):
         assert ref.build_rename_map(after, before) == {"clip.mp4": "clip.webm", "bias.mov": "bias.webm"}
 
 
+def _reference_cfg(db_path: Path, before: Path, **overrides) -> dict:
+    return {"db_path": db_path, "before": before, "dry_run": False, "workers": 2, "verbose": False,
+            "save_originals": None, "restore_originals": None, **overrides}
+
+
+def test_a_video_whose_webm_name_was_taken_is_paired_through_the_manifest(tmp_path):
+    """wide.webm was stored beside wide.mp4 already, the layout
+    drop_ogv_videos.py describes, so the optimizer stored the new WebM as
+    wide-mp4.webm. Paired by stem, wide.mp4 had no replacement, and its page
+    kept naming the deleted file with only a note. The optimizer's manifest
+    says what each file was converted from; without it the run is refused."""
+    page = (b'<video><source src="media/wide.mp4" type="video/mp4"/>'
+            b'<source src="media/wide.webm" type="video/webm"/></video>')
+    db_path, originals = _scene(tmp_path, [("a/media/wide.webm", "video/webm", b"\x1aE\xdf\xa3 stored before"),
+                                           ("a/page.html", "text/html", page)])
+    pre_conversion, manifest = tmp_path / "before.db", tmp_path / "manifest.tsv"
+    shutil.copy(db_path, pre_conversion)
+    assert opt.run(_video_cfg(db_path, originals, manifest_out=manifest)) == 0
+    assert "a/media/wide-mp4.webm" in base._snapshot(db_path)
+    converted = base._snapshot(db_path)
+
+    code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion))
+    assert (code, base._snapshot(db_path)) == (1, converted), output
+    assert "a/media/wide.mp4" in output and "--manifest" in output, output
+
+    code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion, manifest=manifest))
+    assert code == 0, output
+    assert animated._stored_media(db_path, "a/page")[2] == (
+        b'<video><source src="media/wide-mp4.webm" type="video/webm"/>'
+        b'<source src="media/wide.webm" type="video/webm"/></video>')
+
+
+def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
+    """foo.gif became foo.webm, so foo.mp4's WebM is foo-mp4.webm. Paired by
+    stem, both old names claimed foo.webm, and the page would have shown the
+    GIF's animation in place of the video. Through the manifest each finds its
+    own file; without it the run is refused rather than guess."""
+    page = ("a/page.html", "text/html",
+            b'<img alt="Spin" src="m/foo.gif"><video><source src="m/foo.mp4" type="video/mp4"/></video>')
+    before_path, db_path, manifest = tmp_path / "before.db", tmp_path / "documentation.db", tmp_path / "manifest.tsv"
+    types = VIDEO_TYPES + [(11, "image/gif", "none")]
+    animated._build_database(before_path, [("a/m/foo.gif", "image/gif", b"GIF89a"),
+                                           ("a/m/foo.mp4", "video/mp4", b"mp4"), page], types)
+    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", b"\x1aE\xdf\xa3 from the gif"),
+                                       ("a/m/foo-mp4.webm", "video/webm", b"\x1aE\xdf\xa3 from the mp4"), page], types)
+    opt.write_manifest(manifest, {"a/m/foo.webm": ("0" * 64, 18, "a/m/foo.gif"),
+                                  "a/m/foo-mp4.webm": ("1" * 64, 18, "a/m/foo.mp4")})
+
+    code, output = _call(ref.run, _reference_cfg(db_path, before_path))
+    assert code == 1 and "a/m/foo.gif" in output and "a/m/foo.mp4" in output, output
+    assert animated._stored_media(db_path, "a/page")[2] == page[2], "rewritten with no pairing"
+
+    code, output = _call(ref.run, _reference_cfg(db_path, before_path, manifest=manifest))
+    assert code == 0, output
+    assert animated._stored_media(db_path, "a/page")[2] == (
+        b'<video autoplay loop muted playsinline role="img" aria-label="Spin" src="m/foo.webm"></video>'
+        b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
+
+
 def test_convert_rewrite_then_restore_reproduces_the_database(tmp_path):
     """The pipeline over video: each clip becomes WebM, every kind of reference
     follows - a <source> with a type and one without, a <video src>, a link,
