@@ -122,6 +122,45 @@ def test_a_copy_that_differs_is_deleted(tmp_path):
     assert not output.exists()
 
 
+def _a_spoiled_copy_is_deleted(tmp_path: Path, table: str, sql: str, source_sql: str = "") -> None:
+    """The run fails naming `table`, and keeps no copy, when `sql` changes the
+    copy after it is written; `source_sql` first sets up the source."""
+    source, output = _source(tmp_path), tmp_path / "rebuilt.db"
+    if source_sql:
+        with sqlite3.connect(source) as conn:
+            conn.executescript(source_sql)
+    code, err = _run_spoiled(source, output, sql)
+    assert code == 1 and f"table {table}" in err, err
+    assert not output.exists()
+
+
+def test_a_copy_with_an_altered_value_is_deleted(tmp_path):
+    """Same rows, same rowids, one value changed."""
+    _a_spoiled_copy_is_deleted(tmp_path, "TooltipButtons",
+                               "UPDATE TooltipButtons SET description = 'One' WHERE rowid = 3")
+
+
+def test_a_copy_with_values_swapped_between_rows_is_deleted(tmp_path):
+    """Every value still there, on the wrong row - what a wrong id map does."""
+    _a_spoiled_copy_is_deleted(tmp_path, "TooltipButtons",
+                               "UPDATE TooltipButtons SET description = CASE rowid WHEN 3 THEN 'points nowhere' "
+                               "ELSE 'one' END WHERE rowid IN (3, 41)")
+
+
+def test_a_copy_that_turns_an_integer_into_text_is_deleted(tmp_path):
+    """5 and '5' print alike, and a column with no affinity (BLOB here) keeps
+    either as given."""
+    _a_spoiled_copy_is_deleted(tmp_path, "Content", "UPDATE Content SET content = '5' WHERE id = 9",
+                               source_sql="UPDATE Content SET content = 5 WHERE id = 9")
+
+
+def test_a_copy_that_turns_null_into_an_empty_blob_is_deleted(tmp_path):
+    """Both have no bytes; a digest of hex() or of COALESCE(value, x'') would
+    see them alike."""
+    _a_spoiled_copy_is_deleted(tmp_path, "TooltipButtons",
+                               "UPDATE TooltipButtons SET description = x'' WHERE rowid = 40")
+
+
 def _packable(tmp_path: Path, orphan=False) -> Path:
     """Pages whose rowid order packs badly - forty 560-byte rows, then forty
     400-byte ones, so each big row sits alone on a page where a small one
