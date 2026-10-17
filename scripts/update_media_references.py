@@ -41,10 +41,23 @@ in whatever form each doc set happens to use - root-relative
 Content.path. The filename is the one component every form shares. It's
 unambiguous in this database because no two images share a basename within a
 doc set, and no converted basename collides with an image that was left
-alone (both verified before this was written). Matches are still anchored so
+alone (both verified before this was written). The optimizer picks each
+file's output on its own, though - an animated GIF can become WebM, WebP or
+stay a GIF - so every run checks it again: a filename converted one way in one
+directory and another way, or not at all, in another stops the run before
+anything is written, naming the paths. Matches are still anchored so
 a filename only counts when it appears as a reference - not as a substring
 of a longer name ("my_copy.png" when rewriting "copy.png") and not with
 trailing junk.
+
+A file converted to video (optimize_db_media.py --webm) cannot just be
+renamed, because an <img> does not play video. Each reference to one is
+rewritten as a whole tag: the <img> becomes <video autoplay loop muted
+playsinline>, its alt becomes aria-label, and every other attribute is carried
+over. A reference anywhere else - a CSS url(), a link, a JSON string - stops
+the run before anything is written. optimize_db_media.py --webm makes the
+same check before converting (names_not_convertible_to_video), so only a page
+edited between the two runs can trip it.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
@@ -69,7 +82,9 @@ Putting the references back (--save-originals / --restore-originals):
   the name used to be describes the edit exactly, in tens of bytes per
   reference instead of a megabyte per page. The two digests bracket it: the
   "after" one identifies the row this run actually produced, and the "before"
-  one is what undoing the edits has to reproduce.
+  one is what undoing the edits has to reproduce. A whole-tag rewrite (an
+  <img> become a <video>) changes more than a name, so its site records the
+  old and the new tag in full instead (reference log v2).
 
   Reversing cannot be inferred from renames.tsv alone, which is why the
   offsets are recorded at all. Rewriting every "foo.webp" back to "foo.png"
@@ -104,11 +119,13 @@ Putting the references back (--save-originals / --restore-originals):
 from __future__ import annotations
 
 import argparse
+import base64
 import re
 import sqlite3
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 from optimize_db_media import (
@@ -124,9 +141,13 @@ BUNDLE_RENAMES = "renames.tsv"
 BUNDLE_REFERENCES = "references.tsv"
 RENAMES_HEADER = "# update_media_references rename map v1"
 RENAMES_COLUMNS = "# old-filename\tnew-filename"
-REFERENCES_HEADER = "# update_media_references reference-edit log v1"
-REFERENCES_COLUMNS = ("# sha256-before\tsha256-after\tpath\tsites (offset:old-filename, comma-separated;"
-                      " offsets index the rewritten text)")
+# v2 adds whole-tag sites, written offset::<old tag>:<new tag> with both tags
+# in URL-safe base64 - an alphabet without the ",", ":", tab or newline the
+# format reserves, which the tags' own text (alt text, inline styles) is free to
+# contain. A v1 log is a v2 log with no tag sites, so both read the same way.
+REFERENCES_HEADER = "# update_media_references reference-edit log v2"
+REFERENCES_COLUMNS = ("# sha256-before\tsha256-after\tpath\tsites (offset:old-filename or "
+                      "offset::base64-old-tag:base64-new-tag, comma-separated; offsets index the rewritten text)")
 # Characters a filename may not contain for these files to stay parseable.
 # TSV_RESERVED breaks any column of either file; SITE_RESERVED additionally
 # covers the separators inside the sites field, which only old filenames go
@@ -157,18 +178,111 @@ SITE_RESERVED = (",", ":") + TSV_RESERVED
 # "javax.imageio.plugins.jpeg", a Java package name in j/html/api/element-list.
 TEXT_TYPES = ("text/html", "application/json", "text/css", "text/markdown",
               "text/javascript", "application/xml")
+# What a converted file can become besides an image: optimize_db_media.py
+# --webm turns animated GIFs into VP9 WebM. A reference to one cannot simply be
+# renamed - an <img> does not play video - so its whole tag is rewritten.
+VIDEO_TYPES = ("video/webm",)
+VIDEO_EXTENSIONS = (".webm",)
 # A "<path>-<N>" chunk continuation row, which vanishes with its base rather
 # than being renamed.
 _FRAGMENT_RE = re.compile(r"-\d+$")
+_MEDIA_WHERE = "(ct.value LIKE 'image/%' OR ct.value IN ({}))".format(", ".join(f"'{v}'" for v in VIDEO_TYPES))
 
 
-def image_paths(conn) -> set:
+def media_paths(conn) -> set:
+    """Every image or converted-to video path - the set a rename is diffed over."""
     return {
         row[0] for row in conn.execute(
             "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-            "WHERE ct.value LIKE 'image/%'"
+            f"WHERE {_MEDIA_WHERE}"
         )
     }
+
+
+class UnconvertibleReference(ValueError):
+    """A reference to a file converted to video that no <video> tag can
+    replace: a CSS url(), a link, a JSON string, or an <img> using srcset.
+    Rewriting the filename alone would leave it pointing at a video it cannot
+    show, so the run refuses instead."""
+
+
+@dataclass(frozen=True)
+class TagEdit:
+    """A whole tag a rewrite replaced: `old` as it was, `new` as written. Kept
+    in full, unlike a filename site, because the rewrite changes far more than
+    the name, and recording both makes undoing a check-and-swap rather than a
+    re-derivation that a later rename-map change could make disagree."""
+    old: str
+    new: str
+
+
+_IMG_TAG_RE = re.compile(r"<img\b", re.IGNORECASE)
+_ATTRIBUTE_RE = re.compile(r"""\s*([^\s"'=<>/]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?""")
+
+
+def enclosing_tag(text: str, start: int, end: int):
+    """(tag start, tag end) of the markup tag a reference at text[start:end]
+    sits inside, or None when it is not inside one (CSS, JSON keys, prose)."""
+    opening = text.rfind("<", 0, start)
+    if opening == -1 or text.rfind(">", opening, start) != -1:
+        return None
+    closing = text.find(">", end)
+    if closing == -1 or text.find("<", end, closing) != -1:
+        return None
+    return opening, closing + 1
+
+
+def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
+    """The <video> that replaces an <img> showing a converted animation.
+
+    autoplay, loop, muted and playsinline make it behave like the GIF it was:
+    playing by itself, forever, in the page. Muted is also what lets it start
+    without a user gesture. Every attribute is carried over in order, with any
+    renamed filename in it rewritten, except alt, which <video> does not have:
+    a non-empty one becomes role="img" plus aria-label, so a screen reader
+    still describes the animation, and an empty one - "decorative" - becomes
+    aria-hidden. The role is what makes the label count: on Android's WebView
+    (Pixel 6 Pro, WebView 155) a <video>'s aria-label alone reached the
+    accessibility tree as an empty node, while with role="img" it was the
+    node's content description. srcset and sizes are refused rather than
+    dropped, since they name other files.
+
+    Works on the tag as written, including inside a JSON string, where Kotlin's
+    templated pages carry their markup with every quote escaped as \\": the
+    escaping is undone to parse the tag and applied again to the result."""
+    escaped = '\\"' in tag
+    markup = tag.replace('\\"', '"') if escaped else tag
+    match = re.fullmatch(r"<img\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
+    if match is None:
+        raise UnconvertibleReference(f"not an <img> tag: {tag[:120]!r}")
+    body, attributes, position = match.group(1), [], 0
+    while True:
+        attribute = _ATTRIBUTE_RE.match(body, position)
+        if attribute is None or attribute.end() == position:
+            break
+        attributes.append((attribute.group(1), attribute.group(2)))
+        position = attribute.end()
+    if body[position:].strip():
+        raise UnconvertibleReference(f"cannot parse the attributes of {tag[:120]!r}")
+
+    parts = ["<video autoplay loop muted playsinline"]
+    for name, value in attributes:
+        key = name.lower()
+        if key in ("srcset", "sizes"):
+            raise UnconvertibleReference(f"<img> with {key} names files a <video> cannot: {tag[:120]!r}")
+        if key == "alt":
+            text_value = value[1:-1] if value and value[0] in "\"'" else (value or "")
+            if text_value.strip():
+                parts.append(' role="img"')
+                name = "aria-label"
+            else:
+                name, value = "aria-hidden", '"true"'
+        elif value is not None:
+            value = pattern.sub(lambda m: renames[m.group(1)], value)
+        parts.append(f" {name}" if value is None else f" {name}={value}")
+    parts.append("></video>")
+    video = "".join(parts)
+    return video.replace('"', '\\"') if escaped else video
 
 
 def check_same_lineage(conn, before_conn) -> str:
@@ -187,7 +301,7 @@ def check_same_lineage(conn, before_conn) -> str:
     def pages(c):
         return {r[0] for r in c.execute(
             "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-            "WHERE ct.value NOT LIKE 'image/%'")}
+            f"WHERE NOT {_MEDIA_WHERE}")}
 
     here, there = pages(conn), pages(before_conn)
     if not there:
@@ -199,35 +313,71 @@ def check_same_lineage(conn, before_conn) -> str:
     return ""
 
 
+class AmbiguousRename(ValueError):
+    """A filename the conversion did not treat the same way everywhere it is
+    stored. References are matched by filename alone, so one rename for it
+    would point some pages at a file their directory does not hold.
+    `conflicts` is {filename: [what happened at each path that has it]}."""
+
+    def __init__(self, conflicts: dict):
+        self.conflicts = conflicts
+        super().__init__(f"{len(conflicts)} filename(s) were converted differently in different places")
+
+
 def build_rename_map(conn, before_conn, logger=print) -> dict:
     """{old_basename: new_basename} for every image that left `before_conn`
     and came back under a different extension here. See the module docstring
     for why this is a diff rather than an inference.
 
-    Chunk continuation rows ("<path>-2") are skipped: they disappear because
-    their base was rewritten, which is a deletion, not a rename. Anything
-    whose stem gained no replacement, or gained an ambiguous one, is reported
-    and left out rather than guessed at."""
-    before, after = image_paths(before_conn), image_paths(conn)
+    Chunk continuation rows ("<path>-2") are skipped on both sides: an old
+    one disappears because its base was rewritten, which is a deletion, not a
+    rename, and a new one belongs to a new file rather than being one. Missing
+    the new side once made a converted file over CHUNK_SIZE look like two
+    replacements - "foo.webm" and "foo.webm-1" share the stem "foo" - so its
+    references were left naming the deleted original.
+
+    The map is keyed by filename, as references are matched, so a converted
+    filename must have had one outcome at every path that holds it. The
+    optimizer picks the output per file, so two same-named GIFs can part ways:
+    a/x/foo.gif became foo.webm while b/y/foo.gif became foo.webp, or stayed a
+    GIF. The first rename used to win, sending b's pages to y/foo.webm, which
+    does not exist. Same-named files converted alike are agreement, not a
+    conflict; anything else raises AmbiguousRename naming every path. A
+    filename that only left with no single replacement is noted and left out:
+    with no entry, nothing is rewritten."""
+    before, after = media_paths(before_conn), media_paths(conn)
     gone = {p for p in before - after if not _FRAGMENT_RE.search(p)}
     by_stem = {}
     for path in after - before:
-        by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
+        if not _FRAGMENT_RE.search(path):
+            by_stem.setdefault(path.rsplit(".", 1)[0], []).append(path)
 
-    renames, unresolved = {}, []
+    # {old filename: {path holding it before: new filename, or None if it did not convert}}
+    outcomes, unresolved = {}, []
     for old_path in sorted(gone):
         candidates = by_stem.get(old_path.rsplit(".", 1)[0], [])
         if len(candidates) != 1:
             unresolved.append(old_path)
+        new_name = candidates[0].rsplit("/", 1)[-1] if len(candidates) == 1 else None
+        outcomes.setdefault(old_path.rsplit("/", 1)[-1], {})[old_path] = new_name
+    for path in sorted(after):
+        name = path.rsplit("/", 1)[-1]
+        if name in outcomes and not _FRAGMENT_RE.search(path):
+            outcomes[name][path] = None  # still stored under the old name
+
+    renames, conflicts = {}, {}
+    for name, by_path in outcomes.items():
+        converted = {new for new in by_path.values() if new is not None}
+        if not converted:
             continue
-        old_name = old_path.rsplit("/", 1)[-1]
-        new_name = candidates[0].rsplit("/", 1)[-1]
-        # Two doc sets can hold same-named files; both convert to the same new
-        # name, so an identical mapping is agreement, not a conflict.
-        if renames.get(old_name, new_name) != new_name:
-            unresolved.append(old_path)
+        if len(set(by_path.values())) == 1:
+            renames[name] = converted.pop()
             continue
-        renames[old_name] = new_name
+        conflicts[name] = [f"{path} -> {new}" if new else
+                           f"{path} {'not converted' if path in after else 'removed with no single replacement'}"
+                           for path, new in sorted(by_path.items())]
+    if conflicts:
+        raise AmbiguousRename(conflicts)
     if unresolved:
         logger(f"note: {len(unresolved)} removed image(s) had no unambiguous replacement and are "
                f"not being rewritten (e.g. {unresolved[0]})")
@@ -252,25 +402,53 @@ def build_pattern(renames: dict) -> re.Pattern:
     return re.compile(rf"(?<=[/\"'(=])({body})(?![A-Za-z0-9_])")
 
 
+def is_video(name: str) -> bool:
+    return name.lower().endswith(VIDEO_EXTENSIONS)
+
+
 def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
     """Returns (new_text, sites), where sites is [(offset, old_filename)] for
     every substitution made - the offset being where the NEW name starts in
     new_text, which is what undo_rewrite needs to walk it back.
 
+    A file converted to video is referenced through its whole tag instead:
+    the <img> becomes a <video> (img_tag_to_video) and its site is
+    (offset, TagEdit) - every other renamed name inside that tag is rewritten
+    as part of it. A reference to a video that is not inside an <img> raises
+    UnconvertibleReference.
+
     Still a single pass over the original text, so a replacement can never be
     re-matched by another; the output is assembled piece by piece instead of
     through pattern.sub purely so those offsets can be counted as it grows."""
+    matches = list(pattern.finditer(text))
+    tags = {}
+    for match in matches:
+        if is_video(renames[match.group(1)]):
+            span = enclosing_tag(text, match.start(), match.end())
+            if span is None or not _IMG_TAG_RE.match(text, span[0]):
+                context = text[max(0, match.start() - 60):match.end() + 20]
+                raise UnconvertibleReference(f"{match.group(1)} became {renames[match.group(1)]}, but it is "
+                                             f"referenced outside an <img> tag: {context!r}")
+            tags[span[0]] = span
+    edits = sorted([(start, end, None) for start, end in tags.values()]
+                   + [(m.start(), m.end(), m) for m in matches
+                      if not any(start <= m.start() < end for start, end in tags.values())],
+                   key=lambda edit: edit[0])
     pieces, sites = [], []
     read = written = 0
-    for match in pattern.finditer(text):
-        old_name = match.group(1)
-        new_name = renames[old_name]
-        pieces.append(text[read:match.start()])
-        written += match.start() - read
-        sites.append((written, old_name))
-        pieces.append(new_name)
-        written += len(new_name)
-        read = match.end()
+    for start, end, match in edits:
+        pieces.append(text[read:start])
+        written += start - read
+        if match is None:
+            old_tag = text[start:end]
+            new = img_tag_to_video(old_tag, pattern, renames)
+            sites.append((written, TagEdit(old_tag, new)))
+        else:
+            new = renames[match.group(1)]
+            sites.append((written, match.group(1)))
+        pieces.append(new)
+        written += len(new)
+        read = end
     if not sites:
         return text, []
     pieces.append(text[read:])
@@ -278,7 +456,8 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
 
 
 def undo_rewrite(text: str, sites: list, renames: dict) -> str:
-    """rewrite_text's inverse: puts each recorded site's old filename back.
+    """rewrite_text's inverse: puts each recorded site's old filename - or,
+    for a TagEdit site, its whole old tag - back.
 
     Walks the sites in offset order building a new string, rather than splicing
     repeatedly, so a page carrying hundreds of references (j/html/api/
@@ -287,20 +466,64 @@ def undo_rewrite(text: str, sites: list, renames: dict) -> str:
     log describes, and raises rather than writing a corrupted page."""
     pieces = []
     read = 0
-    for offset, old_name in sorted(sites):
-        new_name = renames.get(old_name)
-        if new_name is None:
-            raise RuntimeError(f"no rename recorded for {old_name!r}")
+    for offset, old in sorted(sites, key=lambda site: site[0]):
+        if isinstance(old, TagEdit):
+            new, old = old.new, old.old
+        else:
+            new = renames.get(old)
+            if new is None:
+                raise RuntimeError(f"no rename recorded for {old!r}")
         if offset < read:
             raise RuntimeError(f"overlapping edit sites at offset {offset}")
-        if text[offset:offset + len(new_name)] != new_name:
-            raise RuntimeError(f"expected {new_name!r} at offset {offset}, found "
-                               f"{text[offset:offset + len(new_name)]!r}")
+        if text[offset:offset + len(new)] != new:
+            raise RuntimeError(f"expected {new!r} at offset {offset}, found "
+                               f"{text[offset:offset + len(new)]!r}")
         pieces.append(text[read:offset])
-        pieces.append(old_name)
-        read = offset + len(new_name)
+        pieces.append(old)
+        read = offset + len(new)
     pieces.append(text[read:])
     return "".join(pieces)
+
+
+def names_not_convertible_to_video(conn, codec, names, workers: int = 8) -> set:
+    """The subset of `names` referenced anywhere a <video> could not replace -
+    outside an <img>, or by an <img> img_tag_to_video refuses.
+
+    optimize_db_media.py --webm asks this before converting, so it never makes
+    a video that this script then has to refuse to link. It scans exactly what
+    run() would rewrite: the same text types and the same anchored match."""
+    if not names:
+        return set()
+    identity = {name: name for name in names}
+    pattern = build_pattern(identity)
+    marks = ",".join("?" * len(TEXT_TYPES))
+    rows = conn.execute(
+        f"SELECT c.path, c.content, ct.compression FROM Content c JOIN ContentTypes ct "
+        f"ON c.contentTypeID = ct.id WHERE ct.value IN ({marks})", TEXT_TYPES).fetchall()
+    lengths = {row[0]: len(row[1]) for row in rows}
+    # Reassembled here: a sqlite3 connection belongs to the thread that made it.
+    work = [(reassemble(conn, path, blob), compression) for path, blob, compression in rows
+            if not is_continuation_path(lengths, path)]
+
+    def scan(item):
+        try:
+            text = codec.decompress(item[0], item[1]).decode("utf-8")
+        except Exception:  # noqa: BLE001 - an unreadable row is run()'s to report
+            return set()
+        blocked = set()
+        for match in pattern.finditer(text):
+            span = enclosing_tag(text, match.start(), match.end())
+            if span is None or not _IMG_TAG_RE.match(text, span[0]):
+                blocked.add(match.group(1))
+                continue
+            try:
+                img_tag_to_video(text[span[0]:span[1]], pattern, identity)
+            except UnconvertibleReference:
+                blocked.add(match.group(1))
+        return blocked
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return set().union(*pool.map(scan, work))
 
 
 def unloggable_names(renames: dict) -> list:
@@ -385,9 +608,23 @@ def write_reference_log(root: Path, records: list) -> Path:
     # Sorted by path, then by the digest the record starts from, so a page's
     # records sit together; the chain is followed by digest, not by file order.
     for sha_before, sha_after, stored_path, sites in sorted(merged, key=lambda r: (r[2], r[0])):
-        packed = ",".join(f"{offset}:{old_name}" for offset, old_name in sorted(sites))
+        packed = ",".join(_pack_site(offset, old) for offset, old in sorted(sites, key=lambda site: site[0]))
         lines.append(f"{sha_before}\t{sha_after}\t{stored_path}\t{packed}")
     return write_atomically(path, "\n".join(lines) + "\n")
+
+
+def _pack_site(offset: int, old) -> str:
+    if isinstance(old, TagEdit):
+        return f"{offset}::{_b64(old.old)}:{_b64(old.new)}"
+    return f"{offset}:{old}"
+
+
+def _b64(text: str) -> str:
+    return base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
+
+
+def _unb64(text: str) -> str:
+    return base64.urlsafe_b64decode(text.encode("ascii")).decode("utf-8")
 
 
 def read_reference_log(path: Path) -> list:
@@ -408,6 +645,16 @@ def read_reference_log(path: Path) -> list:
             offset, sep, old_name = site.partition(":")
             if not sep or not offset.isdigit() or not old_name:
                 raise RuntimeError(f"{path}:{number}: {site!r} is not an offset:filename pair")
+            if old_name.startswith(":"):
+                # A filename can never be empty, so "offset::" is unambiguous.
+                old_tag, sep, new_tag = old_name[1:].partition(":")
+                try:
+                    sites.append((int(offset), TagEdit(_unb64(old_tag), _unb64(new_tag))))
+                except (ValueError, UnicodeDecodeError):
+                    sep = ""
+                if not sep or not old_tag or not new_tag:
+                    raise RuntimeError(f"{path}:{number}: {site!r} is not an offset::old-tag:new-tag site")
+                continue
             sites.append((int(offset), old_name))
         records.append((sha_before, sha_after, stored_path, sites))
     return records
@@ -464,7 +711,16 @@ def run(cfg: dict) -> int:
                   file=sys.stderr)
             return 1
         codec = BrotliCodec(load_dictionary(conn))
-        renames = build_rename_map(conn, before_conn)
+        try:
+            renames = build_rename_map(conn, before_conn)
+        except AmbiguousRename as exc:
+            for name, fates in sorted(exc.conflicts.items()):
+                print(f"  error: {name}: {'; '.join(fates)}", file=sys.stderr)
+            print(f"error: {exc}. References are matched by filename alone, so rewriting them would point "
+                  "some pages at a file their directory does not hold; nothing was rewritten. Restore the "
+                  "originals (optimize_db_media.py --restore-originals), give each of those files a name of "
+                  "its own, with the references to it, and convert again.", file=sys.stderr)
+            return 1
         if not renames:
             print("No converted media found - nothing to rewrite.")
             return 0
@@ -524,7 +780,10 @@ def run(cfg: dict) -> int:
                 # so a row that isn't text is skipped rather than failing the
                 # whole run.
                 return ("binary", path, None)
-            new_text, sites = rewrite_text(text, pattern, renames)
+            try:
+                new_text, sites = rewrite_text(text, pattern, renames)
+            except UnconvertibleReference as exc:
+                return ("unconvertible", path, str(exc))
             if not sites:
                 return None
             new_bytes = new_text.encode("utf-8")
@@ -542,6 +801,19 @@ def run(cfg: dict) -> int:
         errors = [r for r in results if r[0] == "error"]
         binary = [r for r in results if r[0] == "binary"]
         changes = [r for r in results if r[0] == "ok"]
+        unconvertible = [r for r in results if r[0] == "unconvertible"]
+        if unconvertible:
+            # Nothing is written: rewriting the rest would leave these pages
+            # naming a video they cannot show, and a partial run is harder to
+            # reason about than none. optimize_db_media.py --webm checks for
+            # exactly this before converting, so reaching here means a page
+            # changed between the two runs.
+            for _kind, path, message in unconvertible:
+                print(f"  error: {path}: {message}", file=sys.stderr)
+            print(f"error: {len(unconvertible)} row(s) reference a converted video somewhere a <video> tag "
+                  "cannot replace; nothing was rewritten. Restore those files (optimize_db_media.py "
+                  "--restore-originals) or change the pages, then run this again.", file=sys.stderr)
+            return 1
         if binary:
             print(f"{len(binary)} row(s) skipped: binary content stored under a text content type.")
         for _kind, path, message in errors:

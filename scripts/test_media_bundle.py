@@ -497,11 +497,12 @@ def test_a_row_whose_original_cannot_be_archived_is_not_rewritten(tmp_path):
     assert _snapshot(db_path) == before
 
 
-def _main() -> int:
+def _main(namespace: dict = None) -> int:
     """Runs the tests without pytest installed as a runner, so this file works
-    the same way the tools beside it do (`uv run scripts/test_media_bundle.py`)."""
+    the same way the tools beside it do (`uv run scripts/test_media_bundle.py`).
+    Another test file passes its own globals() to reuse this runner."""
     failures = []
-    for name, function in sorted(globals().items()):
+    for name, function in sorted((namespace if namespace is not None else globals()).items()):
         if not name.startswith("test_") or not callable(function):
             continue
         with tempfile.TemporaryDirectory() as directory:
@@ -513,6 +514,9 @@ def _main() -> int:
             # a failing assertion escape and abort the whole run.
             except (KeyboardInterrupt, SystemExit):
                 raise
+            except pytest.skip.Exception as skip:
+                # Also a BaseException; a test that cannot run here is not a failure.
+                print(f"skip {name}: {skip}")
             except BaseException as exc:  # noqa: BLE001 - a failure is the result here
                 frame = traceback.extract_tb(exc.__traceback__)[-1]
                 failures.append(f"{name} (line {frame.lineno}: {frame.line}): "
