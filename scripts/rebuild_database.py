@@ -10,7 +10,7 @@ Copies a documentation.db into a fresh file - same schema, same rows with the
 same rowids, same page size - to drop the space SQLite gives back no other way:
 the bytes reserved at the end of every page.
 
-    uv run scripts/rebuild_database.py documentation.db rebuilt.db
+    uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content
 
 Why (ADFA-3305): the database reserves 12 bytes at the end of every 1 KB page
 (file header byte 20), and on the 2026-10-13 database all of them, on all
@@ -21,8 +21,22 @@ file with Android's own SQLite. The bytes arrived in one rebuild between
 database's reserved space grow but never shrink: VACUUM, VACUUM INTO and the
 reserve_bytes file control all kept it in testing. A fresh file starts with
 none. On that database after the ADFA-3305 conversion this saves 1,467,392
-bytes (1.1%). It is a one-time step: nothing here sets reserved bytes, and
-every later VACUUM keeps the zero.
+bytes (1.1%). Dropping them is needed once: nothing here sets reserved bytes,
+and every later VACUUM keeps the zero. Packing, below, is not a one-off.
+
+Packing (--pack TABLE): SQLite appends rows in rowid order and starts a new
+leaf page when the next row does not fit, so how much of each page is left
+over follows from which rows happen to be numbered next to each other.
+--pack renumbers the named tables' rows in an order that packs their leaf
+pages best-fit (packing_order) and makes every declared foreign key naming
+those rows follow. On the 2026-10-13 database Content goes from 19,158 leaf
+pages to 14,524. Only for tables nothing outside the database knows the ids
+of: Content is looked up by path everywhere; Tooltips is not a candidate,
+because the tooltip feedback email and debug dialog show its ids, so
+renumbering it each release would change the numbers people report. A table
+some row references without a match is refused - that orphan's old id could
+match a new one. The gain lasts only until rows are added, which append in
+arrival order, so packing belongs in every release's rebuild.
 
 How: a new file with the source's page size and auto_vacuum off - set
 explicitly, because some SQLite builds default it on (the sqlite3 shell this
@@ -32,7 +46,8 @@ keeping each row's rowid; then the indexes, triggers and views, then
 sqlite_sequence, user_version and application_id; then VACUUM. Before the
 result is kept, it is compared with the source - schema, every row of every
 table with its rowid, sqlite_sequence, both pragmas, integrity_check and
-foreign_key_check - and any difference deletes it and fails the run.
+foreign_key_check, with any ids --pack renumbered mapped back first - and
+any difference deletes it and fails the run.
 
 The source is opened read-only and never changed. OUTPUT must not exist
 (ADFA-5296: a rebuilt database is saved somewhere other than where it came
@@ -59,13 +74,6 @@ def reserved_bytes(path: Path) -> int:
         return f.read(21)[20]
 
 
-def has_rowid_alias(conn, table: str) -> bool:
-    """Whether the table's INTEGER PRIMARY KEY makes a column the rowid, in
-    which case SELECT * already carries it and naming rowid too would clash."""
-    keys = [row for row in conn.execute(f'PRAGMA table_info("{table}")') if row[5]]
-    return len(keys) == 1 and keys[0][2].upper() == "INTEGER"
-
-
 def user_tables(conn) -> list:
     """[(name, sql, without_rowid)] for every ordinary table, in schema order."""
     tables = []
@@ -78,12 +86,122 @@ def user_tables(conn) -> list:
     return tables
 
 
-def fingerprint(path: Path) -> dict:
-    """What a rebuild must keep: schema, every row of every table in rowid
-    order with its rowid, sqlite_sequence, the two header pragmas, and what
-    integrity_check and foreign_key_check say."""
+def alias_column(conn, table: str):
+    """Index (in SELECT * order) of the column that is the rowid, or None."""
+    columns = list(conn.execute(f'PRAGMA table_info("{table}")'))
+    keys = [row for row in columns if row[5]]
+    return keys[0][0] if len(keys) == 1 and keys[0][2].upper() == "INTEGER" else None
+
+
+def _varint_len(value: int) -> int:
+    length = 1
+    while value > 0x7F and length < 9:
+        value >>= 7
+        length += 1
+    return length
+
+
+def _stored(kind: str, value) -> tuple:
+    """(serial type, body bytes) of one value in SQLite's record format, from
+    its typeof() and - for text and blobs - its length in bytes."""
+    if kind == "null":
+        return 0, 0
+    if kind == "integer":
+        if value in (0, 1):
+            return 8 + value, 0
+        for code, size in ((1, 1), (2, 2), (3, 3), (4, 4), (5, 6), (6, 8)):
+            if -(1 << (8 * size - 1)) <= value < (1 << (8 * size - 1)):
+                return code, size
+    if kind == "real":
+        return 7, 8
+    return (2 * value + 13 if kind == "text" else 2 * value + 12), value
+
+
+def leaf_cell_size(rowid: int, stored: list, usable: int) -> int:
+    """Bytes one row takes on a table leaf page, its 2-byte cell pointer
+    included: payload-size and rowid varints, the record (header and body) up
+    to SQLite's local-payload limit, and the 4-byte overflow page number when
+    the rest spills - the file format's "B-tree Cell Format"."""
+    types_len = sum(_varint_len(code) for code, _size in stored)
+    header = types_len + _varint_len(types_len + 1)
+    payload = header + sum(size for _code, size in stored)
+    max_local = usable - 35
+    min_local = (usable - 12) * 32 // 255 - 23
+    if payload <= max_local:
+        local, overflow = payload, 0
+    else:
+        k = min_local + (payload - min_local) % (usable - 4)
+        local, overflow = (k if k <= max_local else min_local), 4
+    return _varint_len(payload) + _varint_len(rowid) + local + overflow + 2
+
+
+def packing_order(conn, table: str, page_size: int) -> list:
+    """The table's rowids in an order that fills its leaf pages well.
+
+    SQLite appends rows in rowid order and starts a new leaf page when the next
+    row does not fit, so which rows share a page - and how much of each page is
+    left over - follows from the rowid order alone. Each row's exact cell size
+    is computed (leaf_cell_size; its rowid sized as the largest new one, so no
+    estimate is ever low) and the rows are packed best-fit-decreasing into
+    pages of a fresh file's leaf room, page_size - 8. Inserting in this order
+    produces exactly the predicted page count: 14,524 leaf pages for Content
+    on the 2026-10-13 database, against 19,158 in rowid order."""
+    import bisect
+
+    columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')]
+    alias = alias_column(conn, table)
+    probes = ", ".join(f'typeof("{c}"), CASE typeof("{c}") WHEN \'integer\' THEN "{c}" '
+                       f'WHEN \'text\' THEN length(CAST("{c}" AS BLOB)) '
+                       f'WHEN \'blob\' THEN length("{c}") END' for c in columns)
+    rows = conn.execute(f'SELECT rowid, {probes} FROM "{table}"').fetchall()
+    largest = len(rows)
+    cells = []
+    for row in rows:
+        stored = [(0, 0) if index == alias else _stored(row[1 + 2 * index], row[2 + 2 * index])
+                  for index in range(len(columns))]
+        cells.append((leaf_cell_size(largest, stored, page_size), row[0]))
+    room = page_size - 8
+    pages, free = [], []  # free: sorted [(bytes left, page index)]
+    for size, rowid in sorted(cells, reverse=True):
+        slot = bisect.bisect_left(free, (size, -1))
+        if slot < len(free):
+            left, index = free.pop(slot)
+            pages[index].append(rowid)
+            bisect.insort(free, (left - size, index))
+        else:
+            pages.append([rowid])
+            bisect.insort(free, (room - size, len(pages) - 1))
+    return [rowid for page in pages for rowid in page]
+
+
+def references_to(conn, tables: list, parent: str) -> list:
+    """[(child table, column)] for every declared foreign key naming `parent`'s
+    rowid - the values a renumbering of `parent` has to follow."""
+    alias = alias_column(conn, parent)
+    key = None if alias is None else list(conn.execute(f'PRAGMA table_info("{parent}")'))[alias][1]
+    found = []
+    for child, _sql, _without_rowid in tables:
+        for fk in conn.execute(f'PRAGMA foreign_key_list("{child}")'):
+            if fk[2] == parent and (fk[4] is None or fk[4] == key):
+                found.append((child, fk[3]))
+    return found
+
+
+def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> dict:
+    """What a rebuild must keep: schema, every row of every table with its
+    rowid, sqlite_sequence, the two header pragmas, and what integrity_check
+    and foreign_key_check say.
+
+    For a copy made with --pack, `renumbered` ({table: {new rowid: old}}) and
+    `followed` ({table: {column: parent}}) map every renumbered id back, so the
+    copy must still match the source exactly. Rows are compared through a
+    digest per row, sorted by (original) rowid."""
+    renumbered, followed = renumbered or {}, followed or {}
     conn = sqlite3.connect(read_only_uri(path), uri=True)
     try:
+        def unmap(table, rowid):
+            return renumbered.get(table, {}).get(rowid, rowid)
+
         out = {
             "schema": sorted(conn.execute("SELECT type, name, tbl_name, sql FROM sqlite_master")),
             "sequence": sorted(conn.execute("SELECT * FROM sqlite_sequence"))
@@ -91,34 +209,66 @@ def fingerprint(path: Path) -> dict:
             "user_version": conn.execute("PRAGMA user_version").fetchone()[0],
             "application_id": conn.execute("PRAGMA application_id").fetchone()[0],
             "integrity": conn.execute("PRAGMA integrity_check").fetchall(),
-            "foreign_keys": sorted(conn.execute("PRAGMA foreign_key_check")),
+            "foreign_keys": sorted((t, unmap(t, rowid), p, k) for t, rowid, p, k in
+                                   conn.execute("PRAGMA foreign_key_check")),
         }
         for name, _sql, without_rowid in user_tables(conn):
-            digest, count = hashlib.sha256(), 0
-            query = (f'SELECT * FROM "{name}" ORDER BY 1' if without_rowid
-                     else f'SELECT rowid, * FROM "{name}" ORDER BY rowid')
+            columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{name}")')]
+            alias = alias_column(conn, name)
+            remap = {columns.index(column): parent for column, parent in followed.get(name, {}).items()}
+            keyed = []
+            query = f'SELECT * FROM "{name}"' if without_rowid else f'SELECT rowid, * FROM "{name}"'
             for row in conn.execute(query):
+                if not without_rowid:
+                    rowid, row = unmap(name, row[0]), list(row[1:])
+                    if alias is not None:
+                        row[alias] = rowid
+                    row = [rowid] + row
+                    offset = 1
+                else:
+                    row, offset = list(row), 0
+                for index, parent in remap.items():
+                    row[index + offset] = unmap(parent, row[index + offset])
+                digest = hashlib.sha256()
                 for value in row:
                     if isinstance(value, bytes):
                         digest.update(b"B%d:" % len(value) + value)
                     else:
                         text = repr(value).encode("utf-8")
                         digest.update(b"V%d:" % len(text) + text)
-                count += 1
-            out[f"table {name}"] = (count, digest.hexdigest())
+                keyed.append((row[0] if not without_rowid else digest.digest(), digest.digest()))
+            keyed.sort()
+            out[f"table {name}"] = (len(keyed), hashlib.sha256(b"".join(d for _k, d in keyed)).hexdigest())
         return out
     finally:
         conn.close()
 
 
-def rebuild(source: Path, output: Path) -> None:
+def rebuild(source: Path, output: Path, pack=()) -> tuple:
+    """Writes the copy; returns (renumbered, followed) for fingerprint()."""
     src = sqlite3.connect(read_only_uri(source), uri=True)
     try:
         page_size = src.execute("PRAGMA page_size").fetchone()[0]
         user_version = src.execute("PRAGMA user_version").fetchone()[0]
         application_id = src.execute("PRAGMA application_id").fetchone()[0]
         tables = user_tables(src)
-        aliases = {name: has_rowid_alias(src, name) for name, _sql, _w in tables}
+        aliases = {name: alias_column(src, name) for name, _sql, _w in tables}
+        without = {name: without_rowid for name, _sql, without_rowid in tables}
+        renumbered, followed = {}, {}
+        for table in pack:
+            if table not in without:
+                raise RuntimeError(f"--pack {table}: no such table")
+            if without[table]:
+                raise RuntimeError(f"--pack {table}: a WITHOUT ROWID table has no rowids to renumber")
+            for child, column in references_to(src, tables, table):
+                orphans = src.execute(f'SELECT COUNT(*) FROM "{child}" WHERE "{column}" IS NOT NULL AND '
+                                      f'"{column}" NOT IN (SELECT rowid FROM "{table}")').fetchone()[0]
+                if orphans:
+                    raise RuntimeError(f"--pack {table}: {orphans} row(s) of {child}.{column} name no {table} "
+                                       "row, and an orphan's old id could match a new one; fix them first")
+                followed.setdefault(child, {})[column] = table
+            order = packing_order(src, table, page_size)
+            renumbered[table] = {new: old for new, old in enumerate(order, start=1)}
         others = src.execute("SELECT sql FROM sqlite_master WHERE type IN ('index', 'trigger', 'view') "
                              "AND sql IS NOT NULL ORDER BY rowid").fetchall()
         has_sequence = bool(src.execute("SELECT 1 FROM sqlite_master WHERE name = 'sqlite_sequence'").fetchone())
@@ -131,16 +281,37 @@ def rebuild(source: Path, output: Path) -> None:
         dst.execute(f"PRAGMA page_size = {int(page_size)}")
         dst.execute("PRAGMA auto_vacuum = NONE")
         dst.execute("ATTACH DATABASE ? AS source", (read_only_uri(source),))
+        maps = {}
+        for number, (table, mapping) in enumerate(renumbered.items()):
+            maps[table] = f"temp.pack_{number}"
+            dst.execute(f"CREATE TEMP TABLE pack_{number} (old INTEGER PRIMARY KEY, new INTEGER NOT NULL)")
+            dst.executemany(f"INSERT INTO temp.pack_{number} VALUES (?, ?)",
+                            ((old, new) for new, old in mapping.items()))
         dst.execute("BEGIN")
         for name, sql, without_rowid in tables:
             dst.execute(sql)
-            if without_rowid or aliases[name]:
-                order = "" if without_rowid else " ORDER BY rowid"
-                dst.execute(f'INSERT INTO main."{name}" SELECT * FROM source."{name}"{order}')
+            columns = [row[1] for row in dst.execute(f'PRAGMA main.table_info("{name}")')]
+            values = []
+            for column in columns:
+                parent = followed.get(name, {}).get(column)
+                values.append(f'COALESCE((SELECT new FROM {maps[parent]} WHERE old = s."{column}"), s."{column}")'
+                              if parent else f's."{column}"')
+            targets = ", ".join(f'"{column}"' for column in columns)
+            if name in maps:
+                # Renumbered: each row takes its new rowid, in packing order.
+                if aliases[name] is not None:
+                    values[aliases[name]] = "m.new"
+                else:
+                    targets, values = f"rowid, {targets}", ["m.new"] + values
+                dst.execute(f'INSERT INTO main."{name}" ({targets}) SELECT {", ".join(values)} '
+                            f'FROM source."{name}" AS s JOIN {maps[name]} AS m ON m.old = s.rowid ORDER BY m.new')
+            elif without_rowid:
+                dst.execute(f'INSERT INTO main."{name}" ({targets}) SELECT {", ".join(values)} FROM source."{name}" AS s')
             else:
-                columns = ", ".join(f'"{row[1]}"' for row in dst.execute(f'PRAGMA main.table_info("{name}")'))
-                dst.execute(f'INSERT INTO main."{name}" (rowid, {columns}) '
-                            f'SELECT rowid, {columns} FROM source."{name}" ORDER BY rowid')
+                if aliases[name] is None:
+                    targets, values = f"rowid, {targets}", ["s.rowid"] + values
+                dst.execute(f'INSERT INTO main."{name}" ({targets}) SELECT {", ".join(values)} '
+                            f'FROM source."{name}" AS s ORDER BY s.rowid')
         # Indexes after the rows: building one over sorted data packs it.
         for (sql,) in others:
             dst.execute(sql)
@@ -154,6 +325,15 @@ def rebuild(source: Path, output: Path) -> None:
         dst.execute("VACUUM")
     finally:
         dst.close()
+    return renumbered, followed
+
+
+def leaf_pages(path: Path, table: str) -> int:
+    conn = sqlite3.connect(read_only_uri(path), uri=True)
+    try:
+        return conn.execute("SELECT COUNT(*) FROM dbstat WHERE name = ? AND pagetype = 'leaf'", (table,)).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def run(cfg: dict) -> int:
@@ -164,9 +344,10 @@ def run(cfg: dict) -> int:
     if output.exists():
         print(f"error: {output} already exists; give a new path", file=sys.stderr)
         return 1
+    pack = cfg.get("pack") or ()
     try:
-        rebuild(source, output)
-        before, after = fingerprint(source), fingerprint(output)
+        renumbered, followed = rebuild(source, output, pack)
+        before, after = fingerprint(source), fingerprint(output, renumbered, followed)
     except (sqlite3.Error, RuntimeError) as exc:
         output.unlink(missing_ok=True)
         print(f"error: {exc}", file=sys.stderr)
@@ -182,6 +363,11 @@ def run(cfg: dict) -> int:
     print(f"Rebuilt {source} -> {output}: {tables} table(s), {rows:,} row(s), schema, sqlite_sequence and "
           f"pragmas identical. Reserved bytes per page {reserved_bytes(source)} -> {reserved_bytes(output)}; "
           f"{source.stat().st_size:,} -> {output.stat().st_size:,} bytes.")
+    for table in pack:
+        moved = ", ".join(f"{child}.{column}" for child, columns in followed.items()
+                          for column, parent in columns.items() if parent == table)
+        print(f"  {table} renumbered for packing: {leaf_pages(source, table):,} -> {leaf_pages(output, table):,} "
+              f"leaf pages{f'; followed by {moved}' if moved else ''}.")
     return 0
 
 
@@ -189,8 +375,12 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("source", type=Path, help="Database to copy, e.g. documentation.db; opened read-only")
     p.add_argument("output", type=Path, help="Path for the rebuilt copy; must not exist")
+    p.add_argument("--pack", default=None, metavar="TABLE[,TABLE...]",
+                   type=lambda value: [t.strip() for t in value.split(",") if t.strip()],
+                   help="Renumber these tables' rows so their leaf pages fill well. Their rowids change, so "
+                        "only for tables nothing outside the database knows the ids of (Content: yes)")
     args = p.parse_args()
-    sys.exit(run({"source": args.source, "output": args.output}))
+    sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack}))
 
 
 if __name__ == "__main__":
