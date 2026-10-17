@@ -37,15 +37,18 @@ import sys
 from pathlib import Path
 
 import brotli
+import pytest
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import optimize_db_media as opt  # noqa: E402
 import test_media_bundle as base  # noqa: E402
+import update_media_references as ref  # noqa: E402
 
 CONTENT_TYPES = [(3, "image/png", "none"), (11, "image/gif", "none"), (12, "text/html", "brotli"),
                  (1, "text/css", "brotli"), (26, "image/webp", "brotli")]
+WEBM_TYPES = CONTENT_TYPES + [(30, "video/webm", "none")]
 
 
 def _build_database(path: Path, rows: list, content_types: list = CONTENT_TYPES) -> None:
@@ -302,6 +305,81 @@ def test_webp_loop_counts_plays_where_gif_counts_repeats():
     assert loop_of() == 1, "a GIF with no loop count plays once"
     assert loop_of(loop=0) == 0, "forever"
     assert loop_of(loop=2) == 3, "two repeats after the first play"
+
+
+VIDEO_RENAMES = {"spring.gif": "spring.webm", "hero.png": "hero.webp"}
+VIDEO_PATTERN = ref.build_pattern(VIDEO_RENAMES)
+
+
+def _rewrite(text: str) -> str:
+    rewritten, sites = ref.rewrite_text(text, VIDEO_PATTERN, VIDEO_RENAMES)
+    assert ref.undo_rewrite(rewritten, sites, VIDEO_RENAMES) == text, "undo must give back the original exactly"
+    return rewritten
+
+
+def test_an_img_showing_a_converted_animation_becomes_a_video():
+    assert _rewrite('<p>x</p><img alt="A spring" src="media/spring.gif" style="margin:0" width="300"/><p>y</p>') == (
+        '<p>x</p><video autoplay loop muted playsinline aria-label="A spring" src="media/spring.webm" '
+        'style="margin:0" width="300"></video><p>y</p>')
+
+
+def test_a_json_escaped_img_keeps_its_escaping():
+    """Kotlin's templated pages carry their markup inside JSON strings."""
+    assert _rewrite('{"html":"<img src=\\"/k/html/images/spring.gif\\" alt=\\"Kotlin\\" width=\\"600\\"/>"}') == (
+        '{"html":"<video autoplay loop muted playsinline src=\\"/k/html/images/spring.webm\\" '
+        'aria-label=\\"Kotlin\\" width=\\"600\\"></video>"}')
+
+
+def test_an_empty_alt_hides_the_video_from_screen_readers():
+    assert _rewrite('<img alt="" src="spring.gif">') == (
+        '<video autoplay loop muted playsinline aria-hidden="true" src="spring.webm"></video>')
+
+
+def test_other_renamed_files_in_the_same_tag_are_rewritten_with_it():
+    text = '<img preview-src="/i/hero.png" src="/i/spring.gif"/> and <img src="/i/hero.png">'
+    rewritten, sites = ref.rewrite_text(text, VIDEO_PATTERN, VIDEO_RENAMES)
+    assert rewritten == ('<video autoplay loop muted playsinline preview-src="/i/hero.webp" '
+                         'src="/i/spring.webm"></video> and <img src="/i/hero.webp">')
+    assert [type(old) for _offset, old in sites] == [ref.TagEdit, str]
+    assert ref.undo_rewrite(rewritten, sites, VIDEO_RENAMES) == text
+
+
+def test_a_video_referenced_outside_an_img_is_refused():
+    for text in ('div{background:url("media/spring.gif")}', '<a href="spring.gif">play</a>',
+                 '<img srcset="spring.gif 2x" src="spring.gif">'):
+        with pytest.raises(ref.UnconvertibleReference):
+            ref.rewrite_text(text, VIDEO_PATTERN, VIDEO_RENAMES)
+
+
+def test_tag_sites_survive_the_reference_log(tmp_path):
+    """A tag's text is free to hold every separator the log reserves."""
+    tag = ref.TagEdit('<img alt="a, b: c\td\ne" src="spring.gif">',
+                      '<video autoplay loop muted playsinline aria-label="a, b: c\td\ne" src="spring.webm"></video>')
+    ref.write_reference_log(tmp_path, [("before", "after", "p.html", [(3, "x.png"), (40, tag)])])
+    (record,) = ref.read_reference_log(tmp_path / ref.BUNDLE_REFERENCES)
+    assert record == ("before", "after", "p.html", [(3, "x.png"), (40, tag)])
+
+
+def test_the_rename_map_follows_a_gif_into_video(tmp_path):
+    before_path, after_path = tmp_path / "before.db", tmp_path / "after.db"
+    _build_database(before_path, [("a/media/spring.gif", "image/gif", b"GIF89a")], WEBM_TYPES)
+    _build_database(after_path, [("a/media/spring.webm", "video/webm", b"\x1aE\xdf\xa3")], WEBM_TYPES)
+    with sqlite3.connect(after_path) as after, sqlite3.connect(before_path) as before:
+        assert ref.build_rename_map(after, before) == {"spring.gif": "spring.webm"}
+
+
+def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
+    db_path = tmp_path / "documentation.db"
+    _build_database(db_path, [
+        ("a/one.html", "text/html", b'<img alt="ok" src="media/spring.gif">'),
+        ("a/site.css", "text/css", b'body{background:url("media/spinner.gif")}'),
+        ("a/two.html", "text/html", b'<img srcset="media/retina.gif 2x" src="media/retina.gif">'),
+    ])
+    with sqlite3.connect(db_path) as conn:
+        codec = opt.BrotliCodec(opt.load_dictionary(conn))
+        blocked = ref.names_not_convertible_to_video(conn, codec, {"spring.gif", "spinner.gif", "retina.gif"}, 2)
+        codec.close()
+    assert blocked == {"spinner.gif", "retina.gif"}
 
 
 if __name__ == "__main__":
