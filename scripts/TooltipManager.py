@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS TooltipButtons (
 );
 """
 
+# Code On The Go finds a tooltip's buttons with
+#   SELECT description, uri FROM TooltipButtons WHERE tooltipId = ? ORDER BY buttonNumberId
+# Without this index that reads all of TooltipButtons (54,799 rows, 5.4 MB in the 2026-10-13
+# database) and sorts, for every tooltip shown: 2.4 ms on a desktop, 0.004 ms with it (ADFA-6597).
+# DROP TABLE drops a table's indexes too, so every build recreates it.
+INDEX_TOOLTIP_BUTTONS = """
+CREATE INDEX IF NOT EXISTS TooltipButtonsByTooltip ON TooltipButtons (tooltipId, buttonNumberId);
+"""
+
 """
 db_tooltips_to_csv(conn, csv_file_out)
 
@@ -152,6 +161,9 @@ def csv_to_tooltips(conn, csv_file, name):
                             (tooltip_id, i, row[description_key], row[uri_key])
                         )
 
+        # After the rows, so the index is built once over them rather than row by row.
+        cursor.execute(INDEX_TOOLTIP_BUTTONS)
+
         # Update LastChange timestamp with author's name and current time
         cursor.execute("""
         CREATE TABLE LastChange (
@@ -175,12 +187,37 @@ def csv_to_tooltips(conn, csv_file, name):
         conn.close()
 
 
+"""
+index_tooltip_buttons(conn)
+
+Adds the TooltipButtons index (see INDEX_TOOLTIP_BUTTONS) to a database built before it existed.
+Does nothing if the index is already there.
+
+Args:
+    conn: A SQLite database connection object to the documentation database.
+
+Returns:
+    True if the index was created, False if it already existed.
+"""
+def index_tooltip_buttons(conn):
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'TooltipButtonsByTooltip'").fetchone()
+    if exists:
+        print("TooltipButtonsByTooltip already exists; nothing to do.")
+        return False
+    conn.execute(INDEX_TOOLTIP_BUTTONS)
+    conn.commit()
+    print("Created index TooltipButtonsByTooltip on TooltipButtons (tooltipId, buttonNumberId).")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description='Dump or build a SQLite database for tooltips.')
 
     # Define required arguments
-    parser.add_argument('--operation', choices=['dump', 'build'], required=True,
-                        help='Determines whether to dump the database to a CSV or build the database from a CSV.')
+    parser.add_argument('--operation', choices=['dump', 'build', 'index'], required=True,
+                        help='Dump the database to a CSV, build the database from a CSV, or add the TooltipButtons '
+                             'index to a copy of a database built before it existed.')
     parser.add_argument('--name', required=True,
                         help='The name of the person updating the database.')
     parser.add_argument('--input-db', required=True,
@@ -192,7 +229,7 @@ def main():
     parser.add_argument('--input-csv',
                         help='The path to the input CSV file for the build operation.')
     parser.add_argument('--output-db',
-                        help='The path to the built database output file for the build operation.')
+                        help='The path to the output database for the build and index operations.')
 
     args = parser.parse_args()
 
@@ -225,6 +262,16 @@ def main():
             # Connect to the newly created database file
             conn = sqlite3.connect(args.output_db)
             csv_to_tooltips(conn, args.input_csv, args.name)
+
+        elif args.operation == 'index':
+            if not args.output_db:
+                parser.error("--output-db is required for the 'index' operation.")
+
+            # A copy, like build: the input database is never changed in place.
+            print(f"Copying '{args.input_db}' to '{args.output_db}'...")
+            shutil.copyfile(args.input_db, args.output_db)
+            conn = sqlite3.connect(args.output_db)
+            index_tooltip_buttons(conn)
 
     except sqlite3.Error as e:
         print(f"A database error occurred: {e}")

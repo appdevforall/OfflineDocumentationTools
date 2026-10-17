@@ -168,7 +168,8 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   Drive.
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
-  `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
+  `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip, plus
+  the `TooltipButtons` index the app's buttons lookup needs),
   `create_empty_database.py`, `list_database_documents.py`. **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
