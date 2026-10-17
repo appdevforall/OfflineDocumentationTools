@@ -7,10 +7,11 @@
 rebuild_database.py
 
 Copies a documentation.db into a fresh file - same schema, same rows with the
-same rowids, same page size - to drop the space SQLite gives back no other way:
-the bytes reserved at the end of every page.
+same rowids - to drop the space SQLite gives back no other way: the bytes
+reserved at the end of every page. --page-size gives the copy a different page
+size; otherwise it keeps the source's.
 
-    uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content,Tooltips
+    uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content,Tooltips --page-size 4096
 
 Why (ADFA-3305): the database reserves 12 bytes at the end of every 1 KB page
 (file header byte 20), and on the 2026-10-13 database all of them, on all
@@ -45,7 +46,17 @@ since that link would keep the old ids. The gain lasts only until rows are
 added, which append in arrival order, so packing belongs in every release's
 rebuild.
 
-How: a new file with the source's page size and auto_vacuum off - set
+Page size (--page-size N): the 2026-10-13 database has 1 KB pages, which no
+tool in this repository chose - SQLite's default was 1 KB until 3.12.0, and a
+database keeps its page size through every VACUUM - and 4 KB is the default
+now, on Android too. Each page carries an 8-byte header and each overflow page
+a 4-byte pointer to the next, so for the megabyte-sized media rows fewer,
+larger pages cost less: on that database after the ADFA-3305 conversion,
+packed, 4 KB pages make the file 1,090,560 bytes (0.9%) smaller, and its
+release .br (brotli -q 11) 313,164 bytes smaller.
+--pack plans each page's rows for the size the copy gets.
+
+How: a new file with the chosen page size and auto_vacuum off - set
 explicitly, because some SQLite builds default it on (the sqlite3 shell this
 was tested with did), which adds a pointer-map page for every ~200 pages.
 Every table is created from the source's own SQL and filled in rowid order,
@@ -329,12 +340,13 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
         conn.close()
 
 
-def rebuild(source: Path, output: Path, pack=()) -> tuple:
-    """Writes the copy; returns (renumbered, followed, advanced): the id maps for
-    fingerprint(), and {table: new sqlite_sequence value} for each packed table."""
+def rebuild(source: Path, output: Path, pack=(), page_size: int = None) -> tuple:
+    """Writes the copy, with page_size or the source's; returns (renumbered,
+    followed, advanced): the id maps for fingerprint(), and {table: new
+    sqlite_sequence value} for each packed table."""
     src = sqlite3.connect(read_only_uri(source), uri=True)
     try:
-        page_size = src.execute("PRAGMA page_size").fetchone()[0]
+        page_size = page_size or src.execute("PRAGMA page_size").fetchone()[0]
         user_version = src.execute("PRAGMA user_version").fetchone()[0]
         application_id = src.execute("PRAGMA application_id").fetchone()[0]
         tables = user_tables(src)
@@ -436,6 +448,23 @@ def leaf_pages(path: Path, table: str) -> int:
         conn.close()
 
 
+def page_size_of(path: Path) -> int:
+    conn = sqlite3.connect(read_only_uri(path), uri=True)
+    try:
+        return conn.execute("PRAGMA page_size").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def page_size_arg(value: str) -> int:
+    """A page size SQLite accepts: a power of two from 512 to 65536. It ignores
+    any other without a word, which would leave the copy at the default."""
+    size = int(value)
+    if size < 512 or size > 65536 or size & (size - 1):
+        raise argparse.ArgumentTypeError(f"{value} is not a power of two from 512 to 65536")
+    return size
+
+
 def run(cfg: dict) -> int:
     source, output = cfg["source"], cfg["output"]
     if not source.is_file():
@@ -446,7 +475,7 @@ def run(cfg: dict) -> int:
         return 1
     pack = cfg.get("pack") or ()
     try:
-        renumbered, followed, advanced = rebuild(source, output, pack)
+        renumbered, followed, advanced = rebuild(source, output, pack, cfg.get("page_size"))
         before, after = fingerprint(source), fingerprint(output, renumbered, followed)
         # A packed table's sequence moves on by its row count; nothing else may.
         before["sequence"] = sorted((name, advanced.get(name, seq)) for name, seq in before["sequence"])
@@ -463,7 +492,8 @@ def run(cfg: dict) -> int:
     tables = sum(1 for key in before if key.startswith("table "))
     rows = sum(before[key][0] for key in before if key.startswith("table "))
     print(f"Rebuilt {source} -> {output}: {tables} table(s), {rows:,} row(s), schema, sqlite_sequence and "
-          f"pragmas identical. Reserved bytes per page {reserved_bytes(source)} -> {reserved_bytes(output)}; "
+          f"pragmas identical. Page size {page_size_of(source)} -> {page_size_of(output)}; reserved bytes per "
+          f"page {reserved_bytes(source)} -> {reserved_bytes(output)}; "
           f"{source.stat().st_size:,} -> {output.stat().st_size:,} bytes.")
     for table in pack:
         moved = ", ".join(f"{child}.{column}" for child, columns in followed.items()
@@ -482,8 +512,11 @@ def main() -> None:
                    help="Insert these tables' rows in an order that fills their leaf pages, each taking the next "
                         "AUTOINCREMENT id, with declared foreign keys and UNDECLARED_REFERENCES following "
                         "(e.g. Content,Tooltips)")
+    p.add_argument("--page-size", type=page_size_arg, default=None, metavar="BYTES",
+                   help="Page size for the copy, a power of two from 512 to 65536 (default: the source's; "
+                        "4096 for documentation.db)")
     args = p.parse_args()
-    sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack}))
+    sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack, "page_size": args.page_size}))
 
 
 if __name__ == "__main__":

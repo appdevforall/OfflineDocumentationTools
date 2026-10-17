@@ -108,8 +108,8 @@ def test_a_copy_that_differs_is_deleted(tmp_path):
     source, output = _source(tmp_path), tmp_path / "rebuilt.db"
     unpatched = rebuild.rebuild
 
-    def lossy(src, out, pack=()):
-        maps = unpatched(src, out, pack)
+    def lossy(src, out, pack=(), page_size=None):
+        maps = unpatched(src, out, pack, page_size)
         with sqlite3.connect(out) as conn:
             conn.execute("DELETE FROM TooltipButtons WHERE rowid = 40")
         return maps
@@ -254,6 +254,40 @@ def test_packed_ids_continue_after_the_largest_id_without_autoincrement(tmp_path
     _pack_and_check_ids_follow_the_largest(source, packed)
 
 
+
+def test_page_size_gives_the_copy_that_page_size_and_nothing_else(tmp_path):
+    source, copy = _packable(tmp_path), tmp_path / "copy.db"
+    assert rebuild.run({"source": source, "output": copy, "pack": ["Pages"], "page_size": 4096}) == 0
+    assert rebuild.page_size_of(source) == 1024 and rebuild.page_size_of(copy) == 4096
+    assert _pairs(copy) == _pairs(source)
+
+
+def test_pack_plans_pages_for_the_copys_page_size(tmp_path, monkeypatch):
+    """Planned for the source's 1 KB pages, a 4 KB copy would be packed for the
+    wrong room - still correct, but not packed."""
+    seen = []
+    plan = rebuild.packing_order
+
+    def spy(conn, table, page_size, largest):
+        seen.append(page_size)
+        return plan(conn, table, page_size, largest)
+
+    monkeypatch.setattr(rebuild, "packing_order", spy)
+    source, copy = _packable(tmp_path), tmp_path / "copy.db"
+    assert rebuild.run({"source": source, "output": copy, "pack": ["Pages"], "page_size": 4096}) == 0
+    assert seen == [4096]
+
+
+def test_page_size_refuses_what_sqlite_would_silently_ignore():
+    assert rebuild.page_size_arg("4096") == 4096
+    for value in ("3000", "256", "131072", "0"):
+        try:
+            rebuild.page_size_arg(value)
+        except Exception as exc:  # noqa: BLE001
+            assert "power of two" in str(exc)
+        else:
+            raise AssertionError(f"{value} was accepted")
+
 def test_pack_refuses_a_table_with_orphaned_references(tmp_path):
     """An orphan's old id could match one of the new ids, turning a dangling
     reference into a wrong one."""
@@ -273,8 +307,8 @@ def _run_spoiled(source: Path, output: Path, sql: str, pack=()) -> tuple:
     copy would change it; returns (exit code, what run() printed to stderr)."""
     unpatched = rebuild.rebuild
 
-    def spoiled(src, out, pack=()):
-        maps = unpatched(src, out, pack)
+    def spoiled(src, out, pack=(), page_size=None):
+        maps = unpatched(src, out, pack, page_size)
         with sqlite3.connect(out) as conn:
             conn.executescript(sql)
         return maps
