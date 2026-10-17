@@ -22,7 +22,8 @@ Two modes:
     whatever form that reference takes, because nothing is renamed.
 
   * --webp - **convert** formats, mirroring insert_optimized_media.py's own
-    --webp behavior: every static raster becomes WEBP, and an SVG still over
+    --webp behavior: every static raster becomes WEBP, an animated GIF becomes
+    animated WEBP when that is smaller, and an SVG still over
     --svg-rasterize-threshold after minifying is rasterized to WEBP. A
     converted file is written to a NEW path (same directory and stem, new
     extension), its content type set to the format actually produced, and the
@@ -49,8 +50,10 @@ any error), mirroring optimize_media.py's own encoders and defaults:
   - image/gif : downscale. An animated GIF that needs no resizing only goes
     through gifsicle -O3, which is lossless; one that does is resized frame by
     frame (timing and loop count preserved), saved with sub-rectangle frames,
-    and replaced by gifsicle -O3 of that when smaller. Animated GIFs stay GIFs
-    even under --webp, since animated-WEBP encoding isn't implemented here. Raw.
+    and replaced by gifsicle -O3 of that when smaller. Under --webp an animated
+    GIF also gets two animated WebP candidates - lossy (--webp-quality), and,
+    unless it has real transparency, quantized to --animated-colors colours and
+    stored lossless - and the smallest candidate is kept. Raw.
   - image/webp: downscale, re-encode WEBP (--webp-quality). Animated WEBP is
     left untouched. Brotli-compressed on store, matching the ContentTypes row.
   - image/svg+xml: Scour-optimized (metadata/comment/id stripping, numbers
@@ -182,7 +185,7 @@ import time
 from pathlib import Path
 
 import brotli
-from PIL import Image
+from PIL import Image, features
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +307,7 @@ DEFAULTS = {
     "pngquant_speed": 4,
     "svg_precision": 4,
     "svg_rasterize_threshold": 300 * 1024,  # 300KB
+    "animated_colors": 64,
 }
 
 
@@ -412,6 +416,71 @@ def animation_frames(img: Image.Image, max_width: int) -> tuple:
         frames.append(resize_if_needed(frame, max_width))
         durations.append(img.info.get("duration", 100))
     return frames, durations, has_alpha
+
+
+def webp_loop(img: Image.Image) -> int:
+    """The source GIF's loop count in WebP's terms. A GIF's NETSCAPE count is
+    how many times to repeat after the first play, and a GIF without one plays
+    once; WebP counts total plays, with 0 meaning forever either way."""
+    if "loop" not in img.info:
+        return 1
+    return img.info["loop"] + 1 if img.info["loop"] else 0
+
+
+def encode_animated_webp(frames: list, durations: list, loop: int, quality: int) -> bytes:
+    """Lossy animated WebP. method=4, not the 6 encode_webp uses for a still:
+    over these animations 6 took several times longer for a few percent."""
+    buf = io.BytesIO()
+    frames[0].save(buf, "WEBP", save_all=True, append_images=frames[1:], duration=durations, loop=loop,
+                   quality=quality, method=4, allow_mixed=True)
+    return buf.getvalue()
+
+
+def encode_indexed_webp(frames: list, durations: list, loop: int, colors: int) -> bytes:
+    """Animated WebP quantized to `colors` colours and stored lossless.
+
+    GIFs often use few colours, and lossless WebP stores a frame of 256 colours
+    or fewer as palette indices, packing several pixels per byte at 16 or fewer.
+    One palette serves every frame - chosen from up to 16 frames spread across
+    the animation - so a colour cannot flicker between frames. No dithering:
+    dither noise defeats both the palette and the frame-to-frame prediction.
+    Over the 37 animated GIFs in the 2026-10-13 database, 64 colours came out
+    both smaller than lossy WebP and closer to the GIF (24.0 vs 28.0 MB)."""
+    method = Image.Quantize.LIBIMAGEQUANT if features.check_feature("libimagequant") else Image.Quantize.MEDIANCUT
+    sample = frames[::max(1, len(frames) // 16)][:16]
+    width, height = sample[0].size
+    mosaic = Image.new("RGB", (width, height * len(sample)))
+    for i, frame in enumerate(sample):
+        mosaic.paste(frame.convert("RGB"), (0, i * height))
+    palette = mosaic.quantize(colors=colors, method=method, dither=Image.Dither.NONE)
+    quantized = [frame.convert("RGB").quantize(palette=palette, dither=Image.Dither.NONE).convert("RGB")
+                 for frame in frames]
+    buf = io.BytesIO()
+    # In lossless mode quality is effort, not fidelity.
+    quantized[0].save(buf, "WEBP", save_all=True, append_images=quantized[1:], duration=durations, loop=loop,
+                      lossless=True, quality=100, method=4)
+    return buf.getvalue()
+
+
+def optimize_animation(img: Image.Image, data: bytes, cfg: dict, gifsicle_path) -> tuple:
+    """(bytes, content type) for an already-open animated GIF: the smallest of
+    the candidates this run allows.
+
+    Always the GIF from optimize_animated_gif. Under --webp also lossy animated
+    WebP, and WebP quantized to --animated-colors colours and stored lossless -
+    except for an animation with real transparency, whose quantizing would need
+    an alpha-aware palette this does not build."""
+    loop = webp_loop(img)
+    candidates = []
+    if cfg["webp"]:
+        frames, durations, has_alpha = animation_frames(img, cfg["max_width"])
+        candidates.append((encode_animated_webp(frames, durations, loop, cfg["webp_quality"]), WEBP_TYPE))
+        colors = cfg.get("animated_colors", DEFAULTS["animated_colors"])
+        if colors and not has_alpha:
+            candidates.append((encode_indexed_webp(frames, durations, loop, colors), WEBP_TYPE))
+        img.seek(0)
+    candidates.append((optimize_animated_gif(img, data, cfg["max_width"], gifsicle_path), "image/gif"))
+    return min(candidates, key=lambda candidate: len(candidate[0]))
 
 
 def optimize_animated_gif(img: Image.Image, data: bytes, max_width: int, gifsicle_path) -> bytes:
@@ -544,7 +613,7 @@ def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path:
             # since re-encoding those animations isn't implemented and
             # flattening them to one frame would silently break them.
             if value == "image/gif":
-                return optimize_animated_gif(img, data, cfg["max_width"], gifsicle_path), "image/gif"
+                return optimize_animation(img, data, cfg, gifsicle_path)
             return None
         if cfg["webp"]:
             # --webp: every static raster becomes WEBP regardless of its source
@@ -1652,10 +1721,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true",
                    help="Do all the work and report savings, then roll back without writing or backing up")
     p.add_argument("--webp", action="store_true",
-                   help="Convert every static raster (PNG/JPEG/GIF) to WEBP, and rasterize an SVG still over "
+                   help="Convert every static raster (PNG/JPEG/GIF) to WEBP, an animated GIF to animated "
+                        "WEBP when that is smaller, and rasterize an SVG still over "
                         "--svg-rasterize-threshold after minifying. Converted files are stored under a new "
                         "path ending .webp and their old row is deleted; references to the old name are NOT "
-                        "rewritten")
+                        "rewritten (update_media_references.py does that)")
+    p.add_argument("--animated-colors", type=int, default=DEFAULTS["animated_colors"],
+                   help="With --webp, also try each animated GIF quantized to this many colours and stored as "
+                        f"lossless WEBP; 0 skips it (default: {DEFAULTS['animated_colors']})")
     p.add_argument("--svg-rasterize-threshold", type=int, default=DEFAULTS["svg_rasterize_threshold"],
                    help="With --webp, rasterize a minified SVG still larger than this many bytes "
                         f"(default: {DEFAULTS['svg_rasterize_threshold']:,})")
@@ -1717,7 +1790,7 @@ def main() -> None:
         "webp": args.webp, "svg_rasterize_threshold": args.svg_rasterize_threshold,
         "manifest_out": args.manifest_out, "manifest_in": args.manifest_in,
         "save_originals": args.save_originals, "restore_originals": args.restore_originals,
-        "force_restore": args.force_restore, "types": args.types,
+        "force_restore": args.force_restore, "types": args.types, "animated_colors": args.animated_colors,
     }
     sys.exit(restore_originals(cfg) if args.restore_originals is not None else run(cfg))
 

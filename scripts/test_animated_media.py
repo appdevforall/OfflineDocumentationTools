@@ -255,5 +255,54 @@ def test_a_transparent_gif_leaves_no_trail():
     assert red < square * 1.5, f"{red} red pixels in the last frame; one square is about {square:.0f}"
 
 
+def _gradient_animation(width=300, height=150, frames=16) -> bytes:
+    """A gradient sliding sideways: every frame differs everywhere and holds
+    far more than 256 colours - where GIF is at its worst and lossy WebP wins."""
+    images = []
+    for i in range(frames):
+        frame = Image.new("RGB", (width, height))
+        frame.putdata([((x * 2 + i * 9) % 256, (y * 3 + x) % 256, (x + y + i * 5) % 256)
+                       for y in range(height) for x in range(width)])
+        images.append(frame)
+    buffer = io.BytesIO()
+    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=[50] * frames, loop=0)
+    return buffer.getvalue()
+
+
+def test_webp_turns_an_animated_gif_into_animated_webp(tmp_path):
+    db_path = tmp_path / "documentation.db"
+    source = _gradient_animation()
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", source)])
+
+    assert opt.run(base._optimize_cfg(db_path)) == 0
+
+    path, value, stored = _stored_media(db_path, "a/media/demo")
+    assert (path, value) == ("a/media/demo.webp", "image/webp")
+    with Image.open(io.BytesIO(stored)) as img:
+        assert img.is_animated and img.info.get("loop") == 0
+    assert sum(d for _s, d, _p in _displayed(stored)) == sum(d for _s, d, _p in _displayed(source))
+
+
+def test_indexed_webp_reproduces_a_few_colour_animation_exactly():
+    """Quantizing to 64 colours changes nothing in an animation that has fewer,
+    and the result is stored lossless - so it shows exactly what the GIF did."""
+    source = _animated_gif(300, 150)
+    with Image.open(io.BytesIO(source)) as img:
+        frames, durations, _alpha = opt.animation_frames(img, 500)
+    out = opt.encode_indexed_webp(frames, durations, 0, 64)
+    assert _same_on_the_timeline(source, out)
+
+
+def test_webp_loop_counts_plays_where_gif_counts_repeats():
+    def loop_of(**info):
+        image = Image.new("RGB", (1, 1))
+        image.info.update(info)
+        return opt.webp_loop(image)
+
+    assert loop_of() == 1, "a GIF with no loop count plays once"
+    assert loop_of(loop=0) == 0, "forever"
+    assert loop_of(loop=2) == 3, "two repeats after the first play"
+
+
 if __name__ == "__main__":
     sys.exit(base._main(globals()))
