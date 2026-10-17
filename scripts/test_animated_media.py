@@ -592,6 +592,24 @@ def test_a_gif_that_cannot_become_video_unnoticed_does_not(tmp_path):
         assert value != "video/webm", f"{stem} became WebM"
 
 
+def test_a_gif_that_repeats_a_set_number_of_times_never_becomes_webm():
+    """The <video> written for a WebM always loops, so only a GIF that loops
+    forever qualifies. With only "plays once" tested, `loop != 1` in place of
+    `loop == 0` passed every test while making a GIF that repeats twice loop
+    forever."""
+    cfg = {**base._optimize_cfg(Path("unused.db"), webp=False), "webm": True}
+    gifsicle, ffmpeg = shutil.which("gifsicle"), shutil.which("ffmpeg")
+
+    def output_type(loop):
+        source = _gradient_animation(loop=loop)
+        with Image.open(io.BytesIO(source)) as img:
+            return opt.optimize_animation(img, source, "demo.gif", cfg, gifsicle, ffmpeg)[1]
+
+    assert output_type(0) == "video/webm", "looping forever, this animation is smallest as WebM"
+    for loop in (1, 2, 65535):
+        assert output_type(loop) != "video/webm", f"a GIF repeating {loop} time(s) became a <video> that loops forever"
+
+
 def test_convert_to_webm_rewrite_then_restore_reproduces_the_database(tmp_path):
     """test_media_bundle's round trip, with video in it: a GIF becomes WebM,
     the <img> showing it - plain and JSON-escaped - becomes a <video>, and
