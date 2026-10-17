@@ -45,6 +45,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import optimize_db_media as opt  # noqa: E402
@@ -390,6 +392,31 @@ def test_a_source_keeps_everything_but_its_names_and_its_type():
     old type."""
     assert _rewrite("<source  poster='hero.png' src=clip.mp4 TYPE='video/mp4; codecs=\"avc1\"' >") == (
         "<source  poster='hero.webp' src=clip.webm TYPE='video/webm' >", [ref.TagEdit])
+
+
+def test_a_source_whose_type_cannot_be_set_is_refused():
+    """The ">" inside title ends the tag early, so its attributes cannot be
+    parsed. Renaming the src alone, as this used to, left a WebM declared as
+    video/mp4, which a browser that cannot play MP4 skips unfetched."""
+    with pytest.raises(ref.UnconvertibleReference, match="cannot parse"):
+        ref.rewrite_text('<source src="media/clip.mp4" type="video/mp4" title="a > b">', PATTERN, RENAMES)
+
+
+def test_a_backslash_quote_in_html_is_not_json_escaping():
+    """Only markup whose every double quote is escaped is JSON-escaped. One
+    literal \\" in an HTML attribute used to make the whole tag count as
+    escaped, and every quote in the result came out as \\"."""
+    assert _rewrite('<source src="media/clip.mp4" type="video/mp4" title=\'say \\"hi\\"\'>') == (
+        '<source src="media/clip.webm" type="video/webm" title=\'say \\"hi\\"\'>', [ref.TagEdit])
+    assert _rewrite('<img alt="A" src="spring.gif" title=\'say \\"hi\\"\'>') == (
+        '<video autoplay loop muted playsinline role="img" aria-label="A" src="spring.webm" '
+        'title=\'say \\"hi\\"\'></video>', [ref.TagEdit])
+    # An apostrophe is not escaped in JSON, so it leaves a JSON tag escaped.
+    assert _rewrite('{"h":"<img alt=\\"it\'s\\" src=\\"spring.gif\\"><source src=\\"clip.mp4\\" '
+                    'type=\\"video/mp4\\">"}') == (
+        '{"h":"<video autoplay loop muted playsinline role=\\"img\\" aria-label=\\"it\'s\\" '
+        'src=\\"spring.webm\\"></video><source src=\\"clip.webm\\" type=\\"video/webm\\">"}',
+        [ref.TagEdit, ref.TagEdit])
 
 
 def test_a_converted_video_can_be_referenced_anywhere():

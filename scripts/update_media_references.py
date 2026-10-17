@@ -69,7 +69,8 @@ A video converted to video (optimize_db_media.py --video-webm, H.264 to VP9
 WebM) is renamed like an image: <video src> and <source src> play WebM as
 they played MP4. The exception is a <source> that declares a type, which a
 browser checks before fetching the file: that tag is rewritten whole with its
-type set to video/webm. A <source> without a type is not given one.
+type set to video/webm. A <source> without a type is not given one, and one
+whose attributes cannot be parsed stops the run before anything is written.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
@@ -222,7 +223,9 @@ class UnconvertibleReference(ValueError):
     """A reference to a file converted to video that no <video> tag can
     replace: a CSS url(), a link, a JSON string, or an <img> using srcset.
     Rewriting the filename alone would leave it pointing at a video it cannot
-    show, so the run refuses instead."""
+    show, so the run refuses instead. A <source> whose attributes cannot be
+    parsed is refused too: it may declare a type that would go on saying
+    video/mp4."""
 
 
 @dataclass(frozen=True)
@@ -251,6 +254,17 @@ def enclosing_tag(text: str, start: int, end: int):
     return opening, closing + 1
 
 
+def unescape_tag(tag: str) -> tuple:
+    """(markup, escaped): `tag` with JSON's \\" escaping undone when it is
+    markup carried inside a JSON string, as Kotlin's templated pages carry
+    theirs, and whether it was. Only a tag whose every double quote is escaped
+    counts: a literal \\" inside a single-quoted HTML attribute does not make
+    the rest of the tag JSON, and treating it so escaped every quote in the
+    result."""
+    escaped = '\\"' in tag and tag.count('"') == tag.count('\\"')
+    return (tag.replace('\\"', '"') if escaped else tag), escaped
+
+
 def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
     """The <video> that replaces an <img> showing a converted animation.
 
@@ -268,9 +282,9 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
 
     Works on the tag as written, including inside a JSON string, where Kotlin's
     templated pages carry their markup with every quote escaped as \\": the
-    escaping is undone to parse the tag and applied again to the result."""
-    escaped = '\\"' in tag
-    markup = tag.replace('\\"', '"') if escaped else tag
+    escaping is undone to parse the tag (unescape_tag) and applied again to
+    the result."""
+    markup, escaped = unescape_tag(tag)
     match = re.fullmatch(r"<img\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
     if match is None:
         raise UnconvertibleReference(f"not an <img> tag: {tag[:120]!r}")
@@ -310,7 +324,9 @@ _SOURCE_TAG_RE = re.compile(r"<source\b", re.IGNORECASE)
 def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
     """A <source> whose src names a video converted to WebM, with that name
     and its type rewritten - or None when it declares no type to change, or
-    the converted video is not its src.
+    the converted video is not its src. A tag whose attributes cannot be
+    parsed raises UnconvertibleReference, as img_tag_to_video does, since
+    nothing then says it has no type to change.
 
     A browser decides by the type whether it can play a source before fetching
     it, so one still saying video/mp4 would describe a WebM as MP4, and a
@@ -322,11 +338,10 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
     spacing included; only the renamed filenames and the type's value change.
     Like img_tag_to_video it works on JSON-escaped markup, undoing the
     escaping to parse the tag and applying it again to the result."""
-    escaped = '\\"' in tag
-    markup = tag.replace('\\"', '"') if escaped else tag
+    markup, escaped = unescape_tag(tag)
     match = re.fullmatch(r"<source\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
     if match is None:
-        return None
+        raise UnconvertibleReference(f"not a <source> tag: {tag[:120]!r}")
     body, offset, attributes, position = match.group(1), match.start(1), {}, 0
     while True:
         attribute = _ATTRIBUTE_RE.match(body, position)
@@ -334,8 +349,11 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
             break
         attributes.setdefault(attribute.group(1).lower(), attribute)  # the first one counts, as in HTML
         position = attribute.end()
+    if body[position:].strip():
+        raise UnconvertibleReference(f"cannot parse the attributes of {tag[:120]!r}, so its type cannot be set "
+                                     "to video/webm")
     src, kind = attributes.get("src"), attributes.get("type")
-    if body[position:].strip() or src is None or kind is None or src.group(2) is None or kind.group(2) is None:
+    if src is None or kind is None or src.group(2) is None or kind.group(2) is None:
         return None
     src_start, src_end = offset + src.start(2), offset + src.end(2)
     if not any(is_video(m.group(1)) and is_video(renames[m.group(1)])
@@ -517,7 +535,9 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
 
     A video converted to video is renamed like an image, wherever it is
     referenced, except as the src of a <source> declaring a type: that tag is
-    a TagEdit too, its type set to video/webm (source_tag_to_webm).
+    a TagEdit too, its type set to video/webm (source_tag_to_webm). A
+    <source> naming one whose attributes cannot be parsed raises
+    UnconvertibleReference.
 
     Still a single pass over the original text, so a replacement can never be
     re-matched by another; the output is assembled piece by piece instead of
@@ -937,8 +957,8 @@ def run(cfg: dict) -> int:
             # changed between the two runs.
             for _kind, path, message in unconvertible:
                 print(f"  error: {path}: {message}", file=sys.stderr)
-            print(f"error: {len(unconvertible)} row(s) reference a converted video somewhere a <video> tag "
-                  "cannot replace; nothing was rewritten. Restore those files (optimize_db_media.py "
+            print(f"error: {len(unconvertible)} row(s) reference a converted video in a way this script "
+                  "cannot rewrite; nothing was rewritten. Restore those files (optimize_db_media.py "
                   "--restore-originals) or change the pages, then run this again.", file=sys.stderr)
             return 1
         if binary:
