@@ -33,6 +33,7 @@ import io
 import random
 import shutil
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
@@ -258,17 +259,22 @@ def test_a_transparent_gif_leaves_no_trail():
     assert red < square * 1.5, f"{red} red pixels in the last frame; one square is about {square:.0f}"
 
 
-def _gradient_animation(width=300, height=150, frames=16) -> bytes:
+def _gradient_animation(width=300, height=150, frames=16, loop=0, clear_corner=False) -> bytes:
     """A gradient sliding sideways: every frame differs everywhere and holds
-    far more than 256 colours - where GIF is at its worst and lossy WebP wins."""
+    far more than 256 colours - where GIF is at its worst and lossy WebP and
+    WebM win. clear_corner leaves a transparent square in each frame."""
     images = []
     for i in range(frames):
         frame = Image.new("RGB", (width, height))
         frame.putdata([((x * 2 + i * 9) % 256, (y * 3 + x) % 256, (x + y + i * 5) % 256)
                        for y in range(height) for x in range(width)])
+        if clear_corner:
+            frame = frame.convert("RGBA")
+            frame.paste((0, 0, 0, 0), (0, 0, 40, 40))
         images.append(frame)
     buffer = io.BytesIO()
-    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=[50] * frames, loop=0)
+    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=[50] * frames,
+                   **({} if loop is None else {"loop": loop}))
     return buffer.getvalue()
 
 
@@ -380,6 +386,113 @@ def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
         blocked = ref.names_not_convertible_to_video(conn, codec, {"spring.gif", "spinner.gif", "retina.gif"}, 2)
         codec.close()
     assert blocked == {"spinner.gif", "retina.gif"}
+
+
+def _probe(data: bytes, tmp_path: Path) -> tuple:
+    """(codec name, duration in ms) of a WebM, per ffprobe."""
+    video = tmp_path / "probe.webm"
+    video.write_bytes(data)
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                          "stream=codec_name:format=duration", "-of", "default=nw=1", str(video)],
+                         capture_output=True, text=True, check=True).stdout
+    fields = dict(line.split("=", 1) for line in out.split())
+    return fields["codec_name"], round(float(fields["duration"]) * 1000)
+
+
+def _webm_cfg(db_path: Path, **overrides) -> dict:
+    return base._optimize_cfg(db_path, webm=True, **overrides)
+
+
+def test_webm_turns_an_animated_gif_into_vp9_at_its_own_timing(tmp_path):
+    db_path = tmp_path / "documentation.db"
+    source = _gradient_animation()
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", source),
+                              ("a/page.html", "text/html", b'<img alt="Demo" src="media/demo.gif">')], WEBM_TYPES)
+
+    assert opt.run(_webm_cfg(db_path)) == 0
+
+    path, value, stored = _stored_media(db_path, "a/media/demo")
+    assert (path, value) == ("a/media/demo.webm", "video/webm")
+    assert _probe(stored, tmp_path) == ("vp9", sum(d for _s, d, _p in _displayed(source)))
+
+
+def test_webm_needs_its_content_type(tmp_path):
+    db_path = tmp_path / "documentation.db"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation())])
+    before = base._snapshot(db_path)
+    assert opt.run(_webm_cfg(db_path)) == 1
+    assert base._snapshot(db_path) == before
+
+
+def test_a_gif_that_cannot_become_video_unnoticed_does_not(tmp_path):
+    """Transparency (no alpha in VP9 as encoded), not looping forever (the
+    <video> always loops), and a reference no <video> can replace each keep a
+    GIF out of WebM - it converts to WebP instead."""
+    db_path = tmp_path / "documentation.db"
+    plays_once = _gradient_animation(loop=None)
+    with Image.open(io.BytesIO(plays_once)) as img:
+        assert "loop" not in img.info
+    _build_database(db_path, [
+        ("a/media/clear.gif", "image/gif", _gradient_animation(clear_corner=True)),
+        ("a/media/once.gif", "image/gif", plays_once),
+        ("a/media/styled.gif", "image/gif", _gradient_animation(frames=12)),
+        ("a/site.css", "text/css", b'body{background:url("media/styled.gif")}'),
+    ], WEBM_TYPES)
+
+    assert opt.run(_webm_cfg(db_path)) == 0
+
+    for stem in ("a/media/clear", "a/media/once", "a/media/styled"):
+        _path, value, _data = _stored_media(db_path, stem)
+        assert value != "video/webm", f"{stem} became WebM"
+
+
+def test_convert_to_webm_rewrite_then_restore_reproduces_the_database(tmp_path):
+    """test_media_bundle's round trip, with video in it: a GIF becomes WebM,
+    the <img> showing it - plain and JSON-escaped - becomes a <video>, and
+    putting both halves back gives exactly the database it started as."""
+    db_path, bundle = tmp_path / "documentation.db", tmp_path / "bundle"
+    _build_database(db_path, [
+        ("a/media/demo.gif", "image/gif", _gradient_animation()),
+        ("k/images/kdemo.gif", "image/gif", _gradient_animation(frames=12)),
+        ("a/page.html", "text/html", b'<p>Watch:</p><img alt="A demo, slowly" src="media/demo.gif" width="300"/>'),
+        ("k/page.html", "text/html",
+         b'{"html":"<img src=\\"/k/images/kdemo.gif\\" alt=\\"K\\" width=\\"600\\"/>"}', 2),
+    ], WEBM_TYPES)
+    before = base._snapshot(db_path)
+    pre_conversion = tmp_path / "before.db"
+    shutil.copy(db_path, pre_conversion)
+
+    assert opt.run(_webm_cfg(db_path, save_originals=bundle)) == 0
+    reference_cfg = {"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                     "verbose": False, "save_originals": bundle, "restore_originals": None}
+    assert ref.run(reference_cfg) == 0
+
+    _path, _value, page = _stored_media(db_path, "a/page")
+    assert page == (b'<p>Watch:</p><video autoplay loop muted playsinline aria-label="A demo, slowly" '
+                    b'src="media/demo.webm" width="300"></video>')
+    _path, _value, kotlin = _stored_media(db_path, "k/page")
+    assert b'<video autoplay loop muted playsinline src=\\"/k/images/kdemo.webm\\"' in kotlin
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT templateId FROM Content WHERE path = 'k/page.html'").fetchone() == (2,)
+
+    assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
+    assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
+                                   "restore_originals": bundle}) == 0
+    assert base._snapshot(db_path) == before
+
+
+def test_a_webm_keeps_its_manifest_entry_and_provenance(tmp_path):
+    """The next run has to recognise the WebM as this tool's output and know
+    which GIF it came from - or a re-inserted GIF lands beside it under a
+    de-conflicted name nothing links to."""
+    db_path = tmp_path / "documentation.db"
+    first, second = tmp_path / "first.tsv", tmp_path / "second.tsv"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                              ("a/page.html", "text/html", b'<img src="media/demo.gif">')], WEBM_TYPES)
+    assert opt.run(_webm_cfg(db_path, manifest_out=first)) == 0
+    assert opt.read_manifest(first)["a/media/demo.webm"][2] == "a/media/demo.gif"
+    assert opt.run(_webm_cfg(db_path, manifest_in=first, manifest_out=second)) == 0
+    assert opt.read_manifest(second) == opt.read_manifest(first)
 
 
 if __name__ == "__main__":

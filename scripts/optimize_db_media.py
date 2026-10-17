@@ -29,6 +29,14 @@ Two modes:
     extension), its content type set to the format actually produced, and the
     old row (plus its chunk chain) is deleted.
 
+  * --webm - an animated GIF may also become VP9 WebM (video/webm, CRF
+    --webm-crf), when that is the smallest candidate and the swap cannot change
+    what a page shows: no real transparency, looping forever, and referenced
+    only from <img> tags, which update_media_references.py rewrites as
+    <video autoplay loop muted playsinline>. Combines with --webp or not; needs
+    ffmpeg, and a video/webm row in ContentTypes (set_content_type_compression.py
+    adds one).
+
     NOTE: --webp does NOT rewrite the references that point at the old
     filenames, so pages will link to names that no longer exist until those
     references are fixed separately. insert_optimized_media.py can only do
@@ -53,7 +61,8 @@ any error), mirroring optimize_media.py's own encoders and defaults:
     and replaced by gifsicle -O3 of that when smaller. Under --webp an animated
     GIF also gets two animated WebP candidates - lossy (--webp-quality), and,
     unless it has real transparency, quantized to --animated-colors colours and
-    stored lossless - and the smallest candidate is kept. Raw.
+    stored lossless - and --webm adds a VP9 WebM candidate (see above). The
+    smallest candidate is kept. GIF and WebM are stored raw.
   - image/webp: downscale, re-encode WEBP (--webp-quality). Animated WEBP is
     left untouched. Brotli-compressed on store, matching the ContentTypes row.
   - image/svg+xml: Scour-optimized (metadata/comment/id stripping, numbers
@@ -166,9 +175,10 @@ Python dependencies (Pillow, scour, brotli) are declared inline above (PEP
 
     uv run scripts/optimize_db_media.py documentation.db
 
-The "pngquant" and "brotli" command-line tools must also be on PATH, and
-"gifsicle" for animated GIFs (e.g. `brew install pngquant brotli gifsicle`);
-those are system binaries, not pip packages, so uv can't provide them.
+The "pngquant" and "brotli" command-line tools must also be on PATH, plus
+"gifsicle" for animated GIFs and "ffmpeg" (with libvpx-vp9) for --webm (e.g.
+`brew install pngquant brotli gifsicle ffmpeg`); those are system binaries,
+not pip packages, so uv can't provide them.
 """
 from __future__ import annotations
 
@@ -308,6 +318,7 @@ DEFAULTS = {
     "svg_precision": 4,
     "svg_rasterize_threshold": 300 * 1024,  # 300KB
     "animated_colors": 64,
+    "webm_crf": 32,
 }
 
 
@@ -462,22 +473,63 @@ def encode_indexed_webp(frames: list, durations: list, loop: int, colors: int) -
     return buf.getvalue()
 
 
-def optimize_animation(img: Image.Image, data: bytes, cfg: dict, gifsicle_path) -> tuple:
+def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> bytes:
+    """VP9 WebM of opaque frames, each shown for its own duration.
+
+    yuv420p is VP9 profile 0, the one every hardware decoder handles, and has
+    no alpha - which is why a transparent GIF never gets here. The frames go to
+    ffmpeg as PNGs through a concat list carrying each duration. The last frame
+    is listed twice and the output cut at the total duration with -t: some
+    ffmpeg versions ignore the last entry's duration, and listing it twice
+    without the cut adds a frame - trial encodes ran 30-60 ms long that way."""
+    with tempfile.TemporaryDirectory(prefix="optimize_db_media_webm_") as work:
+        work = Path(work)
+        lines = ["ffconcat version 1.0"]
+        for number, (frame, duration) in enumerate(zip(frames, durations)):
+            name = f"{number:05d}.png"
+            frame.convert("RGB").save(work / name, compress_level=1)
+            lines += [f"file '{name}'", f"duration {duration / 1000:.3f}"]
+        lines.append(f"file '{name}'")
+        (work / "frames.ffconcat").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        result = subprocess.run(
+            [ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+             "-f", "concat", "-safe", "0", "-i", str(work / "frames.ffconcat"),
+             "-fps_mode", "passthrough", "-t", f"{sum(durations) / 1000:.3f}",
+             "-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0", "-pix_fmt", "yuv420p",
+             "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-an", str(work / "out.webm")],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed: {result.stderr.decode(errors='replace').strip()[-400:]}")
+        return (work / "out.webm").read_bytes()
+
+
+def optimize_animation(img: Image.Image, data: bytes, name: str, cfg: dict, gifsicle_path,
+                       ffmpeg_path=None, webm_blocked=frozenset()) -> tuple:
     """(bytes, content type) for an already-open animated GIF: the smallest of
     the candidates this run allows.
 
     Always the GIF from optimize_animated_gif. Under --webp also lossy animated
     WebP, and WebP quantized to --animated-colors colours and stored lossless -
     except for an animation with real transparency, whose quantizing would need
-    an alpha-aware palette this does not build."""
+    an alpha-aware palette this does not build.
+
+    Under --webm also VP9 WebM, for a GIF that can become one without changing
+    what the page shows: no real transparency (no alpha in yuv420p), looping
+    forever (the <video> update_media_references.py writes always loops), and
+    referenced only from <img> tags it can rewrite - `webm_blocked` names the
+    rest."""
     loop = webp_loop(img)
     candidates = []
-    if cfg["webp"]:
+    if cfg["webp"] or cfg.get("webm"):
         frames, durations, has_alpha = animation_frames(img, cfg["max_width"])
-        candidates.append((encode_animated_webp(frames, durations, loop, cfg["webp_quality"]), WEBP_TYPE))
-        colors = cfg.get("animated_colors", DEFAULTS["animated_colors"])
-        if colors and not has_alpha:
-            candidates.append((encode_indexed_webp(frames, durations, loop, colors), WEBP_TYPE))
+        if cfg["webp"]:
+            candidates.append((encode_animated_webp(frames, durations, loop, cfg["webp_quality"]), WEBP_TYPE))
+            colors = cfg.get("animated_colors", DEFAULTS["animated_colors"])
+            if colors and not has_alpha:
+                candidates.append((encode_indexed_webp(frames, durations, loop, colors), WEBP_TYPE))
+        if cfg.get("webm") and not has_alpha and loop == 0 and name not in webm_blocked:
+            crf = cfg.get("webm_crf", DEFAULTS["webm_crf"])
+            candidates.append((encode_webm(frames, durations, crf, ffmpeg_path), WEBM_TYPE))
         img.seek(0)
     candidates.append((optimize_animated_gif(img, data, cfg["max_width"], gifsicle_path), "image/gif"))
     return min(candidates, key=lambda candidate: len(candidate[0]))
@@ -574,10 +626,15 @@ OPTIMIZABLE = {
     WEBP_TYPE: ".webp",
     "image/svg+xml": ".svg",
 }
+# What --webm converts animated GIFs into. An output only, never an input: a
+# WebM is lossy already and is left alone, so it is not in OPTIMIZABLE - but a
+# converted file has to be named for it, and its manifest entry carried over.
+WEBM_TYPE = "video/webm"
+OUTPUT_EXTENSIONS = {**OPTIMIZABLE, WEBM_TYPE: ".webm"}
 
 
 def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path: str, logger,
-                   gifsicle_path: str = None) -> tuple:
+                   gifsicle_path: str = None, ffmpeg_path: str = None, webm_blocked=frozenset()) -> tuple:
     """Optimizes one media file's bytes. Returns (new_bytes, produced_type) -
     the CONTENT TYPE actually produced, which differs from `value` only when
     --webp converts a raster or rasterizes an oversized SVG - or None when this
@@ -613,7 +670,7 @@ def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path:
             # since re-encoding those animations isn't implemented and
             # flattening them to one frame would silently break them.
             if value == "image/gif":
-                return optimize_animation(img, data, cfg, gifsicle_path)
+                return optimize_animation(img, data, name, cfg, gifsicle_path, ffmpeg_path, webm_blocked)
             return None
         if cfg["webp"]:
             # --webp: every static raster becomes WEBP regardless of its source
@@ -1165,6 +1222,13 @@ def run(cfg: dict) -> int:
     # Looked up, not required: only an animated GIF needs it, and one that finds
     # it missing fails on its own row with an install hint.
     gifsicle_path = shutil.which("gifsicle")
+    ffmpeg_path = None
+    if cfg.get("webm"):
+        ffmpeg_path = shutil.which("ffmpeg")
+        if ffmpeg_path is None:
+            print("error: --webm needs ffmpeg (built with libvpx-vp9) on PATH; install it and retry",
+                  file=sys.stderr)
+            return 1
 
     known = {}
     if cfg["manifest_in"] is not None:
@@ -1213,6 +1277,7 @@ def run(cfg: dict) -> int:
              "archive_errors": 0, "archive_not_original": 0, "archive_blocked": 0,
              "before": 0, "after": 0, "saved": 0}
     per_type = {}
+    produced = {}  # {content type converted into: count}
     codec = None
     try:
         conn.execute("BEGIN")
@@ -1223,13 +1288,18 @@ def run(cfg: dict) -> int:
         # produce, looked up once. Missing here is fatal for that format only
         # when something actually converts to it (checked at use).
         type_info = {}
-        for type_value in OPTIMIZABLE:
+        for type_value in OUTPUT_EXTENSIONS:
             row = conn.execute("SELECT id, compression FROM ContentTypes WHERE value = ?", (type_value,)).fetchone()
             if row:
                 type_info[type_value] = (row[0], row[1])
         if cfg["webp"] and WEBP_TYPE not in type_info:
             print("error: --webp needs an 'image/webp' row in ContentTypes; this database has none",
                   file=sys.stderr)
+            conn.rollback()
+            return 1
+        if cfg.get("webm") and WEBM_TYPE not in type_info:
+            print("error: --webm needs a 'video/webm' row in ContentTypes; add one with "
+                  f"set_content_type_compression.py {db_path} video/webm none --create", file=sys.stderr)
             conn.rollback()
             return 1
         # Every path already in use, so a converted file never collides with a
@@ -1241,10 +1311,26 @@ def run(cfg: dict) -> int:
             print(f"Using the database's {len(codec._dictionary):,}-byte shared Brotli dictionary "
                   "for image/svg+xml and image/webp rows.")
 
+        webm_blocked = frozenset()
+        if cfg.get("webm"):
+            # Imported here rather than at the top: update_media_references
+            # imports this module.
+            from update_media_references import names_not_convertible_to_video
+            gif_names = {row[0].rsplit("/", 1)[-1] for row in conn.execute(
+                "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
+                "WHERE ct.value = 'image/gif'")}
+            webm_blocked = frozenset(names_not_convertible_to_video(conn, codec, gif_names))
+            if webm_blocked:
+                print(f"{len(webm_blocked)} GIF(s) are referenced where a <video> cannot replace them and "
+                      f"will not become WebM: {', '.join(sorted(webm_blocked)[:5])}")
+
+        # video/webm rows ride along although nothing here optimizes them:
+        # --webm produced them, so their manifest entries (and what they were
+        # converted from) have to carry over to the next manifest.
         rows = conn.execute(
             "SELECT c.path, c.content, c.contentTypeID, ct.value, ct.compression, c.templateId, "
             "c.languageID FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-            "WHERE ct.value LIKE 'image/%' ORDER BY c.path"
+            "WHERE ct.value LIKE 'image/%' OR ct.value = ? ORDER BY c.path", (WEBM_TYPE,)
         ).fetchall()
         # {path: stored length} over every image row, so a "<base>-<N>" row can
         # be recognized as a continuation only when its base is exactly
@@ -1276,7 +1362,7 @@ def run(cfg: dict) -> int:
                 continue  # already rewritten this run as another row's target
 
             optimizable = value in OPTIMIZABLE and (types is None or value in types)
-            if not optimizable and archive is None and (value not in OPTIMIZABLE or path not in known):
+            if not optimizable and archive is None and path not in known:
                 # Nothing to do with it, nothing to keep a copy of, and no
                 # manifest entry to carry over: skip it without paying for a
                 # reassemble.
@@ -1345,7 +1431,8 @@ def run(cfg: dict) -> int:
                 if media_bytes is None:
                     media_bytes = codec.decompress(stored_full, compression)
                 result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
-                                        gifsicle_path=gifsicle_path)
+                                        gifsicle_path=gifsicle_path, ffmpeg_path=ffmpeg_path,
+                                        webm_blocked=webm_blocked)
                 if result is None:  # animated WEBP/APNG: deliberately left alone
                     stats["skipped_animated"] += 1
                     manifest_out[path] = (digest(stored_full), original_stored, None)
@@ -1385,14 +1472,14 @@ def run(cfg: dict) -> int:
                 # disambiguating instead would strand the author's new image
                 # under a name nothing references while the stale one is still
                 # served.
-                natural = f"{path.rsplit('.', 1)[0]}{OPTIMIZABLE[new_type]}"
+                natural = f"{path.rsplit('.', 1)[0]}{OUTPUT_EXTENSIONS[new_type]}"
                 if produced_from_source.get(path) == natural:
                     new_path, replaces_stale = natural, natural
                     # Marked whether or not we are writing, so a --dry-run
                     # prediction matches what a real run would do.
                     superseded.add(natural)
                 else:
-                    new_path = target_path(path, OPTIMIZABLE[new_type], claimed)
+                    new_path = target_path(path, OUTPUT_EXTENSIONS[new_type], claimed)
             converted = new_path != path
             if not cfg["dry_run"]:
                 if replaces_stale:
@@ -1414,6 +1501,7 @@ def run(cfg: dict) -> int:
                 claimed.add(new_path.lower())
                 claimed.discard(path.lower())
                 stats["converted"] += 1
+                produced[new_type] = produced.get(new_type, 0) + 1
                 if archive is not None:
                     # The archived original is only a rollback once it knows
                     # which row replaced it and therefore has to be deleted.
@@ -1510,6 +1598,8 @@ def run(cfg: dict) -> int:
     for value in sorted(per_type):
         b = per_type[value]
         print(f"  {value}: {b['n']} optimized ({b['converted']} converted), saved {human(b['saved'])} bytes")
+    if produced:
+        print("  converted into: " + ", ".join(f"{value} {n}" for value, n in sorted(produced.items())))
     print(f"Image bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
@@ -1729,6 +1819,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--animated-colors", type=int, default=DEFAULTS["animated_colors"],
                    help="With --webp, also try each animated GIF quantized to this many colours and stored as "
                         f"lossless WEBP; 0 skips it (default: {DEFAULTS['animated_colors']})")
+    p.add_argument("--webm", action="store_true",
+                   help="Also try each animated GIF as VP9 WebM, kept when smallest - if it has no real "
+                        "transparency, loops forever and is referenced only from <img> tags. Needs ffmpeg and "
+                        "a video/webm content type; run update_media_references.py afterwards to turn those "
+                        "<img> tags into <video>")
+    p.add_argument("--webm-crf", type=int, default=DEFAULTS["webm_crf"],
+                   help=f"VP9 quality for --webm, 0 (best) to 63 (default: {DEFAULTS['webm_crf']})")
     p.add_argument("--svg-rasterize-threshold", type=int, default=DEFAULTS["svg_rasterize_threshold"],
                    help="With --webp, rasterize a minified SVG still larger than this many bytes "
                         f"(default: {DEFAULTS['svg_rasterize_threshold']:,})")
@@ -1791,6 +1888,7 @@ def main() -> None:
         "manifest_out": args.manifest_out, "manifest_in": args.manifest_in,
         "save_originals": args.save_originals, "restore_originals": args.restore_originals,
         "force_restore": args.force_restore, "types": args.types, "animated_colors": args.animated_colors,
+        "webm": args.webm, "webm_crf": args.webm_crf,
     }
     sys.exit(restore_originals(cfg) if args.restore_originals is not None else run(cfg))
 
