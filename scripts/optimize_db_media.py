@@ -477,24 +477,27 @@ def encode_webm(frames: list, durations: list, crf: int, ffmpeg_path: str) -> by
     """VP9 WebM of opaque frames, each shown for its own duration.
 
     yuv420p is VP9 profile 0, the one every hardware decoder handles, and has
-    no alpha - which is why a transparent GIF never gets here. The frames go to
-    ffmpeg as PNGs through a concat list carrying each duration. The last frame
-    is listed twice and the output cut at the total duration with -t: some
-    ffmpeg versions ignore the last entry's duration, and listing it twice
-    without the cut adds a frame - trial encodes ran 30-60 ms long that way."""
+    no alpha - which is why a transparent GIF never gets here.
+
+    The frames reach ffmpeg as one APNG, whose per-frame delays it reads to
+    the millisecond and passes through, last frame included. A concat list of
+    PNGs with "duration" lines does not: each PNG opens at the image
+    demuxer's 25 fps, so every timestamp lands on a 40 ms grid - 30 ms frames
+    became 40, two frames could share a timestamp - and cutting the output at
+    the total length with -t re-timed it to a constant 25 fps outright, which
+    is how bounce-demo.gif's 5,260 ms became 3,120. The encoder's time base is
+    pinned to 1 ms too: left to itself it follows a frame rate guessed from
+    the delays, and delays of 30, 70 and 130 ms came out on a 1/30 s grid.
+    Identical consecutive frames come out merged, their delays added, so the
+    timeline is unchanged."""
     with tempfile.TemporaryDirectory(prefix="optimize_db_media_webm_") as work:
         work = Path(work)
-        lines = ["ffconcat version 1.0"]
-        for number, (frame, duration) in enumerate(zip(frames, durations)):
-            name = f"{number:05d}.png"
-            frame.convert("RGB").save(work / name, compress_level=1)
-            lines += [f"file '{name}'", f"duration {duration / 1000:.3f}"]
-        lines.append(f"file '{name}'")
-        (work / "frames.ffconcat").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        rgb = [frame.convert("RGB") for frame in frames]
+        rgb[0].save(work / "frames.apng", save_all=True, append_images=rgb[1:], duration=durations, loop=0,
+                    compress_level=1)
         result = subprocess.run(
             [ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-             "-f", "concat", "-safe", "0", "-i", str(work / "frames.ffconcat"),
-             "-fps_mode", "passthrough", "-t", f"{sum(durations) / 1000:.3f}",
+             "-i", str(work / "frames.apng"), "-fps_mode", "passthrough", "-enc_time_base", "1/1000",
              "-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0", "-pix_fmt", "yuv420p",
              "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-an", str(work / "out.webm")],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)

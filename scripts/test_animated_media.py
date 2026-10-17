@@ -401,14 +401,43 @@ def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
 
 
 def _probe(data: bytes, tmp_path: Path) -> tuple:
-    """(codec name, duration in ms) of a WebM, per ffprobe."""
+    """(codec name, duration in ms, sorted frame start times in ms) of a WebM."""
     video = tmp_path / "probe.webm"
     video.write_bytes(data)
-    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                          "stream=codec_name:format=duration", "-of", "default=nw=1", str(video)],
-                         capture_output=True, text=True, check=True).stdout
-    fields = dict(line.split("=", 1) for line in out.split())
-    return fields["codec_name"], round(float(fields["duration"]) * 1000)
+
+    def ffprobe(*entries):
+        return subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", *entries,
+                               "-of", "default=nw=1", str(video)], capture_output=True, text=True, check=True).stdout
+    fields = dict(line.split("=", 1) for line in ffprobe("stream=codec_name:format=duration").split())
+    starts = sorted(round(float(line.split("=", 1)[1]) * 1000) for line in ffprobe("packet=pts_time").split())
+    return fields["codec_name"], round(float(fields["duration"]) * 1000), starts
+
+
+def _uneven_animation() -> bytes:
+    """Frames of 30, 70 and 130 ms and a 2,190 ms pause at the end - delays no
+    fixed frame rate lands on, which is what bounce-demo.gif's are."""
+    delays = [30, 70, 130, 30, 70, 130, 30, 2190]
+    images = []
+    for i, _delay in enumerate(delays):
+        frame = Image.new("RGB", (200, 100))
+        frame.putdata([((x * 3 + i * 31) % 256, (y * 5 + x) % 256, (x + y + i * 17) % 256)
+                       for y in range(100) for x in range(200)])
+        images.append(frame)
+    buffer = io.BytesIO()
+    images[0].save(buffer, "GIF", save_all=True, append_images=images[1:], duration=delays, loop=0)
+    return buffer.getvalue()
+
+
+def test_a_webm_keeps_every_frames_own_timing(tmp_path):
+    """Each frame starts exactly where the GIF's does and the last one keeps
+    its pause: at a fixed frame rate, every one of these would be off."""
+    source = _uneven_animation()
+    with Image.open(io.BytesIO(source)) as img:
+        frames, durations, _alpha = opt.animation_frames(img, 500)
+    codec, total, starts = _probe(opt.encode_webm(frames, durations, 32, shutil.which("ffmpeg")), tmp_path)
+    shown = _displayed(source)
+    assert (codec, total) == ("vp9", sum(d for _s, d, _p in shown))
+    assert starts == [start for start, _d, _p in shown]
 
 
 def _webm_cfg(db_path: Path, **overrides) -> dict:
@@ -425,7 +454,7 @@ def test_webm_turns_an_animated_gif_into_vp9_at_its_own_timing(tmp_path):
 
     path, value, stored = _stored_media(db_path, "a/media/demo")
     assert (path, value) == ("a/media/demo.webm", "video/webm")
-    assert _probe(stored, tmp_path) == ("vp9", sum(d for _s, d, _p in _displayed(source)))
+    assert _probe(stored, tmp_path)[:2] == ("vp9", sum(d for _s, d, _p in _displayed(source)))
 
 
 def test_webm_needs_its_content_type(tmp_path):
