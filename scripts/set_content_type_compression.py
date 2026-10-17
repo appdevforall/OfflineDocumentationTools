@@ -30,8 +30,8 @@ the new one, and decoded again before the commit to check it reads back as the
 same content. Running the script again with the old setting reverses it.
 
 --create adds the type when the database has no row for it, as video/webm needs
-before the first optimize_db_media.py --webm run. No row can carry a type that
-did not exist, so there is nothing to re-store.
+before the first optimize_db_media.py --webm or --video-webm run. No row can
+carry a type that did not exist, so there is nothing to re-store.
 
 --manifest PATH: optimize_db_media.py's manifest records each media file's
 STORED size and sha256. Re-storing a row changes both, so an older manifest
