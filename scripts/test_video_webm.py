@@ -36,6 +36,7 @@ or under pytest:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import shutil
@@ -56,11 +57,12 @@ VIDEO_TYPES = [(12, "text/html", "brotli"), (25, "video/mp4", "none"), (26, "ima
 FFMPEG = ["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y"]
 
 
-def _clip(path: Path, width: int, height: int, seconds: float = 2, audio: bool = False, noise: int = 0) -> Path:
-    """An H.264 original from ffmpeg's test pattern at 30 fps, with a 440 Hz
-    tone as AAC when `audio`. Noise makes it expensive to store."""
-    source = f"testsrc2=size={width}x{height}:rate=30:duration={seconds}" + (f",noise=alls={noise}:allf=t"
-                                                                          if noise else "")
+def _clip(path: Path, width: int, height: int, seconds: float = 2, audio: bool = False, noise: int = 0,
+          pattern: str = "testsrc2") -> Path:
+    """An H.264 original from one of ffmpeg's test patterns at 30 fps, with a
+    440 Hz tone as AAC when `audio`. Noise makes it expensive to store."""
+    source = f"{pattern}=size={width}x{height}:rate=30:duration={seconds}" + (f",noise=alls={noise}:allf=t"
+                                                                           if noise else "")
     command = FFMPEG + ["-f", "lavfi", "-i", source]
     if audio:
         command += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:a", "aac", "-shortest"]
@@ -77,9 +79,10 @@ def _cut_down(original: Path, path: Path, width: int = 480, crf: int = 23) -> by
 
 
 def _scene(tmp_path: Path, pages: list = ()) -> tuple:
-    """Three clips stored cut down, and a directory of their originals: one
-    wider than 480 px, one narrower (a .mov, so video/quicktime is covered),
-    and one with sound, plus `pages`. Returns (database, originals directory)."""
+    """Three clips stored cut down, and a directory of their originals with
+    the digest of each one's stored clip: one wider than 480 px, one narrower
+    (a .mov, so video/quicktime is covered), and one with sound, plus `pages`.
+    Returns (database, originals directory)."""
     originals, work = tmp_path / "originals", tmp_path / "work"
     originals.mkdir()
     work.mkdir()
@@ -92,7 +95,17 @@ def _scene(tmp_path: Path, pages: list = ()) -> tuple:
                                         _cut_down(narrow, work / "narrow.mov")),
                                        ("a/media/talk.mp4", "video/mp4", _cut_down(talk, work / "talk.mp4")),
                                        *pages], VIDEO_TYPES)
+    _record_digests(db_path, originals)
     return db_path, originals
+
+
+def _record_digests(db_path: Path, originals: Path, overwrite: bool = False) -> None:
+    """--write-video-digests, as when the originals are gathered. A test that
+    changes a stored clip afterwards and means the change to be accepted
+    records them again with `overwrite`."""
+    code, output = _call(opt.write_video_digests, {"db_path": db_path, "write_video_digests": originals,
+                                                   "overwrite_video_digests": overwrite})
+    assert code == 0, output
 
 
 def _video_cfg(db_path: Path, originals: Path, **overrides) -> dict:
@@ -109,12 +122,16 @@ def _streams(data: bytes, tmp_path: Path) -> dict:
     return {stream["codec_type"]: stream for stream in json.loads(out)["streams"]}
 
 
-def _run(cfg: dict) -> tuple:
-    """(exit code, everything the run printed)."""
+def _call(function, cfg: dict) -> tuple:
+    """(exit code, everything `function` printed)."""
     out = io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-        code = opt.run(cfg)
+        code = function(cfg)
     return code, out.getvalue()
+
+
+def _run(cfg: dict) -> tuple:
+    return _call(opt.run, cfg)
 
 
 def test_video_webm_encodes_each_clip_from_its_original(tmp_path):
@@ -142,8 +159,8 @@ def test_video_webm_encodes_to_the_same_bytes_every_time(tmp_path):
     original = _clip(tmp_path / "talk.mp4", 640, 360, audio=True)
     stored = _cut_down(original, tmp_path / "stored.mp4")
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
-    assert (opt.encode_video_webm(original, stored, 40, ffmpeg, ffprobe)
-            == opt.encode_video_webm(original, stored, 40, ffmpeg, ffprobe))
+    assert (opt.encode_video_webm(original, stored, opt.digest(stored), 40, ffmpeg, ffprobe)
+            == opt.encode_video_webm(original, stored, opt.digest(stored), 40, ffmpeg, ffprobe))
 
 
 def test_a_video_with_no_original_is_left_and_reported(tmp_path):
@@ -163,17 +180,89 @@ def test_a_video_with_no_original_is_left_and_reported(tmp_path):
     assert "a/media/wide.mp4" not in opt.read_manifest(manifest), "a later run with the original must retry it"
 
 
+def test_a_clip_replaced_since_its_original_was_gathered_waits_for_its_own(tmp_path):
+    """An author replaced wide.mp4 with another clip of the same length, so
+    only the digest recorded when the originals were gathered tells that the
+    original in hand is stale. Encoding it would have put the old clip back
+    over theirs. Once the new clip's original is gathered, it converts."""
+    db_path, originals = _scene(tmp_path)
+    # 320 px wide, so a WebM made from it is 320 px where one made from the
+    # stale 640 px original is 480; noisy and stored at high quality, so any
+    # WebM is smaller than the stored copy and only the digest keeps the row.
+    replacement = _clip(tmp_path / "replacement.mp4", 320, 180, noise=40, pattern="smptebars")
+    stored = _cut_down(replacement, tmp_path / "replacement-stored.mp4", crf=8)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (stored,))
+    before = base._snapshot(db_path)
+
+    code, output = _run(_video_cfg(db_path, originals))
+
+    assert code == 0, output
+    assert base._snapshot(db_path).get("a/media/wide.mp4") == before["a/media/wide.mp4"], "the stale original won"
+    assert "a/media/wide.mp4: the stored clip changed since wide.mp4 was gathered" in output, output
+
+    shutil.copy(replacement, originals / "wide.mp4")
+    _record_digests(db_path, originals, overwrite=True)
+    code, output = _run(_video_cfg(db_path, originals))
+
+    assert code == 0, output
+    path, _value, data = animated._stored_media(db_path, "a/media/wide")
+    assert (path, _streams(data, tmp_path)["video"]["width"]) == ("a/media/wide.webm", 320)
+
+
+def test_an_original_with_no_recorded_digest_is_left_and_reported(tmp_path):
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.write_text("".join(line for line in digests.read_text().splitlines(keepends=True)
+                               if not line.startswith("wide.mp4\t")))
+    before = base._snapshot(db_path)
+
+    code, output = _run(_video_cfg(db_path, originals))
+
+    assert code == 0, output
+    after = base._snapshot(db_path)
+    assert after.get("a/media/wide.mp4") == before["a/media/wide.mp4"], "converted with no recorded digest"
+    assert "a/media/talk.webm" in after, "the other clips should still convert"
+    assert "a/media/wide.mp4: stored-digests.tsv" in output and "records no stored clip" in output, output
+
+
+def test_the_digests_record_the_clip_each_original_was_gathered_for(tmp_path):
+    """Read back as written, one line per original with a video row, and never
+    replaced unless asked: rewritten later, the file would accept a row
+    changed since its original was gathered."""
+    db_path, originals = _scene(tmp_path)
+    (originals / "narrow.mov").unlink()
+    snapshot, digests = base._snapshot(db_path), originals / opt.VIDEO_DIGESTS
+    with sqlite3.connect(db_path) as conn:
+        expected = {path.rsplit("/", 1)[-1]: hashlib.sha256(content).hexdigest() for path, content in conn.execute(
+            "SELECT path, content FROM Content WHERE path IN ('a/media/wide.mp4', 'a/media/talk.mp4')")}
+
+    _record_digests(db_path, originals, overwrite=True)
+
+    assert digests.read_text().splitlines()[:2] == [opt.VIDEO_DIGESTS_HEADER, opt.VIDEO_DIGESTS_COLUMNS]
+    assert opt.read_video_digests(digests) == expected
+    written = digests.read_text()
+    (originals / "narrow.mov").write_bytes(b"gathered later")
+    code, output = _call(opt.write_video_digests, {"db_path": db_path, "write_video_digests": originals,
+                                                   "overwrite_video_digests": False})
+    assert code == 1 and "--overwrite-video-digests" in output, output
+    assert digests.read_text() == written
+    assert base._snapshot(db_path) == snapshot, "writing the digests changed the database"
+
+
 def test_an_original_of_another_length_is_left_and_reported(tmp_path):
-    """An author may have replaced a clip since its original was saved, and
-    encoding the old original over theirs would lose their edit."""
+    """The digest ties an original to its row's clip by name; the length is a
+    check on the file itself, such as another clip saved under that name."""
     db_path, originals = _scene(tmp_path)
     # Stored at high quality, so the WebM of either original would be smaller
     # and only the length can keep the row as it is.
     stored = _cut_down(originals / "wide.mp4", tmp_path / "fine.mp4", crf=8)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (stored,))
+    _record_digests(db_path, originals, overwrite=True)
     _clip(originals / "wide.mp4", 640, 360, seconds=4)
-    assert len(opt.encode_video_webm(originals / "wide.mp4", (originals / "wide.mp4").read_bytes(), 40,
+    longer = (originals / "wide.mp4").read_bytes()
+    assert len(opt.encode_video_webm(originals / "wide.mp4", longer, opt.digest(longer), 40,
                                      shutil.which("ffmpeg"), shutil.which("ffprobe"))) < len(stored)
     before = base._snapshot(db_path)
 
@@ -189,6 +278,7 @@ def test_a_webm_no_smaller_than_the_stored_row_leaves_the_row(tmp_path):
     tiny = _cut_down(originals / "wide.mp4", tmp_path / "tiny.mp4", width=96, crf=51)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (tiny,))
+    _record_digests(db_path, originals, overwrite=True)
     before, manifest = base._snapshot(db_path), tmp_path / "manifest.tsv"
 
     code, output = _run(_video_cfg(db_path, originals, manifest_out=manifest))
@@ -212,6 +302,7 @@ def test_convert_then_restore_reproduces_the_videos(tmp_path):
             conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 28)",
                          ("a/media/big.mov" + (f"-{number}" if number else ""),
                           big.read_bytes()[start:start + opt.CHUNK_SIZE]))
+    _record_digests(db_path, originals, overwrite=True)
     assert big.stat().st_size > 2 * opt.CHUNK_SIZE
     before, bundle = base._snapshot(db_path), tmp_path / "bundle"
 
@@ -230,6 +321,7 @@ def test_a_rerun_converts_nothing(tmp_path):
     tiny = _cut_down(originals / "wide.mp4", tmp_path / "tiny.mp4", width=96, crf=51)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (tiny,))
+    _record_digests(db_path, originals, overwrite=True)
     first, second = tmp_path / "first.tsv", tmp_path / "second.tsv"
     assert opt.run(_video_cfg(db_path, originals, manifest_out=first)) == 0
     converted = base._snapshot(db_path)
@@ -245,10 +337,13 @@ def test_a_rerun_converts_nothing(tmp_path):
 
 
 def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
+    """And the digests of the clips they were gathered for, without which no
+    original can be trusted."""
     db_path, originals = _scene(tmp_path)
-    before = base._snapshot(db_path)
+    before, undigested = base._snapshot(db_path), tmp_path / "undigested"
+    shutil.copytree(originals, undigested, ignore=shutil.ignore_patterns(opt.VIDEO_DIGESTS))
     for cfg in (_video_cfg(db_path, None), _video_cfg(db_path, tmp_path / "missing"),
-                _video_cfg(db_path, originals, types={"image/gif"})):
+                _video_cfg(db_path, undigested), _video_cfg(db_path, originals, types={"image/gif"})):
         assert _run(cfg)[0] == 1
         assert base._snapshot(db_path) == before
     code, output = _run(_video_cfg(db_path, originals, types={"video/quicktime"}))

@@ -41,10 +41,13 @@ Two modes:
     VP9 WebM at CRF --video-crf, encoded from the file of the same name in
     --video-originals, not from the stored bytes. The stored clips are already
     cut-down lossy re-encodes (480 px, 15 fps); encoding them again would add a
-    second generation of loss, which is what the originals are for. A row with
-    no original there, or one whose original is not plausibly the same clip
-    (see encode_video_webm), is left as it is and listed in the summary, never
-    re-encoded from the stored copy. Pages reference video by <video src> or
+    second generation of loss, which is what the originals are for. That
+    directory also holds stored-digests.tsv, recording which clip each row
+    stored when its original was gathered (--write-video-digests writes it
+    then). A row with no original there, one whose clip has changed since, or
+    one whose original is not plausibly the same clip (see encode_video_webm)
+    is left as it is and listed in the summary, never re-encoded from the
+    stored copy. Pages reference video by <video src> or
     <source src>, which play WebM as well, so update_media_references.py only
     renames those references, setting a <source>'s type to video/webm where it
     has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
@@ -627,9 +630,10 @@ def optimize_animated_gif(img: Image.Image, data: bytes, max_width: int, gifsicl
 
 class UnusableOriginal(Exception):
     """A video row --video-webm cannot convert: --video-originals holds no file
-    of its name, or one that is evidently a different clip. The row is left as
-    it is and listed rather than counted as an error, and never re-encoded from
-    the stored copy instead - that is exactly what the originals are for."""
+    of its name, or one gathered for a different version of the row, or one
+    that is evidently a different clip. The row is left as it is and listed
+    rather than counted as an error, and never re-encoded from the stored copy
+    instead - that is exactly what the originals are for."""
 
 
 # How far an original's duration may stray from the stored copy's before it is
@@ -637,6 +641,31 @@ class UnusableOriginal(Exception):
 # largest gap was 0.14 s: the stored copies were cut to 15 fps, which moves the
 # end by up to two frames.
 VIDEO_DURATION_TOLERANCE = 0.5
+
+# What ties each file in --video-originals to the row it was gathered for: one
+# line per original, its file name and the sha256 of the clip that row stored
+# then (all its chunks joined, in order). The duration alone cannot: an author
+# who replaces a clip with another of the same length would see the old
+# original encoded over their edit. --write-video-digests writes this file when
+# the originals are gathered, and --video-webm converts a row only while it
+# still holds that clip.
+VIDEO_DIGESTS = "stored-digests.tsv"
+VIDEO_DIGESTS_HEADER = "# optimize_db_media video originals v1"
+VIDEO_DIGESTS_COLUMNS = "# name\tstored-sha256"
+
+
+def read_video_digests(path: Path) -> dict:
+    """{original's file name: sha256 of the clip its row stored} from a
+    VIDEO_DIGESTS file. An unparseable line is fatal, as in read_manifest."""
+    entries = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 2:
+            raise RuntimeError(f"{path}:{number}: expected 2 tab-separated fields, got {len(fields)}")
+        entries[fields[0]] = fields[1]
+    return entries
 
 
 def probe_video(path: Path, ffprobe_path: str) -> tuple:
@@ -654,17 +683,21 @@ def probe_video(path: Path, ffprobe_path: str) -> tuple:
     return duration, any(stream.get("codec_type") == "audio" for stream in info.get("streams", []))
 
 
-def encode_video_webm(original: Path, stored: bytes, crf: int, ffmpeg_path: str, ffprobe_path: str) -> bytes:
+def encode_video_webm(original: Path, stored: bytes, recorded: str | None, crf: int, ffmpeg_path: str,
+                      ffprobe_path: str) -> bytes:
     """VP9 WebM of a video row, encoded from `original` - the file its stored
     copy was cut down from - rather than from the stored bytes.
 
     The stored clips are lossy re-encodes at 480 px and 15 fps already, so
     encoding them again would stack a second generation of loss on the first.
-    `stored` only serves to check that `original` is plausibly the same clip:
-    an author may have replaced the row since, and encoding the old original
-    over their edit would discard it. The check is the duration, to within
-    VIDEO_DURATION_TOLERANCE; a clip that fails it, or has no original at all,
-    raises UnusableOriginal.
+    `stored` and `recorded` only serve to check that `original` is the clip the
+    row holds: an author may have replaced the row since the original was
+    gathered, and encoding the old original over their edit would discard it.
+    `recorded` is the digest VIDEO_DIGESTS kept of the row's clip when the
+    original was gathered, and `stored` must still match it. The duration has
+    to agree too, to within VIDEO_DURATION_TOLERANCE, as a check on the file
+    itself. A clip with no original, no recorded digest, or one that fails
+    either check raises UnusableOriginal.
 
     fps=15 and a width of at most 480 px match the stored copies. min(480,iw)
     never enlarges a narrower clip - several stored copies were enlarged from
@@ -675,6 +708,12 @@ def encode_video_webm(original: Path, stored: bytes, crf: int, ffmpeg_path: str,
     over the 69 clips in the 2026-10-13 database (ADFA-6596)."""
     if not original.is_file():
         raise UnusableOriginal(f"no original named {original.name} in {original.parent}")
+    if recorded is None:
+        raise UnusableOriginal(f"{VIDEO_DIGESTS} in {original.parent} records no stored clip for {original.name}, "
+                               "so nothing says it was gathered for this row")
+    if recorded != digest(stored):
+        raise UnusableOriginal(f"the stored clip changed since {original.name} was gathered: it no longer matches "
+                               f"the digest {VIDEO_DIGESTS} recorded for it")
     with tempfile.TemporaryDirectory(prefix="optimize_db_media_video_") as work:
         work = Path(work)
         stored_copy = work / f"stored{original.suffix}"
@@ -1357,12 +1396,24 @@ def run(cfg: dict) -> int:
             print(f"error: --video-webm converts nothing when --types names no video type; add "
                   f"{','.join(VIDEO_SOURCE_TYPES)} to --types", file=sys.stderr)
             return 1
+    video_digests = {}
     if video:
         originals_dir = cfg.get("video_originals")
         if originals_dir is None or not Path(originals_dir).is_dir():
             problem = f"; {originals_dir} is not one" if originals_dir else ""
             print(f"error: --video-webm needs --video-originals, a directory holding the original of each "
                   f"video row under the row's own file name{problem}", file=sys.stderr)
+            return 1
+        digests_path = Path(originals_dir) / VIDEO_DIGESTS
+        if not digests_path.is_file():
+            print(f"error: --video-webm needs {digests_path}, recording which stored clip each original was "
+                  f"gathered for; write it with --write-video-digests {originals_dir} over the database the "
+                  "originals were gathered from", file=sys.stderr)
+            return 1
+        try:
+            video_digests = read_video_digests(digests_path)
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
             return 1
 
     pngquant_path = None
@@ -1598,8 +1649,8 @@ def run(cfg: dict) -> int:
                     media_bytes = codec.decompress(stored_full, compression)
                 if value in VIDEO_SOURCE_TYPES:
                     result = (encode_video_webm(Path(cfg["video_originals"]) / name, media_bytes,
-                                                cfg.get("video_crf", DEFAULTS["video_crf"]), ffmpeg_path,
-                                                ffprobe_path), WEBM_TYPE)
+                                                video_digests.get(name), cfg.get("video_crf", DEFAULTS["video_crf"]),
+                                                ffmpeg_path, ffprobe_path), WEBM_TYPE)
                 else:
                     result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
                                             gifsicle_path=gifsicle_path, ffmpeg_path=ffmpeg_path,
@@ -2015,6 +2066,68 @@ def restore_originals(cfg: dict) -> int:
     return 1 if stats["missing"] or stats["corrupt"] or stats["errors"] else 0
 
 
+def write_video_digests(cfg: dict) -> int:
+    """--write-video-digests DIR: records in DIR/VIDEO_DIGESTS which clip each
+    video row with an original in DIR stores, and changes nothing else.
+
+    Meant to run when the originals are gathered, which is why an existing file
+    is kept unless --overwrite-video-digests says otherwise: written again later,
+    it would record a row an author has replaced since as though its stale
+    original had been gathered for it."""
+    db_path, directory = cfg["db_path"], cfg["write_video_digests"]
+    target = directory / VIDEO_DIGESTS
+    for needed, present in ((db_path, db_path.is_file()), (directory, directory.is_dir())):
+        if not present:
+            print(f"error: {needed} does not exist", file=sys.stderr)
+            return 1
+    if target.exists() and not cfg.get("overwrite_video_digests"):
+        print(f"error: {target} already exists. It records the rows as they were when those originals were "
+              "gathered, and writing it again would accept any row changed since; pass "
+              "--overwrite-video-digests to replace it anyway", file=sys.stderr)
+        return 1
+    conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+    codec = None
+    try:
+        codec = BrotliCodec(load_dictionary(conn))
+        rows = conn.execute(
+            "SELECT c.path, c.content, ct.compression FROM Content c JOIN ContentTypes ct "
+            f"ON c.contentTypeID = ct.id WHERE ct.value IN ({','.join('?' * len(VIDEO_SOURCE_TYPES))}) "
+            "ORDER BY c.path", VIDEO_SOURCE_TYPES).fetchall()
+        lengths = {path: len(blob) for path, blob, _compression in rows}
+        found, without = {}, 0  # found: {name: {digest: [paths]}}
+        for path, blob, compression in rows:
+            if is_continuation_path(lengths, path):
+                continue
+            name = path.rsplit("/", 1)[-1]
+            if not (directory / name).is_file():
+                without += 1
+                continue
+            clip = codec.decompress(reassemble(conn, path, blob), compression)
+            found.setdefault(name, {}).setdefault(digest(clip), []).append(path)
+    finally:
+        if codec is not None:
+            codec.close()
+        conn.close()
+    # Originals are found by file name, so one name cannot vouch for two clips.
+    clashes = sorted(name for name, clips in found.items() if len(clips) > 1)
+    if clashes:
+        for name in clashes:
+            print(f"  error: {name}: {', '.join(sorted(sum(found[name].values(), [])))}", file=sys.stderr)
+        print(f"error: {len(clashes)} file name(s) belong to video rows storing different clips, which one "
+              "original cannot be gathered for; nothing was written", file=sys.stderr)
+        return 1
+    if not found:
+        print(f"error: none of the {without} video row(s) has an original in {directory}; nothing was written",
+              file=sys.stderr)
+        return 1
+    lines = [VIDEO_DIGESTS_HEADER, VIDEO_DIGESTS_COLUMNS]
+    lines.extend(f"{name}\t{next(iter(found[name]))}" for name in sorted(found))
+    write_atomically(target, "\n".join(lines) + "\n")
+    print(f"Recorded the stored clip of {len(found)} video row(s) in {target}; {without} video row(s) have no "
+          f"original in {directory}.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database to optimize in place, e.g. documentation.db")
@@ -2044,7 +2157,16 @@ def build_parser() -> argparse.ArgumentParser:
                         "update_media_references.py afterwards to rename the references")
     p.add_argument("--video-originals", type=Path, default=None, metavar="DIR",
                    help="With --video-webm (and required by it): the directory holding each video row's "
-                        "original under the row's own file name, e.g. DIR/foo.mp4 for a/devsite/media/foo.mp4")
+                        "original under the row's own file name, e.g. DIR/foo.mp4 for a/devsite/media/foo.mp4, "
+                        f"and DIR/{VIDEO_DIGESTS} from --write-video-digests")
+    p.add_argument("--write-video-digests", type=Path, default=None, metavar="DIR",
+                   help=f"Instead of optimizing, write DIR/{VIDEO_DIGESTS}: for each video row with an original "
+                        "in DIR, the digest of the clip it stores. Run it when the originals are gathered; "
+                        "--video-webm converts a row only while it still holds that clip. Changes nothing in "
+                        "the database")
+    p.add_argument("--overwrite-video-digests", action="store_true",
+                   help=f"With --write-video-digests, replace an existing {VIDEO_DIGESTS}, accepting every row "
+                        "as it is now")
     p.add_argument("--video-crf", type=int, default=DEFAULTS["video_crf"],
                    help=f"VP9 quality for --video-webm, 0 (best) to 63 (default: {DEFAULTS['video_crf']})")
     p.add_argument("--svg-rasterize-threshold", type=int, default=DEFAULTS["svg_rasterize_threshold"],
@@ -2105,6 +2227,11 @@ def main() -> None:
     if args.video_webm and args.video_originals is None:
         parser.error("--video-webm needs --video-originals: it encodes each video from its original, never "
                      "from the stored copy")
+    # Recorded just before converting, the digests would match whatever the
+    # rows hold by then, stale originals included.
+    if args.write_video_digests is not None and (args.video_webm or args.save_originals or args.restore_originals):
+        parser.error("--write-video-digests runs on its own, when the originals are gathered, not as part of a "
+                     "conversion")
     cfg = {
         "db_path": args.db_path, "dry_run": args.dry_run, "max_width": args.max_width,
         "jpeg_quality": args.jpeg_quality, "webp_quality": args.webp_quality,
@@ -2115,7 +2242,10 @@ def main() -> None:
         "force_restore": args.force_restore, "types": args.types, "animated_colors": args.animated_colors,
         "webm": args.webm, "webm_crf": args.webm_crf, "video_webm": args.video_webm,
         "video_originals": args.video_originals, "video_crf": args.video_crf,
+        "write_video_digests": args.write_video_digests, "overwrite_video_digests": args.overwrite_video_digests,
     }
+    if args.write_video_digests is not None:
+        sys.exit(write_video_digests(cfg))
     sys.exit(restore_originals(cfg) if args.restore_originals is not None else run(cfg))
 
 
