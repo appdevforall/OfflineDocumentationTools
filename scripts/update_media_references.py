@@ -73,6 +73,8 @@ they played MP4. The exception is a <source> that declares a type, which a
 browser checks before fetching the file: that tag is rewritten whole with its
 type set to video/webm. A <source> without a type is not given one, and one
 whose attributes cannot be parsed stops the run before anything is written.
+optimize_db_media.py --video-webm makes the same check before converting,
+leaving a video named in such a tag as stored.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
@@ -256,14 +258,19 @@ def enclosing_tag(text: str, start: int, end: int):
     return opening, closing + 1
 
 
+_SINGLE_QUOTED_VALUE_RE = re.compile(r"=\s*'[^']*'")
+
+
 def unescape_tag(tag: str) -> tuple:
     """(markup, escaped): `tag` with JSON's \\" escaping undone when it is
     markup carried inside a JSON string, as Kotlin's templated pages carry
-    theirs, and whether it was. Only a tag whose every double quote is escaped
-    counts: a literal \\" inside a single-quoted HTML attribute does not make
-    the rest of the tag JSON, and treating it so escaped every quote in the
-    result."""
-    escaped = '\\"' in tag and tag.count('"') == tag.count('\\"')
+    theirs, and whether it was. It counts as escaped only when every double
+    quote in it is escaped and at least one of them lies outside a
+    single-quoted attribute value. A literal \\" inside a single-quoted HTML
+    attribute does not make the tag JSON, even when it holds the tag's only
+    double quotes, and treating it so escaped every quote in the result."""
+    escaped = (tag.count('"') == tag.count('\\"')
+               and '\\"' in _SINGLE_QUOTED_VALUE_RE.sub("=''", tag))
     return (tag.replace('\\"', '"') if escaped else tag), escaped
 
 
@@ -647,16 +654,22 @@ def undo_rewrite(text: str, sites: list, renames: dict) -> str:
     return "".join(pieces)
 
 
-def names_not_convertible_to_video(conn, codec, names, workers: int = 8) -> set:
-    """The subset of `names` referenced anywhere a <video> could not replace -
-    outside an <img>, or by an <img> img_tag_to_video refuses.
+def names_not_convertible_to_video(conn, codec, names, workers: int = 8, video_names=()) -> dict:
+    """{name: paths of the rows naming it} for each of `names`, animated GIFs,
+    referenced anywhere a <video> could not replace - outside an <img>, or by
+    an <img> img_tag_to_video refuses - and for each of `video_names`, H.264
+    videos, named inside a <source> whose attributes cannot be parsed.
+    rewrite_text refuses such a <source> for any converted video it names,
+    since nothing then says whether it has a type to change.
 
-    optimize_db_media.py --webm asks this before converting, so it never makes
-    a video that this script then has to refuse to link. It scans exactly what
-    run() would rewrite: the same text types and the same anchored match."""
-    if not names:
-        return set()
-    identity = {name: name for name in names}
+    optimize_db_media.py asks this before converting, under --webm and
+    --video-webm, so it never makes a WebM that this script then has to refuse
+    to link. It scans exactly what run() would rewrite: the same text types and
+    the same anchored match."""
+    videos = frozenset(video_names)
+    if not names and not videos:
+        return {}
+    identity = {name: name for name in (*names, *videos)}
     pattern = build_pattern(identity)
     marks = ",".join("?" * len(TEXT_TYPES))
     rows = conn.execute(
@@ -664,28 +677,42 @@ def names_not_convertible_to_video(conn, codec, names, workers: int = 8) -> set:
         f"ON c.contentTypeID = ct.id WHERE ct.value IN ({marks})", TEXT_TYPES).fetchall()
     lengths = {row[0]: len(row[1]) for row in rows}
     # Reassembled here: a sqlite3 connection belongs to the thread that made it.
-    work = [(reassemble(conn, path, blob), compression) for path, blob, compression in rows
+    work = [(path, reassemble(conn, path, blob), compression) for path, blob, compression in rows
             if not is_continuation_path(lengths, path)]
 
     def scan(item):
+        path, blob, compression = item
         try:
-            text = codec.decompress(item[0], item[1]).decode("utf-8")
+            text = codec.decompress(blob, compression).decode("utf-8")
         except Exception:  # noqa: BLE001 - an unreadable row is run()'s to report
-            return set()
+            return path, set()
         blocked = set()
         for match in pattern.finditer(text):
+            name = match.group(1)
             span = enclosing_tag(text, match.start(), match.end())
+            if name in videos:
+                # Renamed wherever else it is named, as rewrite_text does.
+                if span is not None and _SOURCE_TAG_RE.match(text, span[0]):
+                    try:
+                        source_tag_to_webm(text[span[0]:span[1]], pattern, identity)
+                    except UnconvertibleReference:
+                        blocked.add(name)
+                continue
             if span is None or not _IMG_TAG_RE.match(text, span[0]):
-                blocked.add(match.group(1))
+                blocked.add(name)
                 continue
             try:
                 img_tag_to_video(text[span[0]:span[1]], pattern, identity)
             except UnconvertibleReference:
-                blocked.add(match.group(1))
-        return blocked
+                blocked.add(name)
+        return path, blocked
 
+    where = {}
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return set().union(*pool.map(scan, work))
+        for path, blocked in pool.map(scan, work):
+            for name in blocked:
+                where.setdefault(name, []).append(path)
+    return {name: sorted(paths) for name, paths in where.items()}
 
 
 def unloggable_names(renames: dict) -> list:
@@ -990,9 +1017,10 @@ def run(cfg: dict) -> int:
         if unconvertible:
             # Nothing is written: rewriting the rest would leave these pages
             # naming a video they cannot show, and a partial run is harder to
-            # reason about than none. optimize_db_media.py --webm checks for
-            # exactly this before converting, so reaching here means a page
-            # changed between the two runs.
+            # reason about than none. optimize_db_media.py checks for exactly
+            # this before converting, a GIF under --webm and a video under
+            # --video-webm (names_not_convertible_to_video), so reaching here
+            # means a page changed between the two runs.
             for _kind, path, message in unconvertible:
                 print(f"  error: {path}: {message}", file=sys.stderr)
             print(f"error: {len(unconvertible)} row(s) reference a converted video in a way this script "

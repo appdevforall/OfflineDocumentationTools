@@ -552,6 +552,22 @@ def test_a_backslash_quote_in_html_is_not_json_escaping():
         [ref.TagEdit, ref.TagEdit])
 
 
+def test_single_quoted_html_with_an_escaped_quote_inside_stays_literal():
+    """Every double quote in these tags sits escaped inside a single-quoted
+    value, so they are HTML, not JSON. The <img> used to be read as escaped,
+    and its role="img" came out as role=\\"img\\". A single-quoted value in
+    markup that is JSON-escaped leaves it escaped."""
+    for tag in ("<img src='spring.gif' alt='say \\\"hi\\\"'>",
+                "<source src='clip.mp4' type='video/mp4' title='say \\\"hi\\\"'>"):
+        assert ref.unescape_tag(tag) == (tag, False)
+    assert _rewrite("<img src='spring.gif' alt='say \\\"hi\\\"'>") == (
+        "<video autoplay loop muted playsinline src='spring.webm' role=\"img\" aria-label='say \\\"hi\\\"'>"
+        "</video>", [ref.TagEdit])
+    assert _rewrite("{\"h\":\"<img alt=\\\"A\\\" src='spring.gif'>\"}") == (
+        "{\"h\":\"<video autoplay loop muted playsinline role=\\\"img\\\" aria-label=\\\"A\\\" src='spring.webm'>"
+        "</video>\"}", [ref.TagEdit])
+
+
 def test_a_converted_video_can_be_referenced_anywhere():
     """A GIF become WebM is refused outside an <img>, the one tag that can be
     turned into a <video>. A video become WebM is still a video, so a link or
@@ -631,6 +647,34 @@ def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
     assert animated._stored_media(db_path, "a/page")[2] == (
         b'<video autoplay loop muted playsinline role="img" aria-label="Spin" src="m/foo.webm"></video>'
         b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
+
+
+def test_a_video_named_in_a_source_that_cannot_be_parsed_is_left_unconverted(tmp_path):
+    """The ">" inside title ends each <source> early, so the references step
+    cannot parse it and refuses its page. The optimizer converted the video
+    anyway, and the page went on naming the deleted file. It now checks first,
+    as it does for GIFs: the video stays stored and listed, the run exits
+    non-zero, and the page needs no rewrite."""
+    pages = [("a/one.html", "text/html", b'<video><source src="media/wide.mp4" type="video/mp4" title="a > b">'
+                                         b'</video>'),
+             ("a/two.html", "text/html", b'<video><source src="media/narrow.mov" title="a > b"></video>')]
+    db_path, originals = _scene(tmp_path, pages)
+    pre_conversion, manifest = tmp_path / "before.db", tmp_path / "manifest.tsv"
+    shutil.copy(db_path, pre_conversion)
+    before = base._snapshot(db_path)
+
+    code, output = _run(_video_cfg(db_path, originals, manifest_out=manifest))
+
+    after = base._snapshot(db_path)
+    for path, page in (("a/media/wide.mp4", "a/one.html"), ("a/media/narrow.mov", "a/two.html")):
+        assert after.get(path) == before[path], f"{path} converted, though its <source> cannot be rewritten"
+        assert f"{path}: named in a <source> whose attributes cannot be parsed, on {page}" in output, output
+        assert path not in opt.read_manifest(manifest), "a run after the tag is fixed must convert it"
+    assert code == 1, output
+    assert "a/media/talk.webm" in after, "the other clips should still convert"
+    code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion))
+    assert code == 0, output
+    assert base._snapshot(db_path) == after
 
 
 def test_a_manifest_that_does_not_describe_the_stored_file_is_refused(tmp_path):

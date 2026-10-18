@@ -1505,7 +1505,9 @@ def run(cfg: dict) -> int:
              "before": 0, "after": 0, "saved": 0}
     per_type = {}
     produced = {}  # {content type converted into: count}
-    videos_unconverted = []  # [(path, why)]: --video-webm had no usable original
+    # [(path, why, "original" or "source")]: --video-webm had no usable
+    # original, or the references step could not rewrite a <source> naming it
+    videos_unconverted = []
     videos_kept = []  # [(path, stored bytes, WebM bytes)]: the WebM was no smaller
     codec = None
     try:
@@ -1541,18 +1543,31 @@ def run(cfg: dict) -> int:
             print(f"Using the database's {len(codec._dictionary):,}-byte shared Brotli dictionary "
                   "for image/svg+xml and image/webp rows.")
 
-        webm_blocked = frozenset()
-        if cfg.get("webm"):
+        # Names whose references update_media_references.py would refuse to
+        # rewrite once converted, found in one scan of the text rows: a GIF
+        # referenced where a <video> cannot replace it, and a video named in a
+        # <source> it cannot parse. {name: pages naming it}
+        webm_blocked, video_blocked = frozenset(), {}
+        if cfg.get("webm") or video:
             # Imported here rather than at the top: update_media_references
             # imports this module.
             from update_media_references import names_not_convertible_to_video
-            gif_names = {row[0].rsplit("/", 1)[-1] for row in conn.execute(
-                "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-                "WHERE ct.value = 'image/gif'")}
-            webm_blocked = frozenset(names_not_convertible_to_video(conn, codec, gif_names))
+
+            def stored_names(types):
+                return {row[0].rsplit("/", 1)[-1] for row in conn.execute(
+                    "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
+                    f"WHERE ct.value IN ({','.join('?' * len(types))})", types)}
+            gif_names = stored_names(("image/gif",)) if cfg.get("webm") else set()
+            blocked = names_not_convertible_to_video(
+                conn, codec, gif_names, video_names=stored_names(VIDEO_SOURCE_TYPES) if video else ())
+            webm_blocked = frozenset(name for name in blocked if name in gif_names)
+            video_blocked = {name: pages for name, pages in blocked.items() if name not in gif_names}
             if webm_blocked:
                 print(f"{len(webm_blocked)} GIF(s) are referenced where a <video> cannot replace them and "
                       f"will not become WebM: {', '.join(sorted(webm_blocked)[:5])}")
+            if video_blocked:
+                print(f"{len(video_blocked)} video(s) are named in a <source> whose attributes cannot be parsed "
+                      f"and will not be converted: {', '.join(sorted(video_blocked)[:5])}")
 
         # video/webm rows ride along although nothing here optimizes them:
         # --webm and --video-webm produced them, so their manifest entries (and
@@ -1659,6 +1674,16 @@ def run(cfg: dict) -> int:
                 stats["skipped_manifest"] += 1
                 manifest_out[path] = recorded
                 continue
+            if value in VIDEO_SOURCE_TYPES and name in video_blocked:
+                # The references step refuses a <source> it cannot parse, so
+                # converting this would leave its pages naming a deleted file.
+                # Left out of the manifest, like a video with no original, so
+                # a run after the tag is fixed converts it.
+                pages = ", ".join(video_blocked[name][:3])
+                videos_unconverted.append((path, f"named in a <source> whose attributes cannot be parsed, on {pages}, "
+                                                 "so update_media_references.py could not set its type to "
+                                                 "video/webm", "source"))
+                continue
 
             try:
                 if media_bytes is None:
@@ -1681,7 +1706,7 @@ def run(cfg: dict) -> int:
             except UnusableOriginal as exc:
                 # Left out of the manifest, like an error, so a run that does
                 # have the original picks the row up.
-                videos_unconverted.append((path, str(exc)))
+                videos_unconverted.append((path, str(exc), "original"))
                 continue
             except Exception as exc:  # noqa: BLE001 - one bad file is not the whole run
                 stats["errors"] += 1
@@ -1873,16 +1898,22 @@ def run(cfg: dict) -> int:
         for path, stored_size, webm_size in videos_kept:
             print(f"    {path}: {human(stored_size)} stored, {human(webm_size)} as WebM")
     if videos_unconverted:
-        print(f"  {len(videos_unconverted)} video(s) left as stored, with no usable original in "
-              f"{cfg['video_originals']}:", file=sys.stderr)
-        for path, why in videos_unconverted:
+        print(f"  {len(videos_unconverted)} video(s) left as stored:", file=sys.stderr)
+        for path, why, _kind in videos_unconverted:
             print(f"    {path}: {why}", file=sys.stderr)
+        kinds = {kind for _path, _why, kind in videos_unconverted}
         print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
-              f"for these. Gather their originals into {cfg['video_originals']} and record them with "
-              f"--write-video-digests {cfg['video_originals']}, which adds only originals not recorded yet. For a "
-              "clip replaced since its original was gathered, add --rerecord-video-digest NAME once its new "
-              "original is there, or delete the stale original if no new one will be gathered, so it cannot be "
-              "recorded for the new clip later. Then run this again to convert them.", file=sys.stderr)
+              "for these.", file=sys.stderr)
+        if "original" in kinds:
+            originals = cfg["video_originals"]
+            print(f"  For a clip with no original, or none recorded, gather it into {originals} and record it "
+                  f"with --write-video-digests {originals}, which adds only originals not recorded yet. For a clip "
+                  "replaced since its original was gathered, add --rerecord-video-digest NAME once its new "
+                  "original is there, or delete the stale original if no new one will be gathered, so it cannot "
+                  "be recorded for the new clip later. Then run this again to convert them.", file=sys.stderr)
+        if "source" in kinds:
+            print("  Fix each <source> listed so its attributes parse, then run this again to convert its video.",
+                  file=sys.stderr)
     print(f"Media bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
