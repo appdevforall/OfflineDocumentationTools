@@ -76,6 +76,11 @@ whose attributes cannot be parsed stops the run before anything is written.
 optimize_db_media.py --video-webm makes the same check before converting,
 leaving a video named in such a tag as stored.
 
+A converted filename after a quote and whitespace (src=" demo.gif") is not
+rewritten, because a closing quote, a space and a filename can be prose. A
+browser trims that whitespace and loads the file, though, so any such name
+left after rewriting stops the run too (build_leftover_pattern).
+
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
 would change without writing. Decompression/recompression is parallelised
@@ -243,7 +248,13 @@ class TagEdit:
 
 
 _IMG_TAG_RE = re.compile(r"<img\b", re.IGNORECASE)
-_ATTRIBUTE_RE = re.compile(r"""\s*([^\s"'=<>/]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?""")
+# Whitespace in a tag includes the \n, \t, \r and \f a JSON string writes for
+# it, as in build_pattern: read as part of a name, "\nalt" was carried over as
+# an attribute <video> ignores, so the clip got no label, and "\nsrcset"
+# escaped the srcset refusal.
+_TAG_SPACE = r"(?:\s|\\[ntrf])"
+_ATTRIBUTE_RE = re.compile(rf"""{_TAG_SPACE}*((?:(?!\\[ntrf])[^\s"'=<>/])+)"""
+                           rf"""(?:{_TAG_SPACE}*={_TAG_SPACE}*("[^"]*"|'[^']*'|(?:(?!\\[ntrf])[^\s"'=<>`])+))?""")
 
 
 def enclosing_tag(text: str, start: int, end: int):
@@ -307,7 +318,7 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
             break
         attributes.append((attribute.group(1), attribute.group(2)))
         position = attribute.end()
-    if body[position:].strip():
+    if not re.fullmatch(f"{_TAG_SPACE}*", body[position:]):
         raise UnconvertibleReference(f"cannot parse the attributes of {tag[:120]!r}")
 
     parts = ["<video autoplay loop muted playsinline"]
@@ -590,7 +601,25 @@ def build_pattern(renames: dict) -> re.Pattern:
     # written \n or \t. Missed, such a reference went on naming a file the
     # optimizer had deleted, and both scripts exited 0. The one lookbehind
     # covers both forms: as two alternatives, the scan took 60% longer.
+    # Whitespace after a quote is not taken, since a closing quote, a space and
+    # a filename can be prose; build_leftover_pattern catches what that leaves.
     return re.compile(rf"(?<=[/\"'(=])(?:(?<=[(=])(?:[ \t\n\r\f]|\\[tnfr])+)?({body})(?![A-Za-z0-9_])")
+
+
+def build_leftover_pattern(renames: dict) -> re.Pattern:
+    """An old filename that rewrite_text left where a browser still reads it as
+    a reference: after "=", "(" or a quote, then whitespace (or the \\n, \\t,
+    \\r or \\f a JSON string writes for it). build_pattern leaves whitespace
+    after a quote alone, because it can be prose, but a browser trims the
+    whitespace at the start of a quoted URL, so src=" demo.gif" and
+    url(' demo.gif') load the file the optimizer deleted. run() stops on a
+    match instead of guessing which it is. Without whitespace the name was
+    rewritten, or is alt text carried into aria-label, so it is not matched.
+
+    Group 1 is the filename."""
+    names = sorted(renames, key=len, reverse=True)
+    body = "|".join(re.escape(n) for n in names)
+    return re.compile(rf"[=(\"'](?:[ \t\n\r\f]|\\[tnfr])+({body})(?![A-Za-z0-9_])")
 
 
 def is_video(name: str) -> bool:
@@ -1000,6 +1029,7 @@ def run(cfg: dict) -> int:
             for old in sorted(renames)[:10]:
                 print(f"  {old} -> {renames[old]}")
         pattern = build_pattern(renames)
+        leftover_pattern = build_leftover_pattern(renames)
 
         placeholders = ",".join("?" * len(TEXT_TYPES))
         rows = conn.execute(
@@ -1041,6 +1071,12 @@ def run(cfg: dict) -> int:
                 new_text, sites = rewrite_text(text, pattern, renames)
             except UnconvertibleReference as exc:
                 return ("unconvertible", path, str(exc))
+            leftover = leftover_pattern.search(new_text)
+            if leftover is not None:
+                name = leftover.group(1)
+                context = new_text[max(0, leftover.start() - 60):leftover.end() + 20]
+                return ("leftover", path, f"{name} became {renames[name]}, but this reference to it was "
+                                          f"not rewritten: {context!r}")
             if not sites:
                 return None
             new_bytes = new_text.encode("utf-8")
@@ -1059,6 +1095,17 @@ def run(cfg: dict) -> int:
         binary = [r for r in results if r[0] == "binary"]
         changes = [r for r in results if r[0] == "ok"]
         unconvertible = [r for r in results if r[0] == "unconvertible"]
+        leftovers = [r for r in results if r[0] == "leftover"]
+        if leftovers:
+            # Nothing is written, as for an unconvertible reference: the run
+            # would end with these pages naming a file that no longer exists.
+            for _kind, path, message in leftovers:
+                print(f"  error: {path}: {message}", file=sys.stderr)
+            print(f"error: {len(leftovers)} row(s) name a converted file after a quote and whitespace "
+                  "(src=\" demo.gif\"), which this script does not rewrite because it can be prose, but a "
+                  "browser loads as a reference; nothing was rewritten. Remove the whitespace, or the "
+                  "mention, then run this again.", file=sys.stderr)
+            return 1
         if unconvertible:
             # Nothing is written: rewriting the rest would leave these pages
             # naming a video they cannot show, and a partial run is harder to
