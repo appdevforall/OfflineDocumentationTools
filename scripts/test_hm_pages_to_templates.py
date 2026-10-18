@@ -14,7 +14,10 @@ Covers hm_pages_to_templates.py: deriving the page template from small
 synthetic Help+Manual pages, the JSON each page gets, that every page renders
 back byte for byte through the real Pebble engine, that a second run changes
 nothing, that a page which does not fit - or does not render back - stays HTML
-and is named, and that a dry run writes nothing.
+and is named, and that a dry run writes nothing. For phase 2
+(--drop-jstopics): that the jstopics template is stored and the rows it
+rebuilds are dropped, chunks included, and that a topic it does not rebuild
+keeps its row, is named and fails the run.
 
 The synthetic topics copy the real export's habits that matter here: CRLF
 pages with a BOM, jstopics bodies whose line breaks are "\\n\\r", a first and a
@@ -358,6 +361,7 @@ def test_run_stores_json_and_points_rows_at_the_template(tmp_path):
     template_id, template = conn.execute("SELECT id, content FROM Templates WHERE name = ?",
                                          (hm.PAGE_TEMPLATE,)).fetchone()
     assert conn.execute("SELECT content FROM Templates WHERE name = 'page.peb'").fetchone()[0] == b"<p>{{ title }}</p>"
+    assert conn.execute("SELECT 1 FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,)).fetchone() is None
     conn.close()
     assert template.decode("utf-8").startswith("{#")
     for t in TOPICS:
@@ -444,6 +448,154 @@ def test_unreadable_row_is_named_and_left_alone(tmp_path):
     assert code == 1
     assert "skipped i/t4.html: could not be read" in err
     assert rows(db)["i/t4.html"][0] == b"RAW:not brotli at all"
+
+
+# --- phase 2: --drop-jstopics ---------------------------------------------------
+
+def jstopic_rows(db: Path) -> list:
+    return sorted(p for p in rows(db) if p.startswith("i/jstopics/"))
+
+
+def test_drop_jstopics_stores_the_template_and_drops_every_row(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    before = rows(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    after = rows(db)
+    assert jstopic_rows(db) == []
+    conn = sqlite3.connect(db)
+    stored = conn.execute("SELECT content FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,)).fetchone()[0]
+    conn.close()
+    assert stored.decode("utf-8") == hm.derive(make_topics()).jstopic_template
+    assert stored.decode("utf-8").startswith("hmLoadTopic({\r\nhmKeywords:\"{{ ")
+    for path in ("i/hmftsearch.html", "a/other.html"):
+        assert after[path] == before[path]
+    assert all(after[f"i/{t[0]}.html"][3] != 0 for t in TOPICS)
+    assert "Dropping 6 jstopics row(s)" in out and len(backups(db)) == 1
+
+
+def test_drop_jstopics_after_a_phase_1_run_leaves_the_pages_alone(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db)
+    assert code == 0, err
+    pages = {p: v for p, v in rows(db).items() if not p.startswith("i/jstopics/")}
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    assert jstopic_rows(db) == []
+    assert {p: v for p, v in rows(db).items()} == pages
+    assert "Writing the template" not in out
+
+
+def test_drop_jstopics_second_run_changes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    assert "No jstopics rows left to drop." in out and "Nothing to change." in out
+    assert sha(db) == digest and len(backups(db)) == 1
+
+
+def test_drop_jstopics_dry_run_writes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True, dry_run=True)
+    assert code == 0, err
+    assert "Would drop 6 jstopics row(s)" in out
+    assert sha(db) == digest and backups(db) == []
+
+
+def test_later_run_checks_what_the_stored_jstopic_template_builds(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    assert "6 of 6 topic(s) without a jstopics row get one built from their JSON" in out
+    conn = sqlite3.connect(db)
+    text = conn.execute("SELECT content FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,)).fetchone()[0]
+    conn.execute("UPDATE Templates SET content = ? WHERE name = ?",
+                 (text.replace(b'hmTitle:"{{ hmTitle', b'hmTitle:"x{{ hmTitle'), hm.JSTOPIC_TEMPLATE))
+    conn.commit()
+    conn.close()
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert "broken: i/jstopics/t0.js - the jstopics file built from its JSON" in err
+
+
+def test_jstopic_the_template_does_not_rebuild_keeps_its_row(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    before = rows(db)
+    real = _harness()
+
+    class Corrupting:
+        """The real renderer, except t2's jstopics file comes back with another title."""
+
+        def define(self, name, text):
+            real.define(name, text)
+
+        def render(self, name, context):
+            ok, out, nanos = real.render(name, context)
+            if ok and name == hm.JSTOPIC_TEMPLATE and b'"file":"t2.html"' in context:
+                out = out.replace(b'hmTitle:"Debug your app"', b'hmTitle:"Debug your ap"')
+            return ok, out, nanos
+
+    try:
+        code, out, err = run_tool(db, drop_jstopics=True, renderer=Corrupting())
+    finally:
+        real.close()
+    assert code == 1
+    assert jstopic_rows(db) == ["i/jstopics/t2.js"]
+    assert rows(db)["i/jstopics/t2.js"] == before["i/jstopics/t2.js"]
+    assert "keeps i/jstopics/t2.js - the built file differs in hmTitle" in err
+    assert "1 jstopics row(s) kept" in err
+
+
+def test_jstopic_with_other_text_around_its_fields_keeps_its_row(tmp_path):
+    page, jstopic = make_topic(3)
+    odd = jstopic.replace(b"hmLoadTopic({", b"hmLoadTopic( {")
+    db = make_db(tmp_path / "doc.db", {"i/jstopics/t3.js": odd})
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert jstopic_rows(db) == ["i/jstopics/t3.js"]
+    assert "keeps i/jstopics/t3.js - the built file differs outside its field values" in err
+
+
+def test_topic_whose_page_stays_html_keeps_its_jstopics_row(tmp_path):
+    odd = ("\ufeff<html><body>\r\n" + "".join(f"<p>other skin {n}</p>\r\n" for n in range(150))
+           + "\t" + _body(3).replace("\n\r", "\r\n") + "\r\n</body></html>\r\n").encode("utf-8")
+    db = make_db(tmp_path / "doc.db", {"i/t3.html": odd})
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert jstopic_rows(db) == ["i/jstopics/t3.js"]
+    assert "keeps i/jstopics/t3.js - its page stays HTML" in err
+
+
+def test_drop_jstopics_deletes_a_chunked_row_whole(tmp_path):
+    """A jstopics row stored in chunks goes with all of them. CHUNK_SIZE is
+    made tiny for the test so a small row can be stored the chunked way."""
+    import optimize_db_media
+    saved = optimize_db_media.CHUNK_SIZE
+    optimize_db_media.CHUNK_SIZE = 40
+    try:
+        db = make_db(tmp_path / "doc.db")
+        conn = sqlite3.connect(db)
+        blob = conn.execute("SELECT content FROM Content WHERE path = 'i/jstopics/t5.js'").fetchone()[0]
+        assert len(blob) > 80 and len(blob) % 40
+        conn.execute("UPDATE Content SET content = ? WHERE path = 'i/jstopics/t5.js'", (blob[:40],))
+        for n, start in enumerate(range(40, len(blob), 40), start=1):
+            conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 6)",
+                         (f"i/jstopics/t5.js-{n}", blob[start:start + 40]))
+        conn.commit()
+        conn.close()
+        assert len(jstopic_rows(db)) > 7
+        code, out, err = run_tool(db, drop_jstopics=True)
+        assert code == 0, err
+        assert jstopic_rows(db) == []
+        assert "left alone" not in err
+    finally:
+        optimize_db_media.CHUNK_SIZE = saved
 
 
 def _main() -> int:
