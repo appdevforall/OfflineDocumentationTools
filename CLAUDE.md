@@ -173,7 +173,9 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   before the `--before` snapshot `update_media_references.py` diffs against: it replaces the SVG
   icon sprite Help+Manual's skin copies into the `i/` pages with one shared `i/js/hm_sprite.js`
   that puts the sprite back as each page loads, until the skin stops inlining it (ADFA-4195); with
-  the ADFA-6589 steps it runs after `remove_remote_loads.py` and before `check_remote_loads.py`.
+  the ADFA-6589 steps it runs after `remove_remote_loads.py` and before `check_remote_loads.py`,
+  which reads scripts without searching them, so this step refuses a sprite that names anything
+  outside the page.
   **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
   only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
   `android_html_page.py`, `load_android_data.py`.

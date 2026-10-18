@@ -97,13 +97,19 @@ then this step, then check_remote_loads.py. After the three that edit pages,
 because their order among themselves has reasons of its own and this step does
 not depend on it: their edits leave every sprite block intact, and on the
 2026-10-13 database this step changes the same 359 pages and writes the same
-script after them as on the database alone. Before check_remote_loads.py,
-which writes nothing and so has to run last to check the pages as they ship.
+script after them as on the database alone. Then check_remote_loads.py, which
+checks the pages as they ship. It reads scripts without searching them, so once
+the sprite is in hm_sprite.js the check no longer sees it: this step therefore
+refuses a block that names anything outside the page (a URL, or an href to
+anything but an #id) or holds a <script> or an event handler.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards - all three only when there is something to
 change, so a second run writes nothing at all. --dry-run does all the work and
-reports what would change without writing.
+reports what would change without writing. A later run that finds no block
+but pages that load hm_sprite.js checks that the row is there and holds a
+script this step writes, and exits 1 otherwise: without it those pages show no
+icons.
 
     uv run scripts/share_skin_sprite.py documentation.db --dry-run
     uv run scripts/share_skin_sprite.py documentation.db
@@ -142,7 +148,17 @@ PAGE_TYPE = "text/html"
 SCRIPT_TYPE = "text/javascript"
 
 _BODY_TAG = re.compile(rb"<body(?:\s[^>]*)?>", re.I)
-_BLANKS_AND_COMMENTS = re.compile(rb"(?:\s|<!--.*?-->)*", re.S)
+# HTML ends a comment at its first "-->" or "--!>", and "<!-->" and "<!--->"
+# are whole comments; a comment may not stretch past either to let a match fit.
+_BLANKS_AND_COMMENTS = re.compile(rb"(?:\s|<!--(?:-?>|(?!-?>)(?:(?!--!?>).)*--!?>))*", re.S)
+# In a JavaScript string the block is out of check_remote_loads.py's sight, so
+# it may name nothing outside the page beyond the SVG namespace it opens with.
+_SVG_NAMESPACE = b'xmlns="http://www.w3.org/2000/svg"'
+_EXTERNAL = re.compile(rb"https?:|//|url\(\s*['\"]?\s*[^'\"#\s)]|href\s*=\s*['\"]?\s*[^'\"#\s]", re.I)
+# Inserted from a script, a <script> in the block would no longer run, and an
+# icon sprite has no use for event handlers.
+_ACTIVE = re.compile(rb"<script|\son[a-z]+\s*=", re.I)
+SCRIPT_HEADER = b"/* Help+Manual's icon sprite for the i/ pages (ADFA-4195), written by share_skin_sprite.py. */\n"
 
 
 def find_sprite(page: bytes) -> tuple:
@@ -163,6 +179,10 @@ def find_sprite(page: bytes) -> tuple:
     block = page[start:end]
     if b"<svg" in block[len(SPRITE_OPEN):].lower():
         return None, "has a nested <svg> in its sprite block, so where the block ends is not known"
+    if _EXTERNAL.search(block.replace(_SVG_NAMESPACE, b"", 1)):
+        return None, "has a sprite block that names something outside the page (a URL, or an href not to an #id)"
+    if _ACTIVE.search(block):
+        return None, "has a sprite block holding a <script> or an on...= event handler"
     if ICON_MARKER in page[:start] or ICON_MARKER in page[end:]:
         return None, 'carries Help+Manual icons (class="svgsprite") outside its sprite block'
     # ASCII reads the same whatever charset the page and the script are
@@ -221,8 +241,7 @@ def script_for(block: bytes) -> bytes:
     """The hm_sprite.js that puts `block` into the document just before its
     own <script> element, then removes that element. `block` is ASCII
     (find_sprite refuses any other)."""
-    return (
-        "/* Help+Manual's icon sprite for the i/ pages (ADFA-4195), written by share_skin_sprite.py. */\n"
+    return SCRIPT_HEADER + (
         "(function (script) {\n"
         f"\tscript.insertAdjacentHTML(\"beforebegin\", {js_string(block.decode('ascii'))});\n"
         "\tscript.parentNode.removeChild(script);\n"
@@ -270,6 +289,22 @@ def check_existing_script(conn, codec, expected: bytes, wanted: tuple) -> tuple:
     return "same", None
 
 
+def check_loaded_script(conn, codec, pages: int) -> str:
+    """The reason the hm_sprite.js that `pages` page(s) already load is
+    missing or not a script this step writes, or None."""
+    row = conn.execute("SELECT c.content, ct.compression FROM Content c JOIN ContentTypes ct "
+                       "ON c.contentTypeID = ct.id WHERE c.path = ?", (SCRIPT_PATH,)).fetchone()
+    if row is None:
+        return f"{pages} page(s) load {SCRIPT_PATH}, but the database has no such row, so they show no icons"
+    try:
+        decoded = codec.decompress(reassemble(conn, SCRIPT_PATH, row[0]), row[1])
+    except Exception as exc:  # noqa: BLE001 - reported, not raised
+        return f"{pages} page(s) load {SCRIPT_PATH}, which could not be read: {exc}"
+    if not decoded.startswith(SCRIPT_HEADER):
+        return f"{pages} page(s) load {SCRIPT_PATH}, which does not hold a script this step writes"
+    return None
+
+
 def run(cfg: dict) -> int:
     db_path = cfg["db_path"]
     if not db_path.is_file():
@@ -303,20 +338,22 @@ def run(cfg: dict) -> int:
             try:
                 raw = codec.decompress(full, compression)
             except Exception as exc:  # noqa: BLE001 - one unreadable row is not the run
-                return path, None, f"could not be read: {exc}"
+                return path, None, f"could not be read: {exc}", False
+            loads_script = SCRIPT_TAG in raw
             span, problem = find_sprite(raw)
             if span is not None and "/" in path[len(PAGE_DIR):]:
                 problem = f"is in a subfolder of {PAGE_DIR}, where ./js/hm_sprite.js does not resolve to i/js/"
             if problem is not None or span is None:
-                return path, None, problem
+                return path, None, problem, loads_script
             return path, {"raw": raw, "span": span, "block": raw[span[0]:span[1]], "stored": len(full),
                           "base_len": base_len, "language_id": language_id, "content_type_id": content_type_id,
-                          "template_id": template_id, "compression": compression}, None
+                          "template_id": template_id, "compression": compression}, None, loads_script
 
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             scanned = list(pool.map(scan, work))
-        skipped = {path: problem for path, _page, problem in scanned if problem is not None}
-        found = {path: page for path, page, _problem in scanned if page is not None}
+        skipped = {path: problem for path, _page, problem, _loads in scanned if problem is not None}
+        found = {path: page for path, page, _problem, _loads in scanned if page is not None}
+        loaders = sum(1 for _path, _page, _problem, loads in scanned if loads)
 
         shared, differing = pick_shared({path: page["block"] for path, page in found.items()})
         skipped.update(differing)
@@ -331,6 +368,8 @@ def run(cfg: dict) -> int:
                     refusal = f"{SCRIPT_PATH} already exists and {reason}"
                 elif state == "absent":
                     script_stored = codec.compress(script, settings[1])
+        elif loaders:
+            refusal = check_loaded_script(conn, codec, loaders)
 
         if found and refusal is None:
             def rebuild(item):
@@ -343,15 +382,15 @@ def run(cfg: dict) -> int:
 
             with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
                 changes = list(pool.map(rebuild, sorted(found.items())))
-        else:
-            script_stored = None
 
         decoded_saved = sum(c[6] for c in changes)
         stored_saved = sum(c[7] for c in changes)
         script_decoded = len(script) if script_stored is not None else 0
         script_stored_len = len(script_stored) if script_stored is not None else 0
 
-        if refusal is not None:
+        if refusal is not None and not found:
+            print(f"error: {refusal}.", file=sys.stderr)
+        elif refusal is not None:
             print(f"error: {refusal}. Nothing was changed: no page is edited unless {SCRIPT_PATH} holds exactly "
                   "the script that puts back the block it takes out.", file=sys.stderr)
         elif changes:

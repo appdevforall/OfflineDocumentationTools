@@ -241,6 +241,13 @@ def test_find_sprite_spans_exactly_the_block():
     assert tool.replace_block(PAGE, (len(HEAD), len(HEAD) + len(SPRITE))) == EXPECTED
 
 
+def test_a_block_that_refers_only_to_ids_in_the_page_is_shared():
+    """href="#id" and url(#id) stay inside the page, as does the namespace."""
+    inner = SPRITE.replace(b"</defs>", b'<use xlink:href="#menu" style="fill: url(#grad)"/></defs>')
+    span, problem = tool.find_sprite(HEAD + inner + TAIL)
+    assert problem is None and span is not None
+
+
 def test_the_block_is_replaced_and_every_other_byte_kept(tmp_path: Path):
     """The page loses the block and nothing else: the CRLFs either side, the
     comments and the <use> references all survive. The row keeps its id,
@@ -431,6 +438,41 @@ def test_a_second_run_changes_nothing(tmp_path: Path):
     assert sorted(tmp_path.glob("*.backup-*")) == backups
 
 
+def test_the_backup_holds_the_database_as_it_was(tmp_path: Path):
+    """The backup is the whole undo, so it is taken before any write."""
+    db_path = _database(tmp_path, {"i/page.html": ("text/html", PAGE), **OTHER_JS})
+    before = _stored(db_path)
+    assert _run(db_path)[0] == 0
+    backups = sorted(tmp_path.glob("*.backup-*"))
+    assert len(backups) == 1
+    assert _stored(backups[0]) == before
+    assert _stored(db_path) != before
+
+
+def test_a_later_run_needs_the_script_its_pages_load(tmp_path: Path):
+    """Once the blocks are out, a run finds none. If hm_sprite.js is then
+    missing, or holds something this step never wrote, the pages that load it
+    show no icons, so the run says so and exits 1."""
+    db_path = _database(tmp_path, {"i/page.html": ("text/html", PAGE), **OTHER_JS})
+    assert _run(db_path)[0] == 0
+    conn = sqlite3.connect(db_path)
+    conn.execute("UPDATE Content SET content = ? WHERE path = ?", (_compress(b"var nothing;"), tool.SCRIPT_PATH))
+    conn.commit()
+    conn.close()
+    code, _out, err = _run(db_path)
+    assert code == 1
+    assert "1 page(s) load i/js/hm_sprite.js, which does not hold a script this step writes" in err
+    conn = sqlite3.connect(db_path)
+    conn.execute("DELETE FROM Content WHERE path = ?", (tool.SCRIPT_PATH,))
+    conn.commit()
+    conn.close()
+    before = db_path.read_bytes()
+    code, _out, err = _run(db_path)
+    assert code == 1
+    assert "1 page(s) load i/js/hm_sprite.js, but the database has no such row" in err
+    assert db_path.read_bytes() == before
+
+
 def test_dry_run_writes_nothing(tmp_path: Path):
     db_path = _database(tmp_path, {"i/page.html": ("text/html", PAGE), **OTHER_JS})
     before = db_path.read_bytes()
@@ -497,8 +539,8 @@ def test_a_chunked_page_is_read_and_written_whole(tmp_path: Path):
     assert len(SPRITE) - len(tool.SCRIPT_TAG) > 100
     db_path = _database(tmp_path, {"i/shrinks.html": ("text/html", shrinks[:CHUNK_SIZE], 1, 0, True),
                                    "i/shrinks.html-1": ("text/html", shrinks[CHUNK_SIZE:], 1, 0, True),
-                                   "i/stays.html": ("text/html", stays[:CHUNK_SIZE], 1, 0, True),
-                                   "i/stays.html-1": ("text/html", stays[CHUNK_SIZE:], 1, 0, True), **OTHER_JS},
+                                   "i/stays.html": ("text/html", stays[:CHUNK_SIZE], 1, 7, True),
+                                   "i/stays.html-1": ("text/html", stays[CHUNK_SIZE:], 1, 7, True), **OTHER_JS},
                         html_compression="none")
     code, out, _err = _run(db_path)
     assert code == 0
@@ -510,6 +552,7 @@ def test_a_chunked_page_is_read_and_written_whole(tmp_path: Path):
     assert len(new_stays) > CHUNK_SIZE
     assert after["i/stays.html"][2] + after["i/stays.html-1"][2] == new_stays
     assert len(after["i/stays.html"][2]) == CHUNK_SIZE
+    assert (after["i/stays.html"][4], after["i/stays.html-1"][4]) == (7, 7)
 
 
 def test_an_unreadable_row_is_reported_and_the_rest_still_change(tmp_path: Path):
@@ -547,6 +590,9 @@ def test_a_block_not_directly_inside_body_is_refused(tmp_path: Path):
         "i/div.html": HEAD + b"<div>" + SPRITE + b"</div>" + TAIL,
         "i/comment.html": HEAD + b"<!-- " + SPRITE + b" -->" + TAIL,
         "i/nobody.html": SPRITE + TAIL,
+        # HTML ends these comments early, so the block is inside the <div>.
+        "i/abrupt.html": HEAD + b"<!--> <div> <!-- x -->" + SPRITE + b"</div>" + TAIL,
+        "i/bang.html": HEAD + b"<!-- a --!> <div> <!-- b -->" + SPRITE + b"</div>" + TAIL,
     }
     db_path = _database(tmp_path, {**{path: ("text/html", page) for path, page in cases.items()},
                                    "i/page.html": ("text/html", PAGE), **OTHER_JS})
@@ -571,7 +617,20 @@ def test_odd_sprites_are_refused(tmp_path: Path):
         "twice": (HEAD + SPRITE + SPRITE + TAIL, "carries the sprite block 2 times"),
         "unclosed": (HEAD + SPRITE[:-len(b"</svg>")], "never closed"),
         "nested": (HEAD + SPRITE.replace(b"<defs>", b"<defs><svg>", 1) + TAIL, "nested <svg>"),
+        "nested-upper": (HEAD + SPRITE.replace(b"<defs>", b"<defs><SVG>", 1) + TAIL, "nested <svg>"),
         "outside": (HEAD + SPRITE + b'<g class="svgsprite" id="x"></g>' + TAIL, "outside its sprite block"),
+        "before": (HEAD.replace(b"</head>", b'<g class="svgsprite" id="x"></g></head>') + SPRITE + TAIL,
+                   "outside its sprite block"),
+        "remote-image": (HEAD + SPRITE.replace(b"</defs>", b'<image href="https://example.com/i.png"/></defs>')
+                         + TAIL, "names something outside the page"),
+        "relative-href": (HEAD + SPRITE.replace(b"</defs>", b'<use xlink:href="icons.svg#x"/></defs>') + TAIL,
+                          "names something outside the page"),
+        "css-url": (HEAD + SPRITE.replace(b"<defs>", b'<defs style="fill: url(tile.png)">', 1) + TAIL,
+                    "names something outside the page"),
+        "protocol-relative": (HEAD + SPRITE.replace(b"</defs>", b'<image href="//cdn.example/i.png"/></defs>')
+                              + TAIL, "names something outside the page"),
+        "script": (HEAD + SPRITE.replace(b"</defs>", b"<script>void 0</script></defs>") + TAIL, "<script>"),
+        "handler": (HEAD + SPRITE.replace(b'id="menu"', b'id="menu" onclick="void 0"') + TAIL, "event handler"),
         "unknown": (HEAD + SPRITE.replace(b'version="1.1" ', b"") + TAIL, "no sprite block this step knows"),
         "both": (HEAD + SPRITE + tool.SCRIPT_TAG + TAIL, "already loads hm_sprite.js"),
         "utf8": (HEAD + SPRITE.replace(b"Hide", "Hide \u2014".encode()) + TAIL, "non-ASCII"),
