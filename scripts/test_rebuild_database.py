@@ -254,7 +254,6 @@ def test_packed_ids_continue_after_the_largest_id_without_autoincrement(tmp_path
     _pack_and_check_ids_follow_the_largest(source, packed)
 
 
-
 def test_page_size_gives_the_copy_that_page_size_and_nothing_else(tmp_path):
     source, copy = _packable(tmp_path), tmp_path / "copy.db"
     assert rebuild.run({"source": source, "output": copy, "pack": ["Pages"], "page_size": 4096}) == 0
@@ -279,7 +278,8 @@ def test_pack_plans_pages_for_the_copys_page_size(tmp_path, monkeypatch):
 
 
 def test_page_size_refuses_what_sqlite_would_silently_ignore():
-    assert rebuild.page_size_arg("4096") == 4096
+    for size in (512, 4096, 65536):
+        assert rebuild.page_size_arg(str(size)) == size
     for value in ("3000", "256", "131072", "0"):
         try:
             rebuild.page_size_arg(value)
@@ -287,6 +287,7 @@ def test_page_size_refuses_what_sqlite_would_silently_ignore():
             assert "power of two" in str(exc)
         else:
             raise AssertionError(f"{value} was accepted")
+
 
 def test_pack_refuses_a_table_with_orphaned_references(tmp_path):
     """An orphan's old id could match one of the new ids, turning a dangling

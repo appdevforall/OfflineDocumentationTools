@@ -48,8 +48,8 @@ rebuild.
 
 Page size (--page-size N): the 2026-10-13 database has 1 KB pages, which no
 tool in this repository chose - SQLite's default was 1 KB until 3.12.0, and a
-database keeps its page size through every VACUUM - and 4 KB is the default
-now, on Android too. Each page carries an 8-byte header and each overflow page
+database keeps its page size through every VACUUM - and 4 KB is SQLite's
+default now. Each page carries an 8-byte header and each overflow page
 a 4-byte pointer to the next, so for the megabyte-sized media rows fewer,
 larger pages cost less: on that database after the ADFA-3305 conversion,
 packed, 4 KB pages make the file 1,090,560 bytes (0.9%) smaller, and its
@@ -514,7 +514,7 @@ def main() -> None:
                         "(e.g. Content,Tooltips)")
     p.add_argument("--page-size", type=page_size_arg, default=None, metavar="BYTES",
                    help="Page size for the copy, a power of two from 512 to 65536 (default: the source's; "
-                        "4096 for documentation.db)")
+                        "use 4096 for documentation.db)")
     args = p.parse_args()
     sys.exit(run({"source": args.source, "output": args.output, "pack": args.pack, "page_size": args.page_size}))
 
