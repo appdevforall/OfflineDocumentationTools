@@ -54,14 +54,19 @@ after optimize_db_media.py has converted a stored file) adds nothing. A row
 already at a file's path is used only if it holds the same bytes; one holding
 anything else is reported, and the pages that load that file are left alone.
 
-Where it goes in the pipeline: right after remove_skin_font_comment.py, before
-the `cp DB migrated.db` snapshot. The new rows are then media like any other:
-update_media_references.py builds its rename map from files present in that
-snapshot and gone afterwards, so a file added after it would never have its
-references rewritten when optimize_db_media.py --webp converts it; and, as
-remove_skin_font_comment.py explains, a page edited after the snapshot could
-not be put back by --restore-originals. remove_remote_loads.py goes in the same
-place; the two touch different elements, so their order does not matter.
+Where it goes in the pipeline: right after remove_skin_font_comment.py and
+before remove_remote_loads.py, all before the `cp DB migrated.db` snapshot.
+The new rows are then media like any other: update_media_references.py builds
+its rename map from files present in that snapshot and gone afterwards, so a
+file added after it would never have its references rewritten when
+optimize_db_media.py --webp converts it; and, as remove_skin_font_comment.py
+explains, a page edited after the snapshot could not be put back by
+--restore-originals. It goes before remove_remote_loads.py because the two can
+meet on one element, an <img> whose src is one of these URLs and which also
+has a remote srcset. remove_remote_loads.py drops a remote srcset only beside
+a stored src: run first, it reports that <img> and leaves it, and the srcset
+is still there after this step stores the src; run second, it finds the src
+stored and drops the srcset.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards - all three only when there is something to

@@ -15,9 +15,9 @@ row the way a/devsite/media/ rows are, that each <img src> loading it from
 developer.android.com is pointed at the stored copy by a relative path and no
 other byte of the page changes, that a file not matching its recorded size and
 sha256 stops the run before anything is written, that any other appearance
-of a listed URL is reported rather than rewritten, and that a URL in
-existing.tsv is pointed at the row already holding its image, and only if that
-row holds the recorded bytes.
+of a listed URL is reported rather than rewritten, that a URL in existing.tsv
+is pointed at the row already holding its image, and only if that row holds
+the recorded bytes, and why this step runs before remove_remote_loads.py.
 
 Fixtures use the real URLs and markup of three of the diagrams, with small
 stand-in files; ContentTypes ids differ from the production database's, so a
@@ -53,6 +53,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import bundle_remote_images as tool  # noqa: E402
+import remove_remote_loads  # noqa: E402
 
 PNG_URL = "https://developer.android.com/images/axis_globe.png"
 GIF_URL = "https://developer.android.com/images/mediaplayer_state_diagram.gif"
@@ -600,6 +601,39 @@ def test_a_files_tsv_listing_no_files_is_refused(tmp_path: Path):
         assert code == 1, name
         assert db_path.read_bytes() == before, name
         assert "lists no files" in err, (name, err)
+
+
+# An <img> both steps have to touch: a listed src and a remote srcset.
+MIXED = (b'<img alt="Sensor axes" sizes="64px" src="' + PNG_URL.encode()
+         + b'" srcset="https://developer.android.com/images/axis_globe_2x.png 2x"/>')
+
+
+def _remove_remote_loads(db_path: Path) -> int:
+    """Exit code of one run of remove_remote_loads.py, its output discarded."""
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return remove_remote_loads.run({"db_path": db_path, "dry_run": False, "workers": 2, "verbose": False})
+
+
+def test_run_before_remove_remote_loads_an_img_with_a_remote_srcset_is_fixed(tmp_path: Path):
+    """The order the docstrings name: this step stores the <img>'s src, then
+    remove_remote_loads.py, which drops a remote srcset only beside a stored
+    src, drops it and its sizes."""
+    db_path = _database(tmp_path, {"a/android/hardware/SensorEvent.html": HEAD + MIXED + TAIL})
+    assert _run(db_path, _media_dir(tmp_path))[0] == 0
+    assert _remove_remote_loads(db_path) == 0
+    assert _page(db_path, "a/android/hardware/SensorEvent.html") == \
+        HEAD + b'<img alt="Sensor axes" src="../../devsite/media/images_axis_globe.png"/>' + TAIL
+
+
+def test_run_after_remove_remote_loads_the_srcset_would_stay(tmp_path: Path):
+    """Why the order matters: run first, remove_remote_loads.py leaves the
+    <img>, whose src is not stored yet, and fails; this step then fixes the
+    src, and nothing takes the srcset out."""
+    db_path = _database(tmp_path, {"a/android/hardware/SensorEvent.html": HEAD + MIXED + TAIL})
+    assert _remove_remote_loads(db_path) == 1
+    assert _run(db_path, _media_dir(tmp_path))[0] == 0
+    assert _page(db_path, "a/android/hardware/SensorEvent.html") == \
+        HEAD + MIXED.replace(PNG_URL.encode(), b"../../devsite/media/images_axis_globe.png") + TAIL
 
 
 def test_the_committed_files_match_their_lists():

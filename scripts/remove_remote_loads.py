@@ -65,12 +65,16 @@ elements keep their stored bytes exactly, never re-compressed. A page over the
 1 MiB chunk size is read whole across its "<path>-1", "-2", ... rows and
 written back re-chunked.
 
-Where it goes in the pipeline: after remove_skin_font_comment.py and before
-the `cp DB migrated.db` snapshot, for the reason that script's docstring
-gives - update_media_references.py --restore-originals leaves alone any page
-whose text no longer matches what it recorded, so a page edited after the
-snapshot could not be restored. bundle_remote_images.py goes in the same
-place; the two touch different elements, so their order does not matter.
+Where it goes in the pipeline: after remove_skin_font_comment.py and
+bundle_remote_images.py, before the `cp DB migrated.db` snapshot, for the
+reason remove_skin_font_comment.py's docstring gives -
+update_media_references.py --restore-originals leaves alone any page whose
+text no longer matches what it recorded, so a page edited after the snapshot
+could not be restored. It goes after bundle_remote_images.py because an <img>
+can carry both a src that step stores and a remote srcset: this step drops the
+srcset only once the src is stored, so run first it would report the <img>
+and leave it, and the srcset would stay after bundle_remote_images.py fixed
+the src.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards - all three only when there is something to
