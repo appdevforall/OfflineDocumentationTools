@@ -169,10 +169,14 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`. **Deprecated/dead** (target the
-  removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
-  `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
-  `load_android_data.py`.
+  `create_empty_database.py`, `list_database_documents.py`, and `share_skin_sprite.py`, which runs
+  before the `--before` snapshot `update_media_references.py` diffs against: it replaces the SVG
+  icon sprite Help+Manual's skin copies into the `i/` pages with one shared `i/js/hm_sprite.js`
+  that puts the sprite back as each page loads, until the skin stops inlining it (ADFA-4195); with
+  the ADFA-6589 steps it runs after `remove_remote_loads.py` and before `check_remote_loads.py`.
+  **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
+  only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
+  `android_html_page.py`, `load_android_data.py`.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
