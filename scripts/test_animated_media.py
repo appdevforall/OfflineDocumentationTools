@@ -391,6 +391,28 @@ def test_a_tag_in_a_json_string_stays_json_however_it_is_quoted():
         assert json.loads(_rewrite(json.dumps({"html": html}))) == {"html": video}, html
 
 
+def test_json_escaped_whitespace_between_attributes_still_separates_them():
+    """A JSON string writes a line break or tab between attributes as \\n or
+    \\t. Read as part of the next name, "\\nalt" was carried over as an
+    attribute <video> ignores, so the clip got no label, and "\\nsrcset"
+    escaped the srcset refusal."""
+    labelled = ("<video autoplay loop muted playsinline src={q}spring.webm{q} role=img "
+                "aria-label={q}A spring{q}></video>")
+    for separator in ("\n", "\t", "\r", "\f"):
+        for q in ('"', "'"):
+            html = f"<img src={q}spring.gif{q}{separator}alt={q}A spring{q}>"
+            assert json.loads(_rewrite(json.dumps({"h": html}))) == {"h": labelled.format(q=q)}, repr(html)
+    for html, video in (
+            ('<img src="spring.gif" alt\n=\n"A spring">', labelled.format(q='"')),
+            ('<img src="spring.gif" alt="A spring"\n>', labelled.format(q='"')),
+            ('<img src=spring.gif\nalt="A spring">',
+             '<video autoplay loop muted playsinline src=spring.webm role=img aria-label="A spring"></video>')):
+        assert json.loads(_rewrite(json.dumps({"h": html}))) == {"h": video}, repr(html)
+    with pytest.raises(ref.UnconvertibleReference, match="srcset"):
+        ref.rewrite_text(json.dumps({"h": '<img src="spring.gif"\nsrcset="spring.gif 2x">'}), VIDEO_PATTERN,
+                         VIDEO_RENAMES)
+
+
 def test_an_empty_alt_hides_the_video_from_screen_readers():
     assert _rewrite('<img alt="" src="spring.gif">') == (
         '<video autoplay loop muted playsinline aria-hidden=true src="spring.webm"></video>')
@@ -734,6 +756,32 @@ def test_whitespace_after_the_equals_sign_still_names_the_gif(tmp_path):
     assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
                                    "restore_originals": bundle}) == 0
     assert base._snapshot(db_path) == before
+
+
+def test_whitespace_after_a_quote_stops_the_run_rather_than_leave_the_gif_named(tmp_path):
+    """A browser trims whitespace at the start of a quoted URL, so these load
+    demo.gif. The rewrite leaves whitespace after a quote alone, since it can
+    be prose, so the page went on naming the deleted GIF and both scripts
+    exited 0. The references step now stops and writes nothing."""
+    for number, page in enumerate((b'<img src=" demo.gif" alt="Demo">',
+                                   b"<div style=\"background:url(' demo.gif')\">x</div>",
+                                   b'{"h":"<img src=\\"\\ndemo.gif\\">"}')):
+        (tmp_path / str(number)).mkdir()
+        db_path, pre_conversion = tmp_path / str(number) / "documentation.db", tmp_path / str(number) / "before.db"
+        _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                                  ("a/media/page.html", "text/html", page)], WEBM_TYPES)
+        shutil.copy(db_path, pre_conversion)
+        assert opt.run(_webm_cfg(db_path)) == 0
+        converted = base._snapshot(db_path)
+        assert "a/media/demo.gif" not in converted
+
+        reference_cfg = {"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                         "verbose": False, "save_originals": None, "restore_originals": None}
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            assert ref.run(reference_cfg) == 1, page
+        assert "a/media/page.html: demo.gif became demo." in errors.getvalue(), errors.getvalue()
+        assert base._snapshot(db_path) == converted, page
 
 
 def test_a_webm_keeps_its_manifest_entry_and_provenance(tmp_path):
