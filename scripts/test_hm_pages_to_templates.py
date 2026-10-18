@@ -1,0 +1,483 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "brotli",
+#     "Pillow",
+#     "pytest",
+# ]
+# ///
+"""
+test_hm_pages_to_templates.py
+
+Covers hm_pages_to_templates.py: deriving the page template from small
+synthetic Help+Manual pages, the JSON each page gets, that every page renders
+back byte for byte through the real Pebble engine, that a second run changes
+nothing, that a page which does not fit - or does not render back - stays HTML
+and is named, and that a dry run writes nothing.
+
+The synthetic topics copy the real export's habits that matter here: CRLF
+pages with a BOM, jstopics bodies whose line breaks are "\\n\\r", a first and a
+last topic with disabled links, a top-level topic without breadcrumbs, a meta
+description Help+Manual writes differently from its jstopics value, and a
+caption that is not the topic's title.
+
+Run it either way - as a plain script:
+
+    uv run scripts/test_hm_pages_to_templates.py
+
+or under pytest:
+
+    uv run --with brotli --with Pillow --with pytest pytest scripts/test_hm_pages_to_templates.py
+
+Tests that render need `java` (17 or later) and the Pebble 4.1.1, unbescape,
+slf4j-api and Gson jars in the Gradle or Maven cache (or $HM_RENDER_CLASSPATH);
+without them they are skipped. Every test needs the `brotli` CLI on PATH.
+"""
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import io
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import hm_pages_to_templates as hm  # noqa: E402
+
+
+class Skip(Exception):
+    pass
+
+
+def _skip(reason: str):
+    try:
+        import pytest
+    except ImportError:
+        raise Skip(reason)
+    pytest.skip(reason)
+
+
+_CLASSPATH = []
+
+
+def _classpath() -> str:
+    if not _CLASSPATH:
+        try:
+            if shutil.which("java") is None:
+                raise RuntimeError("no java on PATH")
+            _CLASSPATH.append(os.environ.get("HM_RENDER_CLASSPATH") or hm.find_classpath())
+        except RuntimeError as exc:
+            _CLASSPATH.append(exc)
+    if isinstance(_CLASSPATH[0], Exception):
+        _skip(f"needs the Pebble renderer: {_CLASSPATH[0]}")
+    return _CLASSPATH[0]
+
+
+def _harness() -> hm.PebbleHarness:
+    return hm.PebbleHarness(_classpath())
+
+
+# --- synthetic Help+Manual topics ----------------------------------------------
+
+FILLER = "".join(f"\t.rule{n} {{ margin: {n}px; }}\r\n" for n in range(120))
+
+TOPICS = [
+    # name, title, caption, description (jstopics), description (page), keywords, crumbs
+    ("t0", "Start here", "Start here", "Welcome.", "Welcome.", "", ""),
+    ("t1", "Build", "Build", 'Tap "Run" to build.', "Tap &quot;Run&quot; to build.", "build & run",
+     '<a href="t0.html">Start here</a>'),
+    ("t2", "Debug your app", "Debug", "Pair the device. ", "Pair the device.&nbsp;", "",
+     '<a href="t0.html">Start here</a>'),
+    ("t3", "Keys", "Keys", "Press a key.", "Press a key.", "keys",
+     '<a href="t0.html">Start here</a> &gt; <a href="t1.html">Build</a>'),
+    ("t4", "Projects", "Projects", "Make a project.", "Make a project.", "", ""),
+    ("t5", "The end", "The end", "Bye.", "Bye.", "", '<a href="t4.html">Projects</a>'),
+]
+
+
+def _js(value: str) -> str:
+    return (value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'").replace("/", "\\/")
+            .replace("\n", "\\n").replace("\r", "\\r"))
+
+
+def _body(index: int) -> str:
+    """A body with Help+Manual's jstopics line breaks; the page has CRLF."""
+    return (f'<p class="p_Normal">Topic {index} text, caf\u00e9 \U0001F600, and {{{{ not a tag }}}}.</p>\n\r'
+            f'<p class="p_Normal">Second paragraph of topic {index}.</p>')
+
+
+def make_topic(index: int, names=None) -> tuple:
+    """(page bytes, jstopics bytes) for TOPICS[index]."""
+    name, title, caption, desc_js, desc_page, keywords, crumbs = TOPICS[index]
+    names = names or [t[0] for t in TOPICS]
+    prev = f"{names[index - 1]}.html" if index > 0 else ""
+    nxt = f"{names[index + 1]}.html" if index + 1 < len(names) else ""
+    parent = "t0.html" if index else "index.html"
+    keywords_page = keywords.replace("&", "&amp;")
+    lines = [
+        "\ufeff<!DOCTYPE html>\r\n", '<html lang="en-us">\r\n', "\t<head>\r\n",
+        f"\t<title>{title}</title>\r\n",
+        '\t<meta name="generator" content="Help+Manual" />\r\n',
+        f'\t<meta name="keywords" content="{keywords_page}" />\r\n',
+        f'\t<meta name="description" content="{desc_page}" />\r\n',
+        "\t<style>\r\n", FILLER, "\t</style>\r\n",
+        "\t<script>var o = {{ a: 1 }}; /* {% not %} {# a tag #} */ var p = {\r\n", "\t};</script>\r\n",
+        "</head>\r\n", "<body>\r\n", "<!--ZOOMSTOP-->\r\n",
+        (f'\t<p id="ptopic_breadcrumbs">Navigation: {crumbs}</p> \r\n' if crumbs else
+         '\t<p id="ptopic_breadcrumbs">Navigation: <span>&raquo;&nbsp;No topics above this level&nbsp;&laquo;'
+         '</span></p> \r\n'),
+        f'\t<p class="topictitle">{caption}</p>\r\n',
+        (f'\t<a id="prev" class="nav" href="{prev}" title="Go to previous topic">\r\n' if prev else
+         '\t<a id="prev" class="disabled"  title="This is the first topic">\r\n'),
+        "\t<span>Prev</span></a>\r\n",
+        (f'\t<a id="next" class="nav" href="{nxt}" title="Go to next topic">\r\n' if nxt else
+         '\t<a id="next" class="disabled" title="This is the last topic">\r\n'),
+        "\t<span>Next</span></a>\r\n",
+        '\t<div id="hmpagebody_scroller">\r\n', "<!--ZOOMRESTART-->\r\n",
+        "\t" + _body(index).replace("\n\r", "\r\n") + "\r\n",
+        "\t</div>\r\n",
+        f'\thmFlags.thisTopic = "{name}.html";\r\n',
+        f'\tvar titleBarText = "{title}";\r\n',
+        "</body>\r\n", "</html>\r\n",
+    ]
+    fields = [("hmKeywords", keywords), ("hmTitle", title), ("hmDescription", desc_js), ("hmPrevLink", prev),
+              ("hmNextLink", nxt), ("hmParentLink", parent), ("hmBreadCrumbs", crumbs),
+              ("hmTitlePath", f"Root > {title}"),
+              ("hmHeader", f'<h1 class="p_Heading1"><span class="f_Heading1">{caption}</span></h1>\n\r'),
+              ("hmBody", _body(index))]
+    jstopic = "hmLoadTopic({\r\n" + ",\r\n".join(f'{k}:"{_js(v)}"' for k, v in fields) + "\r\n})\r\n"
+    return "".join(lines).encode("utf-8"), jstopic.encode("utf-8")
+
+
+def make_topics() -> list:
+    out = []
+    for i, t in enumerate(TOPICS):
+        page, jstopic = make_topic(i)
+        fields, frame = hm.parse_jstopic(jstopic.decode("utf-8"))
+        out.append(hm.Topic(t[0], f"i/{t[0]}.html", page.decode("utf-8"), fields, frame))
+    return out
+
+
+# --- a synthetic documentation.db --------------------------------------------
+
+DICTIONARY = (b'<p class="p_Normal">' * 50 + b"hmLoadTopic({" * 20 + FILLER.encode() * 3)
+SCHEMA = """
+CREATE TABLE Languages (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE);
+CREATE TABLE ContentTypes (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE, compression TEXT NOT NULL);
+CREATE TABLE Content (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, languageID INTEGER NOT NULL,
+    content BLOB NOT NULL, contentTypeID INTEGER NOT NULL, templateId INTEGER NOT NULL DEFAULT 0, UNIQUE('path'));
+CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL,
+    UNIQUE('name'));
+CREATE TABLE CompressionDictionary (id INTEGER PRIMARY KEY CHECK (id = 1), data BLOB NOT NULL);
+"""
+
+
+def _brotli(data: bytes, decompress: bool = False) -> bytes:
+    """Dictionary Brotli at quality 5, independent of the tool's codec: the tool
+    compresses at 11, so a row it rewrote never matches one it left alone."""
+    with tempfile.TemporaryDirectory() as directory:
+        dict_path = Path(directory) / "dictionary.bin"
+        dict_path.write_bytes(DICTIONARY)
+        args = ["brotli", "-D", str(dict_path)] + (["-d"] if decompress else ["-q", "5"]) + ["-c"]
+        return subprocess.run(args, input=data, stdout=subprocess.PIPE, check=True).stdout
+
+
+def make_db(path: Path, pages: dict = None) -> Path:
+    """A database with the synthetic topics, their jstopics files, a page that
+    is not a topic, a page outside i/ and an unrelated template."""
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    conn.execute("INSERT INTO Languages (value) VALUES ('en-US')")
+    conn.execute("INSERT INTO ContentTypes (id, value, compression) VALUES (12, 'text/html', 'brotli')")
+    conn.execute("INSERT INTO ContentTypes (id, value, compression) VALUES (6, 'text/javascript', 'brotli')")
+    conn.execute("INSERT INTO CompressionDictionary (id, data) VALUES (1, ?)", (DICTIONARY,))
+    conn.execute("INSERT INTO Templates (name, content) VALUES ('page.peb', ?)", (b"<p>{{ title }}</p>",))
+    rows = dict(pages or {})
+    for i, t in enumerate(TOPICS):
+        page, jstopic = make_topic(i)
+        rows.setdefault(f"i/{t[0]}.html", page)
+        rows.setdefault(f"i/jstopics/{t[0]}.js", jstopic)
+    rows.setdefault("i/hmftsearch.html", b"\xef\xbb\xbf<!DOCTYPE html>\r\n<p>Search</p>\r\n")
+    rows.setdefault("a/other.html", b"<p>Not Help+Manual</p>")
+    for p, data in sorted(rows.items()):
+        type_id = 6 if p.endswith(".js") else 12
+        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, ?)",
+                     (p, data if data.startswith(b"RAW:") else _brotli(data), type_id))
+    conn.commit()
+    conn.close()
+    return path
+
+
+def rows(path: Path) -> dict:
+    conn = sqlite3.connect(path)
+    try:
+        return {r[0]: r[1:] for r in conn.execute(
+            "SELECT path, content, languageID, contentTypeID, templateId FROM Content ORDER BY path")}
+    finally:
+        conn.close()
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_tool(db: Path, **extra) -> tuple:
+    cfg = {"db_path": db, "dry_run": False, "workers": 4, "verbose": True, "prefix": "i/",
+           "classpath": _classpath(), "java": "java", "jstopic_template_out": None}
+    cfg.update(extra)
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = hm.run(cfg)
+    return code, out.getvalue(), err.getvalue()
+
+
+def backups(db: Path) -> list:
+    return sorted(db.parent.glob(db.name + ".backup-*"))
+
+
+# --- derivation ----------------------------------------------------------------
+
+def test_split_lines_keeps_every_byte():
+    for text in ["", "a", "a\r\nb", "a\n\rb\r", "\r\n\r\n", "x\ry\nz\r\n"]:
+        assert "".join(hm.split_lines(text)) == text
+    assert hm.split_lines("a\r\nb\rc\nd") == ["a\r\n", "b\r", "c\n", "d"]
+
+
+def test_parse_jstopic_unescapes_fields():
+    _page, jstopic = make_topic(1)
+    fields, frame = hm.parse_jstopic(jstopic.decode("utf-8"))
+    assert fields["hmDescription"] == 'Tap "Run" to build.'
+    assert fields["hmBreadCrumbs"] == '<a href="t0.html">Start here</a>'
+    assert fields["hmBody"].count("\n\r") == 1
+    assert '"' not in frame.replace('""', "")
+    assert hm.parse_jstopic('hmLoadTopic({hmTitle:"x"})') is None
+
+
+def test_template_has_a_hole_for_each_per_topic_part():
+    d = hm.derive(make_topics())
+    t = d.template
+    assert not d.unfit, d.unfit
+    assert "\t<title>{{ hmTitle | raw }}</title>" in t
+    assert '<meta name="keywords" content="{{ hmKeywords | raw }}" />' in t
+    assert '<meta name="description" content="{{ hmDescription | raw }}" />' in t
+    assert "{% if hmBreadCrumbs is empty %}" in t
+    assert "Navigation: {{ hmBreadCrumbs | raw }}</p>" in t
+    assert "{% if hmPrevLink is empty %}" in t and 'href="{{ hmPrevLink | raw }}"' in t
+    assert "{% if hmNextLink is empty %}" in t and 'href="{{ hmNextLink | raw }}"' in t
+    assert "\t{{ hmBody | raw }}\r\n" in t
+    assert 'hmFlags.thisTopic = "{{ file | raw }}";' in t
+    assert "{{ (part_topictitle is null ? hmTitle : part_topictitle) | raw }}" in t
+    # The skin is in the template once, and nothing that belongs to one topic is.
+    assert t.count(".rule119 { margin: 119px; }") == 1
+    for _name, title, *_rest in TOPICS:
+        assert f">{title}<" not in t
+    assert "Second paragraph" not in t
+    # Delimiters in the skin's own text are escaped, not left to Pebble.
+    assert 'var o = {{ "{" }}{ a: 1 }}; /* {{ "{" }}% not %} {{ "{" }}# a tag #} */' in t
+
+
+def test_json_holds_each_part_as_its_page_shows_it():
+    d = hm.derive(make_topics())
+    c1, c2 = d.contexts["t1"], d.contexts["t2"]
+    assert c1["hmDescription"] == "Tap &quot;Run&quot; to build."       # escaped, as in the page
+    assert c1["js_hmDescription"] == 'Tap "Run" to build.'              # the jstopics value
+    assert c1["hmKeywords"] == "build &amp; run" and c1["js_hmKeywords"] == "build & run"
+    assert c2["hmDescription"] == "Pair the device.&nbsp;"              # read out of the page itself
+    assert c2["js_hmDescription"] == "Pair the device. "
+    assert c2["part_topictitle"] == "Debug" and c2["hmTitle"] == "Debug your app"
+    assert "part_topictitle" not in c1 and "js_hmDescription" not in d.contexts["t3"]
+    assert c1["hmBody"] == _body(1).replace("\n\r", "\r\n")
+    assert c1["file"] == "t1.html" and c1["hmTitlePath"] == "Root > Build"
+    assert c1["hmHeader"].endswith("</h1>\n\r")
+    assert list(c1)[:2] == ["file", "hmKeywords"]
+
+
+def test_emit_survives_pebble_lexing():
+    texts = ["a{{b", "{%", "{#c#}", "x{", "\r\nafter", "\n\rafter", "\rafter", "\nafter", "\u2028after",
+             "\r\r\nafter", "}} %} #}", "{{{"]
+    harness = _harness()
+    try:
+        for text in texts:
+            segments = [hm.tag_seg("{{ v | raw }}"), hm.text_seg(text), hm.tag_seg("{{ v | raw }}"),
+                        hm.text_seg(text)]
+            harness.define("t", hm.emit(segments))
+            ok, out, _ = harness.render("t", json.dumps({"v": "V"}).encode())
+            assert ok and out.decode("utf-8") == "V" + text + "V" + text, (text, out)
+    finally:
+        harness.close()
+
+
+def test_every_page_renders_back_byte_for_byte():
+    topics = make_topics()
+    d = hm.derive(topics)
+    harness = _harness()
+    try:
+        harness.define(hm.PAGE_TEMPLATE, d.template)
+        for t in topics:
+            ok, out, _ = harness.render(hm.PAGE_TEMPLATE, hm.context_json(d.contexts[t.name]))
+            assert ok, out
+            assert out == t.page.encode("utf-8"), t.name
+    finally:
+        harness.close()
+
+
+def test_jstopic_template_rebuilds_each_topics_fields():
+    topics = make_topics()
+    d = hm.derive(topics)
+    harness = _harness()
+    try:
+        harness.define(hm.JSTOPIC_TEMPLATE, d.jstopic_template)
+        for t in topics:
+            ok, out, _ = harness.render(hm.JSTOPIC_TEMPLATE, hm.context_json(d.contexts[t.name]))
+            assert ok, out
+            fields, frame = hm.parse_jstopic(out.decode("utf-8"))
+            assert fields == t.fields, t.name
+            assert frame == t.frame
+    finally:
+        harness.close()
+
+
+# --- runs against a database -----------------------------------------------------
+
+def test_run_stores_json_and_points_rows_at_the_template(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    before = rows(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = rows(db)
+    conn = sqlite3.connect(db)
+    template_id, template = conn.execute("SELECT id, content FROM Templates WHERE name = ?",
+                                         (hm.PAGE_TEMPLATE,)).fetchone()
+    assert conn.execute("SELECT content FROM Templates WHERE name = 'page.peb'").fetchone()[0] == b"<p>{{ title }}</p>"
+    conn.close()
+    assert template.decode("utf-8").startswith("{#")
+    for t in TOPICS:
+        path = f"i/{t[0]}.html"
+        content, language, type_id, tid = after[path]
+        assert (language, type_id, tid) == (before[path][1], before[path][2], template_id)
+        context = json.loads(_brotli(content, decompress=True))
+        assert context["file"] == f"{t[0]}.html"
+        assert after[f"i/jstopics/{t[0]}.js"] == before[f"i/jstopics/{t[0]}.js"]
+    for path in ("i/hmftsearch.html", "a/other.html"):
+        assert after[path] == before[path]
+    assert len(backups(db)) == 1
+    assert "6 of 6 topic page(s) render back byte for byte" in out
+
+
+def test_second_run_changes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db)
+    assert code == 0, err
+    digest = sha(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    assert "Nothing to change." in out
+    assert sha(db) == digest
+    assert len(backups(db)) == 1
+
+
+def test_dry_run_writes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    digest = sha(db)
+    code, out, err = run_tool(db, dry_run=True)
+    assert code == 0, err
+    assert "Would write the template (changed), 6 page(s) as JSON" in out
+    assert "Dry run: nothing written." in out
+    assert sha(db) == digest
+    assert backups(db) == []
+
+
+def test_page_that_does_not_fit_stays_html(tmp_path):
+    odd = ("\ufeff<html><body>\r\n" + "".join(f"<p>other skin {n}</p>\r\n" for n in range(150))
+           + "\t" + _body(3).replace("\n\r", "\r\n") + "\r\n</body></html>\r\n").encode("utf-8")
+    db = make_db(tmp_path / "doc.db", {"i/t3.html": odd})
+    before = rows(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = rows(db)
+    assert after["i/t3.html"] == before["i/t3.html"]
+    assert "stays HTML: i/t3.html - shares only" in err
+    assert "5 of 6 topic page(s) render back byte for byte" in out and "1 stay HTML" in out
+    assert after["i/t4.html"][3] != 0
+
+
+def test_page_whose_render_differs_stays_html(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    before = rows(db)
+    real = _harness()
+
+    class Corrupting:
+        """The real renderer, except one page comes back one byte short."""
+
+        def define(self, name, text):
+            real.define(name, text)
+
+        def render(self, name, context):
+            ok, out, nanos = real.render(name, context)
+            if ok and name == hm.PAGE_TEMPLATE and b'"file":"t2.html"' in context:
+                out = out[:-1]
+            return ok, out, nanos
+
+    try:
+        code, out, err = run_tool(db, renderer=Corrupting())
+    finally:
+        real.close()
+    assert code == 0, err
+    after = rows(db)
+    assert after["i/t2.html"] == before["i/t2.html"]
+    assert "stays HTML: i/t2.html - its rendered page differs from the stored one" in err
+    assert after["i/t1.html"][3] != 0
+
+
+def test_unreadable_row_is_named_and_left_alone(tmp_path):
+    db = make_db(tmp_path / "doc.db", {"i/t4.html": b"RAW:not brotli at all"})
+    code, out, err = run_tool(db)
+    assert code == 1
+    assert "skipped i/t4.html: could not be read" in err
+    assert rows(db)["i/t4.html"][0] == b"RAW:not brotli at all"
+
+
+def _main() -> int:
+    """Runs the tests without pytest, so this file works the way the tools
+    beside it do (`uv run scripts/test_hm_pages_to_templates.py`)."""
+    failures, skipped = [], []
+    for name, function in sorted(globals().items()):
+        if not name.startswith("test_") or not callable(function):
+            continue
+        with tempfile.TemporaryDirectory() as directory:
+            needs_tmp = "tmp_path" in function.__code__.co_varnames[:function.__code__.co_argcount]
+            try:
+                function(Path(directory)) if needs_tmp else function()
+            except Skip as exc:
+                skipped.append(name)
+                print(f"skip {name}: {exc}")
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException as exc:  # noqa: BLE001 - a failure is the result here
+                if type(exc).__name__ == "Skipped":  # pytest.skip, when pytest is installed
+                    skipped.append(name)
+                    print(f"skip {name}: {exc}")
+                    continue
+                frame = traceback.extract_tb(exc.__traceback__)[-1]
+                failures.append(f"{name} (line {frame.lineno}: {frame.line}): {type(exc).__name__}: {exc}")
+                print(f"FAIL {name}", file=sys.stderr)
+            else:
+                print(f"ok   {name}")
+    print()
+    print(f"{len(failures)} failure(s), {len(skipped)} skipped" if failures or skipped else "all tests passed")
+    for failure in failures:
+        print(f"  {failure}", file=sys.stderr)
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main())
