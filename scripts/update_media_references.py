@@ -239,17 +239,21 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
     playing by itself, forever, in the page. Muted is also what lets it start
     without a user gesture. Every attribute is carried over in order, with any
     renamed filename in it rewritten, except alt, which <video> does not have:
-    a non-empty one becomes role="img" plus aria-label, so a screen reader
+    a non-empty one becomes role=img plus aria-label, so a screen reader
     still describes the animation, and an empty one - "decorative" - becomes
-    aria-hidden. The role is what makes the label count: on Android's WebView
-    (Pixel 6 Pro, WebView 155) a <video>'s aria-label alone reached the
-    accessibility tree as an empty node, while with role="img" it was the
+    aria-hidden=true. The role is what makes the label count: on Android's
+    WebView (Pixel 6 Pro, WebView 155) a <video>'s aria-label alone reached
+    the accessibility tree as an empty node, while with the role it was the
     node's content description. srcset and sizes are refused rather than
     dropped, since they name other files.
 
     Works on the tag as written, including inside a JSON string, where Kotlin's
     templated pages carry their markup with every quote escaped as \\": the
-    escaping is undone to parse the tag and applied again to the result."""
+    escaping is undone to parse the tag and applied again to the result. The
+    two attributes added are unquoted, so they need no escaping: whether a tag
+    is escaped is told from its own double quotes, and one with none
+    (src=spring.gif alt=Demo) reads as HTML even inside a JSON string, where a
+    bare role="img" would end the string."""
     escaped = '\\"' in tag
     markup = tag.replace('\\"', '"') if escaped else tag
     match = re.fullmatch(r"<img\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
@@ -273,10 +277,10 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
         if key == "alt":
             text_value = value[1:-1] if value and value[0] in "\"'" else (value or "")
             if text_value.strip():
-                parts.append(' role="img"')
+                parts.append(" role=img")
                 name = "aria-label"
             else:
-                name, value = "aria-hidden", '"true"'
+                name, value = "aria-hidden", "true"
         elif value is not None:
             # Matched as it is written below, after its "=": the pattern needs
             # a separator before a filename, and an unquoted value that is only
