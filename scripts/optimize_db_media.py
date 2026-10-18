@@ -47,7 +47,8 @@ Two modes:
     then). A row with no original there, one whose clip has changed since, or
     one whose original is not plausibly the same clip (see encode_video_webm)
     is left as it is and listed in the summary, never re-encoded from the
-    stored copy. Pages reference video by <video src> or
+    stored copy, and the run exits non-zero once the rows that did convert
+    are committed. Pages reference video by <video src> or
     <source src>, which play WebM as well, so update_media_references.py only
     renames those references, setting a <source>'s type to video/webm where it
     has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
@@ -631,9 +632,11 @@ def optimize_animated_gif(img: Image.Image, data: bytes, max_width: int, gifsicl
 class UnusableOriginal(Exception):
     """A video row --video-webm cannot convert: --video-originals holds no file
     of its name, or one gathered for a different version of the row, or one
-    that is evidently a different clip. The row is left as it is and listed
-    rather than counted as an error, and never re-encoded from the stored copy
-    instead - that is exactly what the originals are for."""
+    that is evidently a different clip. The row is left as it is and listed,
+    and never re-encoded from the stored copy instead - that is exactly what
+    the originals are for. It is not counted as an error, since the other rows
+    still convert, but the run exits non-zero: a wrong --video-originals
+    folder must not pass for a clean run."""
 
 
 # How far an original's duration may stray from the stored copy's before it is
@@ -1861,13 +1864,17 @@ def run(cfg: dict) -> int:
               f"{cfg['video_originals']}:", file=sys.stderr)
         for path, why in videos_unconverted:
             print(f"    {path}: {why}", file=sys.stderr)
+        print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
+              f"for these. Gather their originals into {cfg['video_originals']}, with their stored digests in "
+              f"{VIDEO_DIGESTS}, and run it again to convert them.", file=sys.stderr)
     print(f"Image bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
     # An archive that silently lost originals must not look like a clean run to
-    # whatever chained this command, so every archiving failure counts here too.
+    # whatever chained this command, so every archiving failure counts here too,
+    # as does a video left for want of a usable original.
     return 1 if (stats["errors"] or stats["archive_errors"] or stats["archive_blocked"]
-                 or (archive is not None and archive.skipped)) else 0
+                 or (archive is not None and archive.skipped) or videos_unconverted) else 0
 
 
 def check_bundle_belongs(conn, primaries: list) -> str:

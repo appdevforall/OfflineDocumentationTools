@@ -167,19 +167,29 @@ def test_video_webm_encodes_to_the_same_bytes_every_time(tmp_path):
 
 def test_a_video_with_no_original_is_left_and_reported(tmp_path):
     """Encoding the stored copy instead would stack a second generation of loss
-    on a clip that is lossy already, which is what the originals are for."""
+    on a clip that is lossy already, which is what the originals are for. The
+    rest are committed, but the run exits non-zero, so a wrong originals
+    folder cannot pass for a clean run; given the original, a rerun converts
+    the clip that was left."""
     db_path, originals = _scene(tmp_path)
-    (originals / "wide.mp4").unlink()
+    aside = tmp_path / "wide.mp4"
+    (originals / "wide.mp4").rename(aside)
     before, manifest = base._snapshot(db_path), tmp_path / "manifest.tsv"
 
     code, output = _run(_video_cfg(db_path, originals, manifest_out=manifest))
 
-    assert code == 0, output
+    assert code == 1, output
     after = base._snapshot(db_path)
     assert after["a/media/wide.mp4"] == before["a/media/wide.mp4"], "converted with no original"
     assert "a/media/talk.webm" in after, "the other clips should still convert"
-    assert "a/media/wide.mp4: no original" in output, output
+    assert "a/media/wide.mp4: no original" in output and "exits non-zero" in output, output
+    assert " 0 error(s)" in output, "a clip left for want of its original is listed, not counted as an error"
     assert "a/media/wide.mp4" not in opt.read_manifest(manifest), "a later run with the original must retry it"
+
+    aside.rename(originals / "wide.mp4")
+    code, output = _run(_video_cfg(db_path, originals))
+    assert code == 0, output
+    assert "a/media/wide.webm" in base._snapshot(db_path)
 
 
 def test_a_clip_replaced_since_its_original_was_gathered_waits_for_its_own(tmp_path):
@@ -199,8 +209,8 @@ def test_a_clip_replaced_since_its_original_was_gathered_waits_for_its_own(tmp_p
 
     code, output = _run(_video_cfg(db_path, originals))
 
-    assert code == 0, output
     assert base._snapshot(db_path).get("a/media/wide.mp4") == before["a/media/wide.mp4"], "the stale original won"
+    assert code == 1, output
     assert "a/media/wide.mp4: the stored clip changed since wide.mp4 was gathered" in output, output
 
     shutil.copy(replacement, originals / "wide.mp4")
@@ -221,9 +231,9 @@ def test_an_original_with_no_recorded_digest_is_left_and_reported(tmp_path):
 
     code, output = _run(_video_cfg(db_path, originals))
 
-    assert code == 0, output
     after = base._snapshot(db_path)
     assert after.get("a/media/wide.mp4") == before["a/media/wide.mp4"], "converted with no recorded digest"
+    assert code == 1, output
     assert "a/media/talk.webm" in after, "the other clips should still convert"
     assert "a/media/wide.mp4: stored-digests.tsv" in output and "records no stored clip" in output, output
 
@@ -270,7 +280,7 @@ def test_an_original_of_another_length_is_left_and_reported(tmp_path):
 
     code, output = _run(_video_cfg(db_path, originals))
 
-    assert code == 0, output
+    assert code == 1, output
     assert base._snapshot(db_path)["a/media/wide.mp4"] == before["a/media/wide.mp4"]
     assert "a/media/wide.mp4" in output and "not the clip" in output, output
 
@@ -338,15 +348,31 @@ def test_a_rerun_converts_nothing(tmp_path):
     assert opt.read_manifest(second) == opt.read_manifest(first)
 
 
+def test_without_video_webm_video_rows_are_neither_read_nor_archived(tmp_path):
+    """A run without --video-webm archives and reports what it did before
+    video could be converted."""
+    db_path, _originals = _scene(tmp_path)
+    before, bundle = base._snapshot(db_path), tmp_path / "bundle"
+
+    code, output = _run(base._optimize_cfg(db_path, save_originals=bundle))
+
+    assert code == 0, output
+    assert base._snapshot(db_path) == before
+    archived = {entry[2] for entry in opt.read_originals_index(bundle / opt.BUNDLE_ORIGINALS_INDEX)}
+    assert not archived & set(before), sorted(archived)
+
+
 def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
     """And the digests of the clips they were gathered for, without which no
-    original can be trusted."""
+    original can be trusted. Each is refused before the run starts, with no
+    backup made, rather than left to refuse every row."""
     db_path, originals = _scene(tmp_path)
     before, undigested = base._snapshot(db_path), tmp_path / "undigested"
     shutil.copytree(originals, undigested, ignore=shutil.ignore_patterns(opt.VIDEO_DIGESTS))
     for cfg in (_video_cfg(db_path, None), _video_cfg(db_path, tmp_path / "missing"),
                 _video_cfg(db_path, undigested), _video_cfg(db_path, originals, types={"image/gif"})):
-        assert _run(cfg)[0] == 1
+        code, output = _run(cfg)
+        assert code == 1 and "Backing up" not in output, output
         assert base._snapshot(db_path) == before
     code, output = _run(_video_cfg(db_path, originals, types={"video/quicktime"}))
     assert code == 0, output
@@ -392,6 +418,19 @@ def test_a_source_keeps_everything_but_its_names_and_its_type():
     old type."""
     assert _rewrite("<source  poster='hero.png' src=clip.mp4 TYPE='video/mp4; codecs=\"avc1\"' >") == (
         "<source  poster='hero.webp' src=clip.webm TYPE='video/webm' >", [ref.TagEdit])
+
+
+def test_a_source_keeps_its_type_when_the_converted_video_is_not_its_src():
+    """Only the src decides: a converted name elsewhere in the tag is renamed
+    and the type is left alone."""
+    assert _rewrite('<source src="keep.mp4" type="video/mp4" data-x="clip.mp4">') == (
+        '<source src="keep.mp4" type="video/mp4" data-x="clip.webm">', [str])
+
+
+def test_the_first_of_two_type_attributes_is_the_one_set():
+    """As in HTML, which ignores a repeated attribute."""
+    assert _rewrite('<source src="media/clip.mp4" type="video/mp4" type="x">') == (
+        '<source src="media/clip.webm" type="video/webm" type="x">', [ref.TagEdit])
 
 
 def test_a_source_whose_type_cannot_be_set_is_refused():
