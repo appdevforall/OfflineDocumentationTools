@@ -922,16 +922,20 @@ def test_a_manifest_that_does_not_describe_the_stored_file_is_refused(tmp_path):
     found the author's own foo.webm stored and wrote foo-mp4.webm instead.
     Paired through the earlier manifest, the page was pointed at the author's
     file and the run exited 0. Each pairing now needs the manifest's digest
-    and size for the new file to match the stored row."""
+    and size for the new file, all its chunks joined, to match the stored row:
+    the right size with another file's digest is refused too. foo-mp4.webm
+    is stored over two chunks, as emoji-picker.webm is."""
     page = ("a/page.html", "text/html", b'<video><source src="m/foo.mp4" type="video/mp4"/></video>')
-    own, made = b"\x1aE\xdf\xa3 the author's own", b"\x1aE\xdf\xa3 from the mp4"
+    own, made = b"\x1aE\xdf\xa3 the author's own", b"\x1aE\xdf\xa3 from the mp4" + b"\x00" * opt.CHUNK_SIZE
     before_path, db_path = tmp_path / "before.db", tmp_path / "documentation.db"
     animated._build_database(before_path, [("a/m/foo.mp4", "video/mp4", b"mp4"), ("a/m/foo.webm", "video/webm", own),
                                            page], VIDEO_TYPES)
-    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", own), ("a/m/foo-mp4.webm", "video/webm", made),
-                                       page], VIDEO_TYPES)
+    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", own),
+                                       ("a/m/foo-mp4.webm", "video/webm", made[:opt.CHUNK_SIZE]),
+                                       ("a/m/foo-mp4.webm-1", "video/webm", made[opt.CHUNK_SIZE:]), page], VIDEO_TYPES)
     stale = {"earlier.tsv": {"a/m/foo.webm": (opt.digest(b"\x1aE\xdf\xa3 an older WebM"), 25, "a/m/foo.mp4")},
-             "wrong-size.tsv": {"a/m/foo-mp4.webm": (opt.digest(made), len(made) + 1, "a/m/foo.mp4")}}
+             "wrong-size.tsv": {"a/m/foo-mp4.webm": (opt.digest(made), len(made) + 1, "a/m/foo.mp4")},
+             "wrong-digest.tsv": {"a/m/foo-mp4.webm": (opt.digest(made[::-1]), len(made), "a/m/foo.mp4")}}
     for name, entries in stale.items():
         opt.write_manifest(tmp_path / name, entries)
 
