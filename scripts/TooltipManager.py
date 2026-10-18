@@ -120,6 +120,9 @@ Args:
     conn: A SQLite database connection object.
     csv_file: The path to the input CSV file.
     name: The name of the person performing the build.
+
+Raises:
+    ValueError: an index named INDEX_NAME on another table kept the build from creating the index.
 """
 def csv_to_tooltips(conn, csv_file, name):
     try:
@@ -163,6 +166,9 @@ def csv_to_tooltips(conn, csv_file, name):
 
         # After the rows, so the index is built once over them rather than row by row.
         cursor.execute(INDEX_TOOLTIP_BUTTONS)
+        # DROP TABLE dropped only TooltipButtons' indexes: one of that name on another table survives,
+        # and IF NOT EXISTS then creates nothing.
+        check_tooltip_buttons_index(existing_tooltip_buttons_index(conn))
 
         # Update LastChange timestamp with author's name and current time
         cursor.execute("""
@@ -198,14 +204,42 @@ Finds an index named INDEX_NAME. SQLite matches names without regard to case, so
 differently cased name would make CREATE INDEX IF NOT EXISTS silently do nothing.
 
 Returns:
-    (table, columns) of that index, or None if there is none.
+    (table, columns, partial) of that index, or None if there is none. An expression column shows as
+    "<expr>" and a column under a collation other than BINARY as "name COLLATE X"; partial is True if
+    the index has a WHERE clause.
 """
 def existing_tooltip_buttons_index(conn):
     row = conn.execute("SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name = ? COLLATE NOCASE",
                        (INDEX_NAME,)).fetchone()
     if row is None:
         return None
-    return row[1], tuple(info[2] for info in conn.execute(f'PRAGMA index_info("{row[0]}")'))
+    name, table = row
+    # index_xinfo rather than index_info for the collation; key = 0 marks the rowid it appends.
+    columns = tuple((info[2] or "<expr>") + ("" if info[4].upper() == "BINARY" else f" COLLATE {info[4]}")
+                    for info in conn.execute(f'PRAGMA index_xinfo("{name}")') if info[5])
+    partial = any(entry[1] == name and entry[4] for entry in conn.execute(f'PRAGMA index_list("{table}")'))
+    return table, columns, partial
+
+
+"""
+check_tooltip_buttons_index(found)
+
+An index of that name on another table, other columns, an expression, another collation or only some
+rows (a WHERE clause) leaves the app's buttons query reading the whole table.
+
+Args:
+    found: what existing_tooltip_buttons_index returned.
+
+Raises:
+    ValueError: found is not the index INDEX_TOOLTIP_BUTTONS creates.
+"""
+def check_tooltip_buttons_index(found):
+    table, columns, partial = found
+    if (table.lower() != "tooltipbuttons" or partial
+            or tuple(c.lower() for c in columns) != tuple(c.lower() for c in INDEX_COLUMNS)):
+        where = " with a WHERE clause" if partial else ""
+        raise ValueError(f"an index named {INDEX_NAME} already exists on {table} ({', '.join(columns)}){where}, "
+                         f"not on TooltipButtons ({', '.join(INDEX_COLUMNS)}); drop it, then run this again")
 
 
 """
@@ -213,7 +247,7 @@ index_tooltip_buttons(conn)
 
 Adds the TooltipButtons index (see INDEX_TOOLTIP_BUTTONS) to a database built before it existed.
 Does nothing if the index is already there with that definition; refuses, rather than reporting
-success, if an index of that name covers another table or other columns.
+success, if an index of that name has any other definition (see check_tooltip_buttons_index).
 
 Args:
     conn: A SQLite database connection object to the documentation database.
@@ -227,10 +261,7 @@ Raises:
 def index_tooltip_buttons(conn):
     found = existing_tooltip_buttons_index(conn)
     if found is not None:
-        table, columns = found
-        if table.lower() != "tooltipbuttons" or tuple(c.lower() for c in columns) != tuple(c.lower() for c in INDEX_COLUMNS):
-            raise ValueError(f"an index named {INDEX_NAME} already exists on {table} ({', '.join(columns)}), "
-                             f"not on TooltipButtons ({', '.join(INDEX_COLUMNS)}); drop it, then run this again")
+        check_tooltip_buttons_index(found)
         print(f"{INDEX_NAME} already exists; nothing to do.")
         return False
     conn.execute(INDEX_TOOLTIP_BUTTONS)
