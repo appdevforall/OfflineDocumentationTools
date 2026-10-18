@@ -5,16 +5,16 @@
  * default settings - HTML autoescaping on, newline trimming on, strict variables off - and
  * maxRenderedSize of 4 Mi chars), and given its context the same way: Gson with
  * ToNumberPolicy.LONG_OR_DOUBLE parses the row's JSON into a Map<String, Object>, and the
- * rendered String is returned as UTF-8 bytes.
+ * rendered String is returned as UTF-8 bytes. Gson 2.12.1 is the version CodeOnTheGo's :common
+ * module renders with.
  *
- * Templates resolve by exact name, first from templates defined over stdin (so a caller can
- * check a template before it is written anywhere), then, with --db, from the Templates table,
- * which is how the app's DatabaseTemplateLoader resolves them.
+ * Templates are defined over stdin and resolve by exact name, as the app's
+ * DatabaseTemplateLoader resolves Templates rows, so a caller can check a template before it is
+ * written anywhere.
  *
  * Run from source, no build step:
  *
- *     java -cp pebble-4.1.1.jar:unbescape-1.1.6.RELEASE.jar:slf4j-api.jar:gson-2.10.1.jar[:sqlite-jdbc.jar] \
- *         Render.java [--db documentation.db]
+ *     java -cp pebble-4.1.1.jar:unbescape-1.1.6.RELEASE.jar:slf4j-api.jar:gson-2.12.1.jar Render.java
  *
  * Protocol, on stdin and stdout: each request is one ASCII header line, "<cmd> <name> <length>",
  * followed by <length> bytes.
@@ -48,10 +48,6 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -60,29 +56,14 @@ public class Render {
     static final int MAX_RENDERED_CHARS = 4 * 1024 * 1024;
 
     static final Map<String, String> defined = new ConcurrentHashMap<>();
-    static Connection db;
 
-    /** DatabaseTemplateLoader's lookup, with templates defined over stdin consulted first. */
+    /** Resolves a name to a template defined over stdin, exactly, like DatabaseTemplateLoader. */
     static final class Templates implements Loader<String> {
         @Override
         public Reader getReader(String name) {
             String text = defined.get(name);
-            if (text != null) return new StringReader(text);
-            if (db == null) throw new LoaderException(null, "Template '" + name + "' not found");
-            try (PreparedStatement statement = db.prepareStatement("SELECT content FROM Templates WHERE name = ?")) {
-                statement.setString(1, name);
-                try (ResultSet rows = statement.executeQuery()) {
-                    if (!rows.next()) throw new LoaderException(null, "Template '" + name + "' not found in the database");
-                    byte[] body = rows.getBytes(1);
-                    if (rows.next()) throw new LoaderException(null, "Template '" + name + "' is shared by more than one database row");
-                    if (body == null) throw new LoaderException(null, "Template '" + name + "' has no body");
-                    return new StringReader(new String(body, StandardCharsets.UTF_8));
-                }
-            } catch (LoaderException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new LoaderException(e, "Cannot read template '" + name + "' from the database");
-            }
+            if (text == null) throw new LoaderException(null, "Template '" + name + "' not found");
+            return new StringReader(text);
         }
 
         @Override
@@ -118,13 +99,9 @@ public class Render {
     }
 
     public static void main(String[] args) throws Exception {
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("--db") && i + 1 < args.length) {
-                db = DriverManager.getConnection("jdbc:sqlite:file:" + args[++i] + "?mode=ro");
-            } else {
-                System.err.println("usage: Render.java [--db documentation.db]");
-                System.exit(2);
-            }
+        if (args.length != 0) {
+            System.err.println("usage: Render.java (templates and contexts come over stdin)");
+            System.exit(2);
         }
         Gson gson = new GsonBuilder().setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE).create();
         Type contextType = new TypeToken<Map<String, Object>>() {}.getType();

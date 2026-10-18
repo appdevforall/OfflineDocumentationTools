@@ -23,11 +23,12 @@ it is served), so this needs no app change.
 
 How the template is derived:
 
-  1. A topic is a text/html page under --prefix whose JavaScript copy,
+  1. A topic is a text/html page <prefix>X.html whose JavaScript copy,
      <prefix>jstopics/X.js, exists. That file's hmLoadTopic({...}) fields
      (hmTitle, hmBody, hmPrevLink, ...) are the export's own list of what is
      per-topic. Pages without one (hmftsearch.html, the _hm*.htm templates,
-     ...) are not topics and are left alone.
+     ...) are not topics and are left alone, as is a page not named X.html:
+     the app builds jstopics/X.js only from X.html.
   2. Each page's body is located by its jstopics hmBody, with Help+Manual's
      "\\n\\r" line breaks written as the page's "\\r\\n", and stood in for by a
      marker, so the rest of the page is the skin plus a few small parts.
@@ -38,7 +39,10 @@ How the template is derived:
      accepted for a page only when rendering it with that page's values gives
      the page's text back exactly. When pages need different shapes (a
      disabled "Previous" link on the first topic, say), the template chooses
-     between them with {% if field is empty %}.
+     between them with {% if field is empty %}. The condition is whichever
+     one fits the data, not Help+Manual's own rule - in the 2026-10-13
+     export the Top link is disabled exactly where hmPrevLink is empty - so
+     it fails safe: a page it does not fit fails the render check below.
   5. Where one shape fits every page but a page shows a different value in
      it - a meta description written differently from its jstopics value, a
      caption that is not the topic's title - that value is read out of the
@@ -81,7 +85,11 @@ after JavaScript unescaping and the same text around them. A topic that does
 not match keeps its row, is named, and makes the run exit 1. On later runs,
 every topic whose row is gone is built again with the stored template and
 checked against the fields its JSON holds; one that differs is named and
-fails the run too.
+fails the run too. A page that goes back to HTML after its row was dropped -
+it no longer fits the template, say - gets the row written back, built with
+the stored jstopics template from the page's last JSON and checked the same
+way, and the run exits 1 to say so; if the row cannot be built, the run
+writes nothing.
 
 CodeOnTheGo's side of ADFA-6618 builds i/jstopics/X.js on request by
 rendering helpmanual-jstopic.peb with i/X.html's JSON, so a database written
@@ -105,10 +113,30 @@ what would change without writing.
     uv run scripts/hm_pages_to_templates.py documentation.db
     uv run scripts/hm_pages_to_templates.py documentation.db --drop-jstopics
 
-Where it goes in the pipeline: LAST among the steps that read or edit i/
-pages - update_media_references.py, and ADFA-6589's remove_skin_font_comment.py,
-remove_remote_loads.py and check_remote_loads.py. They work on HTML; after
-this step the topics' rows hold JSON and the skin lives in Templates.
+Where it goes in the pipeline: after every step that edits i/ pages, since
+they work on HTML and after this step the topics' rows hold JSON and the skin
+lives in Templates. With ADFA-6589's and ADFA-6596's steps the order is:
+
+  1. remove_skin_font_comment.py
+  2. bundle_remote_images.py
+  3. remove_remote_loads.py
+  4. share_skin_sprite.py - before this step: afterwards the sprite it moves
+     is in Templates, not in the pages, and it finds nothing to do
+  5. check_remote_loads.py
+  6. the media steps, with the snapshot update_media_references.py --before
+     diffs against taken before them
+  7. this step
+  8. check_remote_loads.py again. It reads Templates and JSON pages as well
+     as HTML, so it gives the same answer on either side of this step (90
+     loads before and after on the untreated 2026-10-13 database).
+
+Rolling back media (optimize_db_media.py / update_media_references.py
+--restore-originals) cannot undo i/ pages this step has converted: their rows
+hold JSON that matches no recorded digest, the dropped jstopics rows named
+images too (48 of the 359 on the 2026-10-13 database), and the skin's
+own images, such as ./images/leftright.webp, are named only in Templates. A
+media rollback has to start from this step's pre-run backup and then run this
+step again, so keep that backup with the rollback bundle.
 
 Recovering: the timestamped backup taken before the first write is the whole
 undo.
@@ -132,12 +160,14 @@ from pathlib import Path
 
 from optimize_db_media import (
     BrotliCodec, backup_database, delete_media_row, human, is_continuation_path, load_dictionary, reassemble,
+    write_chunks,
 )
 from update_media_references import replace_row
 
 PAGE_TEMPLATE = "helpmanual-topic.peb"
 JSTOPIC_TEMPLATE = "helpmanual-jstopic.peb"
 CONTENT_TYPE = "text/html"
+JSTOPIC_CONTENT_TYPE = "text/javascript"  # what the jstopics rows are stored as, and what the app serves
 
 BODY_FIELD = "hmBody"
 FILE_KEY = "file"
@@ -341,7 +371,6 @@ class Derivation:
         self.unfit = {}           # {topic name: reason}
         self.holes = []
         self.fields = []
-        self.base = None
         self.body_form = {}
 
 
@@ -451,6 +480,10 @@ def _explain(hole: Hole, variables: dict, patterns: dict, names: list) -> None:
             must = uncovered & explains(shape)
             if not must:
                 continue
+            # The condition is fitted to the data, not taken from Help+Manual's rules: in the
+            # 2026-10-13 export the Top link is disabled on exactly the pages whose hmPrevLink is
+            # empty, so that is what this finds. It fails safe - a later page it does not fit
+            # renders differently, fails the render check and stays HTML.
             found = None
             for name in names:
                 for negate in (False, True):
@@ -551,7 +584,9 @@ def derive(topics: list) -> Derivation:
         body = t.fields[BODY_FIELD]
         for form in BODY_FORMS:
             in_page = form.to_page(body)
-            if in_page and t.page.count(in_page) == 1:
+            # A form counts only when it maps the page's body back to the jstopics one exactly:
+            # a body with plain "\r\n" breaks would otherwise pass as "lfcr" and get them rewritten.
+            if in_page and form.to_jstopic(in_page) == body and t.page.count(in_page) == 1:
                 result.body_form[t.name] = form
                 body_text[t.name] = in_page
                 seeded[t.name] = t.page.replace(in_page, BODY_MARKER)
@@ -569,7 +604,6 @@ def derive(topics: list) -> Derivation:
     mode = max(sizes, key=lambda size: (sizes[size], -size))
     base_name = next(n for n in lines if len(lines[n]) == mode)
     base = lines[base_name]
-    result.base = base_name
     maps = {}
     for n, own in lines.items():
         matcher = difflib.SequenceMatcher(None, base, own, autojunk=False)
@@ -768,7 +802,8 @@ _JARS = (
     ("io.pebbletemplates", "pebble", "4.1.1"),
     ("org.unbescape", "unbescape", None),
     ("org.slf4j", "slf4j-api", None),
-    ("com.google.code.gson", "gson", "2.10.1"),
+    # The Gson CodeOnTheGo's :common module renders documentation with (libs.google.gson).
+    ("com.google.code.gson", "gson", "2.12.1"),
 )
 
 
@@ -805,9 +840,9 @@ class PebbleHarness:
     """Render.java, kept running: templates are defined over its stdin and
     pages rendered with the engine settings the app uses."""
 
-    def __init__(self, classpath: str, java: str = "java", database: Path = None):
+    def __init__(self, classpath: str, java: str = "java"):
         self._log = tempfile.TemporaryFile()
-        command = [java, "-cp", classpath, str(RENDER_JAVA)] + (["--db", str(database)] if database else [])
+        command = [java, "-cp", classpath, str(RENDER_JAVA)]
         self._proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._log)
         self._lock = threading.Lock()
 
@@ -844,6 +879,20 @@ class PebbleHarness:
         except Exception:  # noqa: BLE001 - shutting down regardless
             self._proc.kill()
         self._log.close()
+
+
+def body_form_of(template: str) -> BodyForm:
+    """The body form a stored jstopics template was derived with: the one whose
+    filter it applies to hmBody, else the one with no filter."""
+    for form in BODY_FORMS:
+        if form.pebble_filter and BODY_FIELD + form.pebble_filter in template:
+            return form
+    return next(form for form in BODY_FORMS if not form.pebble_filter)
+
+
+def context_fields(context: dict) -> list:
+    """The jstopics fields a page's JSON holds, in their order."""
+    return [k for k in context if k != FILE_KEY and not k.startswith((PART_PREFIX, JS_PREFIX))]
 
 
 def template_text(content) -> str:
@@ -890,25 +939,31 @@ def run(cfg: dict) -> int:
         stored_text = template_text(stored_template[1]) if stored_template else None
         stored_jstopic = conn.execute("SELECT content FROM Templates WHERE name = ?", (JSTOPIC_TEMPLATE,)).fetchone()
         stored_jstopic_text = template_text(stored_jstopic[0]) if stored_jstopic else None
-        rows = conn.execute(
+        # The prefix is matched exactly: LIKE ignores case and reads "_" as a wildcard.
+        js_dir = prefix + "jstopics/"
+        rows = [row for row in conn.execute(
             "SELECT c.path, c.content, c.languageID, c.contentTypeID, c.templateId, ct.compression "
             "FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-            "WHERE ct.value = ? AND c.path LIKE ? ORDER BY c.path", (CONTENT_TYPE, prefix + "%")
-        ).fetchall()
+            "WHERE ct.value = ? AND substr(c.path, 1, ?) = ? ORDER BY c.path", (CONTENT_TYPE, len(prefix), prefix)
+        ).fetchall() if row[0].startswith(prefix)]
         lengths = {row[0]: len(row[1]) for row in rows}
-        jstopic_rows = conn.execute(
+        jstopic_rows = [row for row in conn.execute(
             "SELECT c.path, ct.compression, LENGTH(c.content) FROM Content c "
-            "JOIN ContentTypes ct ON c.contentTypeID = ct.id WHERE c.path LIKE ?", (prefix + "jstopics/%",)).fetchall()
+            "JOIN ContentTypes ct ON c.contentTypeID = ct.id WHERE substr(c.path, 1, ?) = ?",
+            (len(js_dir), js_dir)).fetchall() if row[0].startswith(js_dir)]
         jstopic_lengths = {path: length for path, _c, length in jstopic_rows}
         jstopics = {path: compression for path, compression, _l in jstopic_rows
                     if not is_continuation_path(jstopic_lengths, path)}
 
         candidates, skipped = [], []
         for path, blob, language_id, type_id, template_id, compression in rows:
-            if is_continuation_path(lengths, path) or "/" in path[len(prefix):]:
+            rest = path[len(prefix):]
+            # Only <prefix>X.html is a topic page: the app builds jstopics/X.js from X.html and from
+            # nothing else, so a page named otherwise keeps its jstopics row.
+            if is_continuation_path(lengths, path) or "/" in rest or not rest.endswith(".html"):
                 continue
-            stem = path[len(prefix):].rsplit(".", 1)[0]
-            jstopic_path = f"{prefix}jstopics/{stem}.js"
+            stem = rest[:-len(".html")]
+            jstopic_path = f"{js_dir}{stem}.js"
             ours = stored_id is not None and template_id == stored_id
             if template_id and not ours:
                 skipped.append((path, f"rendered through another template (templateId {template_id})"))
@@ -941,6 +996,11 @@ def run(cfg: dict) -> int:
 
         unreadable = [(path, why) for path, _p, _j, why in decoded if why]
         info = {c[0]: c for c in candidates}
+        by_stem = {c[1]: c for c in candidates}
+        # How a topic whose jstopics row is gone maps its page body back: the way the stored
+        # jstopics template does, which is what the app serves.
+        stored_form = body_form_of(stored_jstopic_text) if stored_jstopic_text is not None else BODY_FORMS[0]
+        stored_json = {}
         topics, original, unfit = [], {}, {}
         if stored_text is not None:
             harness.define("stored:" + PAGE_TEMPLATE, stored_text)
@@ -958,11 +1018,10 @@ def run(cfg: dict) -> int:
                 if not ok:
                     unreadable.append((path, f"its stored JSON does not render: {out}"))
                     continue
+                stored_json[stem] = page
                 page = out
                 if jst is None:
-                    fields = list(k for k in context if k != FILE_KEY and not k.startswith((PART_PREFIX, JS_PREFIX)))
-                    form = BODY_FORMS[0]
-                    parsed = (jstopic_fields_from_context(context, fields, form), None)
+                    parsed = (jstopic_fields_from_context(context, context_fields(context), stored_form), None)
                 else:
                     parsed = parse_jstopic(jst)
             else:
@@ -1004,7 +1063,7 @@ def run(cfg: dict) -> int:
         # after JavaScript unescaping, and outside the fields too, so the file is the same program.
         jstopic_template = derivation.jstopic_template or stored_jstopic_text
         droppable, kept = [], {}
-        with_row = [t for t in topics if f"{prefix}jstopics/{t.name}.js" in jstopic_blobs]
+        with_row = [t for t in topics if f"{js_dir}{t.name}.js" in jstopic_blobs]
         if jstopic_template is not None and with_row:
             harness.define(JSTOPIC_TEMPLATE, jstopic_template)
             for t in with_row:
@@ -1039,8 +1098,7 @@ def run(cfg: dict) -> int:
                     parsed = parse_jstopic(out.decode("utf-8")) if ok else None
                     if parsed is None or parsed[0] != t.fields:
                         broken[t.name] = "the jstopics file built from its JSON does not hold the JSON's fields"
-        orphans = sorted(set(jstopics) - {f"{prefix}jstopics/{t.name}.js" for t in topics}
-                         - {c[8] for c in candidates})
+        orphans = sorted(set(jstopics) - {c[8] for c in candidates})
         if cfg.get("jstopic_template_out") and derivation.jstopic_template is not None:
             Path(cfg["jstopic_template_out"]).write_text(derivation.jstopic_template, encoding="utf-8", newline="")
 
@@ -1060,17 +1118,11 @@ def run(cfg: dict) -> int:
         drop = cfg.get("drop_jstopics", False)
         jstopic_changes = bool(drop and droppable and derivation.jstopic_template is not None
                                and derivation.jstopic_template != stored_jstopic_text)
-        drops = []
-        if drop:
-            for stem in droppable:
-                jpath = f"{prefix}jstopics/{stem}.js"
-                drops.append((jpath, jstopic_blobs[jpath][2], len(jstopic_blobs[jpath][0])))
+        stored_as_json, back_to_html = set(), []
         for stem, page in original.items():
-            c = info[f"{prefix}{stem}.html"] if f"{prefix}{stem}.html" in info else None
-            if c is None:
-                continue
-            path, _stem, full, base_len, lang, ctid, tid, compression, _j = c
+            path, _stem, full, base_len, lang, ctid, tid, compression, jpath = by_stem[stem]
             if stem in jsons:
+                stored_as_json.add(stem)
                 if tid and codec.decompress(full, compression) == jsons[stem]:
                     continue  # already this JSON; the template renders it the same way
                 changes.append(("json", path, base_len, jsons[stem], lang, ctid, compression, len(full),
@@ -1078,6 +1130,41 @@ def run(cfg: dict) -> int:
             elif tid:
                 # Stored as JSON for a template it no longer fits: back to HTML.
                 changes.append(("html", path, base_len, page, lang, ctid, compression, len(full), len(page)))
+                if jpath not in jstopic_blobs:
+                    back_to_html.append(stem)
+        # A row is dropped only for a page that ends up stored as JSON, written now or already.
+        drops = []
+        if drop:
+            for stem in droppable:
+                if stem in stored_as_json:
+                    jpath = f"{js_dir}{stem}.js"
+                    drops.append((jpath, jstopic_blobs[jpath][2], len(jstopic_blobs[jpath][0])))
+
+        # A page going back to HTML whose jstopics row is gone gets the row back, built as the app
+        # builds it now - the stored jstopics template and the page's stored JSON - and checked
+        # against the fields that JSON holds. Writing it back rather than refusing the revert keeps
+        # the run able to replace a template that no longer fits its pages; a row that cannot be
+        # built that way stops the whole run instead, since keeping the page as JSON under the new
+        # template would serve the wrong page.
+        restores, refuse = [], {}
+        js_type = conn.execute("SELECT id, compression FROM ContentTypes WHERE value = ?",
+                               (JSTOPIC_CONTENT_TYPE,)).fetchone()
+        if back_to_html and stored_jstopic_text is not None:
+            harness.define("stored:" + JSTOPIC_TEMPLATE, stored_jstopic_text)
+        for stem in back_to_html:
+            path, _stem, _full, _bl, lang, _ct, _tid, _comp, jpath = by_stem[stem]
+            if stored_jstopic_text is None or js_type is None:
+                refuse[stem] = (f"its page goes back to HTML, its jstopics row is gone, and there is no "
+                                f"{JSTOPIC_TEMPLATE if js_type else JSTOPIC_CONTENT_TYPE} to write it back with")
+                continue
+            context = json.loads(stored_json[stem].decode("utf-8"))
+            expected = jstopic_fields_from_context(context, context_fields(context), stored_form)
+            ok, out, _ = harness.render("stored:" + JSTOPIC_TEMPLATE, stored_json[stem])
+            parsed = parse_jstopic(out.decode("utf-8")) if ok else None
+            if parsed is None or parsed[0] != expected:
+                refuse[stem] = "its page goes back to HTML and its jstopics row cannot be built again"
+                continue
+            restores.append((jpath, out, lang, js_type[0], js_type[1]))
 
         def encode(change):
             kind, path, base_len, data, lang, ctid, compression, old_stored, old_decoded = change
@@ -1085,6 +1172,7 @@ def run(cfg: dict) -> int:
 
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             changes = list(pool.map(encode, changes))
+            restores = list(pool.map(lambda r: r + (codec.compress(r[1], r[4]),), restores))
 
         converted = [c for c in changes if c[0] == "json"]
         reverted = [c for c in changes if c[0] == "html"]
@@ -1111,12 +1199,16 @@ def run(cfg: dict) -> int:
             print(f"Phase 2 check: {len(without_row) - len(broken)} of {len(without_row)} topic(s) without a "
                   f"jstopics row get one built from their JSON with the fields it holds.")
         for stem in sorted(broken):
-            print(f"  broken: {prefix}jstopics/{stem}.js - {broken[stem]}", file=sys.stderr)
+            print(f"  broken: {js_dir}{stem}.js - {broken[stem]}", file=sys.stderr)
+        for stem in sorted(refuse):
+            print(f"  refused: {prefix}{stem}.html - {refuse[stem]}", file=sys.stderr)
+        for jpath, *_rest in restores:
+            print(f"  writes back {jpath} - its page goes back to HTML", file=sys.stderr)
         if drop:
             for stem in sorted(kept):
-                print(f"  keeps {prefix}jstopics/{stem}.js - {kept[stem]}", file=sys.stderr)
+                print(f"  keeps {js_dir}{stem}.js - {kept[stem]}", file=sys.stderr)
             for path in orphans:
-                print(f"  left alone: {path} - no topic page of that name", file=sys.stderr)
+                print(f"  left alone: {path} - no topic page {prefix}X.html of that name", file=sys.stderr)
         else:
             for stem in sorted(kept):
                 log(f"  [JSTOPIC] {stem}: {kept[stem]}")
@@ -1135,14 +1227,17 @@ def run(cfg: dict) -> int:
             print(f"{'Would drop' if cfg['dry_run'] else 'Dropping'} {len(drops)} jstopics row(s) "
                   f"({human(sum(d[2] for d in drops))} stored byte(s)), the app building each from its page with "
                   f"the {JSTOPIC_TEMPLATE} template{' (changed)' if jstopic_changes else ' (unchanged)'}.")
-        anything = bool(changes or template_changes or drops or jstopic_changes)
-        if not anything:
+        anything = bool(changes or template_changes or drops or jstopic_changes or restores)
+        if refuse:
+            print(f"error: {len(refuse)} page(s) cannot go back to HTML (listed above); nothing written.",
+                  file=sys.stderr)
+        elif not anything:
             print("Nothing to change.")
 
         wrote = False
         if cfg["dry_run"]:
             print("Dry run: nothing written.")
-        elif anything:
+        elif anything and not refuse:
             print(f"Backing up {db_path} ...")
             print(f"Backup written to {backup_database(db_path)}")
             conn.execute("BEGIN")
@@ -1167,6 +1262,10 @@ def run(cfg: dict) -> int:
                 for jpath, base_len, _stored in drops:
                     delete_media_row(conn, jpath, base_len)
                     log(f"  [DROP] {jpath}")
+                for jpath, _out, lang, type_id, _compression, stored in restores:
+                    write_chunks(conn, jpath, stored, lang, type_id, 0, lambda m: print(m, file=sys.stderr),
+                                 update_base=False)
+                    log(f"  [RESTORE] {jpath}")
                 conn.commit()
                 wrote = True
             except Exception:
@@ -1189,14 +1288,17 @@ def run(cfg: dict) -> int:
     if unreadable:
         print(f"error: {len(unreadable)} row(s) could not be read and were left as they were (listed above).",
               file=sys.stderr)
-    failed_drops = bool(cfg.get("drop_jstopics") and kept)
+    # With --drop-jstopics every jstopics row is meant to go; any left is a failure.
+    failed_drops = bool(cfg.get("drop_jstopics") and (kept or orphans))
     if failed_drops:
-        print(f"error: {len(kept)} jstopics row(s) kept because the template does not rebuild them (listed above).",
-              file=sys.stderr)
+        print(f"error: {len(kept) + len(orphans)} jstopics row(s) left in place (listed above).", file=sys.stderr)
     if broken:
         print(f"error: {len(broken)} topic(s) without a jstopics row would get a wrong one (listed above).",
               file=sys.stderr)
-    return 1 if unreadable or failed_drops or broken else 0
+    if restores:
+        print(f"error: {len(restores)} page(s) went back to HTML after their jstopics row was dropped; "
+              f"the row{'s were' if len(restores) > 1 else ' was'} written back (listed above).", file=sys.stderr)
+    return 1 if unreadable or failed_drops or broken or restores or refuse else 0
 
 
 def build_parser() -> argparse.ArgumentParser:

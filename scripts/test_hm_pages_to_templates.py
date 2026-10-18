@@ -44,6 +44,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -112,13 +113,14 @@ def _js(value: str) -> str:
             .replace("\n", "\\n").replace("\r", "\\r"))
 
 
-def _body(index: int) -> str:
-    """A body with Help+Manual's jstopics line breaks; the page has CRLF."""
-    return (f'<p class="p_Normal">Topic {index} text, caf\u00e9 \U0001F600, and {{{{ not a tag }}}}.</p>\n\r'
+def _body(index: int, breaks: str = "\n\r") -> str:
+    """A body with Help+Manual's jstopics line breaks ("\\n\\r"; the page has
+    CRLF), or with `breaks` for an export that writes them the same way in both."""
+    return (f'<p class="p_Normal">Topic {index} text, caf\u00e9 \U0001F600, and {{{{ not a tag }}}}.</p>{breaks}'
             f'<p class="p_Normal">Second paragraph of topic {index}.</p>')
 
 
-def make_topic(index: int, names=None) -> tuple:
+def make_topic(index: int, names=None, breaks: str = "\n\r") -> tuple:
     """(page bytes, jstopics bytes) for TOPICS[index]."""
     name, title, caption, desc_js, desc_page, keywords, crumbs = TOPICS[index]
     names = names or [t[0] for t in TOPICS]
@@ -146,7 +148,7 @@ def make_topic(index: int, names=None) -> tuple:
          '\t<a id="next" class="disabled" title="This is the last topic">\r\n'),
         "\t<span>Next</span></a>\r\n",
         '\t<div id="hmpagebody_scroller">\r\n', "<!--ZOOMRESTART-->\r\n",
-        "\t" + _body(index).replace("\n\r", "\r\n") + "\r\n",
+        "\t" + _body(index, breaks).replace("\n\r", "\r\n") + "\r\n",
         "\t</div>\r\n",
         f'\thmFlags.thisTopic = "{name}.html";\r\n',
         f'\tvar titleBarText = "{title}";\r\n',
@@ -156,7 +158,7 @@ def make_topic(index: int, names=None) -> tuple:
               ("hmNextLink", nxt), ("hmParentLink", parent), ("hmBreadCrumbs", crumbs),
               ("hmTitlePath", f"Root > {title}"),
               ("hmHeader", f'<h1 class="p_Heading1"><span class="f_Heading1">{caption}</span></h1>\n\r'),
-              ("hmBody", _body(index))]
+              ("hmBody", _body(index, breaks))]
     jstopic = "hmLoadTopic({\r\n" + ",\r\n".join(f'{k}:"{_js(v)}"' for k, v in fields) + "\r\n})\r\n"
     return "".join(lines).encode("utf-8"), jstopic.encode("utf-8")
 
@@ -194,9 +196,11 @@ def _brotli(data: bytes, decompress: bool = False) -> bytes:
         return subprocess.run(args, input=data, stdout=subprocess.PIPE, check=True).stdout
 
 
-def make_db(path: Path, pages: dict = None) -> Path:
+def make_db(path: Path, pages: dict = None, template_ids: dict = None, breaks: str = "\n\r") -> Path:
     """A database with the synthetic topics, their jstopics files, a page that
-    is not a topic, a page outside i/ and an unrelated template."""
+    is not a topic, a page outside i/ and an unrelated template. `pages`
+    replaces or adds rows (None leaves a row out); `template_ids` sets rows'
+    templateId."""
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO Languages (value) VALUES ('en-US')")
@@ -206,15 +210,18 @@ def make_db(path: Path, pages: dict = None) -> Path:
     conn.execute("INSERT INTO Templates (name, content) VALUES ('page.peb', ?)", (b"<p>{{ title }}</p>",))
     rows = dict(pages or {})
     for i, t in enumerate(TOPICS):
-        page, jstopic = make_topic(i)
+        page, jstopic = make_topic(i, breaks=breaks)
         rows.setdefault(f"i/{t[0]}.html", page)
         rows.setdefault(f"i/jstopics/{t[0]}.js", jstopic)
     rows.setdefault("i/hmftsearch.html", b"\xef\xbb\xbf<!DOCTYPE html>\r\n<p>Search</p>\r\n")
     rows.setdefault("a/other.html", b"<p>Not Help+Manual</p>")
     for p, data in sorted(rows.items()):
+        if data is None:
+            continue
         type_id = 6 if p.endswith(".js") else 12
-        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, ?)",
-                     (p, data if data.startswith(b"RAW:") else _brotli(data), type_id))
+        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                     "VALUES (?, 1, ?, ?, ?)",
+                     (p, data if data.startswith(b"RAW:") else _brotli(data), type_id, (template_ids or {}).get(p, 0)))
     conn.commit()
     conn.close()
     return path
@@ -549,7 +556,7 @@ def test_jstopic_the_template_does_not_rebuild_keeps_its_row(tmp_path):
     assert jstopic_rows(db) == ["i/jstopics/t2.js"]
     assert rows(db)["i/jstopics/t2.js"] == before["i/jstopics/t2.js"]
     assert "keeps i/jstopics/t2.js - the built file differs in hmTitle" in err
-    assert "1 jstopics row(s) kept" in err
+    assert "1 jstopics row(s) left in place" in err
 
 
 def test_jstopic_with_other_text_around_its_fields_keeps_its_row(tmp_path):
@@ -596,6 +603,181 @@ def test_drop_jstopics_deletes_a_chunked_row_whole(tmp_path):
         assert "left alone" not in err
     finally:
         optimize_db_media.CHUNK_SIZE = saved
+
+
+# --- review of PR #43 -------------------------------------------------------------
+
+def test_topic_page_not_named_html_keeps_its_jstopics_row(tmp_path):
+    """R43-01: the app builds jstopics/X.js only from X.html, so X.htm is not a topic page."""
+    page, _jstopic = make_topic(5)
+    db = make_db(tmp_path / "doc.db", {"i/t5.html": None, "i/t5.htm": page})
+    before = rows(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    after = rows(db)
+    assert code == 1
+    assert after["i/t5.htm"] == before["i/t5.htm"]
+    assert jstopic_rows(db) == ["i/jstopics/t5.js"] and after["i/jstopics/t5.js"] == before["i/jstopics/t5.js"]
+    assert "left alone: i/jstopics/t5.js" in err
+    assert "Found 5 Help+Manual topic page(s)" in out
+
+
+def _json_row(db: Path, path: str) -> dict:
+    conn = sqlite3.connect(db)
+    try:
+        return json.loads(_brotli(conn.execute("SELECT content FROM Content WHERE path = ?", (path,)).fetchone()[0],
+                                  decompress=True))
+    finally:
+        conn.close()
+
+
+def _set_json_row(db: Path, path: str, context: dict) -> None:
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE Content SET content = ? WHERE path = ?", (_brotli(hm.context_json(context)), path))
+    conn.commit()
+    conn.close()
+
+
+def test_page_back_to_html_gets_its_dropped_jstopics_row_back(tmp_path):
+    """R43-02: a page that no longer fits the template goes back to HTML; its
+    jstopics row, dropped earlier, is built again from the stored template."""
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    context = _json_row(db, "i/t2.html")
+    context["hmTitle"] = "Debug\r\n" * 200 + "your app"      # pushes its page far off the others' shell
+    _set_json_row(db, "i/t2.html", context)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert "writes back i/jstopics/t2.js" in err
+    after = rows(db)
+    assert after["i/t2.html"][3] == 0
+    assert _brotli(after["i/t2.html"][0], decompress=True).count(b"Debug\r\n") > 200
+    content, _lang, type_id, tid = after["i/jstopics/t2.js"]
+    assert (type_id, tid) == (6, 0)
+    fields, _frame = hm.parse_jstopic(_brotli(content, decompress=True).decode("utf-8"))
+    assert fields == hm.jstopic_fields_from_context(context, hm.context_fields(context), hm.BODY_FORMS[0])
+    assert jstopic_rows(db) == ["i/jstopics/t2.js"]
+
+
+def test_page_back_to_html_with_no_way_to_rebuild_its_row_writes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    context = _json_row(db, "i/t2.html")
+    context["hmTitle"] = "Debug\r\n" * 200 + "your app"
+    _set_json_row(db, "i/t2.html", context)
+    conn = sqlite3.connect(db)
+    conn.execute("DELETE FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,))
+    conn.commit()
+    conn.close()
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert "refused: i/t2.html - its page goes back to HTML, its jstopics row is gone" in err
+    assert sha(db) == digest
+
+
+def test_export_whose_bodies_keep_their_crlf_runs_twice_cleanly(tmp_path):
+    """R43-05: bodies written with the same breaks in page and jstopics take the
+    form with no filter, and a later run reads that form from the stored template."""
+    db = make_db(tmp_path / "doc.db", breaks="\r\n")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    conn = sqlite3.connect(db)
+    stored = conn.execute("SELECT content FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,)).fetchone()[0]
+    conn.close()
+    assert b"replace(" not in stored
+    assert "js_hmBody" not in _json_row(db, "i/t1.html")
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    assert "6 of 6 topic(s) without a jstopics row get one built" in out and "Nothing to change." in out
+    assert sha(db) == digest
+
+
+def test_pebble_empty_agrees_with_pebbles_is_empty():
+    values = ["", " ", "\t\r\n", "\u00a0", "a", " a ", "\x0b"]
+    harness = _harness()
+    try:
+        harness.define("t", "{% if x is empty %}E{% else %}N{% endif %}")
+        for value in values:
+            ok, out, _ = harness.render("t", json.dumps({"x": value}).encode())
+            assert ok and (out == b"E") == hm.pebble_empty(value), repr(value)
+    finally:
+        harness.close()
+
+
+def test_rows_the_step_does_not_own_are_left_alone(tmp_path):
+    """A page under another template, a page in a subfolder, and pages whose
+    prefix matches only without case: none is a topic page."""
+    page1, jstopic1 = make_topic(1)
+    extra = {"i/t9.html": page1, "i/jstopics/t9.js": jstopic1,
+             "i/sub/t1.html": page1, "i/jstopics/sub/t1.js": jstopic1,
+             "I/t1.html": page1, "I/jstopics/t1.js": jstopic1}
+    db = make_db(tmp_path / "doc.db", extra, template_ids={"i/t9.html": 1})
+    before = rows(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = rows(db)
+    for path in extra:
+        assert after[path] == before[path], path
+    assert "skipped i/t9.html: rendered through another template (templateId 1)" in err
+    assert "Found 6 Help+Manual topic page(s)" in out
+
+
+def test_chunked_topic_page_is_read_whole_and_rewritten(tmp_path):
+    import optimize_db_media
+    saved = optimize_db_media.CHUNK_SIZE
+    optimize_db_media.CHUNK_SIZE = 64
+    try:
+        db = make_db(tmp_path / "doc.db")
+        conn = sqlite3.connect(db)
+        blob = conn.execute("SELECT content FROM Content WHERE path = 'i/t4.html'").fetchone()[0]
+        assert len(blob) % 64
+        conn.execute("UPDATE Content SET content = ? WHERE path = 'i/t4.html'", (blob[:64],))
+        for n, start in enumerate(range(64, len(blob), 64), start=1):
+            conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 12)",
+                         (f"i/t4.html-{n}", blob[start:start + 64]))
+        conn.commit()
+        conn.close()
+        code, out, err = run_tool(db)
+        assert code == 0, err
+        after = rows(db)
+        assert not [p for p in after if p.startswith("i/t4.html-")]
+        assert after["i/t4.html"][3] != 0 and "6 of 6 topic page(s) render back" in out
+    finally:
+        optimize_db_media.CHUNK_SIZE = saved
+
+
+def test_page_with_a_nul_stays_html(tmp_path):
+    page, _jstopic = make_topic(3)
+    db = make_db(tmp_path / "doc.db", {"i/t3.html": page.replace(b".rule7 {", b".rule7\x00 {")})
+    before = rows(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    assert rows(db)["i/t3.html"] == before["i/t3.html"]
+    assert "stays HTML: i/t3.html - the page contains a NUL character" in err
+
+
+def test_page_sharing_three_quarters_of_its_lines_stays_html(tmp_path):
+    page, _jstopic = make_topic(3)
+    text = page.decode("utf-8")
+    for n in range(25):
+        text = text.replace(f".rule{n} {{ margin: {n}px; }}", f".other{n} {{ padding: {n}px; }}")
+    db = make_db(tmp_path / "doc.db", {"i/t3.html": text.encode("utf-8")})
+    before = rows(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    assert rows(db)["i/t3.html"] == before["i/t3.html"]
+    shared = re.search(r"stays HTML: i/t3.html - shares only (\d+)% of its lines", err)
+    assert shared and 60 < int(shared.group(1)) < 90, err
+
+
+def test_classpath_uses_the_gson_the_app_renders_with():
+    classpath = _classpath()
+    if os.environ.get("HM_RENDER_CLASSPATH"):
+        _skip("the classpath was given, not found")
+    assert "gson-2.12.1.jar" in classpath and "pebble-4.1.1.jar" in classpath
 
 
 def _main() -> int:
