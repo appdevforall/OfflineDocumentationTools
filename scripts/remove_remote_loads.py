@@ -39,8 +39,8 @@ internet where the page needs no download to work (ADFA-6589). In the
      <a href="https://www.youtube.com/watch?v=ID">TITLE (video on YouTube)</a>;
      the app shows its consent dialog before opening an off-device link.
 
-(C, the API reference diagrams, which do need a download, is left to a step
-of its own.)
+(C, the API reference diagrams that do need a download, is
+bundle_remote_images.py's.)
 
 The k/html/ pages are JSON documents that page.peb renders, their markup
 inside JSON strings with quotes written \\". They are edited as bytes inside
@@ -55,8 +55,8 @@ left exactly as it is, named, and the run exits non-zero at the end. For
 example, an <img> whose src is not a stored file is left (dropping its srcset
 would leave it showing nothing), as is a dark <source> outside a <picture>, or
 a YouTube <video> with an attribute this tool has not seen. An <img src> on
-developer.android.com without a srcset is C's, and is neither touched nor
-reported here.
+developer.android.com without a srcset is bundle_remote_images.py's, and is
+neither touched nor reported here.
 
 The edit is made on the decoded bytes. Each changed row is re-compressed the
 way its ContentTypes row says (against the shared CompressionDictionary when
@@ -69,7 +69,8 @@ Where it goes in the pipeline: after remove_skin_font_comment.py and before
 the `cp DB migrated.db` snapshot, for the reason that script's docstring
 gives - update_media_references.py --restore-originals leaves alone any page
 whose text no longer matches what it recorded, so a page edited after the
-snapshot could not be restored.
+snapshot could not be restored. bundle_remote_images.py goes in the same
+place; the two touch different elements, so their order does not matter.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards - all three only when there is something to

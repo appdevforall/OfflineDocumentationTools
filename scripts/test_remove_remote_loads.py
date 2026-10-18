@@ -74,8 +74,8 @@ SNACKBAR = (b'<img alt="" src="media/static_images_training_snackbar_snackbar_dr
 SNACKBAR_AFTER = b'<img alt="" src="media/static_images_training_snackbar_snackbar_drive_2x.webp" width="400"/>'
 
 # Markup on the same pages that must come through untouched: links (not loads),
-# a local srcset with its sizes, an API-diagram <img src> (group C, left to its own
-# step, so neither rewritten nor reported here) and a stored video.
+# a local srcset with its sizes, an API-diagram <img src> (bundle_remote_images.py's,
+# so neither rewritten nor reported here) and a stored video.
 KEEP = (b'<a class="external" href="https://developer.android.com/develop/ui/views/touch-and-input/stylus-input">'
         b'Stylus</a>\n'
         b'<img alt="" sizes="10px" src="media/static_images_local.svg" '
