@@ -9,11 +9,13 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import brotli
 
 from migrate_content_to_dictionary_brotli import migrate
 from populate_db import CHUNK_SIZE, DictionaryCompressor, load_dictionary
+import remint_dictionary
 from remint_dictionary import remint
 from verify_remint_dictionary import verify
 from test_migrate_content_to_dictionary_brotli import SCHEMA_SQL, insert_plain_chunked, make_text
@@ -99,6 +101,46 @@ class RemintDictionaryTest(unittest.TestCase):
         self.assertEqual({path: content for path, content in
                           self.conn.execute("SELECT path, content FROM Content")}, snapshot,
                          "rows were rewritten despite the abort")
+
+    def stored_bytes(self) -> int:
+        return self.conn.execute("SELECT SUM(LENGTH(content)) FROM Content").fetchone()[0]
+
+    def test_more_seeds_keep_the_candidate_that_stores_smallest(self):
+        before = self.snapshot()
+        stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual([seed for seed, _total in stats["candidates"]], [999, 1000, 1001])
+        smallest = min(stats["candidates"], key=lambda c: c[1])
+        self.assertEqual((stats["seed"], stats["after"]), smallest)
+        self.assertEqual(self.stored_bytes(), stats["after"], "the rows written are not the chosen candidate's")
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_a_worse_first_candidate_is_not_kept(self):
+        """A dictionary of noise first, a trained one second: the trained one
+        must win, and every row must be written with it. Each candidate also
+        needs its own compressors; reusing the first one's would tie the two
+        and keep the noise."""
+        before = self.snapshot()
+        noise = random.Random(7).randbytes(16384)
+        real = remint_dictionary.train_dictionary
+        trained = []
+
+        def candidates(samples, dict_size):
+            if not trained:
+                trained.append(noise)
+                return noise
+            trained.append(real(samples, dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=candidates):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
+
+        self.assertEqual(stats["seed"], 1000)
+        self.assertEqual(load_dictionary(self.conn), trained[1])
+        self.assertLess(stats["candidates"][1][1], stats["candidates"][0][1])
+        for path, plain in self.originals.items():
+            self.assertEqual(self.plaintext(path), plain, f"{path} lost its content")
+        self.assertEqual(verify(before, self.db_path), [])
 
     def test_verifier_catches_a_corrupted_remint(self):
         """Guards against a vacuous verifier: hand it a database whose content

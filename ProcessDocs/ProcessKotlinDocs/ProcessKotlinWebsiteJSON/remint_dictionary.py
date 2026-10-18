@@ -34,6 +34,15 @@ rows: anything a plugin contributed on-device, anything written by a script
 outside populate_db.py's reach, and any row whose payload the encoder never
 needed the dictionary for.
 
+A dictionary trained on one sample is not the best one the corpus allows, and
+which sample does best is not predictable. On the minified 2026-10-18 database
+(ADFA-6627), four consecutive seeds stored 62,045,716, 61,689,943, 62,286,820
+and 62,404,993 bytes: 715 KB from best to worst. So --seeds trains a candidate
+for each of several consecutive sample seeds, recompresses every row with each,
+and keeps the one that stores smallest. Each candidate costs a full
+recompression pass (about 3.4 minutes each with 16 workers there); the winner's
+rows are kept from its pass, so writing costs none.
+
 Every row is proved to round-trip against the new dictionary before it is
 written. Afterwards, run verify_remint_dictionary.py against a copy of the
 original database: it re-reads every row through both dictionaries and requires
@@ -43,7 +52,7 @@ against a mismatched dictionary decodes without error into *different* bytes
 
 Usage:
     cp documentation.db remint.db
-    ./remint_dictionary.py remint.db
+    ./remint_dictionary.py remint.db --seeds 4
     ./verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
 """
 import argparse
@@ -102,30 +111,13 @@ def convert(old_dictionary: bytes, new_dictionary: bytes, path: str, stored: byt
     return {"path": path, "data": recompressed, "before": len(stored), "after": len(recompressed)}
 
 
-def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAULT_DICT_SIZE,
-           training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
-           max_workers: int | None = None) -> dict:
-    """Re-mints in one transaction. Raises RuntimeError, having written nothing,
-    if any row fails to convert."""
-    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
-    if row is None or not row[0]:
-        raise RuntimeError("this database has no CompressionDictionary to re-mint; "
-                           "run migrate_content_to_dictionary_brotli.py instead")
-    old_dictionary = row[0]
-    base_rows = load_base_rows(conn)
-
-    with DictionaryCompressor(old_dictionary) as old:
-        samples = collect_training_samples(
-            conn, base_rows, sample_size, training_bytes, seed,
-            decode=lambda stored: decode_outgoing(old, stored) or b"",
-        )
-    if not samples:
-        raise RuntimeError("no training samples could be decoded; refusing to train on nothing")
-    new_dictionary = train_dictionary(samples, dict_size)
-
-    stats = {"items": len(base_rows), "before": 0, "after": 0}
-    problems = []
-    conn.execute("BEGIN")
+def convert_all(conn, base_rows: list, old_dictionary: bytes, new_dictionary: bytes,
+                max_workers: int | None) -> tuple:
+    """Every row recompressed against new_dictionary, written nowhere: a list of
+    (row, recompressed bytes), the stored total, and the rows that failed."""
+    converted, problems, total = [], [], 0
+    # A pool per pass: its threads are new, so the compressors each one caches
+    # (_compressors) hold this pass's candidate dictionary, not an earlier one's.
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for start in range(0, len(base_rows), BATCH_ROWS):
             batch = base_rows[start:start + BATCH_ROWS]
@@ -137,20 +129,53 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
                 if "error" in result:
                     problems.append((result["path"], result["error"]))
                     continue
-                stats["before"] += result["before"]
-                stats["after"] += result["after"]
-                write_item(conn, r[0], r[1], r[2], r[3], result["data"])
+                total += result["after"]
+                converted.append((r, result["data"], result["before"]))
+    return converted, total, problems
 
-    if problems:
-        conn.rollback()
-        for path, why in problems[:10]:
-            print(f"error: {path}: {why}", file=sys.stderr)
-        raise RuntimeError(f"{len(problems)} row(s) failed to convert; nothing written")
 
+def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAULT_DICT_SIZE,
+           training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
+           max_workers: int | None = None, seeds: int = 1) -> dict:
+    """Re-mints in one transaction, with the best of `seeds` candidate
+    dictionaries (sample seeds seed, seed + 1, ...). Raises RuntimeError, having
+    written nothing, if any row fails to convert."""
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    if row is None or not row[0]:
+        raise RuntimeError("this database has no CompressionDictionary to re-mint; "
+                           "run migrate_content_to_dictionary_brotli.py instead")
+    old_dictionary = row[0]
+    base_rows = load_base_rows(conn)
+
+    best, candidates = None, []
+    for candidate_seed in range(seed, seed + max(1, seeds)):
+        with DictionaryCompressor(old_dictionary) as old:
+            samples = collect_training_samples(
+                conn, base_rows, sample_size, training_bytes, candidate_seed,
+                decode=lambda stored: decode_outgoing(old, stored) or b"",
+            )
+        if not samples:
+            raise RuntimeError("no training samples could be decoded; refusing to train on nothing")
+        new_dictionary = train_dictionary(samples, dict_size)
+        converted, total, problems = convert_all(conn, base_rows, old_dictionary, new_dictionary, max_workers)
+        if problems:
+            for path, why in problems[:10]:
+                print(f"error: {path}: {why}", file=sys.stderr)
+            raise RuntimeError(f"{len(problems)} row(s) failed to convert; nothing written")
+        candidates.append((candidate_seed, total))
+        if seeds > 1:
+            print(f"Sample seed {candidate_seed}: {total:,} stored bytes", file=sys.stderr)
+        if best is None or total < best[2]:
+            best = (candidate_seed, new_dictionary, total, converted)
+
+    chosen_seed, new_dictionary, total, converted = best
+    conn.execute("BEGIN")
+    for r, data, _before in converted:
+        write_item(conn, r[0], r[1], r[2], r[3], data)
     conn.execute("UPDATE CompressionDictionary SET data = ? WHERE id = 1", (new_dictionary,))
     conn.commit()
-    stats["dictionary_bytes"] = len(new_dictionary)
-    return stats
+    return {"items": len(base_rows), "before": sum(c[2] for c in converted), "after": total,
+            "dictionary_bytes": len(new_dictionary), "seed": chosen_seed, "candidates": candidates}
 
 
 def main() -> None:
@@ -164,6 +189,10 @@ def main() -> None:
     parser.add_argument("--sample-seed", type=int, default=DEFAULT_SAMPLE_SEED,
                         help="seed for the stratified sample, so a dictionary's training set stays "
                              "reproducible (default: %(default)s)")
+    parser.add_argument("--seeds", type=int, default=4,
+                        help="candidate dictionaries to train, one per consecutive sample seed from "
+                             "--sample-seed; the one that stores smallest is kept, at one full "
+                             "recompression pass each (default: %(default)s)")
     parser.add_argument("--dict-size", type=int, default=DEFAULT_DICT_SIZE,
                         help=f"new dictionary size in bytes (default: {DEFAULT_DICT_SIZE})")
     parser.add_argument("--max-workers", type=int, default=None, help="worker threads for recompression")
@@ -181,7 +210,7 @@ def main() -> None:
     conn = sqlite3.connect(args.db_path)
     try:
         stats = remint(conn, args.sample_size, args.dict_size, args.training_bytes,
-                       args.sample_seed, args.max_workers)
+                       args.sample_seed, args.max_workers, args.seeds)
     finally:
         conn.close()
 
@@ -193,8 +222,9 @@ def main() -> None:
         vacuum_conn.close()
 
     before, after = stats["before"], stats["after"]
-    print(f"Re-minted {stats['items']:,} item(s) against a {stats['dictionary_bytes']:,}-byte dictionary: "
-          f"{before:,} -> {after:,} bytes ({100 * (before - after) / before:.1f}% smaller)")
+    print(f"Re-minted {stats['items']:,} item(s) against a {stats['dictionary_bytes']:,}-byte dictionary "
+          f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes "
+          f"({100 * (before - after) / before:.1f}% smaller)")
     print("Now run verify_remint_dictionary.py <original> <this file> before putting it in place.")
 
 
