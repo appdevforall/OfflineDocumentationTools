@@ -2375,9 +2375,6 @@ def main() -> None:
     # rows hold by then, stale originals included. Nothing else applies to
     # writing them, --dry-run included, so any other option is refused rather
     # than ignored.
-    if args.write_video_digests is not None and (args.video_webm or args.save_originals or args.restore_originals):
-        parser.error("--write-video-digests runs on its own, when the originals are gathered, not as part of a "
-                     "conversion")
     if args.write_video_digests is not None:
         alone = ("db_path", "write_video_digests", "rerecord_video_digest")
         others = [f"--{dest.replace('_', '-')}" for dest, value in vars(args).items()

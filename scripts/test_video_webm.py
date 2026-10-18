@@ -39,6 +39,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -332,7 +333,8 @@ def test_a_digest_file_not_as_written_is_refused_naming_the_line(tmp_path):
                             ("", 1, "header"), (duplicated, 4, "wide.mp4 is recorded already, on line 3"),
                             (good.replace(sha, sha.upper()), 3, "not a sha256"),
                             (good.replace(sha, sha[1:]), 3, "not a sha256"),
-                            (good.replace(sha, sha + " "), 3, "not a sha256")):
+                            (good.replace(sha, sha + " "), 3, "not a sha256"),
+                            (good + f"\t{sha}\n", 4, "no file name")):
         path.write_text(text, encoding="utf-8", newline="")
         with pytest.raises(RuntimeError) as caught:
             opt.read_video_digests(path)
@@ -348,6 +350,29 @@ def test_a_digest_file_not_as_written_is_refused_naming_the_line(tmp_path):
     code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
     assert code == 1 and "recorded already" in output, output
     assert (originals / opt.VIDEO_DIGESTS).read_text() == duplicated
+
+
+def test_an_unreadable_digest_file_is_refused_by_the_run_and_the_writer(tmp_path):
+    """Reported as an error with nothing done, by each, rather than as a
+    traceback."""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root can read a file of any mode")
+    db_path, originals = tmp_path / "documentation.db", tmp_path / "originals"
+    originals.mkdir()
+    (originals / "wide.mp4").write_bytes(b"an original")
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.write_text(f"{opt.VIDEO_DIGESTS_HEADER}\n{opt.VIDEO_DIGESTS_COLUMNS}\nwide.mp4\t{'a' * 64}\n")
+    animated._build_database(db_path, [("a/media/wide.mp4", "video/mp4", b"a clip")], VIDEO_TYPES)
+    before = base._snapshot(db_path)
+    digests.chmod(0)
+    try:
+        code, output = _run(_video_cfg(db_path, originals))
+        assert code == 1 and "Permission denied" in output and "Backing up" not in output, output
+        code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+        assert code == 1 and "Permission denied" in output and "nothing was written" in output, output
+    finally:
+        digests.chmod(0o644)
+    assert base._snapshot(db_path) == before
 
 
 def _digests_cfg(db_path: Path, originals: Path) -> dict:
@@ -792,6 +817,15 @@ def test_a_tag_with_no_escaped_quote_is_not_json_escaped():
         [ref.TagEdit])
 
 
+def test_a_tag_with_plain_and_escaped_double_quotes_is_refused():
+    """Some of its double quotes are escaped and some are not, so it is
+    neither HTML nor JSON-escaped markup. Read as escaped, every double quote
+    in the <video> would come out escaped, src's too, which HTML does not
+    read; read as HTML, alt=\\"hi\\" does not parse, and the tag is refused."""
+    with pytest.raises(ref.UnconvertibleReference, match="cannot parse"):
+        ref.rewrite_text('<img src="spring.gif" alt=\\"hi\\">', PATTERN, RENAMES)
+
+
 def test_a_converted_video_can_be_referenced_anywhere():
     """A GIF become WebM is refused outside an <img>, the one tag that can be
     turned into a <video>. A video become WebM is still a video, so a link or
@@ -911,6 +945,7 @@ def test_a_video_named_in_a_source_that_cannot_be_parsed_is_left_unconverted(tmp
         assert f"{path}: named in a <source> whose attributes cannot be parsed, on {page}" in output, output
         assert path not in opt.read_manifest(manifest), "a run after the tag is fixed must convert it"
     assert code == 1, output
+    assert "Fix each <source> listed so its attributes parse" in output, output
     assert "a/media/talk.webm" in after, "the other clips should still convert"
     code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion))
     assert code == 0, output
