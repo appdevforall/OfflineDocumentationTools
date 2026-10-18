@@ -172,7 +172,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `create_empty_database.py`, `list_database_documents.py`, `remove_skin_font_comment.py` (cuts
   Help+Manual's commented-out Google Fonts note out of the `i/` pages until the skin fix,
   ADFA-6609, ships; run it first, before the `--before` snapshot `update_media_references.py`
-  diffs against - its docstring says why). **Deprecated/dead** (target the removed
+  diffs against - its docstring says why), `remove_remote_loads.py` (takes out the markup that
+  makes pages fetch from the internet where no download is needed - a remote `srcset` beside a
+  stored `src`, dark-theme `<source>`s, kotl.in badges, YouTube players - ADFA-6589; also before
+  that snapshot). **Deprecated/dead** (target the removed
   `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`, `import_tooltips.py`,
   `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`, `load_android_data.py`.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
