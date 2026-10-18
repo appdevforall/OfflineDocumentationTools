@@ -82,7 +82,8 @@ as plain UTF-8 like the page template. Every topic's stored jstopics file is
 rebuilt from its page's JSON with the real engine first, and its row (chunks
 included) is dropped only when the rebuilt file has the same field values
 after JavaScript unescaping and the same text around them. A topic that does
-not match keeps its row, is named, and makes the run exit 1. On later runs,
+not match, or whose page stays HTML for any reason, keeps its row, is named,
+and makes the run exit 1. On later runs,
 every topic whose row is gone is built again with the stored template and
 checked against the fields its JSON holds; one that differs is named and
 fails the run too. A page that goes back to HTML after its row was dropped -
@@ -115,7 +116,9 @@ what would change without writing.
 
 Where it goes in the pipeline: after every step that edits i/ pages, since
 they work on HTML and after this step the topics' rows hold JSON and the skin
-lives in Templates. With ADFA-6589's and ADFA-6596's steps the order is:
+lives in Templates. With ADFA-6589's, ADFA-4195's and ADFA-6596's steps the
+order is as below. Steps 1 to 3 and 5 come with PR #41 (ADFA-6589) and step 4
+with PR #42 (ADFA-4195), so this step ships after both:
 
   1. remove_skin_font_comment.py
   2. bundle_remote_images.py
@@ -1084,6 +1087,12 @@ def run(cfg: dict) -> int:
         elif with_row:
             for t in with_row:
                 kept[t.name] = "no jstopics template could be derived"
+        # A topic found unfit before it became a Topic (no hmBody field, a page that is not UTF-8),
+        # or one that could not be read, keeps its row too, and with --drop-jstopics that fails the run.
+        for c in candidates:
+            if c[8] in jstopic_blobs and c[1] not in droppable and c[1] not in kept:
+                kept[c[1]] = (f"its page stays HTML ({unfit[c[1]]})" if c[1] in unfit
+                              else "its page or its jstopics file could not be read")
         # Topics whose row is already gone: what the app builds for them must still hold the fields
         # their JSON holds, or in-page navigation to them breaks.
         without_row = [t for t in topics if t not in with_row and t.name in jsons]

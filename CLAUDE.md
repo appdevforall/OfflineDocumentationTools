@@ -182,9 +182,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `remove_skin_font_comment.py`, `bundle_remote_images.py`, `remove_remote_loads.py`,
   `share_skin_sprite.py`, `check_remote_loads.py` and the media steps (with their snapshot before
   them), then `check_remote_loads.py` again, which reads Templates and JSON pages and so works on
-  either side. A media rollback (`--restore-originals`) cannot undo its pages: start the rollback
-  from this step's pre-run backup, keep that backup with the rollback bundle, and run this step
-  again afterwards.
+  either side. `share_skin_sprite.py` comes with PR #42 (ADFA-4195) and the other four with PR #41
+  (ADFA-6589); this step ships after both. A media rollback (`--restore-originals`) cannot undo its
+  pages: start the rollback from this step's pre-run backup, keep that backup with the rollback
+  bundle, and run this step again afterwards.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and

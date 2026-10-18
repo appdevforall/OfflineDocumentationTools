@@ -695,6 +695,84 @@ def test_export_whose_bodies_keep_their_crlf_runs_twice_cleanly(tmp_path):
     assert sha(db) == digest
 
 
+def test_page_back_to_html_whose_row_the_stored_template_builds_wrong_writes_nothing(tmp_path):
+    """R43-12: a row the stored template renders, but with other fields - here
+    it reads a js_ key the JSON lacks - is not written back."""
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    context = _json_row(db, "i/t2.html")
+    context["hmTitle"] = "Debug\r\n" * 200 + "your app"
+    _set_json_row(db, "i/t2.html", context)
+    conn = sqlite3.connect(db)
+    text = conn.execute("SELECT content FROM Templates WHERE name = ?", (hm.JSTOPIC_TEMPLATE,)).fetchone()[0]
+    assert text.count(b'hmTitle:"{{ hmTitle ') == 1
+    conn.execute("UPDATE Templates SET content = ? WHERE name = ?",
+                 (text.replace(b'hmTitle:"{{ hmTitle ', b'hmTitle:"{{ js_hmTitle '), hm.JSTOPIC_TEMPLATE))
+    conn.commit()
+    conn.close()
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1
+    assert "refused: i/t2.html - its page goes back to HTML and its jstopics row cannot be built again" in err
+    assert sha(db) == digest
+
+
+def test_page_back_to_html_with_no_content_type_for_its_row_fails_the_run(tmp_path):
+    """R43-12: the refusal alone makes the run exit 1, with the jstopics
+    template stored and nothing else wrong."""
+    db = make_db(tmp_path / "doc.db")
+    code, _out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    context = _json_row(db, "i/t2.html")
+    context["hmTitle"] = "Debug\r\n" * 200 + "your app"
+    _set_json_row(db, "i/t2.html", context)
+    conn = sqlite3.connect(db)
+    conn.execute("DELETE FROM ContentTypes WHERE value = ?", (hm.JSTOPIC_CONTENT_TYPE,))
+    conn.commit()
+    conn.close()
+    digest = sha(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 1, err
+    assert ("refused: i/t2.html - its page goes back to HTML, its jstopics row is gone, and there is no "
+            "text/javascript to write it back with") in err
+    assert "broken:" not in err and "left in place" not in err
+    assert sha(db) == digest
+
+
+def test_jstopics_rows_whose_prefix_matches_only_without_case_are_not_dropped_or_counted(tmp_path):
+    """R43-10, R43-12: with --drop-jstopics too, I/jstopics/ is not i/jstopics/."""
+    page1, jstopic1 = make_topic(1)
+    db = make_db(tmp_path / "doc.db", {"I/t1.html": page1, "I/jstopics/t1.js": jstopic1})
+    before = rows(db)
+    code, out, err = run_tool(db, drop_jstopics=True)
+    assert code == 0, err
+    after = rows(db)
+    assert after["I/t1.html"] == before["I/t1.html"] and after["I/jstopics/t1.js"] == before["I/jstopics/t1.js"]
+    assert jstopic_rows(db) == [] and "left alone" not in err
+
+
+def test_topic_found_unfit_before_it_is_read_keeps_its_row_and_fails_the_drop(tmp_path):
+    """R43-11: a jstopics file with no hmBody, or a page that is not UTF-8,
+    kept the topic's row with exit 0, though --drop-jstopics means every row
+    should go. A page that cannot be read keeps its row too."""
+    page4, _jstopic4 = make_topic(4)
+    for name, pages, stem, why in (
+            ("no-body", {"i/jstopics/t3.js": b'hmLoadTopic({ hmTitle:"Third" });'}, "t3",
+             "its page stays HTML (its jstopics file has no hmBody field)"),
+            ("not-utf8", {"i/t4.html": page4.replace(b"Make a project.", b"Make a \xff project.")}, "t4",
+             "its page stays HTML (the page is not valid UTF-8"),
+            ("unreadable", {"i/t5.html": b"RAW:not brotli at all"}, "t5",
+             "its page or its jstopics file could not be read")):
+        (tmp_path / name).mkdir()
+        db = make_db(tmp_path / name / "doc.db", pages)
+        code, out, err = run_tool(db, drop_jstopics=True)
+        assert code == 1, (name, err)
+        assert jstopic_rows(db) == [f"i/jstopics/{stem}.js"], name
+        assert f"keeps i/jstopics/{stem}.js - {why}" in err, err
+        assert "1 jstopics row(s) left in place" in err, err
+
+
 def test_pebble_empty_agrees_with_pebbles_is_empty():
     values = ["", " ", "\t\r\n", "\u00a0", "a", " a ", "\x0b"]
     harness = _harness()
