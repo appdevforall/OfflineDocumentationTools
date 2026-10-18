@@ -389,6 +389,26 @@ def test_other_renamed_files_in_the_same_tag_are_rewritten_with_it():
     assert ref.undo_rewrite(rewritten, sites, VIDEO_RENAMES) == text
 
 
+def test_an_unquoted_filename_is_renamed_with_its_tag():
+    """An unquoted value that is only a filename has nothing before the name
+    of its own, and the pattern needs a separator there, so <img src=spring.gif>
+    became a <video> still naming the deleted GIF - in any attribute, at the
+    end of the tag or not."""
+    for text, video in [
+        ('<img src=spring.gif>', '<video autoplay loop muted playsinline src=spring.webm></video>'),
+        ('<img src=spring.gif alt="x">',
+         '<video autoplay loop muted playsinline src=spring.webm role="img" aria-label="x"></video>'),
+        ('<img data-src0=spring.gif width=300>',
+         '<video autoplay loop muted playsinline data-src0=spring.webm width=300></video>'),
+        ('<img src="spring.gif" data-src0=hero.png>',
+         '<video autoplay loop muted playsinline src="spring.webm" data-src0=hero.webp></video>'),
+        ('{"html":"<img src=spring.gif alt=\\"x\\">"}',
+         '{"html":"<video autoplay loop muted playsinline src=spring.webm role=\\"img\\" aria-label=\\"x\\">'
+         '</video>"}'),
+    ]:
+        assert _rewrite(text) == video
+
+
 def test_a_video_referenced_outside_an_img_is_refused():
     for text in ('div{background:url("media/spring.gif")}', '<a href="spring.gif">play</a>',
                  '<img srcset="spring.gif 2x" src="spring.gif">'):
@@ -638,6 +658,29 @@ def test_convert_to_webm_rewrite_then_restore_reproduces_the_database(tmp_path):
     assert b'<video autoplay loop muted playsinline src=\\"/k/images/kdemo.webm\\"' in kotlin
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT templateId FROM Content WHERE path = 'k/page.html'").fetchone() == (2,)
+
+    assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
+    assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
+                                   "restore_originals": bundle}) == 0
+    assert base._snapshot(db_path) == before
+
+
+def test_an_unquoted_src_becomes_the_webm_and_restores_exactly(tmp_path):
+    """<img src=demo.gif> through the whole pipeline: the run used to write a
+    <video> naming the deleted GIF and exit 0. Restoring must give back the
+    unquoted original byte for byte."""
+    db_path, bundle, pre_conversion = tmp_path / "documentation.db", tmp_path / "bundle", tmp_path / "before.db"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                              ("a/media/page.html", "text/html", b'<img src=demo.gif alt="Demo">')], WEBM_TYPES)
+    before = base._snapshot(db_path)
+    shutil.copy(db_path, pre_conversion)
+
+    assert opt.run(_webm_cfg(db_path, save_originals=bundle)) == 0
+    reference_cfg = {"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                     "verbose": False, "save_originals": bundle, "restore_originals": None}
+    assert ref.run(reference_cfg) == 0
+    assert _stored_media(db_path, "a/media/page")[2] == (
+        b'<video autoplay loop muted playsinline src=demo.webm role="img" aria-label="Demo"></video>')
 
     assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
     assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
