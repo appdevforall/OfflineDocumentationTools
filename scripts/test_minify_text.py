@@ -69,7 +69,7 @@ SVG_IMAGE = (b'<?xml version="1.0"?>\n<!-- drawn by hand -->\n<svg xmlns="http:/
 SVG_MINIFIED = (b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
                 b'<g><path d="M 1  1 L 9 9"/></g><text x="1">  two  spaces </text></svg>')
 CSS_SHEET = b"/* layout */\n.sig ,\n.note {\n  white-space : pre ;\n  margin: 0/**/auto;\n}\n/*! license */\n"
-CSS_MINIFIED = b".sig,.note{white-space : pre;margin: 0 auto}/*! license */"
+CSS_MINIFIED = b".sig,.note{white-space : pre;margin: 0/**/auto}/*! license */"
 JS_SCRIPT = b"/* helper */\nfunction  add ( a , b ) {\n  return a  +  b ; // sum\n}\n/*! keep me */\n"
 
 
@@ -181,14 +181,16 @@ def _needs(tool_name: str) -> None:
 
 def _render(template: bytes, values: dict) -> bytes:
     """What a browser shows of a template rendered by Pebble, as far as whitespace
-    goes: each tag replaced by its value, the one newline after it dropped, and
-    every remaining run of whitespace collapsed to one space."""
+    goes: each tag replaced by its value, the one newline after it dropped (Pebble's
+    Syntax.POSSIBLE_NEW_LINE: \\r\\n, \\n\\r, \\r or \\n), comments hidden, and every
+    remaining run of whitespace collapsed to one space."""
     def tag(m):
         body = m.group(1).strip()
         return values.get(body, b"") if m.group(0).startswith(b"{{") else b""
-    rendered = re.sub(rb"(?:\{\{(.*?)\}\}|\{%(.*?)%\}|\{#(.*?)#\})(?:\r\n|\n)?",
+    rendered = re.sub(rb"(?:\{\{(.*?)\}\}|\{%(.*?)%\}|\{#(.*?)#\})(?:\r\n|\n\r|\r|\n)?",
                       lambda m: tag(m) if m.group(1) is not None else b"", template, flags=re.S)
-    return re.sub(rb"[ \t\n\r\f]+", b" ", rendered)
+    rendered = re.sub(rb"<!--.*?-->", b"", rendered, flags=re.S)
+    return re.sub(rb"[ \t\n\r]+", b" ", rendered)
 
 
 def test_text_whitespace_becomes_one_space_or_one_newline():
@@ -196,8 +198,32 @@ def test_text_whitespace_becomes_one_space_or_one_newline():
 
 
 def test_comments_go_but_ie_conditional_comments_stay():
-    page = b"a<!-- one -->b <!--> c <!---> d<!--[if IE]><b>old</b><![endif]--> e <!-- unclosed"
-    assert tool.minify_html(page, NONE) == b"ab c d<!--[if IE]><b>old</b><![endif]--> e "
+    page = b"a <!-- one -->b <!--> c <!---> d<!--[if IE]><b>old</b><![endif]--> e <!-- c --!> f <!-- unclosed"
+    assert tool.minify_html(page, NONE) == b"a b c d<!--[if IE]><b>old</b><![endif]--> e f "
+
+
+def test_a_comment_that_joins_its_neighbours_stays():
+    # Gone, the text on both sides would be read afresh: "<b>" as a tag, "&amp;" as a reference.
+    for page in (b"<p>a <<!-- x -->b> c</p>", b"<p>AT&<!-- x -->amp;T</p>", b"<p>a<!-- x -->b</p>"):
+        assert tool.minify_html(page, NONE) == page, page
+
+
+def test_notices_stay_in_every_kind_of_row():
+    html = b"<!-- Copyright 2020 Example -->\n<p>  x  </p><!-- (c) Someone, all rights reserved -->"
+    assert tool.minify_html(html, NONE) == b"<!-- Copyright 2020 Example -->\n<p> x </p><!-- (c) Someone, all rights reserved -->"
+    css = b"/* Licensed under the Apache License, Version 2.0 */\na { color: red }\n/* @licstart */"
+    # The space after a kept comment stays: in "a/* c */ b" it is a combinator.
+    assert tool.minify_css(css) == b"/* Licensed under the Apache License, Version 2.0 */ a{color: red}/* @licstart */"
+    template = b"<p>{{ x }}</p>\n<!-- Premium Pack (c) 2015-2025 by Tim Green all rights reserved -->\n<i>  y  </i>"
+    assert b"(c) 2015-2025" in tool.minify_html(template, NONE, template=True)
+
+
+def test_js_keeps_copyright_and_license_comments():
+    _needs("terser")
+    terser = tool.find_terser()
+    for comment in (b"/* Copyright (c) 2015, Oracle. DO NOT ALTER OR REMOVE COPYRIGHT NOTICES. */",
+                    b"/* @license MIT */", b"/* @licstart */"):
+        assert comment in tool.minify_js(comment + b"\nvar  a = 1 ;\n", terser), comment
 
 
 def test_a_comment_dropped_between_two_runs_leaves_one():
@@ -303,6 +329,44 @@ def test_rules_inside_keyframes_and_font_face_preserve_nothing():
     assert not (p.tags or p.classes or p.ids or p.whole)
 
 
+def test_a_commented_out_rule_preserves_nothing():
+    p = tool.Preserving()
+    p.add_css(b"/* .x { white-space: pre } */ .y { color: red }")
+    assert not (p.tags or p.classes or p.ids or p.whole)
+
+
+def test_a_nested_rule_keeps_its_parent_through_an_ampersand():
+    p = tool.Preserving()
+    p.add_css(b".p { & .k { white-space: pre } }")
+    assert p.classes == {b"p"}
+
+
+def test_names_match_regardless_of_case_escapes_and_letters_beyond_ascii():
+    # A page in quirks mode matches classes and ids without regard to case.
+    p = tool.Preserving()
+    p.add_css(b".Sig { WHITE-SPACE: PRE } #Out { white-space: pre } .sm\\:pre { white-space: pre }"
+              b" .caf\xc3\xa9 { white-space: pre } .\\31 23 { white-space: pre }")
+    for page in (b'<p class=sig>a   b</p>', b'<p class=SIG>a   b</p>', b'<p id=OUT>a   b</p>', b'<p CLASS="sm:pre">a   b</p>',
+                 b'<p class="caf\xc3\xa9">a   b</p>', b'<p class="123">a   b</p>'):
+        assert tool.minify_html(page, p) == page, page
+
+
+def test_xml_space_preserve_cdata_and_form_feeds_stay():
+    for page in (b'<svg><text xml:space="preserve">a      b</text></svg>',
+                 b"<svg><text><![CDATA[a > b <!-- c --> d]]></text></svg>", b"<p>a\f\fb</p>"):
+        assert tool.minify_html(page, NONE) == page, page
+
+
+def test_an_end_tag_the_parser_ignores_does_not_end_a_preserved_element():
+    page = b"<style>.k{white-space:pre}</style><div class=k><table><tr><td>x</div>  a   b</td></tr></table></div>"
+    assert tool.minify_html(page, NONE) == page
+    page = b"<style>.k{white-space:pre}</style><span class=k>a<div>b</span>  c   d</div></span>"
+    assert tool.minify_html(page, NONE) == page
+    # An element the parser closes itself, like p, does not keep the end tag from counting.
+    page = b"<style>.k{white-space:pre}</style><div class=k><p>  a  </div>  b   c"
+    assert tool.minify_html(page, NONE) == b"<style>.k{white-space:pre}</style><div class=k><p>  a  </div> b c"
+
+
 def test_a_rule_for_a_pseudo_element_preserves_nothing():
     p = tool.Preserving()
     p.add_css(b"ul.see li:not(:last-child)::after, li:before { white-space: pre }")
@@ -365,11 +429,25 @@ def test_a_template_renders_the_same_after_it_is_minified():
         b"<p>{{ x }}\n    <b>{{ y }}</b>{% if a %}  \n  <i>z</i>{% endif %}\n\n<u>w</u></p>",
         b"<p>a{{ x }}\nb {{ y }}\r\n  c{% if a %}\n{% endif %}\nd</p>",
         b"<p>{{ x }} \n {{ y }}\n\n\n e</p>",
+        # Pebble drops a lone \r and \n\r after a tag too.
+        b"<p>a{{ x }}\ry   z</p>",
+        b"<p>a{{ x }}\n\ry   z</p>",
+        # A comment right after a tag stays, or Pebble would drop the newline behind it.
+        b"<p>{{ x }}<!-- c -->\ny   z</p>",
+        b"<p>{{ x }}\r\n<!-- c --> y   z</p>",
+        b"<p>{{ x }}\n<!-- c -->\ny   z</p>",
     ]
     for template in templates:
         out = tool.minify_html(template, NONE, template=True)
         assert _render(out, values) == _render(template, values), (template, out)
         assert len(out) < len(template), template
+
+
+def test_a_run_after_a_tag_inside_a_start_tag_keeps_the_attribute_whole():
+    # Pebble drops the newline, so "b{{ x }}" and "c" make one attribute, bXc; a space would make two.
+    template = b"<a b{{ x }}\nc>t</a>"
+    out = tool.minify_html(template, NONE, template=True)
+    assert out == template
 
 
 def test_a_template_comment_holding_a_tag_stays():
@@ -404,6 +482,16 @@ def test_an_svg_doctype_with_an_internal_subset_stays_whole():
 
 def test_css_loses_comments_and_whitespace():
     assert tool.minify_css(CSS_SHEET) == CSS_MINIFIED
+
+
+def test_css_comments_never_join_or_split_tokens():
+    assert tool.minify_css(b".a/**/.b { x: y }") == b".a/**/.b{x: y}"
+    assert tool.minify_css(b"a { margin: 0/* c */auto }") == b"a{margin: 0/**/auto}"
+    assert tool.minify_css(b"a { b: c; /* c */ }/* d */e{}") == b"a{b: c}e{}"
+    # The space that ends a hex escape is part of it; the one after it is a combinator.
+    assert tool.minify_css(b".\\31  .b { x: y }") == b".\\31  .b{x: y}"
+    # A /*! comment stays whatever it says.
+    assert tool.minify_css(b"/*! keep me */ a { b: c }") == b"/*! keep me */ a{b: c}"
 
 
 def test_css_keeps_strings_urls_escapes_and_spaces_that_matter():
@@ -590,6 +678,17 @@ def test_without_terser_nothing_changes(tmp_path: Path):
     finally:
         tool.find_terser = real
     assert code == 1 and "terser is not installed" in err
+    assert _stored(db) == before
+
+
+def test_an_unreadable_stylesheet_stops_the_run(tmp_path: Path):
+    _needs("brotli")
+    page = b'<div class="k">  keep   this  </div>'
+    db = _database(tmp_path, {"a/page.html": ("text/html", page),
+                              "a/style.css": ("text/css", b"not brotli at all", 0, True)})
+    before = _stored(db)
+    code, _out, err = _run(db)
+    assert code == 1 and "stylesheet(s) could not be read" in err
     assert _stored(db) == before
 
 

@@ -4,27 +4,36 @@ Minifies the documentation's text rows and HTML templates without changing what
 a page shows (ADFA-6627).
 
 What changes:
+- Comments that carry a copyright or licence notice stay, in every kind of
+  row: copies must keep them.
 - HTML (Content rows of type text/html that are not templated): comments go,
-  apart from IE conditional comments. Each run of whitespace in text becomes
+  apart from IE conditional comments, and apart from a comment whose removal
+  would join the text on its two sides (which could make a tag or a character
+  reference). Each run of whitespace in text becomes
   one space, or one newline where the run held a line break, and each run
   between a tag's attributes becomes one space. A browser collapses whitespace
   the same way except where it is preserved, so nothing changes inside <pre>,
   <listing>, the raw-text elements (<script>, <style>, <textarea>, <title> and
-  the like), or an element that a stylesheet in the database, a <style> in the
-  page or its own style attribute gives a preserving white-space. Attribute
-  values are never touched.
+  the like), an element with xml:space="preserve", or an element that a
+  stylesheet in the database, a <style> in the page or its own style attribute
+  gives a preserving white-space. Form feeds, which a browser draws, and CDATA
+  sections stay as they are. Attribute values are never touched.
 - HTML templates (Templates rows that only text/html rows use): the same, with
-  Pebble's {{ }}, {% %} and {# #} tags left whole, and comments that hold one
-  kept. Pebble drops the one newline right after a tag, so a run that follows
-  a tag keeps that newline, and a run that does not start with one becomes a
-  space, never a newline Pebble would then drop.
+  Pebble's {{ }}, {% %} and {# #} tags left whole, and comments that hold one,
+  or follow one directly, kept. Pebble drops the one newline (\r\n, \n\r, \r
+  or \n) right after a tag, so a run that follows a tag keeps that newline, and
+  a run that does not start with one becomes a space, never a newline Pebble
+  would then drop.
 - SVG: comments go, and so does whitespace-only text outside <text>, <tspan>,
   <textPath>, <title>, <desc>, <style>, <script>, <foreignObject> and
   xml:space="preserve" elements. Runs between attributes become one space.
-- CSS: comments go, apart from /*! ones; whitespace runs become one space, and
-  go next to { } ; , ( and ). Strings, url() and escapes are left alone.
+- CSS: comments go, apart from /*! ones, leaving /**/ where two tokens would
+  otherwise touch; whitespace runs become one space, and go next to { } ; , (
+  and ). Strings, url() and escapes, with the space that ends a hex escape, are
+  left alone. A stylesheet that cannot be read stops the run before anything is
+  written.
 - JS: terser re-prints each script with no compression and no renaming,
-  keeping /*! and @license comments and the pipeline's own ADFA- headers. A
+  keeping /*! and notice comments and the pipeline's own ADFA- headers. A
   script terser cannot parse is left as it is.
 
 Templated rows hold JSON for Pebble; collapsing their whitespace saved nothing
@@ -66,15 +75,23 @@ TYPES = (HTML, SVG, CSS, JS)
 
 # terser keeps these comments; ADFA- matches the headers pipeline steps write
 # into their own scripts, which later runs of those steps look for.
-TERSER_COMMENTS = r"/^!|@preserve|@license|@cc_on|ADFA-/i"
+TERSER_COMMENTS = r"/^!|@preserve|@license|@lic|@cc_on|copyright|licen[cs]e|\(c\)|all rights reserved|\u00a9|ADFA-/i"
+# A comment that carries a copyright or licence notice stays, in every kind of row: Apache-2.0,
+# MIT and Oracle's headers all require the notice in copies.
+_NOTICE = re.compile(rb"copyright|licen[cs]e|@lic|\(c\)|all rights reserved|\xc2\xa9", re.I)
 
-_COLLAPSIBLE = re.compile(rb"[ \t\n\r\f]+")
+# Form feed is HTML whitespace but not CSS white space: Chrome draws it, so no run takes it in.
+_COLLAPSIBLE = re.compile(rb"[ \t\n\r]+")
+# Pebble's Syntax.POSSIBLE_NEW_LINE, the newline it drops right after a tag. It also drops U+0085,
+# U+2028 and U+2029, but no run holds those.
+_PEBBLE_NEWLINE = re.compile(rb"\r\n|\n\r|\r|\n")
 
 # HTML ends a comment at its first "-->" or "--!>", "<!-->" and "<!--->" are
 # whole comments, and an unclosed one runs to the end of the document.
 _COMMENT = rb"<!--(?:-?>|(?!-?>)(?:(?!--!?>).)*(?:--!?>|\Z))"
 _COMMENT_TOKEN = re.compile(_COMMENT, re.S)
 _HTML_WS = b" \t\n\r\f"
+_HTML_WS_BYTES = (b" ", b"\t", b"\n", b"\r", b"\f")
 _ATTR_PART = re.compile(rb"\"[^\"]*\"|'[^']*'|[^\"' \t\n\r\f]+|[ \t\n\r\f]+|.", re.S)
 _ATTR = re.compile(rb"(?:^|[ \t\n\r\f])(class|id|style)[ \t\n\r\f]*=[ \t\n\r\f]*(?:\"([^\"]*)\"|'([^']*)'|([^ \t\n\r\f\"'>]+))", re.I)
 
@@ -82,6 +99,8 @@ _ATTR = re.compile(rb"(?:^|[ \t\n\r\f])(class|id|style)[ \t\n\r\f]*=[ \t\n\r\f]*
 RAW_TEXT = {b"script", b"style", b"textarea", b"title", b"xmp", b"iframe", b"noembed", b"noframes", b"noscript",
             b"plaintext"}
 PRESERVING_TAGS = {b"pre", b"listing"}
+# Elements the parser closes on its own when an ancestor's end tag comes.
+IMPLIED_END = {b"p", b"li", b"dd", b"dt", b"option", b"optgroup", b"rb", b"rp", b"rt", b"rtc"}
 VOID = {b"area", b"base", b"br", b"col", b"embed", b"hr", b"img", b"input", b"link", b"meta", b"param", b"source",
         b"track", b"wbr"}
 
@@ -92,6 +111,13 @@ _CSS_STRING = re.compile(rb"\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'")
 # At-rules whose blocks hold style rules; any other at-rule's block holds none.
 _GROUPING_AT_RULES = (b"@media", b"@supports", b"@layer", b"@container", b"@scope", b"@document", b"@-moz-document")
 _MATCHES_ANY = re.compile(rb":(?:is|where|matches|any|-webkit-any|-moz-any)\(", re.I)
+# A CSS escape: up to six hex digits and the one whitespace that may end them, or any other character.
+_CSS_ESCAPE_TEXT = rb"\\(?:([0-9A-Fa-f]{1,6})(?:\r\n|[ \t\n\r\f])?|([^\n\r\f0-9A-Fa-f]))"
+_CSS_ESCAPE = re.compile(_CSS_ESCAPE_TEXT)
+_CSS_NAME = (rb"-?(?:[_A-Za-z\x80-\xff]|\\(?:[0-9A-Fa-f]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f0-9A-Fa-f]))"
+             rb"(?:[\w\x80-\xff-]|\\(?:[0-9A-Fa-f]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f0-9A-Fa-f]))*")
+_CLASS_NAME = re.compile(rb"\.(" + _CSS_NAME + rb")")
+_ID_NAME = re.compile(rb"#(" + _CSS_NAME + rb")")
 _CSS_COMMENT = re.compile(rb"/\*.*?(?:\*/|\Z)", re.S)
 _PSEUDO_ELEMENT = re.compile(rb"::?(?:before|after|first-line|first-letter|marker|placeholder|selection|backdrop|"
                              rb"file-selector-button|cue|part\(|slotted\()", re.I)
@@ -115,7 +141,7 @@ _XML_TOKEN = re.compile(
     rb"|<(?P<start>[^\s/>!?]+)(?P<attrs>(?:[^>\"']|\"[^\"]*\"|'[^']*')*?)(?P<close>/?)>",
     re.S,
 )
-_XML_SPACE_PRESERVE = re.compile(rb"\bxml:space\s*=\s*[\"']preserve[\"']")
+_XML_SPACE_PRESERVE = re.compile(rb"\bxml:space\s*=\s*[\"']?preserve\b", re.I)
 
 
 def collapse(run: bytes) -> bytes:
@@ -125,7 +151,8 @@ def collapse(run: bytes) -> bytes:
 
 def after_pebble_tag(run: bytes) -> bytes:
     """A run that follows a Pebble tag, minified so the rendered page keeps the same whitespace."""
-    first = b"\r\n" if run.startswith(b"\r\n") else b"\n" if run.startswith(b"\n") else b""
+    newline = _PEBBLE_NEWLINE.match(run)
+    first = newline.group(0) if newline else b""
     rest = run[len(first):]
     if not rest:
         return first
@@ -175,16 +202,16 @@ class Preserving:
         for _comb, compound in parts[start:]:
             tag, classes, ids, inner = compound_names(compound)
             if classes or ids:
-                self.classes.update(classes)
-                self.ids.update(ids)
+                self.classes.update(c.lower() for c in classes)
+                self.ids.update(i.lower() for i in ids)
                 return
             if tag is not None and tag not in (b"html", b"body"):
                 self.tags.add(tag)
                 return
             if tag is None and any(inner):
                 self.tags.update(inner[0] - {b"html", b"body"})
-                self.classes.update(inner[1])
-                self.ids.update(inner[2])
+                self.classes.update(c.lower() for c in inner[1])
+                self.ids.update(i.lower() for i in inner[2])
                 return
         self.whole = True
 
@@ -193,13 +220,16 @@ class Preserving:
             return True
         if b"\x00" in attrs:
             return True  # a template fills some of it in, so it could be anything
+        if _XML_SPACE_PRESERVE.search(attrs):
+            return True
         for m in _ATTR.finditer(attrs):
             key, value = m.group(1).lower(), m.group(2) or m.group(3) or m.group(4) or b""
+            # Lower case on both sides: a page in quirks mode matches classes and ids that way.
             if key == b"style" and _PRESERVING_DECL.search(value):
                 return True
-            if key == b"class" and self.classes.intersection(value.split()):
+            if key == b"class" and self.classes.intersection(value.lower().split()):
                 return True
-            if key == b"id" and value in self.ids:
+            if key == b"id" and value.lower() in self.ids:
                 return True
         return False
 
@@ -243,10 +273,15 @@ def expand_nesting(stack: list) -> list:
 
 def compounds_of(selector: bytes) -> list:
     """(combinator before it, compound) for each compound selector, at the top level of selector."""
-    parts, comb, buf, depth, quote = [], b" ", bytearray(), 0, None
-    for c in selector:
-        ch = bytes([c])
-        if quote:
+    parts, comb, buf, depth, quote, i = [], b" ", bytearray(), 0, None, 0
+    while i < len(selector):
+        ch = selector[i:i + 1]
+        i += 1
+        if ch == b"\\" and not quote:
+            escape = _CSS_ESCAPE.match(selector, i - 1)
+            buf += escape.group(0) if escape else ch
+            i += len(escape.group(0)) - 1 if escape else 0
+        elif quote:
             buf += ch
             quote = None if ch == quote else quote
         elif ch in (b"'", b'"'):
@@ -276,8 +311,8 @@ def compound_names(compound: bytes) -> tuple:
     named inside its :is(), :where() and the like."""
     outside = re.sub(rb"\[[^\]]*\]", b"", strip_pseudo_classes(compound))
     tag = re.match(rb"[A-Za-z][A-Za-z0-9-]*", outside)
-    classes = set(re.findall(rb"\.(-?[_A-Za-z][\w-]*)", outside))
-    ids = set(re.findall(rb"#(-?[_A-Za-z][\w-]*)", outside))
+    classes = {css_unescape(c) for c in _CLASS_NAME.findall(outside)}
+    ids = {css_unescape(i) for i in _ID_NAME.findall(outside)}
     inner = (set(), set(), set())
     for m in _MATCHES_ANY.finditer(compound):
         depth, i = 1, m.end()
@@ -286,17 +321,31 @@ def compound_names(compound: bytes) -> tuple:
             i += 1
         args = re.sub(rb"\[[^\]]*\]", b"", compound[m.end():i - 1])
         inner[0].update(t.lower() for t in re.findall(rb"(?:^|[\s,>+~(])([A-Za-z][A-Za-z0-9-]*)", args))
-        inner[1].update(re.findall(rb"\.(-?[_A-Za-z][\w-]*)", args))
-        inner[2].update(re.findall(rb"#(-?[_A-Za-z][\w-]*)", args))
+        inner[1].update(css_unescape(c) for c in _CLASS_NAME.findall(args))
+        inner[2].update(css_unescape(i) for i in _ID_NAME.findall(args))
     return (tag.group(0).lower() if tag else None), classes, ids, inner
+
+
+def css_unescape(name: bytes) -> bytes:
+    """A CSS identifier with its escapes decoded, so .sm\\:pre names the class "sm:pre"."""
+    def one(m):
+        if m.group(1) is None:
+            return m.group(2)
+        return chr(min(int(m.group(1), 16), 0x10FFFF)).encode("utf-8", "replace")
+    return _CSS_ESCAPE.sub(one, name)
 
 
 def split_top_level(text: bytes, sep: bytes) -> list:
     """Splits on sep outside (), [] and quotes."""
-    parts, depth, quote, start = [], 0, None, 0
+    parts, depth, quote, start, skip = [], 0, None, 0, 0
     for i, c in enumerate(text):
         ch = bytes([c])
-        if quote:
+        if skip:
+            skip -= 1
+        elif ch == b"\\":
+            escape = _CSS_ESCAPE.match(text, i)
+            skip = len(escape.group(0)) - 1 if escape else 0
+        elif quote:
             if ch == quote:
                 quote = None
         elif ch in (b"'", b'"'):
@@ -315,7 +364,11 @@ def split_top_level(text: bytes, sep: bytes) -> list:
 def strip_pseudo_classes(compound: bytes) -> bytes:
     out, i = bytearray(), 0
     while i < len(compound):
-        if compound[i:i + 1] == b":":
+        escape = _CSS_ESCAPE.match(compound, i) if compound[i:i + 1] == b"\\" else None
+        if escape:
+            out += escape.group(0)
+            i += len(escape.group(0))
+        elif compound[i:i + 1] == b":":
             i += 1
             while i < len(compound) and re.match(rb"[\w-]", compound[i:i + 1]):
                 i += 1
@@ -380,13 +433,17 @@ def scan_tag(page: bytes, j: int):
 
 def next_markup(page: bytes, pos: int):
     """The next markup at or after pos, as (kind, start, end, name, parts), or None. kind is "comment",
-    "decl" (a doctype or bogus comment, which ends at the first >), "start", "end", or "rest" when the
-    page ends inside a tag."""
+    "decl" (a doctype or bogus comment, which ends at the first >, or a CDATA section, kept whole to
+    its ]]> as inline SVG and MathML read it), "start", "end", or "rest" when the page ends inside a
+    tag."""
     i = page.find(b"<", pos)
     while i >= 0:
         after = page[i + 1:i + 2]
         if page.startswith(b"<!--", i):
             return "comment", i, _COMMENT_TOKEN.match(page, i).end(), None, None
+        if page.startswith(b"<![CDATA[", i):
+            close = page.find(b"]]>", i)
+            return "decl", i, len(page) if close < 0 else close + 3, None, None
         if after in (b"!", b"?") or (after == b"/" and not page[i + 2:i + 3].isalpha()):
             close = page.find(b">", i)
             return "decl", i, len(page) if close < 0 else close + 1, None, None
@@ -418,8 +475,14 @@ def minify_tag(lead: bytes, name: bytes, parts: list) -> bytes:
 
 
 def matching_end(page: bytes, pos: int, name: bytes) -> int:
-    """Where the end tag closing an element named name, opened before pos, starts; the end of page if none does."""
-    depth = 1
+    """Where the end tag closing an element named name, opened before pos, starts; the end of page if none does.
+
+    The parser ignores that end tag while an element opened inside is still open (a td or table
+    blocks its scope, and a div blocks an inline element's end tag), and the element, with its
+    white-space, goes on. So unless everything opened inside has closed, or is one the parser closes
+    on its own, the rest of the page counts as inside.
+    """
+    depth, inner = 1, []
     while True:
         token = next_markup(page, pos)
         if token is None or token[0] == "rest":
@@ -430,10 +493,14 @@ def matching_end(page: bytes, pos: int, name: bytes) -> int:
             pos = raw_text_end(page, pos, tag)
         elif kind == "start" and tag == name:
             depth += 1
+        elif kind == "start" and tag not in VOID:
+            inner.append(tag)
         elif kind == "end" and tag == name:
             depth -= 1
             if depth == 0:
-                return start
+                return start if all(t in IMPLIED_END for t in inner) else len(page)
+        elif kind == "end" and tag in inner:
+            del inner[len(inner) - 1 - inner[::-1].index(tag):]
 
 
 def minify_html(page: bytes, preserving: Preserving, template: bool = False) -> bytes:
@@ -465,8 +532,10 @@ def _minify_html_body(page: bytes, preserving: Preserving, template: bool) -> by
 
     def text(chunk: bytes) -> None:
         chunk = collapse_runs(chunk)
-        # Comments dropped between runs leave them side by side.
-        if out and chunk[:1] in (b" ", b"\n") and out[-1][-1:] in (b" ", b"\n") and out[-1][-2:-1] != b"\x01":
+        # Comments dropped between runs leave them side by side; a run right after a Pebble tag
+        # stays whole, since Pebble drops its first newline.
+        if (out and chunk[:1] in (b" ", b"\n") and out[-1][-1:] in (b" ", b"\n")
+                and not out[-1].rstrip(b" \t\n\r").endswith(b"\x01")):
             chunk = chunk[1:]
         if chunk:
             out.append(chunk)
@@ -480,8 +549,13 @@ def _minify_html_body(page: bytes, preserving: Preserving, template: bool) -> by
             break
         kind, start, pos, name, parts = token
         if kind == "comment":
-            comment = page[start:pos]
-            if comment.startswith(b"<!--[if") or comment.startswith(b"<!--<![endif]") or (template and b"\x00" in comment):
+            comment, before, after = page[start:pos], (out[-1][-1:] if out else b""), page[pos:pos + 1]
+            keep = (comment.startswith(b"<!--[if") or comment.startswith(b"<!--<![endif]") or _NOTICE.search(comment)
+                    # Pebble would drop the newline that follows the comment if the comment went.
+                    or (template and (b"\x00" in comment or before == b"\x01"))
+                    # The text on both sides would join, and could make a tag or a character reference.
+                    or not (before in (b"", b">") or before in _HTML_WS_BYTES or after in (b"", b"<") or after in _HTML_WS_BYTES))
+            if keep:
                 out.append(comment)
             continue
         if kind in ("decl", "rest"):
@@ -542,13 +616,18 @@ def minify_svg(svg: bytes) -> bytes:
 
 def minify_css(css: bytes) -> bytes:
     """The stylesheet with comments and extra whitespace removed; see the module docstring."""
-    out, i, n, space = bytearray(), 0, len(css), False
+    out, i, n, space, gap = bytearray(), 0, len(css), False, False
 
     def emit(token: bytes, glue: bool) -> None:
-        nonlocal space
+        nonlocal space, gap
         if space and out and not glue and out[-1:] not in b"{};,(" and out[-1:] != b"":
             out.extend(b" ")
-        space = False
+        elif gap and not space and out and out[-1:] not in b"{};,(:" and token[:1] not in b"{};,):":
+            # A comment parts two tokens without whitespace; with nothing there they could become
+            # one (.a/**/.b is the compound .a.b, 0/**/auto two values), and a space would make a
+            # descendant combinator.
+            out.extend(b"/**/")
+        space = gap = False
         out.extend(token)
 
     while i < n:
@@ -556,10 +635,10 @@ def minify_css(css: bytes) -> bytes:
         if css.startswith(b"/*", i):
             end = css.find(b"*/", i + 2)
             end = n if end < 0 else end + 2
-            if css.startswith(b"/*!", i):
+            if css.startswith(b"/*!", i) or _NOTICE.search(css, i, end):
                 emit(css[i:end], False)
             else:
-                space = True
+                gap = True
             i = end
         elif c in b" \t\n\r\f":
             space = True
@@ -571,8 +650,11 @@ def minify_css(css: bytes) -> bytes:
             emit(css[i:j + 1], False)
             i = j + 1
         elif c == b"\\":
-            emit(css[i:i + 2], False)
-            i += 2
+            # The whitespace that ends a hex escape belongs to it, not to the run after it.
+            escape = _CSS_ESCAPE.match(css, i)
+            token = escape.group(0) if escape else css[i:i + 2]
+            emit(token, False)
+            i += len(token)
         elif css[i:i + 4].lower() == b"url(" and not re.match(rb"url\(\s*[\"']", css[i:i + 64], re.I):
             end = css.find(b")", i)
             end = n if end < 0 else end + 1
@@ -661,6 +743,15 @@ def run(cfg: dict) -> int:
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             decoded = list(pool.map(read, work))
         skipped = {item[0]: problem for item, raw, problem in decoded if problem is not None}
+        # What a stylesheet preserves decides what every page may lose, so one that cannot be read
+        # leaves nothing safe to write.
+        unread_css = sorted(item[0] for item, raw, problem in decoded if problem is not None and item[7] == CSS)
+        if unread_css:
+            for path in unread_css:
+                print(f"  skipped {path}: {skipped[path]}", file=sys.stderr)
+            print(f"error: {len(unread_css)} stylesheet(s) could not be read, so it is unknown what they keep "
+                  "unminified; nothing was changed", file=sys.stderr)
+            return 1
 
         # Every stylesheet in the database, whichever page links it: preserving
         # more than a page needs costs bytes, never a change in rendering.
