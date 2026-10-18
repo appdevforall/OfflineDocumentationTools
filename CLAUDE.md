@@ -169,7 +169,11 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`. **Deprecated/dead** (target the
+  `create_empty_database.py`, `list_database_documents.py`, `minify_text.py` (ADFA-6627: minifies
+  the HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
+  `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
+  `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than
+  before). **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
   `load_android_data.py`.
