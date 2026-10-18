@@ -26,8 +26,10 @@ or without its slashes, which a browser reads the same way - or
 protocol-relative (//host/...), on any host but localhost, 127.x.x.x and
 [::1], in one of these places:
 
-  - src, srcset, data-src or data-srcset on any element; poster and
-    background on any element; <object data>;
+  - src and srcset on any element, and any data-*src or data-*srcset
+    attribute: lazy loaders fetch data-src, and the database's own
+    assets/sidebar.js fetches data-nav-src; poster and background on any
+    element; <object data>;
   - <link> href and imagesrcset, unless every word of its rel is one that
     loads nothing (NON_LOADING_RELS below: canonical, alternate, author,
     license, next, prev and the like); stylesheet, icon, preload, prefetch,
@@ -43,7 +45,8 @@ protocol-relative (//host/...), on any host but localhost, 127.x.x.x and
   - CSS url(), @import and image-set() strings, in style attributes, SVG
     presentation attributes that take a url() (fill, stroke, filter,
     clip-path, mask, marker-*, cursor), <style> blocks and text/css rows,
-    with CSS comments skipped;
+    with CSS comments skipped (a "/*" inside a string opens none) and CSS
+    escapes decoded, as a browser reads them (url(htt\70://...));
   - the markup in <iframe srcdoc>, checked like a page's;
   - <?xml-stylesheet href?> in SVG and other XML rows;
   - in a JSON page (a text/html row whose body starts with "{", which a Pebble
@@ -63,7 +66,10 @@ Not loads:
   - <a href> and <area href>: the app asks before it opens an off-device
     link;
   - <link rel=canonical> and rel=alternate, which no browser fetches;
-  - anything inside an HTML comment, which loads nothing;
+  - anything inside an HTML comment, which loads nothing. "<!-->" and
+    "<!--->" are each a whole empty comment, as a browser reads them, though
+    Python's html.parser takes either as opening one that runs to the next
+    "-->";
   - XML namespace URIs (xmlns=...) and DOCTYPE identifiers, which browsers do
     not fetch.
 
@@ -81,7 +87,9 @@ plain-text rows are not rendered as markup and are not read.
 
 Besides Content, it reads the Templates table - Pebble templates wrapped
 around pages, so a load in one would be on every page it renders - and
-Tooltips' summary and detail, which the editor shows in a WebView. A row that
+Tooltips' summary and detail, which the editor shows in a WebView. Both are
+read as markup, never as a JSON page: a Pebble comment, or a Kotlin lambda in
+a tooltip, opens with "{". A row that
 cannot be decompressed, or a JSON page that does not parse, cannot be checked:
 it is named and fails the run too. A page over the 1 MiB chunk size is read
 whole across its "<path>-1", "-2", ... rows.
@@ -112,8 +120,8 @@ from optimize_db_media import BrotliCodec, human, is_continuation_path, load_dic
 
 # How each content type is read. "markup" is HTML (or a JSON page, by its first
 # character); "xml" is markup that may also carry <?xml-stylesheet?>; "script"
-# is decoded only (see the docstring). Templates are read as "template":
-# markup, though a Pebble comment opens with "{".
+# is decoded only (see the docstring). Templates and tooltips are read as
+# "template": markup, though a Pebble comment or a Kotlin lambda opens with "{".
 READERS = {
     "text/html": "markup", "application/xhtml+xml": "xml", "image/svg+xml": "xml", "application/xml": "xml",
     "text/xml": "xml", "text/css": "css", "text/javascript": "script", "application/javascript": "script",
@@ -131,8 +139,11 @@ NON_LOADING_RELS = frozenset({
 # take a url().
 CSS_ATTRIBUTES = ("style", "fill", "stroke", "filter", "clip-path", "mask", "marker-start", "marker-mid",
                   "marker-end", "cursor")
-URL_ATTRIBUTES = ("src", "data-src", "poster", "background", "formaction")
-SRCSET_ATTRIBUTES = ("srcset", "data-srcset")
+# Besides these, any data-*src attribute holds an address and any
+# data-*srcset a srcset (handle_starttag): a script might fetch any of them,
+# so all count, failing safe.
+URL_ATTRIBUTES = ("src", "poster", "background", "formaction")
+SRCSET_ATTRIBUTES = ("srcset",)
 SVG_HREF_ELEMENTS = ("image", "use", "feimage", "script")
 
 _SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
@@ -140,7 +151,10 @@ _AUTHORITY = re.compile(r"/*([^/?#]*)")
 _LOOPBACK = re.compile(r"127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}")
 _CONTROL_OR_SPACE = "".join(map(chr, range(33)))
 
-_CSS_COMMENT = re.compile(r"/\*.*?(?:\*/|\Z)", re.S)
+# A string first, so a "/*" inside one opens no comment. A string ends at an
+# unescaped line break, as in CSS.
+_CSS_COMMENT_OR_STRING = re.compile(r""""(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|/\*.*?(?:\*/|\Z)""", re.S)
+_CSS_ESCAPE = re.compile(r"\\(?:([0-9A-Fa-f]{1,6})[ \t\n\r\f]?|(.))", re.S)
 _CSS_URL = re.compile(r"""(?<![\w-])url\(\s*(?:"([^"]*)"|'([^']*)'|([^"')\s]*))""", re.I)
 _CSS_URL_WHOLE = re.compile(r"""(?<![\w-])url\((?:\s*"[^"]*"|\s*'[^']*'|[^)]*)\s*\)""", re.I)
 _CSS_IMPORT = re.compile(r"""@import\s*(?:"([^"]*)"|'([^']*)')""", re.I)
@@ -148,6 +162,7 @@ _CSS_IMAGE_SET = re.compile(r"(?<![\w-])(?:-webkit-)?image-set\(", re.I)
 _CSS_STRING = re.compile(r""""([^"]*)"|'([^']*)'""")
 _REFRESH_URL = re.compile(r"""\s*[0-9.]*\s*[;,]?\s*(?:url\s*=\s*)?["']?([^"']*)""", re.I)
 _PSEUDO_HREF = re.compile(r"""\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+_ABRUPT_COMMENT = re.compile(r"<!---?>")
 
 
 def remote_url(value):
@@ -201,10 +216,24 @@ def srcset_urls(value: str) -> list:
             at += 1
 
 
+def css_unescape(text: str) -> str:
+    """`text` with its CSS escapes decoded: a backslash and one to six hex
+    digits, with one whitespace character after them, is that code point (or
+    U+FFFD if there is none); a backslash and a line break is nothing; a
+    backslash and any other character is that character."""
+    def decode(match):
+        if match.group(1):
+            point = int(match.group(1), 16)
+            return chr(point) if 0 < point <= 0x10FFFF and not 0xD800 <= point <= 0xDFFF else "\ufffd"
+        return "" if match.group(2) == "\n" else match.group(2)
+    return _CSS_ESCAPE.sub(decode, text)
+
+
 def css_loads(text: str, where: str, found: list) -> None:
     """Appends (shape, url, True) for each remote url(), @import string or
-    image-set() string in `text`."""
-    text = _CSS_COMMENT.sub(" ", text)
+    image-set() string in `text`. Comments go first, then escapes are decoded:
+    an escaped "/*" opens no comment."""
+    text = css_unescape(_CSS_COMMENT_OR_STRING.sub(lambda m: m.group(0) if m.group(0)[0] in "\"'" else " ", text))
     for match in _CSS_URL.finditer(text):
         url = remote_url(next((group for group in match.groups() if group is not None), ""))
         if url:
@@ -245,9 +274,11 @@ class _Markup(HTMLParser):
         for name, value in attrs:
             values.setdefault(name, value or "")  # a browser keeps the first of a repeated attribute
         element = f"{self.where}<{tag}"
-        for name in URL_ATTRIBUTES:
+        data = [name for name in values if name.startswith("data-")]
+        for name in URL_ATTRIBUTES + tuple(name for name in data if name.endswith("src")):
             self._add(f"{element} {name}>", values.get(name))
-        for name in SRCSET_ATTRIBUTES + (("imagesrcset",) if tag == "link" else ()):
+        for name in (SRCSET_ATTRIBUTES + tuple(name for name in data if name.endswith("srcset"))
+                     + (("imagesrcset",) if tag == "link" else ())):
             remote = [url for url in srcset_urls(values.get(name, "")) if remote_url(url)]
             if remote:
                 self.found.append((f"{element} {name}>", remote[0].strip(), True))
@@ -305,7 +336,8 @@ class _Markup(HTMLParser):
 
 def scan_markup(text: str, found: list, where: str = "", xml: bool = False) -> None:
     parser = _Markup(found, where, xml)
-    parser.feed(text)
+    # As a browser reads them, not as html.parser does (see the docstring).
+    parser.feed(_ABRUPT_COMMENT.sub("<!---->", text))
     parser.close()
 
 
@@ -399,7 +431,7 @@ def run(cfg: dict) -> int:
                 for column, text in (("summary", summary), ("detail", detail)):
                     if text:
                         extra.append((f"Tooltips {tooltip_id} ({tag}) {column}", str(text).encode("utf-8"),
-                                      "markup", "none"))
+                                      "template", "none"))
         by_type = Counter(row[2] for row in bases)
         print(f"Checking {human(len(bases))} Content row(s) ("
               + ", ".join(f"{human(n)} {value}" for value, n in sorted(by_type.items()))

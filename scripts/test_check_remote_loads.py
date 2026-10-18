@@ -13,10 +13,11 @@ test_check_remote_loads.py
 Covers check_remote_loads.py: that every kind of off-device load it names is
 reported with its row, URL and shape and fails the run - among them the 13 an
 independent review found passing the three ADFA-6589 steps - that links,
-canonical links, comments and namespace URIs are not, that JSON pages,
-dictionary databases, chunked pages, templates and tooltips are read, that a
-row which cannot be read or parsed fails the run, and that the database is
-never written.
+canonical links, comments and namespace URIs are not, that markup and CSS
+html.parser or a regex would misread are read as a browser reads them, that
+JSON pages, dictionary databases, chunked pages, templates and tooltips are
+read, that a row which cannot be read or parsed fails the run, and that the
+database is never written.
 
 Run it either way - as a plain script, needing nothing installed:
 
@@ -255,6 +256,37 @@ def test_every_element_and_attribute_that_loads_is_reported():
             (markup, found)
 
 
+def test_every_data_src_and_data_srcset_attribute_is_reported():
+    """The database's own sidebar.js fetches data-nav-src, and only data-src
+    was counted. Any data-*src or data-*srcset counts now, failing safe."""
+    assert _found('<aside id="sidebar" data-nav-src="https://example.com/nav.html"></aside>') == [
+        ("<aside data-nav-src>", "https://example.com/nav.html")]
+    assert _found('<img alt="" data-lazy-src="//example.com/a.png" data-lazy-srcset="https://example.com/b.png 2x"/>') \
+        == [("<img data-lazy-src>", "//example.com/a.png"), ("<img data-lazy-srcset>", "https://example.com/b.png")]
+    assert _found('<aside data-nav-src="/k/html/_nav.html" data-source="https://example.com/x"></aside>') == []
+
+
+def test_markup_and_css_a_parser_misreads_are_read_as_a_browser_reads_them():
+    """"<!-->" and "<!--->" are whole empty comments to a browser, but
+    html.parser read them as opening one that ran to the next "-->". CSS
+    decodes escapes in a URL, and a "/*" inside a CSS string opens no comment,
+    while one in a comment does not start a string. Each hid a load."""
+    for comment in ("<!-->", "<!--->"):
+        assert _found(f'{comment}<img src="https://example.com/a.png">-->') == [
+            ("<img src>", "https://example.com/a.png")], comment
+    assert _found('<div style="background:url(htt\\70://example.com/b.png)">x</div>') == [
+        ("<div style> url()", "http://example.com/b.png")]
+    assert _found('<div style="background:url(http\\3a //example.com/c.png)">x</div>') == [
+        ("<div style> url()", "http://example.com/c.png")]
+    assert _found("@import '\\68ttps://example.com/d.css';", "css") == [("CSS @import", "https://example.com/d.css")]
+    assert _found('<style>a{content:"/*"} b{background:url(http://example.com/e.png)} /* */</style>') == [
+        ("<style> url()", "http://example.com/e.png")]
+    assert _found('<style>/* "*/ b{background:url(https://example.com/f.png)} /* " */</style>') == [
+        ("<style> url()", "https://example.com/f.png")]
+    assert _found("<style>/\\2a b{background:url(https://example.com/g.png)} \\2a/</style>") == [
+        ("<style> url()", "https://example.com/g.png")]
+
+
 def test_a_repeated_attribute_is_read_as_a_browser_reads_it():
     """The first of two src attributes is the one a browser loads."""
     assert _found('<img src="https://example.com/first.png" src="media/second.png"/>') == [
@@ -418,6 +450,18 @@ def test_templates_and_tooltips_are_read(tmp_path: Path):
         "  Tooltips 3 (kotlin.Any) summary: <img src> loads https://example.com/summary.png",
     ]
     assert "0 row(s) that could not be checked" in err
+
+
+def test_a_tooltip_opening_with_a_brace_is_markup_not_a_json_page(tmp_path: Path):
+    """A Kotlin lambda opens with "{", as a JSON page does; read as one, its
+    tooltip failed the run as "does not parse as JSON"."""
+    tooltips = [("kotlin.Function", "{ x -> x * 2 } is a lambda", "{ it }"),
+                ("kotlin.run", '{ block } <img src="https://example.com/run.png">', "")]
+    db_path = _database(tmp_path, {"i/page.html": ("text/html", HEAD + TAIL)}, tooltips=tooltips)
+    code, _out, err = _run(db_path)
+    assert code == 1, err
+    assert _reported(err) == ["  Tooltips 2 (kotlin.run) summary: <img src> loads https://example.com/run.png"]
+    assert "0 row(s) that could not be checked" in err, err
 
 
 def test_a_dictionary_database(tmp_path: Path):
