@@ -285,27 +285,47 @@ def test_a_missing_file_is_refused(tmp_path: Path):
 
 
 def test_a_list_not_as_written_is_refused(tmp_path: Path):
-    """A foreign header, a short line, a path that is not the URL's
-    a/devsite/media/ name, a malformed digest, a URL listed twice: each stops
-    the run, naming the line, before the database is touched."""
+    """A missing files.tsv, a foreign header, a short line, a path that is not
+    the URL's a/devsite/media/ name, a malformed size or digest, a content type
+    that is not an image, a URL with a query or fragment or on another host, a
+    URL listed twice: each stops the run, naming the line, before the database
+    is touched. In the URL cases the path is the one a/devsite/media/ naming gives
+    the URL, so only the URL check can refuse them."""
     good = [tool.INDEX_HEADER] + [
         "\t".join((url, path, content_type, str(len(data)), hashlib.sha256(data).hexdigest(), "x"))
         for url, (path, content_type, data) in FILES.items()]
+
+    def png_line_with(index: int, value: str) -> list:
+        fields = good[1].split("\t")
+        fields[index] = value
+        return good[:1] + ["\t".join(fields)] + good[2:]
+
+    not_devsite = "is not a https://developer.android.com/ URL without a query or fragment"
     cases = {
+        "missing": (None, f"{tool.INDEX_NAME} does not exist"),
         "foreign header": (["# some other list"] + good[1:], "the first line is not"),
         "short line": (good + ["\t".join(good[1].split("\t")[:5])], "expected 6 tab-separated fields, got 5"),
         "wrong path": (good[:1] + [good[1].replace(PNG_PATH, "a/devsite/media/axis_globe.png")] + good[2:],
                        "is not the a/devsite/media/ path for"),
-        "bad digest": (good[:1] + [good[1].replace(hashlib.sha256(PNG).hexdigest(), "ab12")] + good[2:],
-                       "expected a byte count, a sha256 and an image/ content type"),
+        "bad digest": (png_line_with(4, "ab12"), "expected a byte count and a sha256"),
+        "bad size": (png_line_with(3, "12x"), "expected a byte count and a sha256"),
+        "not an image": (png_line_with(2, "text/html"), "'text/html' is not an image/ content type"),
+        "query": (png_line_with(0, PNG_URL + "?raw=1"), not_devsite),
+        "fragment": (png_line_with(0, PNG_URL + "#top"), not_devsite),
+        "another host": (png_line_with(0, "https://example.com/images/axis_globe.png"), not_devsite),
         "twice": (good + [good[1]], "is listed twice"),
     }
+    assert all(tool.database_path_for(url) == PNG_PATH
+               for url in (PNG_URL + "?raw=1", PNG_URL + "#top", "https://example.com/images/axis_globe.png"))
     for name, (lines, message) in cases.items():
         case_dir = tmp_path / name.replace(" ", "-")
         case_dir.mkdir()
         db_path = _database(case_dir)
         before = db_path.read_bytes()
-        code, _out, err = _run(db_path, _media_dir(case_dir, lines=lines))
+        media_dir = _media_dir(case_dir, lines=lines)
+        if lines is None:
+            (media_dir / tool.INDEX_NAME).unlink()
+        code, _out, err = _run(db_path, media_dir)
         assert code == 1, name
         assert db_path.read_bytes() == before, name
         assert message in err, (name, err)
@@ -322,16 +342,19 @@ def test_a_content_type_the_database_lacks_is_refused(tmp_path: Path):
 
 
 def test_a_listed_url_anywhere_but_an_img_src_is_reported(tmp_path: Path):
-    """A link, a srcset, a data-src, JSON-escaped markup, a src with more after
-    the URL and a src on something other than an <img> are each left as they
-    are and named; the run fails, but the plain <img src> on another page is
-    still rewritten."""
+    """A link, a srcset, a data-src, an <img alt>, JSON-escaped markup, a src
+    with more after the URL, a src on something other than an <img>, and
+    src="URL" in text after an <img> has closed are each left as they are and
+    named; the run fails, but the plain <img src> on another page is still
+    rewritten."""
     odd = (b'<a href="' + PNG_URL.encode() + b'">full size</a>\n'
            b'<iframe src="' + PNG_URL.encode() + b'"></iframe>\n'
            b'<img alt="" src="media/x.png" srcset="' + PNG_URL.encode() + b' 2x"/>\n'
            b'<img alt="" data-src="' + PNG_URL.encode() + b'"/>\n'
+           b'<img alt="' + PNG_URL.encode() + b'" src="media/x.png"/>\n'
            b'<img alt=\\"\\" src=\\"' + PNG_URL.encode() + b'\\"/>\n'
-           b'<img alt="" src="' + PNG_URL.encode() + b'?raw=1"/>\n')
+           b'<img alt="" src="' + PNG_URL.encode() + b'?raw=1"/>\n'
+           b'<img alt="" src="media/x.png"/> then set src="' + PNG_URL.encode() + b'" in the layout\n')
     pages = {"a/android/hardware/Odd.html": HEAD + odd + TAIL,
              "a/android/hardware/SensorEvent.html": PAGES["a/android/hardware/SensorEvent.html"]}
     db_path = _database(tmp_path, pages)
@@ -342,7 +365,7 @@ def test_a_listed_url_anywhere_but_an_img_src_is_reported(tmp_path: Path):
     assert after["a/android/hardware/Odd.html"] == before["a/android/hardware/Odd.html"]
     assert _page(db_path, "a/android/hardware/SensorEvent.html") == EXPECTED["a/android/hardware/SensorEvent.html"]
     assert PNG_PATH in after
-    assert err.count("appears other than as the whole src of an <img>") == 6
+    assert err.count("appears other than as the whole src of an <img>") == 8
 
 
 def test_a_row_already_holding_the_file_is_used(tmp_path: Path):
@@ -501,12 +524,17 @@ def test_a_url_in_existing_tsv_points_at_the_row_already_there(tmp_path: Path):
 
 def test_an_existing_row_that_is_missing_changed_or_retyped_is_reported(tmp_path: Path):
     """existing.tsv's record is checked against the row before any page is
-    pointed at it: a missing row, other bytes, or the right bytes under another
-    type each leave the page loading the URL and fail the run, and nothing is
-    stored in the row's place."""
+    pointed at it: a missing row, other bytes - of another size, or of the
+    same size with one byte changed, which only the sha256 tells apart - or
+    the right bytes under another type each leave the page loading the URL and
+    fail the run, and nothing is stored in the row's place."""
+    flipped = bytearray(WEBP)
+    flipped[-5] ^= 0xFF
+    assert len(flipped) == len(WEBP)
     cases = {
         "missing": ({}, "is not in the database"),
         "changed": ({OLD_PATH: ("image/webp", WEBP + b"x")}, "already holds something other than"),
+        "flipped": ({OLD_PATH: ("image/webp", bytes(flipped))}, "already holds something other than"),
         "retyped": ({OLD_PATH: ("image/png", WEBP)}, "already holds something other than"),
     }
     for name, (extra, message) in cases.items():
@@ -535,7 +563,7 @@ def test_an_existing_tsv_not_as_written_is_refused(tmp_path: Path):
         "path needs encoding": ([_existing_line(path="a/devsite/media/activity lifecycle.webp")],
                                 "would need percent-encoding in a relative src"),
         "bad digest": ([_existing_line().replace(hashlib.sha256(WEBP).hexdigest(), "ab12")],
-                       "expected a byte count, a sha256 and an image/ content type"),
+                       "expected a byte count and a sha256"),
     }
     for name, (lines, message) in cases.items():
         case_dir = tmp_path / name.replace(" ", "-")
@@ -549,6 +577,22 @@ def test_an_existing_tsv_not_as_written_is_refused(tmp_path: Path):
         assert code == 1, name
         assert db_path.read_bytes() == before, name
         assert message in err, (name, err)
+
+
+def test_a_files_tsv_listing_no_files_is_refused(tmp_path: Path):
+    """files.tsv must list at least one file, whether or not existing.tsv
+    names an image: either way the run stops before the database is
+    touched."""
+    for name, existing in (("alone", None), ("beside existing.tsv", [_existing_line()])):
+        case_dir = tmp_path / name.replace(" ", "-")
+        case_dir.mkdir()
+        pages = dict(PAGES, **{OLD_PAGE: HEAD + _img(OLD_URL, "Activity lifecycle") + TAIL})
+        db_path = _database(case_dir, pages, extra={OLD_PATH: ("image/webp", WEBP)})
+        before = db_path.read_bytes()
+        code, _out, err = _run(db_path, _media_dir(case_dir, files={}, existing=existing))
+        assert code == 1, name
+        assert db_path.read_bytes() == before, name
+        assert "lists no files" in err, (name, err)
 
 
 def test_the_committed_files_match_their_lists():

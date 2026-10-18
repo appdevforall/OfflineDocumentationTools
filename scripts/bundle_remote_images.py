@@ -165,8 +165,11 @@ def _read_list(path: Path, header: str, existing: bool, entries: list, problems:
         if not _PLAIN_PATH.fullmatch(database_path):
             problems.append(f"{path}:{number}: {database_path!r} would need percent-encoding in a relative src")
             continue
-        if not size.isdigit() or not _SHA256.fullmatch(sha) or not content_type.startswith("image/"):
-            problems.append(f"{path}:{number}: expected a byte count, a sha256 and an image/ content type")
+        if not size.isdigit() or not _SHA256.fullmatch(sha):
+            problems.append(f"{path}:{number}: expected a byte count and a sha256, got {size!r} and {sha!r}")
+            continue
+        if not content_type.startswith("image/"):
+            problems.append(f"{path}:{number}: {content_type!r} is not an image/ content type")
             continue
         if database_path in paths or url in urls:
             problems.append(f"{path}:{number}: {url} is listed twice")
