@@ -267,6 +267,42 @@ def test_the_digests_record_the_clip_each_original_was_gathered_for(tmp_path):
     assert base._snapshot(db_path) == snapshot, "writing the digests changed the database"
 
 
+def _digests_cfg(db_path: Path, originals: Path) -> dict:
+    return {"db_path": db_path, "write_video_digests": originals, "rerecord_video_digests": []}
+
+
+def test_one_name_storing_two_clips_is_not_recorded(tmp_path):
+    """Originals are found by file name, so one original cannot vouch for two
+    different clips stored under its name: recording either would let the
+    other be encoded from an original gathered for something else."""
+    originals, db_path = tmp_path / "originals", tmp_path / "documentation.db"
+    originals.mkdir()
+    (originals / "wide.mp4").write_bytes(b"an original")
+    animated._build_database(db_path, [("a/x/wide.mp4", "video/mp4", b"one clip"),
+                                       ("b/y/wide.mp4", "video/mp4", b"another clip")], VIDEO_TYPES)
+
+    code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+
+    assert code == 1, output
+    assert "wide.mp4: a/x/wide.mp4, b/y/wide.mp4" in output and "nothing was written" in output, output
+    assert not (originals / opt.VIDEO_DIGESTS).exists()
+
+
+def test_digests_with_no_original_matching_a_row_are_not_written(tmp_path):
+    """A folder of originals that matches no row is the wrong folder or the
+    wrong database; a file recording nothing would pass for a gathered set."""
+    originals, db_path = tmp_path / "originals", tmp_path / "documentation.db"
+    originals.mkdir()
+    (originals / "other.mp4").write_bytes(b"an original")
+    animated._build_database(db_path, [("a/media/wide.mp4", "video/mp4", b"a clip")], VIDEO_TYPES)
+
+    code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+
+    assert code == 1, output
+    assert "none of the 1 video row(s) has an original" in output, output
+    assert not (originals / opt.VIDEO_DIGESTS).exists()
+
+
 def _replace_clip(db_path: Path, name: str, work: Path, pattern: str = "smptebars") -> Path:
     """An author's replacement for a/media/<name>, stored in its row; returns
     the new clip's original. It is 320 px wide, so a WebM made from it is 320
@@ -457,6 +493,29 @@ def test_video_settings_without_video_webm_are_reported_as_ignored(tmp_path):
     assert "warning: --video-originals, --video-crf has no effect without --video-webm" in output, output
 
 
+def _optimizer(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, str(Path(opt.__file__)), *map(str, args)], capture_output=True,
+                          text=True)
+
+
+def test_writing_the_digests_is_refused_as_part_of_a_conversion(tmp_path):
+    """Recorded just before converting, the digests would match whatever the
+    rows hold by then, stale originals included, so the writer runs on its own
+    and refuses the conversion flags rather than ignoring them."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.unlink()
+    before = base._snapshot(db_path)
+    for flags in (["--video-webm", "--video-originals", originals], ["--save-originals", tmp_path / "bundle"],
+                  ["--restore-originals", tmp_path / "bundle"]):
+        result = _optimizer(db_path, "--write-video-digests", originals, *flags)
+
+        assert result.returncode == 2, result
+        assert "--write-video-digests runs on its own" in result.stderr, result.stderr
+        assert not digests.exists(), f"{flags[0]}: the digests were written"
+    assert base._snapshot(db_path) == before
+
+
 def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
     """And the digests of the clips they were gathered for, without which no
     original can be trusted. Each is refused before the run starts, with no
@@ -568,6 +627,17 @@ def test_single_quoted_html_with_an_escaped_quote_inside_stays_literal():
         "</video>\"}", [ref.TagEdit])
 
 
+def test_a_tag_with_no_escaped_quote_is_not_json_escaped():
+    """With no \\" in a tag, "every double quote is escaped" holds trivially.
+    Such a tag, its attributes unquoted or single-quoted, is HTML, and the
+    <video> it becomes keeps plain quotes."""
+    for tag in ("<img alt=A src=spring.gif>", "<img alt='A' src='spring.gif'>"):
+        assert ref.unescape_tag(tag) == (tag, False)
+    assert _rewrite("<img alt='A' src='spring.gif'>") == (
+        "<video autoplay loop muted playsinline role=\"img\" aria-label='A' src='spring.webm'></video>",
+        [ref.TagEdit])
+
+
 def test_a_converted_video_can_be_referenced_anywhere():
     """A GIF become WebM is refused outside an <img>, the one tag that can be
     turned into a <video>. A video become WebM is still a video, so a link or
@@ -647,6 +717,22 @@ def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
     assert animated._stored_media(db_path, "a/page")[2] == (
         b'<video autoplay loop muted playsinline role="img" aria-label="Spin" src="m/foo.webm"></video>'
         b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
+
+
+def test_a_manifest_naming_a_file_not_stored_leaves_the_rename_unresolved(tmp_path):
+    """The manifest says foo.mp4 became foo.webm, but no foo.webm is stored.
+    Paired anyway, the pages would be sent to a missing file; foo.mp4 is
+    reported as having no replacement, which says what to do about it."""
+    before_path, after_path, mp4 = tmp_path / "before.db", tmp_path / "after.db", b"mp4"
+    animated._build_database(before_path, [("a/m/foo.mp4", "video/mp4", mp4)], VIDEO_TYPES)
+    animated._build_database(after_path, [("a/m/bar.webm", "video/webm", b"\x1aE\xdf\xa3")], VIDEO_TYPES)
+    manifest = {"a/m/foo.webm": (opt.digest(b"\x1aE\xdf\xa3"), 4, "a/m/foo.mp4")}
+
+    with sqlite3.connect(after_path) as after, sqlite3.connect(before_path) as before:
+        with pytest.raises(ref.UnresolvedRename) as caught:
+            ref.build_rename_map(after, before, manifest)
+
+    assert caught.value.paths == ["a/m/foo.mp4"]
 
 
 def test_a_video_named_in_a_source_that_cannot_be_parsed_is_left_unconverted(tmp_path):
