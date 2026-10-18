@@ -175,9 +175,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   diffs against - its docstring says why), `remove_remote_loads.py` (takes out the markup that
   makes pages fetch from the internet where no download is needed - a remote `srcset` beside a
   stored `src`, dark-theme `<source>`s, kotl.in badges, YouTube players - ADFA-6589; also before
-  that snapshot), `bundle_remote_images.py` (stores the 20 diagrams API reference pages load from
+  that snapshot), `bundle_remote_images.py` (stores the 19 diagrams API reference pages load from
   developer.android.com, kept with their sources and licenses in `remote_media/adfa-6589/`, and
-  points the pages at them; ADFA-6589; also before that snapshot). **Deprecated/dead** (target the
+  points the pages at them; a URL in that folder's `existing.tsv` is pointed at the row already
+  holding its image instead; ADFA-6589; also before that snapshot). **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
   `load_android_data.py`.

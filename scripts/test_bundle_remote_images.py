@@ -14,8 +14,10 @@ Covers bundle_remote_images.py: that each listed file is stored as a Content
 row the way a/devsite/media/ rows are, that each <img src> loading it from
 developer.android.com is pointed at the stored copy by a relative path and no
 other byte of the page changes, that a file not matching its recorded size and
-sha256 stops the run before anything is written, and that any other appearance
-of a listed URL is reported rather than rewritten.
+sha256 stops the run before anything is written, that any other appearance
+of a listed URL is reported rather than rewritten, and that a URL in
+existing.tsv is pointed at the row already holding its image, and only if that
+row holds the recorded bytes.
 
 Fixtures use the real URLs and markup of three of the diagrams, with small
 stand-in files; ContentTypes ids differ from the production database's, so a
@@ -58,6 +60,10 @@ SVG_URL = "https://developer.android.com/static/images/reference/androidx/media3
 PNG_PATH = "a/devsite/media/images_axis_globe.png"
 GIF_PATH = "a/devsite/media/images_mediaplayer_state_diagram.gif"
 SVG_PATH = "a/devsite/media/static_images_reference_androidx_media3_common_timeline-window.svg"
+# An image the database already holds under another name (existing.tsv).
+OLD_URL = "https://developer.android.com/images/activity_lifecycle.png"
+OLD_PATH = "a/devsite/media/guide_components_images_activity_lifecycle.webp"
+OLD_PAGE = "a/android/app/Activity.html"
 
 
 def _image(fmt: str) -> bytes:
@@ -68,6 +74,7 @@ def _image(fmt: str) -> bytes:
 
 PNG = _image("PNG")
 GIF = _image("GIF")
+WEBP = _image("WEBP")
 SVG = (b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<svg xmlns="http://www.w3.org/2000/svg" '
        b'width="10" height="10"><rect width="10" height="10" fill="#3ddc84"/></svg>\n')
 FILES = {PNG_URL: (PNG_PATH, "image/png", PNG), GIF_URL: (GIF_PATH, "image/gif", GIF),
@@ -104,7 +111,7 @@ EXPECTED = {
 
 # Ids unlike the production database's (png 3, gif 11, svg 2).
 TYPES = {"text/html": (12, "brotli"), "image/png": (30, "none"), "image/gif": (31, "none"),
-         "image/svg+xml": (32, "brotli")}
+         "image/svg+xml": (32, "brotli"), "image/webp": (33, "brotli")}
 
 
 def _compress(raw: bytes, dictionary: bytes = None) -> bytes:
@@ -130,9 +137,10 @@ def _decompress(blob: bytes, dictionary: bytes = None) -> bytes:
                               stdout=subprocess.PIPE, check=True).stdout
 
 
-def _media_dir(tmp_path: Path, files: dict = None, lines: list = None) -> Path:
+def _media_dir(tmp_path: Path, files: dict = None, lines: list = None, existing: list = None) -> Path:
     """A remote_media folder: each file under its database path's last
-    component, and a files.tsv listing them (or `lines`, written as given)."""
+    component, and a files.tsv listing them (or `lines`, written as given);
+    with `existing`, an existing.tsv holding those lines after its header."""
     media_dir = tmp_path / "media"
     media_dir.mkdir()
     rows = [tool.INDEX_HEADER, "# " + "\t".join(tool.INDEX_COLUMNS)]
@@ -141,7 +149,14 @@ def _media_dir(tmp_path: Path, files: dict = None, lines: list = None) -> Path:
         rows.append("\t".join((url, path, content_type, str(len(data)), hashlib.sha256(data).hexdigest(),
                                "Apache-2.0 / CC-BY-2.5, developer.android.com/license")))
     (media_dir / tool.INDEX_NAME).write_text("\n".join(rows if lines is None else lines) + "\n")
+    if existing is not None:
+        (media_dir / tool.EXISTING_NAME).write_text("\n".join([tool.EXISTING_HEADER] + existing) + "\n")
     return media_dir
+
+
+def _existing_line(data: bytes = WEBP, content_type: str = "image/webp", path: str = OLD_PATH,
+                   url: str = OLD_URL) -> str:
+    return "\t".join((url, path, content_type, str(len(data)), hashlib.sha256(data).hexdigest(), "the same diagram"))
 
 
 def _database(tmp_path: Path, pages: dict = None, dictionary: bytes = None, types: dict = None,
@@ -465,19 +480,93 @@ def test_an_unreadable_row_is_reported_and_the_rest_still_change(tmp_path: Path)
     assert _page(db_path, "a/android/media/MediaPlayer.html") == EXPECTED["a/android/media/MediaPlayer.html"]
 
 
-def test_the_committed_files_match_their_list():
-    """The 20 files in remote_media/adfa-6589/: each listed, each matching its
-    size and sha256, each what its content type says, and nothing else there."""
+def test_a_url_in_existing_tsv_points_at_the_row_already_there(tmp_path: Path):
+    """The page's <img src> is pointed at the row holding the image, by a
+    relative path; no row is added for it, the row is left as it was, and the
+    listed files are stored as usual."""
+    pages = dict(PAGES, **{OLD_PAGE: HEAD + _img(OLD_URL, "Activity lifecycle") + TAIL})
+    db_path = _database(tmp_path, pages, extra={OLD_PATH: ("image/webp", WEBP)})
+    before = _stored(db_path)
+    code, out, err = _run(db_path, _media_dir(tmp_path, existing=[_existing_line()]))
+    assert (code, err) == (0, "")
+    after = _stored(db_path)
+    assert _page(db_path, OLD_PAGE) == HEAD + _img("../../devsite/media/" + OLD_PATH.rsplit("/", 1)[1],
+                                                   "Activity lifecycle") + TAIL
+    assert after[OLD_PATH] == before[OLD_PATH]
+    assert set(after) - set(before) == {PNG_PATH, GIF_PATH, SVG_PATH}
+    assert "Storing 3 file(s)" in out and "1 already stored, 1 of them under another path" in out
+    for path, expected in EXPECTED.items():
+        assert _page(db_path, path) == expected, path
+
+
+def test_an_existing_row_that_is_missing_changed_or_retyped_is_reported(tmp_path: Path):
+    """existing.tsv's record is checked against the row before any page is
+    pointed at it: a missing row, other bytes, or the right bytes under another
+    type each leave the page loading the URL and fail the run, and nothing is
+    stored in the row's place."""
+    cases = {
+        "missing": ({}, "is not in the database"),
+        "changed": ({OLD_PATH: ("image/webp", WEBP + b"x")}, "already holds something other than"),
+        "retyped": ({OLD_PATH: ("image/png", WEBP)}, "already holds something other than"),
+    }
+    for name, (extra, message) in cases.items():
+        case_dir = tmp_path / name
+        case_dir.mkdir()
+        pages = dict(PAGES, **{OLD_PAGE: HEAD + _img(OLD_URL, "Activity lifecycle") + TAIL})
+        db_path = _database(case_dir, pages, extra=extra)
+        before = _stored(db_path)
+        code, _out, err = _run(db_path, _media_dir(case_dir, existing=[_existing_line()]))
+        assert code == 1, name
+        after = _stored(db_path)
+        assert after[OLD_PAGE] == before[OLD_PAGE], name
+        assert (OLD_PATH in after) == (OLD_PATH in before), name
+        assert f"{OLD_PATH}" in err and message in err, (name, err)
+        assert _page(db_path, "a/android/media/MediaPlayer.html") == EXPECTED["a/android/media/MediaPlayer.html"]
+
+
+def test_an_existing_tsv_not_as_written_is_refused(tmp_path: Path):
+    """A foreign header, a URL listed in both lists, a path that needs
+    percent-encoding, a malformed digest: each stops the run before the
+    database is touched. Unlike files.tsv, its path need not follow the
+    a/devsite/media/ naming of its URL."""
+    cases = {
+        "foreign header": (None, "the first line is not"),
+        "in both lists": ([_existing_line(url=PNG_URL)], "is listed twice"),
+        "path needs encoding": ([_existing_line(path="a/devsite/media/activity lifecycle.webp")],
+                                "would need percent-encoding in a relative src"),
+        "bad digest": ([_existing_line().replace(hashlib.sha256(WEBP).hexdigest(), "ab12")],
+                       "expected a byte count, a sha256 and an image/ content type"),
+    }
+    for name, (lines, message) in cases.items():
+        case_dir = tmp_path / name.replace(" ", "-")
+        case_dir.mkdir()
+        db_path = _database(case_dir, extra={OLD_PATH: ("image/webp", WEBP)})
+        before = db_path.read_bytes()
+        media_dir = _media_dir(case_dir, existing=[] if lines is None else lines)
+        if lines is None:
+            (media_dir / tool.EXISTING_NAME).write_text("# some other list\n" + _existing_line() + "\n")
+        code, _out, err = _run(db_path, media_dir)
+        assert code == 1, name
+        assert db_path.read_bytes() == before, name
+        assert message in err, (name, err)
+
+
+def test_the_committed_files_match_their_lists():
+    """The 19 files in remote_media/adfa-6589/: each listed, each matching its
+    size and sha256, each what its content type says, and nothing else there
+    but the two lists. existing.tsv names one image, with no file."""
     entries, problems = tool.read_index(tool.MEDIA_DIR)
     assert problems == []
     data, problems = tool.check_files(tool.MEDIA_DIR, entries)
     assert problems == []
-    assert len(entries) == 20 and sum(len(blob) for blob in data.values()) == 249_079
+    stored = [entry for entry in entries if not entry.existing]
+    assert len(stored) == 19 and sum(len(blob) for blob in data.values()) == 203_413
+    assert [(e.source_url, e.database_path) for e in entries if e.existing] == [(OLD_URL, OLD_PATH)]
     signatures = {"image/png": (b"\x89PNG\r\n\x1a\n",), "image/gif": (b"GIF87a", b"GIF89a"),
                   "image/svg+xml": (b"<?xml", b"<svg")}
-    for entry in entries:
+    for entry in stored:
         assert data[entry.database_path].startswith(signatures[entry.content_type]), entry.database_path
-    names = {entry.database_path.rsplit("/", 1)[1] for entry in entries} | {tool.INDEX_NAME}
+    names = {entry.database_path.rsplit("/", 1)[1] for entry in stored} | {tool.INDEX_NAME, tool.EXISTING_NAME}
     assert {path.name for path in tool.MEDIA_DIR.iterdir()} == names
 
 

@@ -13,13 +13,14 @@ Stores in the database the diagrams that API reference pages load from
 developer.android.com, and points the pages at the stored copies (ADFA-6589).
 In the 2026-10-13 database that is 21 <img> elements on 11 pages under
 a/android/ and a/androidx/ - MediaPlayer's state diagram, Activity's
-lifecycle, Media3's Timeline figures and others - showing 20 files, none of
-them in the database:
+lifecycle, Media3's Timeline figures and others - showing 20 files:
 
     <img alt="MediaPlayer State diagram" border="0"
          src="https://developer.android.com/images/mediaplayer_state_diagram.gif"/>
 
-Offline, each shows as a broken image.
+Offline, each shows as a broken image. 19 of the files are not in the
+database. The 20th, Activity's lifecycle diagram, already is, as the WebP the
+lifecycle guide page shows (ADFA-6614).
 
 The files come from this repository, not the internet: each was downloaded
 once, on 2026-10-17, into remote_media/adfa-6589/ beside this script, where
@@ -27,12 +28,17 @@ files.tsv records its source URL, the Content path it is stored under, its
 content type, size, sha256 and license. Every file is checked against that
 record before the database is opened; if any is missing or differs, the run
 writes nothing and exits non-zero, so what goes into the database is exactly
-what was reviewed.
+what was reviewed. A URL whose image the database already holds under
+another path is listed instead in existing.tsv beside it, in the same columns
+(the last is a note rather than a license), and has no file here: its pages
+are pointed at that row, and nothing is stored. The row must hold exactly the
+bytes existing.tsv records, under its content type; if it doesn't, it is
+reported like a taken path (below).
 
 Each file is stored the way the database already stores developer.android.com
 media (682 rows under a/devsite/media/): path "a/devsite/media/" plus the URL
-path with "/" turned into "_" (.../images/activity_lifecycle.png ->
-a/devsite/media/images_activity_lifecycle.png), languageID 1, templateId 0,
+path with "/" turned into "_" (.../images/axis_globe.png ->
+a/devsite/media/images_axis_globe.png), languageID 1, templateId 0,
 and the ContentTypes row named in files.tsv, compressed as that row says
 (against the shared CompressionDictionary for a brotli type in a database that
 has one). Each <img src> is rewritten to the stored file as a relative path,
@@ -89,6 +95,8 @@ MEDIA_DIR = Path(__file__).resolve().parent / "remote_media" / "adfa-6589"
 INDEX_NAME = "files.tsv"
 INDEX_HEADER = "# bundle_remote_images file list v1"
 INDEX_COLUMNS = ("source-url", "database-path", "content-type", "bytes", "sha256", "license")
+EXISTING_NAME = "existing.tsv"
+EXISTING_HEADER = "# bundle_remote_images existing-row list v1"
 
 SOURCE_PREFIX = "https://developer.android.com/"
 MEDIA_PREFIX = "a/devsite/media/"
@@ -102,7 +110,9 @@ CONTENT_TYPE = "text/html"
 # Only used to check that a rewritten src resolves to the stored file.
 SERVER = "http://localhost:6174/"
 
-Entry = namedtuple("Entry", "source_url database_path content_type size sha256 license")
+# existing: the image is already in the database at database_path, and only
+# pages are changed; `license` then holds existing.tsv's note.
+Entry = namedtuple("Entry", "source_url database_path content_type size sha256 license existing", defaults=(False,))
 
 
 def database_path_for(url: str) -> str:
@@ -111,17 +121,32 @@ def database_path_for(url: str) -> str:
 
 
 def read_index(media_dir: Path) -> tuple:
-    """([Entry], [problem]) from media_dir/files.tsv. A problem is anything that
-    keeps the record from describing the files exactly: a missing or foreign
-    header, a line with the wrong number of fields, a malformed size or digest,
-    a path that does not follow the a/devsite/media/ naming, a duplicate."""
-    path = media_dir / INDEX_NAME
-    if not path.is_file():
-        return [], [f"{path} does not exist"]
-    lines = path.read_text(encoding="utf-8").splitlines()
-    if not lines or lines[0] != INDEX_HEADER:
-        return [], [f"{path}: the first line is not {INDEX_HEADER!r}"]
+    """([Entry], [problem]) from media_dir/files.tsv and, if there is one,
+    media_dir/existing.tsv. A problem is anything that keeps the record from
+    describing the files exactly: a missing or foreign header, a line with the
+    wrong number of fields, a malformed size or digest, a files.tsv path that
+    does not follow the a/devsite/media/ naming, a URL or path listed twice in
+    either list or across them."""
     entries, problems, paths, urls = [], [], set(), set()
+    _read_list(media_dir / INDEX_NAME, INDEX_HEADER, False, entries, problems, paths, urls)
+    if (media_dir / EXISTING_NAME).exists():
+        _read_list(media_dir / EXISTING_NAME, EXISTING_HEADER, True, entries, problems, paths, urls)
+    if not any(not entry.existing for entry in entries) and not problems:
+        problems.append(f"{media_dir / INDEX_NAME} lists no files")
+    return entries, problems
+
+
+def _read_list(path: Path, header: str, existing: bool, entries: list, problems: list, paths: set,
+               urls: set) -> None:
+    """Appends one list's entries and problems; `paths` and `urls` carry what
+    the lists read before it hold, so a duplicate across lists is caught."""
+    if not path.is_file():
+        problems.append(f"{path} does not exist")
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0] != header:
+        problems.append(f"{path}: the first line is not {header!r}")
+        return
     for number, line in enumerate(lines[1:], start=2):
         if not line.strip() or line.startswith("#"):
             continue
@@ -131,9 +156,14 @@ def read_index(media_dir: Path) -> tuple:
             continue
         url, database_path, content_type, size, sha, license_ = fields
         parts = urlsplit(url)
-        if (not url.startswith(SOURCE_PREFIX) or parts.query or parts.fragment
-                or database_path != database_path_for(url) or not _PLAIN_PATH.fullmatch(database_path)):
+        if not url.startswith(SOURCE_PREFIX) or parts.query or parts.fragment:
+            problems.append(f"{path}:{number}: {url!r} is not a {SOURCE_PREFIX} URL without a query or fragment")
+            continue
+        if not existing and database_path != database_path_for(url):
             problems.append(f"{path}:{number}: {database_path!r} is not the a/devsite/media/ path for {url!r}")
+            continue
+        if not _PLAIN_PATH.fullmatch(database_path):
+            problems.append(f"{path}:{number}: {database_path!r} would need percent-encoding in a relative src")
             continue
         if not size.isdigit() or not _SHA256.fullmatch(sha) or not content_type.startswith("image/"):
             problems.append(f"{path}:{number}: expected a byte count, a sha256 and an image/ content type")
@@ -143,18 +173,17 @@ def read_index(media_dir: Path) -> tuple:
             continue
         paths.add(database_path)
         urls.add(url)
-        entries.append(Entry(url, database_path, content_type, int(size), sha, license_))
-    if not entries and not problems:
-        problems.append(f"{path} lists no files")
-    return entries, problems
+        entries.append(Entry(url, database_path, content_type, int(size), sha, license_, existing))
 
 
 def check_files(media_dir: Path, entries: list) -> tuple:
     """({database path: file bytes}, [problem]): each listed file, named after
     its database path's last component, read and checked against its recorded
-    size and sha256."""
+    size and sha256. An existing.tsv entry has no file."""
     data, problems = {}, []
     for entry in entries:
+        if entry.existing:
+            continue
         file_path = media_dir / posixpath.basename(entry.database_path)
         if not file_path.is_file():
             problems.append(f"{file_path} is missing")
@@ -216,7 +245,8 @@ def run(cfg: dict) -> int:
             print(f"  {problem}", file=sys.stderr)
         print(f"error: the files in {media_dir} do not match {INDEX_NAME}; nothing was written.", file=sys.stderr)
         return 1
-    print(f"{len(entries)} file(s) in {media_dir} match {INDEX_NAME} (size and sha256).")
+    print(f"{len(data)} file(s) in {media_dir} match {INDEX_NAME} (size and sha256); "
+          f"{len(entries) - len(data)} URL(s) in {EXISTING_NAME} name images already in the database.")
     by_url = {entry.source_url: entry for entry in entries}
 
     conn = sqlite3.connect(db_path)
@@ -267,13 +297,18 @@ def run(cfg: dict) -> int:
 
         # A file is needed while some page still loads it from the internet; it is
         # stored unless an identical row is already there, and a row holding
-        # anything else keeps its pages pointing where they were.
+        # anything else keeps its pages pointing where they were. An existing.tsv
+        # entry is never stored: its row must already hold the recorded bytes.
         needed = sorted({url for page in pages for _start, _end, url in page[4]})
         inserts, conflicts = [], {}
         for url in needed:
             entry = by_url[url]
             row = conn.execute("SELECT content, contentTypeID FROM Content WHERE path = ?",
                                (entry.database_path,)).fetchone()
+            if row is None and entry.existing:
+                conflicts[url] = (f"{entry.database_path}, which {EXISTING_NAME} names for {url}, is not in the "
+                                  "database; pages loading it left in place")
+                continue
             if row is None:
                 inserts.append(entry)
                 continue
@@ -281,10 +316,13 @@ def run(cfg: dict) -> int:
                 held = codec.decompress(reassemble(conn, entry.database_path, row[0]),
                                         compression_of.get(row[1], "none"))
             except Exception as exc:  # noqa: BLE001 - reported like any other mismatch
-                held = f"unreadable ({exc})"
-            if held != data[entry.database_path] or row[1] != types[entry.content_type][0]:
+                held = f"unreadable ({exc})".encode()
+            same = (len(held) == entry.size and digest(held) == entry.sha256 if entry.existing
+                    else held == data[entry.database_path])
+            if not same or row[1] != types[entry.content_type][0]:
+                listed_in = EXISTING_NAME if entry.existing else INDEX_NAME
                 conflicts[url] = (f"{entry.database_path} already holds something other than {url} "
-                                  f"(as {INDEX_NAME} records it); pages loading it left in place")
+                                  f"(as {listed_in} records it); pages loading it left in place")
         for page in pages:
             for _start, _end, url in page[4]:
                 if url in conflicts and conflicts[url] not in page[2]:
@@ -308,12 +346,14 @@ def run(cfg: dict) -> int:
         flagged = [r for r in skipped + changes if r[2]]
         references = sum(r[8] for r in changes)
         reused = len(needed) - len(inserts) - len(conflicts)
+        elsewhere = sum(1 for url in needed if by_url[url].existing and url not in conflicts)
 
         if changes:
             print(f"{len(changes)} page(s) load {len(needed) - len(conflicts)} of these file(s) from the internet, "
                   f"by {references} <img src>.")
             print(f"Storing {len(inserts)} file(s) ({human(sum(len(data[e.database_path]) for e in inserts))} "
-                  f"bytes) under {MEDIA_PREFIX}; {reused} already stored.")
+                  f"bytes) under {MEDIA_PREFIX}; {reused} already stored, {elsewhere} of them under another "
+                  f"path ({EXISTING_NAME}).")
         else:
             print("No page loads these files from the internet in a shape this tool rewrites - nothing to change.")
         for kind, path, reasons, *_rest in flagged:
@@ -371,7 +411,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database to edit in place, e.g. documentation.db")
     p.add_argument("--media-dir", type=Path, default=MEDIA_DIR,
-                   help=f"Folder holding the files and their {INDEX_NAME} (default: {MEDIA_DIR})")
+                   help=f"Folder holding the files, their {INDEX_NAME} and any {EXISTING_NAME} "
+                        f"(default: {MEDIA_DIR})")
     p.add_argument("--dry-run", action="store_true",
                    help="Do all the work and report what would change, without writing or backing up")
     p.add_argument("--workers", type=int, default=8,
