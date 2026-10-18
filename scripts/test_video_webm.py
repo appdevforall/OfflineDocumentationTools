@@ -616,10 +616,11 @@ def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
     types = VIDEO_TYPES + [(11, "image/gif", "none")]
     animated._build_database(before_path, [("a/m/foo.gif", "image/gif", b"GIF89a"),
                                            ("a/m/foo.mp4", "video/mp4", b"mp4"), page], types)
-    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", b"\x1aE\xdf\xa3 from the gif"),
-                                       ("a/m/foo-mp4.webm", "video/webm", b"\x1aE\xdf\xa3 from the mp4"), page], types)
-    opt.write_manifest(manifest, {"a/m/foo.webm": ("0" * 64, 18, "a/m/foo.gif"),
-                                  "a/m/foo-mp4.webm": ("1" * 64, 18, "a/m/foo.mp4")})
+    from_gif, from_mp4 = b"\x1aE\xdf\xa3 from the gif", b"\x1aE\xdf\xa3 from the mp4"
+    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", from_gif),
+                                       ("a/m/foo-mp4.webm", "video/webm", from_mp4), page], types)
+    opt.write_manifest(manifest, {"a/m/foo.webm": (opt.digest(from_gif), len(from_gif), "a/m/foo.gif"),
+                                  "a/m/foo-mp4.webm": (opt.digest(from_mp4), len(from_mp4), "a/m/foo.mp4")})
 
     code, output = _call(ref.run, _reference_cfg(db_path, before_path))
     assert code == 1 and "a/m/foo.gif" in output and "a/m/foo.mp4" in output, output
@@ -629,6 +630,40 @@ def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
     assert code == 0, output
     assert animated._stored_media(db_path, "a/page")[2] == (
         b'<video autoplay loop muted playsinline role="img" aria-label="Spin" src="m/foo.webm"></video>'
+        b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
+
+
+def test_a_manifest_that_does_not_describe_the_stored_file_is_refused(tmp_path):
+    """A manifest from an earlier run says foo.webm came from foo.mp4. This run
+    found the author's own foo.webm stored and wrote foo-mp4.webm instead.
+    Paired through the earlier manifest, the page was pointed at the author's
+    file and the run exited 0. Each pairing now needs the manifest's digest
+    and size for the new file to match the stored row."""
+    page = ("a/page.html", "text/html", b'<video><source src="m/foo.mp4" type="video/mp4"/></video>')
+    own, made = b"\x1aE\xdf\xa3 the author's own", b"\x1aE\xdf\xa3 from the mp4"
+    before_path, db_path = tmp_path / "before.db", tmp_path / "documentation.db"
+    animated._build_database(before_path, [("a/m/foo.mp4", "video/mp4", b"mp4"), ("a/m/foo.webm", "video/webm", own),
+                                           page], VIDEO_TYPES)
+    animated._build_database(db_path, [("a/m/foo.webm", "video/webm", own), ("a/m/foo-mp4.webm", "video/webm", made),
+                                       page], VIDEO_TYPES)
+    stale = {"earlier.tsv": {"a/m/foo.webm": (opt.digest(b"\x1aE\xdf\xa3 an older WebM"), 25, "a/m/foo.mp4")},
+             "wrong-size.tsv": {"a/m/foo-mp4.webm": (opt.digest(made), len(made) + 1, "a/m/foo.mp4")}}
+    for name, entries in stale.items():
+        opt.write_manifest(tmp_path / name, entries)
+
+        code, output = _call(ref.run, _reference_cfg(db_path, before_path, manifest=tmp_path / name))
+
+        assert code == 1, f"{name}: {output}"
+        assert animated._stored_media(db_path, "a/page")[2] == page[2], f"{name}: rewritten off a stale manifest"
+        new_path = next(iter(entries))
+        assert f"{new_path} (paired with a/m/foo.mp4)" in output and "nothing was rewritten" in output, output
+
+    this_run = tmp_path / "manifest.tsv"
+    opt.write_manifest(this_run, {"a/m/foo-mp4.webm": (opt.digest(made), len(made), "a/m/foo.mp4"),
+                                  "a/m/foo.webm": (opt.digest(own), len(own), None)})
+    code, output = _call(ref.run, _reference_cfg(db_path, before_path, manifest=this_run))
+    assert code == 0, output
+    assert animated._stored_media(db_path, "a/page")[2] == (
         b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
 
 

@@ -23,11 +23,13 @@ pre-conversion copy given as --before (the backup optimize_db_media.py makes
 for itself): a media path present there and gone here was converted, and only
 those names are rewritten. What each became is read from the optimizer's
 --manifest-out, passed as --manifest, whose converted-from column names the
-source of every file it produced. Without one, it is the one new file with
-the same directory and stem, which cannot follow a file the optimizer had to
-give another name (foo-mp4.webm, beside a foo.webm already stored); a removed
-file with no single replacement stops the run before anything is written,
-naming it.
+source of every file it produced; a file it pairs that is not stored with the
+digest and size it records means the manifest belongs to another run, and
+stops the run before anything is written. Without one, it is the one new
+file with the same directory and stem, which cannot follow a file the
+optimizer had to give another name (foo-mp4.webm, beside a foo.webm already
+stored); a removed file with no single replacement stops the run before
+anything is written, naming it.
 
 That diff is deliberate rather than inferring renames from this database
 alone. Inference - "for every stored <stem>.webp, treat <stem>.png as a name
@@ -412,6 +414,28 @@ class AmbiguousRename(ValueError):
         super().__init__(f"{len(conflicts)} filename(s) were converted differently in different places")
 
 
+class StaleManifest(ValueError):
+    """--manifest pairs removed files with files this database stores under
+    other contents than it records: a manifest from another run or another
+    database. Pairing through it would point pages at the wrong file.
+    `pairs` lists (removed path, path it was paired with)."""
+
+    def __init__(self, pairs: list):
+        self.pairs = pairs
+        super().__init__(f"the manifest's digest and size for {len(pairs)} converted file(s) do not match what "
+                         "is stored")
+
+
+def matches_manifest(conn, path: str, entry: tuple) -> bool:
+    """Whether the row at `path`, all its chunks joined, is the file a manifest
+    entry (sha256, size, converted-from) describes."""
+    row = conn.execute("SELECT content FROM Content WHERE path = ?", (path,)).fetchone()
+    if row is None:
+        return False
+    stored = reassemble(conn, path, row[0])
+    return (digest(stored), len(stored)) == entry[:2]
+
+
 class UnresolvedRename(ValueError):
     """Media files that left with no one file to say what replaced them.
     Rewriting their references would mean guessing, and a guess either
@@ -435,7 +459,11 @@ def build_rename_map(conn, before_conn, manifest: dict = None) -> dict:
     fails whenever the optimizer had to pick another name: beside a stored
     foo.webm, foo.mp4 became foo-mp4.webm, whose stem is not its own; and
     where foo.gif became foo.webm, foo.mp4 claims that file too. A new file
-    claimed by two that left pairs with neither.
+    claimed by two that left pairs with neither. Nothing else ties a manifest
+    to this database, so each file it pairs must be stored with the digest and
+    size it records, or StaleManifest is raised: an earlier run's manifest
+    saying foo.webm came from foo.mp4 would otherwise send the pages to an
+    author's own foo.webm, as check_same_lineage guards --before.
 
     Chunk continuation rows ("<path>-2") are skipped on both sides: an old
     one disappears because its base was rewritten, which is a deletion, not a
@@ -460,6 +488,10 @@ def build_rename_map(conn, before_conn, manifest: dict = None) -> dict:
         # source converts over the output an earlier run made from it.
         produced = {source: path for path, (_sha, _size, source) in manifest.items() if source}
         replacement = {old: produced[old] for old in gone if produced.get(old) in after}
+        stale = [(old, new) for old, new in sorted(replacement.items())
+                 if not matches_manifest(conn, new, manifest[new])]
+        if stale:
+            raise StaleManifest(stale)
     else:
         by_stem = {}
         for path in after - before:
@@ -850,6 +882,12 @@ def run(cfg: dict) -> int:
         codec = BrotliCodec(load_dictionary(conn))
         try:
             renames = build_rename_map(conn, before_conn, manifest)
+        except StaleManifest as exc:
+            for old, new in exc.pairs:
+                print(f"  error: {new} (paired with {old})", file=sys.stderr)
+            print(f"error: {exc}, so {cfg['manifest']} does not describe {db_path}; nothing was rewritten. Pass "
+                  "the --manifest-out of the optimizer run that produced this database.", file=sys.stderr)
+            return 1
         except UnresolvedRename as exc:
             for path in exc.paths:
                 print(f"  error: {path}", file=sys.stderr)
@@ -1255,7 +1293,8 @@ def main() -> None:
                    help="The optimizer's --manifest-out from the same run. Each removed file is paired with "
                         "the file converted from it, as the manifest records, rather than by directory and "
                         "stem, which cannot follow a file the optimizer had to give another name "
-                        "(foo-mp4.webm beside an existing foo.webm)")
+                        "(foo-mp4.webm beside an existing foo.webm). Refused if a file it pairs is not stored "
+                        "with the digest and size it records")
     p.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
     p.add_argument("--workers", type=int, default=8,
                    help="Parallel (de)compression workers (default: 8)")
