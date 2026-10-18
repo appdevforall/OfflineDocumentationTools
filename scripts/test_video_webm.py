@@ -101,13 +101,15 @@ def _scene(tmp_path: Path, pages: list = ()) -> tuple:
     return db_path, originals
 
 
-def _record_digests(db_path: Path, originals: Path, overwrite: bool = False) -> None:
-    """--write-video-digests, as when the originals are gathered. A test that
-    changes a stored clip afterwards and means the change to be accepted
-    records them again with `overwrite`."""
+def _record_digests(db_path: Path, originals: Path, rerecord: tuple = ()) -> str:
+    """--write-video-digests, as when the originals are gathered; returns what
+    it printed. A test that changes a stored clip afterwards and means the
+    change to be accepted names that clip's original in `rerecord`, as
+    --rerecord-video-digest does."""
     code, output = _call(opt.write_video_digests, {"db_path": db_path, "write_video_digests": originals,
-                                                   "overwrite_video_digests": overwrite})
+                                                   "rerecord_video_digests": list(rerecord)})
     assert code == 0, output
+    return output
 
 
 def _video_cfg(db_path: Path, originals: Path, **overrides) -> dict:
@@ -214,7 +216,7 @@ def test_a_clip_replaced_since_its_original_was_gathered_waits_for_its_own(tmp_p
     assert "a/media/wide.mp4: the stored clip changed since wide.mp4 was gathered" in output, output
 
     shutil.copy(replacement, originals / "wide.mp4")
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
     code, output = _run(_video_cfg(db_path, originals))
 
     assert code == 0, output
@@ -239,27 +241,110 @@ def test_an_original_with_no_recorded_digest_is_left_and_reported(tmp_path):
 
 
 def test_the_digests_record_the_clip_each_original_was_gathered_for(tmp_path):
-    """Read back as written, one line per original with a video row, and never
-    replaced unless asked: rewritten later, the file would accept a row
-    changed since its original was gathered."""
+    """Read back as written, one line per original with a video row. Written
+    again, the file gains a line for an original gathered since and keeps
+    every other line as it was."""
     db_path, originals = _scene(tmp_path)
-    (originals / "narrow.mov").unlink()
-    snapshot, digests = base._snapshot(db_path), originals / opt.VIDEO_DIGESTS
+    digests, aside = originals / opt.VIDEO_DIGESTS, tmp_path / "narrow.mov"
+    digests.unlink()
+    (originals / "narrow.mov").rename(aside)
+    snapshot = base._snapshot(db_path)
     with sqlite3.connect(db_path) as conn:
-        expected = {path.rsplit("/", 1)[-1]: hashlib.sha256(content).hexdigest() for path, content in conn.execute(
-            "SELECT path, content FROM Content WHERE path IN ('a/media/wide.mp4', 'a/media/talk.mp4')")}
+        stored = {path.rsplit("/", 1)[-1]: hashlib.sha256(content).hexdigest()
+                  for path, content in conn.execute("SELECT path, content FROM Content")}
 
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals)
 
     assert digests.read_text().splitlines()[:2] == [opt.VIDEO_DIGESTS_HEADER, opt.VIDEO_DIGESTS_COLUMNS]
-    assert opt.read_video_digests(digests) == expected
+    assert opt.read_video_digests(digests) == {name: stored[name] for name in ("wide.mp4", "talk.mp4")}
     written = digests.read_text()
-    (originals / "narrow.mov").write_bytes(b"gathered later")
-    code, output = _call(opt.write_video_digests, {"db_path": db_path, "write_video_digests": originals,
-                                                   "overwrite_video_digests": False})
-    assert code == 1 and "--overwrite-video-digests" in output, output
-    assert digests.read_text() == written
+    aside.rename(originals / "narrow.mov")
+    _record_digests(db_path, originals)
+    assert digests.read_text() == written + f"narrow.mov\t{stored['narrow.mov']}\n"
+    written = digests.read_text()
+    _record_digests(db_path, originals)
+    assert digests.read_text() == written, "nothing was left to record, yet the file changed"
     assert base._snapshot(db_path) == snapshot, "writing the digests changed the database"
+
+
+def _replace_clip(db_path: Path, name: str, work: Path, pattern: str = "smptebars") -> Path:
+    """An author's replacement for a/media/<name>, stored in its row; returns
+    the new clip's original. It is 320 px wide, so a WebM made from it is 320
+    px where one made from the stale 640 px original is 480; noisy and stored
+    at high quality, so any WebM is smaller than the stored copy and only the
+    digest keeps the row."""
+    replacement = _clip(work / f"new-{name}", 320, 180, noise=40, pattern=pattern)
+    stored = _cut_down(replacement, work / f"stored-{name}", crf=8)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE Content SET content = ? WHERE path = ?", (stored, f"a/media/{name}"))
+    return replacement
+
+
+def test_recording_one_replaced_clip_again_leaves_another_refused(tmp_path):
+    """Authors replaced wide.mp4 and talk.mp4, and a new original was gathered
+    for wide.mp4 alone. Writing the digests again records neither, and
+    --rerecord-video-digest wide.mp4 records only that one. Recording every
+    row again, as --overwrite-video-digests did, would have encoded talk.mp4's
+    stale original over the author's clip."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    new_wide = _replace_clip(db_path, "wide.mp4", tmp_path)
+    _replace_clip(db_path, "talk.mp4", tmp_path, pattern="rgbtestsrc")
+    shutil.copy(new_wide, originals / "wide.mp4")
+    gathered = digests.read_text()
+
+    output = _record_digests(db_path, originals)
+    assert digests.read_text() == gathered, "writing the digests again re-accepted a changed clip"
+    assert "--rerecord-video-digest" in output, output
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
+    talk = base._snapshot(db_path)["a/media/talk.mp4"]
+
+    code, output = _run(_video_cfg(db_path, originals))
+
+    assert base._snapshot(db_path).get("a/media/talk.mp4") == talk, "talk.mp4's stale original was encoded"
+    assert code == 1, output
+    assert "a/media/talk.mp4: the stored clip changed since talk.mp4 was gathered" in output, output
+    path, _value, data = animated._stored_media(db_path, "a/media/wide")
+    assert (path, _streams(data, tmp_path)["video"]["width"]) == ("a/media/wide.webm", 320)
+
+
+def test_rerecording_a_name_with_no_original_is_refused_by_name(tmp_path):
+    """A mistyped name, or one whose original is missing, is named and
+    nothing is recorded, rather than the rest being recorded as though done."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    gathered = digests.read_text()
+    (originals / "narrow.mov").unlink()
+    _replace_clip(db_path, "wide.mp4", tmp_path)
+
+    code, output = _call(opt.write_video_digests, {"db_path": db_path, "write_video_digests": originals,
+                                                   "rerecord_video_digests": ["wide.mp4", "narrow.mov", "wdie.mp4"]})
+
+    assert code == 1, output
+    assert "narrow.mov: no original named narrow.mov" in output and "wdie.mp4: no video row" in output, output
+    assert digests.read_text() == gathered
+
+
+def test_adding_an_original_gathered_later_leaves_a_replaced_clip_refused(tmp_path):
+    """narrow.mov's original was gathered after the digests were written, and
+    meanwhile an author replaced talk.mp4. Writing the digests again records
+    narrow.mov and leaves talk.mp4's line alone, so its stale original is
+    still refused."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.write_text("".join(line for line in digests.read_text().splitlines(keepends=True)
+                               if not line.startswith("narrow.mov\t")))
+    _replace_clip(db_path, "talk.mp4", tmp_path)
+    talk = base._snapshot(db_path)["a/media/talk.mp4"]
+
+    _record_digests(db_path, originals)
+    code, output = _run(_video_cfg(db_path, originals))
+
+    after = base._snapshot(db_path)
+    assert after.get("a/media/talk.mp4") == talk, "talk.mp4's stale original was encoded"
+    assert code == 1, output
+    assert "a/media/talk.mp4: the stored clip changed since talk.mp4 was gathered" in output, output
+    assert "a/media/narrow.webm" in after, "the original gathered later should convert"
 
 
 def test_an_original_of_another_length_is_left_and_reported(tmp_path):
@@ -271,7 +356,7 @@ def test_an_original_of_another_length_is_left_and_reported(tmp_path):
     stored = _cut_down(originals / "wide.mp4", tmp_path / "fine.mp4", crf=8)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (stored,))
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
     _clip(originals / "wide.mp4", 640, 360, seconds=4)
     longer = (originals / "wide.mp4").read_bytes()
     assert len(opt.encode_video_webm(originals / "wide.mp4", longer, opt.digest(longer), 40,
@@ -290,7 +375,7 @@ def test_a_webm_no_smaller_than_the_stored_row_leaves_the_row(tmp_path):
     tiny = _cut_down(originals / "wide.mp4", tmp_path / "tiny.mp4", width=96, crf=51)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (tiny,))
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
     before, manifest = base._snapshot(db_path), tmp_path / "manifest.tsv"
 
     code, output = _run(_video_cfg(db_path, originals, manifest_out=manifest))
@@ -314,7 +399,7 @@ def test_convert_then_restore_reproduces_the_videos(tmp_path):
             conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES (?, 1, ?, 28)",
                          ("a/media/big.mov" + (f"-{number}" if number else ""),
                           big.read_bytes()[start:start + opt.CHUNK_SIZE]))
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals)
     assert big.stat().st_size > 2 * opt.CHUNK_SIZE
     before, bundle = base._snapshot(db_path), tmp_path / "bundle"
 
@@ -333,7 +418,7 @@ def test_a_rerun_converts_nothing(tmp_path):
     tiny = _cut_down(originals / "wide.mp4", tmp_path / "tiny.mp4", width=96, crf=51)
     with sqlite3.connect(db_path) as conn:
         conn.execute("UPDATE Content SET content = ? WHERE path = 'a/media/wide.mp4'", (tiny,))
-    _record_digests(db_path, originals, overwrite=True)
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
     first, second = tmp_path / "first.tsv", tmp_path / "second.tsv"
     assert opt.run(_video_cfg(db_path, originals, manifest_out=first)) == 0
     converted = base._snapshot(db_path)

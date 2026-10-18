@@ -45,11 +45,12 @@ Modes:
     second generation of loss, which is what the originals are for. That
     directory also holds stored-digests.tsv, recording which clip each row
     stored when its original was gathered (--write-video-digests writes it
-    then). A row with no original there, one whose clip has changed since, or
-    one whose original is not plausibly the same clip (see encode_video_webm)
-    is left as it is and listed in the summary, never re-encoded from the
-    stored copy, and the run exits non-zero once the rows that did convert
-    are committed. Pages reference video by <video src> or
+    then, and adds originals gathered later; --rerecord-video-digest records a
+    replaced clip again). A row with no original there, one whose clip has
+    changed since, or one whose original is not plausibly the same clip (see
+    encode_video_webm) is left as it is and listed in the summary, never
+    re-encoded from the stored copy, and the run exits non-zero once the rows
+    that did convert are committed. Pages reference video by <video src> or
     <source src>, which play WebM as well, so update_media_references.py only
     renames those references, setting a <source>'s type to video/webm where it
     has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
@@ -1877,8 +1878,11 @@ def run(cfg: dict) -> int:
         for path, why in videos_unconverted:
             print(f"    {path}: {why}", file=sys.stderr)
         print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
-              f"for these. Gather their originals into {cfg['video_originals']}, with their stored digests in "
-              f"{VIDEO_DIGESTS}, and run it again to convert them.", file=sys.stderr)
+              f"for these. Gather their originals into {cfg['video_originals']} and record them with "
+              f"--write-video-digests {cfg['video_originals']}, which adds only originals not recorded yet. For a "
+              "clip replaced since its original was gathered, add --rerecord-video-digest NAME once its new "
+              "original is there, or delete the stale original if no new one will be gathered, so it cannot be "
+              "recorded for the new clip later. Then run this again to convert them.", file=sys.stderr)
     print(f"Media bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
@@ -2089,21 +2093,28 @@ def write_video_digests(cfg: dict) -> int:
     """--write-video-digests DIR: records in DIR/VIDEO_DIGESTS which clip each
     video row with an original in DIR stores, and changes nothing else.
 
-    Meant to run when the originals are gathered, which is why an existing file
-    is kept unless --overwrite-video-digests says otherwise: written again later,
-    it would record a row an author has replaced since as though its stale
-    original had been gathered for it."""
+    Meant to run when the originals are gathered. Over an existing file it adds
+    a line only for an original not recorded yet, and leaves every other line
+    as it is: recording a row again would accept a clip an author has replaced
+    since as though its stale original had been gathered for it.
+    --rerecord-video-digest NAME (cfg["rerecord_video_digests"]) records NAME
+    again, for a clip whose new original has been gathered; only the names
+    given change."""
     db_path, directory = cfg["db_path"], cfg["write_video_digests"]
+    rerecord = set(cfg.get("rerecord_video_digests") or ())
     target = directory / VIDEO_DIGESTS
     for needed, present in ((db_path, db_path.is_file()), (directory, directory.is_dir())):
         if not present:
             print(f"error: {needed} does not exist", file=sys.stderr)
             return 1
-    if target.exists() and not cfg.get("overwrite_video_digests"):
-        print(f"error: {target} already exists. It records the rows as they were when those originals were "
-              "gathered, and writing it again would accept any row changed since; pass "
-              "--overwrite-video-digests to replace it anyway", file=sys.stderr)
-        return 1
+    text, recorded = "", {}
+    if target.exists():
+        try:
+            text = target.read_text(encoding="utf-8")
+            recorded = read_video_digests(target)
+        except (OSError, UnicodeDecodeError, RuntimeError) as exc:
+            print(f"error: {exc}; nothing was written", file=sys.stderr)
+            return 1
     conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
     codec = None
     try:
@@ -2113,11 +2124,12 @@ def write_video_digests(cfg: dict) -> int:
             f"ON c.contentTypeID = ct.id WHERE ct.value IN ({','.join('?' * len(VIDEO_SOURCE_TYPES))}) "
             "ORDER BY c.path", VIDEO_SOURCE_TYPES).fetchall()
         lengths = {path: len(blob) for path, blob, _compression in rows}
-        found, without = {}, 0  # found: {name: {digest: [paths]}}
+        found, named, without = {}, set(), 0  # found: {name: {digest: [paths]}}
         for path, blob, compression in rows:
             if is_continuation_path(lengths, path):
                 continue
             name = path.rsplit("/", 1)[-1]
+            named.add(name)
             if not (directory / name).is_file():
                 without += 1
                 continue
@@ -2127,23 +2139,51 @@ def write_video_digests(cfg: dict) -> int:
         if codec is not None:
             codec.close()
         conn.close()
+    if not found:
+        print(f"error: none of the {without} video row(s) has an original in {directory}; nothing was written",
+              file=sys.stderr)
+        return 1
+    unknown = sorted(rerecord - set(found))
+    if unknown:
+        for name in unknown:
+            why = f"no original named {name} in {directory}" if name in named else "no video row has that name"
+            print(f"  error: {name}: {why}", file=sys.stderr)
+        print(f"error: --rerecord-video-digest names {len(unknown)} file(s) it cannot record; nothing was "
+              "written", file=sys.stderr)
+        return 1
+    writing = sorted(name for name in found if name not in recorded or name in rerecord)
     # Originals are found by file name, so one name cannot vouch for two clips.
-    clashes = sorted(name for name, clips in found.items() if len(clips) > 1)
+    clashes = [name for name in writing if len(found[name]) > 1]
     if clashes:
         for name in clashes:
             print(f"  error: {name}: {', '.join(sorted(sum(found[name].values(), [])))}", file=sys.stderr)
         print(f"error: {len(clashes)} file name(s) belong to video rows storing different clips, which one "
               "original cannot be gathered for; nothing was written", file=sys.stderr)
         return 1
-    if not found:
-        print(f"error: none of the {without} video row(s) has an original in {directory}; nothing was written",
-              file=sys.stderr)
-        return 1
-    lines = [VIDEO_DIGESTS_HEADER, VIDEO_DIGESTS_COLUMNS]
-    lines.extend(f"{name}\t{next(iter(found[name]))}" for name in sorted(found))
-    write_atomically(target, "\n".join(lines) + "\n")
-    print(f"Recorded the stored clip of {len(found)} video row(s) in {target}; {without} video row(s) have no "
-          f"original in {directory}.")
+    changed = sorted(name for name in found if name in recorded and name not in rerecord
+                     and recorded[name] not in found[name])
+    if changed:
+        print(f"  {len(changed)} recorded original(s) no longer match their row's clip and stay refused: "
+              f"{', '.join(changed)}. For each, gather the new original and pass --rerecord-video-digest NAME, "
+              "or delete the stale original if no new one will be gathered.")
+    if not writing:
+        print(f"{target} already records every original in {directory}; nothing was written.")
+        return 0
+    new = lambda name: f"{name}\t{next(iter(found[name]))}"  # noqa: E731
+    lines = text.splitlines(keepends=True) or [f"{VIDEO_DIGESTS_HEADER}\n", f"{VIDEO_DIGESTS_COLUMNS}\n"]
+    for number, line in enumerate(lines):
+        name = line.split("\t", 1)[0]
+        if name in rerecord and name in recorded and not line.startswith("#"):
+            lines[number] = new(name) + line[len(line.rstrip("\r\n")):]
+    if not lines[-1].endswith(("\n", "\r")):
+        lines[-1] += "\n"
+    added = [name for name in writing if name not in recorded]
+    lines.extend(f"{new(name)}\n" for name in added)
+    write_atomically(target, "".join(lines))
+    again = len(writing) - len(added)
+    print(f"Recorded the stored clip of {len(added)} video row(s) in {target}"
+          f"{f', and of {again} again' if again else ''}; {len(recorded) - again} line(s) already there are "
+          f"unchanged, and {without} video row(s) have no original in {directory}.")
     return 0
 
 
@@ -2181,11 +2221,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--write-video-digests", type=Path, default=None, metavar="DIR",
                    help=f"Instead of optimizing, write DIR/{VIDEO_DIGESTS}: for each video row with an original "
                         "in DIR, the digest of the clip it stores. Run it when the originals are gathered; "
-                        "--video-webm converts a row only while it still holds that clip. Changes nothing in "
-                        "the database")
-    p.add_argument("--overwrite-video-digests", action="store_true",
-                   help=f"With --write-video-digests, replace an existing {VIDEO_DIGESTS}, accepting every row "
-                        "as it is now")
+                        "--video-webm converts a row only while it still holds that clip. Over an existing "
+                        "file it adds only originals not recorded yet and keeps every other line. Changes "
+                        "nothing in the database")
+    p.add_argument("--rerecord-video-digest", action="append", default=None, metavar="NAME",
+                   help="With --write-video-digests, record the clip of original NAME again, replacing its line: "
+                        "for a clip an author replaced, once its new original is in DIR. Repeat it for each "
+                        "such clip; no other line changes")
     p.add_argument("--video-crf", type=int, default=DEFAULTS["video_crf"],
                    help=f"VP9 quality for --video-webm, 0 (best) to 63 (default: {DEFAULTS['video_crf']})")
     p.add_argument("--svg-rasterize-threshold", type=int, default=DEFAULTS["svg_rasterize_threshold"],
@@ -2252,6 +2294,8 @@ def main() -> None:
     if args.write_video_digests is not None and (args.video_webm or args.save_originals or args.restore_originals):
         parser.error("--write-video-digests runs on its own, when the originals are gathered, not as part of a "
                      "conversion")
+    if args.rerecord_video_digest and args.write_video_digests is None:
+        parser.error("--rerecord-video-digest only works with --write-video-digests")
     cfg = {
         "db_path": args.db_path, "dry_run": args.dry_run, "max_width": args.max_width,
         "jpeg_quality": args.jpeg_quality, "webp_quality": args.webp_quality,
@@ -2262,7 +2306,7 @@ def main() -> None:
         "force_restore": args.force_restore, "types": args.types, "animated_colors": args.animated_colors,
         "webm": args.webm, "webm_crf": args.webm_crf, "video_webm": args.video_webm,
         "video_originals": args.video_originals, "video_crf": args.video_crf,
-        "write_video_digests": args.write_video_digests, "overwrite_video_digests": args.overwrite_video_digests,
+        "write_video_digests": args.write_video_digests, "rerecord_video_digests": args.rerecord_video_digest or [],
     }
     if args.write_video_digests is not None:
         sys.exit(write_video_digests(cfg))
