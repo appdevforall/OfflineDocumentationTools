@@ -278,7 +278,10 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
             else:
                 name, value = "aria-hidden", '"true"'
         elif value is not None:
-            value = pattern.sub(lambda m: renames[m.group(1)], value)
+            # Matched as it is written below, after its "=": the pattern needs
+            # a separator before a filename, and an unquoted value that is only
+            # one (src=spring.gif) has none of its own.
+            value = pattern.sub(lambda m: renames[m.group(1)], "=" + value)[1:]
         parts.append(f" {name}" if value is None else f" {name}={value}")
     parts.append("></video>")
     video = "".join(parts)
