@@ -281,18 +281,21 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
     playing by itself, forever, in the page. Muted is also what lets it start
     without a user gesture. Every attribute is carried over in order, with any
     renamed filename in it rewritten, except alt, which <video> does not have:
-    a non-empty one becomes role="img" plus aria-label, so a screen reader
+    a non-empty one becomes role=img plus aria-label, so a screen reader
     still describes the animation, and an empty one - "decorative" - becomes
-    aria-hidden. The role is what makes the label count: on Android's WebView
-    (Pixel 6 Pro, WebView 155) a <video>'s aria-label alone reached the
-    accessibility tree as an empty node, while with role="img" it was the
+    aria-hidden=true. The role is what makes the label count: on Android's
+    WebView (Pixel 6 Pro, WebView 155) a <video>'s aria-label alone reached
+    the accessibility tree as an empty node, while with the role it was the
     node's content description. srcset and sizes are refused rather than
     dropped, since they name other files.
 
     Works on the tag as written, including inside a JSON string, where Kotlin's
     templated pages carry their markup with every quote escaped as \\": the
     escaping is undone to parse the tag (unescape_tag) and applied again to
-    the result."""
+    the result. The two attributes added are unquoted, so they need no
+    escaping: whether a tag is escaped is told from its own double quotes, and
+    one with none (src=spring.gif alt=Demo) reads as HTML even inside a JSON
+    string, where a bare role="img" would end the string."""
     markup, escaped = unescape_tag(tag)
     match = re.fullmatch(r"<img\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
     if match is None:
@@ -315,15 +318,17 @@ def img_tag_to_video(tag: str, pattern: re.Pattern, renames: dict) -> str:
         if key == "alt":
             text_value = value[1:-1] if value and value[0] in "\"'" else (value or "")
             if text_value.strip():
-                parts.append(' role="img"')
+                parts.append(" role=img")
                 name = "aria-label"
             else:
-                name, value = "aria-hidden", '"true"'
+                name, value = "aria-hidden", "true"
         elif value is not None:
             # Matched as it is written below, after its "=": the pattern needs
             # a separator before a filename, and an unquoted value that is only
-            # one (src=spring.gif) has none of its own.
-            value = pattern.sub(lambda m: renames[m.group(1)], "=" + value)[1:]
+            # one (src=spring.gif) has none of its own. Whatever a match holds
+            # before the name stays.
+            value = pattern.sub(lambda m: m.group(0)[:m.start(1) - m.start()] + renames[m.group(1)],
+                                "=" + value)[1:]
         parts.append(f" {name}" if value is None else f" {name}={value}")
     parts.append("></video>")
     video = "".join(parts)
@@ -548,7 +553,10 @@ def build_pattern(renames: dict) -> re.Pattern:
     it the tail of a longer name (so "copy.png" never matches inside
     "my_copy.png"), and not followed by one that would make it a prefix of
     something else. Longest names first so an alternation never settles for a
-    shorter overlapping match."""
+    shorter overlapping match.
+
+    Group 1 is the filename. A match can start before it, at whitespace after
+    an "=" or "(", so callers take the name's position from group 1."""
     names = sorted(renames, key=len, reverse=True)
     body = "|".join(re.escape(n) for n in names)
     # The character before must mark the start of a URL or attribute value -
@@ -557,7 +565,12 @@ def build_pattern(renames: dict) -> re.Pattern:
     # filename mentioned in prose or a code sample ("save it as copy.png")
     # from being silently rewritten; 39 of the converted names are short and
     # generic enough for that to be a real risk.
-    return re.compile(rf"(?<=[/\"'(=])({body})(?![A-Za-z0-9_])")
+    # HTML allows whitespace after an attribute's "=" (src= copy.png) and CSS
+    # inside url( copy.png ); in a JSON string a line break or tab there is
+    # written \n or \t. Missed, such a reference went on naming a file the
+    # optimizer had deleted, and both scripts exited 0. The one lookbehind
+    # covers both forms: as two alternatives, the scan took 60% longer.
+    return re.compile(rf"(?<=[/\"'(=])(?:(?<=[(=])(?:[ \t\n\r\f]|\\[tnfr])+)?({body})(?![A-Za-z0-9_])")
 
 
 def is_video(name: str) -> bool:
@@ -590,7 +603,7 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
         old, new = match.group(1), renames[match.group(1)]
         if not is_video(new):
             continue
-        span = enclosing_tag(text, match.start(), match.end())
+        span = enclosing_tag(text, match.start(1), match.end(1))
         if is_video(old):
             if span is not None and span[0] not in tags and _SOURCE_TAG_RE.match(text, span[0]):
                 source = source_tag_to_webm(text[span[0]:span[1]], pattern, renames)
@@ -598,14 +611,14 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
                     tags[span[0]] = (span[1], source)
             continue
         if span is None or not _IMG_TAG_RE.match(text, span[0]):
-            context = text[max(0, match.start() - 60):match.end() + 20]
+            context = text[max(0, match.start(1) - 60):match.end(1) + 20]
             raise UnconvertibleReference(f"{old} became {new}, but it is referenced outside an <img> tag: "
                                          f"{context!r}")
         if span[0] not in tags:
             tags[span[0]] = (span[1], img_tag_to_video(text[span[0]:span[1]], pattern, renames))
     edits = sorted([(start, end, new_tag) for start, (end, new_tag) in tags.items()]
-                   + [(m.start(), m.end(), m) for m in matches
-                      if not any(start <= m.start() < end for start, (end, _tag) in tags.items())],
+                   + [(m.start(1), m.end(1), m) for m in matches
+                      if not any(start <= m.start(1) < end for start, (end, _tag) in tags.items())],
                    key=lambda item: item[0])
     pieces, sites = [], []
     read = written = 0
@@ -692,7 +705,7 @@ def names_not_convertible_to_video(conn, codec, names, workers: int = 8, video_n
         blocked = set()
         for match in pattern.finditer(text):
             name = match.group(1)
-            span = enclosing_tag(text, match.start(), match.end())
+            span = enclosing_tag(text, match.start(1), match.end(1))
             if name in videos:
                 # Renamed wherever else it is named, as rewrite_text does.
                 if span is not None and _SOURCE_TAG_RE.match(text, span[0]):

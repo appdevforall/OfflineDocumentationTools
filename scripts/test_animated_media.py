@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import random
 import shutil
@@ -364,7 +365,7 @@ def _rewrite(text: str) -> str:
 
 def test_an_img_showing_a_converted_animation_becomes_a_video():
     assert _rewrite('<p>x</p><img alt="A spring" src="media/spring.gif" style="margin:0" width="300"/><p>y</p>') == (
-        '<p>x</p><video autoplay loop muted playsinline role="img" aria-label="A spring" src="media/spring.webm" '
+        '<p>x</p><video autoplay loop muted playsinline role=img aria-label="A spring" src="media/spring.webm" '
         'style="margin:0" width="300"></video><p>y</p>')
 
 
@@ -372,12 +373,27 @@ def test_a_json_escaped_img_keeps_its_escaping():
     """Kotlin's templated pages carry their markup inside JSON strings."""
     assert _rewrite('{"html":"<img src=\\"/k/html/images/spring.gif\\" alt=\\"Kotlin\\" width=\\"600\\"/>"}') == (
         '{"html":"<video autoplay loop muted playsinline src=\\"/k/html/images/spring.webm\\" '
-        'role=\\"img\\" aria-label=\\"Kotlin\\" width=\\"600\\"></video>"}')
+        'role=img aria-label=\\"Kotlin\\" width=\\"600\\"></video>"}')
+
+
+def test_a_tag_in_a_json_string_stays_json_however_it_is_quoted():
+    """Whether a tag is JSON-escaped is told from its own double quotes, so
+    one with none reads as HTML, and the quoted role="img" or
+    aria-hidden="true" written for its alt ended the JSON string. Unquoted,
+    they need no escaping, however the tag is read."""
+    for html, video in (
+            ("<img src=spring.gif alt=Demo>",
+             "<video autoplay loop muted playsinline src=spring.webm role=img aria-label=Demo></video>"),
+            ("<img alt='' src='spring.gif'>",
+             "<video autoplay loop muted playsinline aria-hidden=true src='spring.webm'></video>"),
+            ("<img src='spring.gif' alt='say \"hi\"'>",
+             "<video autoplay loop muted playsinline src='spring.webm' role=img aria-label='say \"hi\"'></video>")):
+        assert json.loads(_rewrite(json.dumps({"html": html}))) == {"html": video}, html
 
 
 def test_an_empty_alt_hides_the_video_from_screen_readers():
     assert _rewrite('<img alt="" src="spring.gif">') == (
-        '<video autoplay loop muted playsinline aria-hidden="true" src="spring.webm"></video>')
+        '<video autoplay loop muted playsinline aria-hidden=true src="spring.webm"></video>')
 
 
 def test_other_renamed_files_in_the_same_tag_are_rewritten_with_it():
@@ -397,13 +413,13 @@ def test_an_unquoted_filename_is_renamed_with_its_tag():
     for text, video in [
         ('<img src=spring.gif>', '<video autoplay loop muted playsinline src=spring.webm></video>'),
         ('<img src=spring.gif alt="x">',
-         '<video autoplay loop muted playsinline src=spring.webm role="img" aria-label="x"></video>'),
+         '<video autoplay loop muted playsinline src=spring.webm role=img aria-label="x"></video>'),
         ('<img data-src0=spring.gif width=300>',
          '<video autoplay loop muted playsinline data-src0=spring.webm width=300></video>'),
         ('<img src="spring.gif" data-src0=hero.png>',
          '<video autoplay loop muted playsinline src="spring.webm" data-src0=hero.webp></video>'),
         ('{"html":"<img src=spring.gif alt=\\"x\\">"}',
-         '{"html":"<video autoplay loop muted playsinline src=spring.webm role=\\"img\\" aria-label=\\"x\\">'
+         '{"html":"<video autoplay loop muted playsinline src=spring.webm role=img aria-label=\\"x\\">'
          '</video>"}'),
     ]:
         assert _rewrite(text) == video
@@ -652,7 +668,7 @@ def test_convert_to_webm_rewrite_then_restore_reproduces_the_database(tmp_path):
     assert ref.run(reference_cfg) == 0
 
     _path, _value, page = _stored_media(db_path, "a/page")
-    assert page == (b'<p>Watch:</p><video autoplay loop muted playsinline role="img" aria-label="A demo, slowly" '
+    assert page == (b'<p>Watch:</p><video autoplay loop muted playsinline role=img aria-label="A demo, slowly" '
                     b'src="media/demo.webm" width="300"></video>')
     _path, _value, kotlin = _stored_media(db_path, "k/page")
     assert b'<video autoplay loop muted playsinline src=\\"/k/images/kdemo.webm\\"' in kotlin
@@ -680,7 +696,39 @@ def test_an_unquoted_src_becomes_the_webm_and_restores_exactly(tmp_path):
                      "verbose": False, "save_originals": bundle, "restore_originals": None}
     assert ref.run(reference_cfg) == 0
     assert _stored_media(db_path, "a/media/page")[2] == (
-        b'<video autoplay loop muted playsinline src=demo.webm role="img" aria-label="Demo"></video>')
+        b'<video autoplay loop muted playsinline src=demo.webm role=img aria-label="Demo"></video>')
+
+    assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
+    assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
+                                   "restore_originals": bundle}) == 0
+    assert base._snapshot(db_path) == before
+
+
+def test_whitespace_after_the_equals_sign_still_names_the_gif(tmp_path):
+    """HTML allows whitespace around an attribute's "=", but the pattern needed
+    the "=" right before the name. The optimizer replaced demo.gif with
+    demo.webm, the references step left <img src= demo.gif> naming the deleted
+    GIF, and both exited 0. A link written that way keeps its GIF out of WebM,
+    as any link does, and is renamed with whatever that GIF became."""
+    db_path, bundle, pre_conversion = tmp_path / "documentation.db", tmp_path / "bundle", tmp_path / "before.db"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                              ("a/media/linked.gif", "image/gif", _gradient_animation(frames=12)),
+                              ("a/media/page.html", "text/html",
+                               b'<img src= demo.gif alt="Demo" title="a= linked.gif"><a href =\nlinked.gif>play</a>')],
+                    WEBM_TYPES)
+    before = base._snapshot(db_path)
+    shutil.copy(db_path, pre_conversion)
+
+    assert opt.run(_webm_cfg(db_path, save_originals=bundle)) == 0
+    linked, value, _data = _stored_media(db_path, "a/media/linked")
+    assert value != "video/webm", "a GIF a link names became WebM"
+    reference_cfg = {"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                     "verbose": False, "save_originals": bundle, "restore_originals": None}
+    assert ref.run(reference_cfg) == 0
+    linked = linked.rsplit("/", 1)[-1]
+    assert _stored_media(db_path, "a/media/page")[2] == (
+        f'<video autoplay loop muted playsinline src=demo.webm role=img aria-label="Demo" title="a= {linked}">'
+        f'</video><a href =\n{linked}>play</a>').encode()
 
     assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
     assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,

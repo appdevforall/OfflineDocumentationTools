@@ -659,12 +659,12 @@ def test_a_backslash_quote_in_html_is_not_json_escaping():
     assert _rewrite('<source src="media/clip.mp4" type="video/mp4" title=\'say \\"hi\\"\'>') == (
         '<source src="media/clip.webm" type="video/webm" title=\'say \\"hi\\"\'>', [ref.TagEdit])
     assert _rewrite('<img alt="A" src="spring.gif" title=\'say \\"hi\\"\'>') == (
-        '<video autoplay loop muted playsinline role="img" aria-label="A" src="spring.webm" '
+        '<video autoplay loop muted playsinline role=img aria-label="A" src="spring.webm" '
         'title=\'say \\"hi\\"\'></video>', [ref.TagEdit])
     # An apostrophe is not escaped in JSON, so it leaves a JSON tag escaped.
     assert _rewrite('{"h":"<img alt=\\"it\'s\\" src=\\"spring.gif\\"><source src=\\"clip.mp4\\" '
                     'type=\\"video/mp4\\">"}') == (
-        '{"h":"<video autoplay loop muted playsinline role=\\"img\\" aria-label=\\"it\'s\\" '
+        '{"h":"<video autoplay loop muted playsinline role=img aria-label=\\"it\'s\\" '
         'src=\\"spring.webm\\"></video><source src=\\"clip.webm\\" type=\\"video/webm\\">"}',
         [ref.TagEdit, ref.TagEdit])
 
@@ -678,10 +678,10 @@ def test_single_quoted_html_with_an_escaped_quote_inside_stays_literal():
                 "<source src='clip.mp4' type='video/mp4' title='say \\\"hi\\\"'>"):
         assert ref.unescape_tag(tag) == (tag, False)
     assert _rewrite("<img src='spring.gif' alt='say \\\"hi\\\"'>") == (
-        "<video autoplay loop muted playsinline src='spring.webm' role=\"img\" aria-label='say \\\"hi\\\"'>"
+        "<video autoplay loop muted playsinline src='spring.webm' role=img aria-label='say \\\"hi\\\"'>"
         "</video>", [ref.TagEdit])
     assert _rewrite("{\"h\":\"<img alt=\\\"A\\\" src='spring.gif'>\"}") == (
-        "{\"h\":\"<video autoplay loop muted playsinline role=\\\"img\\\" aria-label=\\\"A\\\" src='spring.webm'>"
+        "{\"h\":\"<video autoplay loop muted playsinline role=img aria-label=\\\"A\\\" src='spring.webm'>"
         "</video>\"}", [ref.TagEdit])
 
 
@@ -692,7 +692,7 @@ def test_a_tag_with_no_escaped_quote_is_not_json_escaped():
     for tag in ("<img alt=A src=spring.gif>", "<img alt='A' src='spring.gif'>"):
         assert ref.unescape_tag(tag) == (tag, False)
     assert _rewrite("<img alt='A' src='spring.gif'>") == (
-        "<video autoplay loop muted playsinline role=\"img\" aria-label='A' src='spring.webm'></video>",
+        "<video autoplay loop muted playsinline role=img aria-label='A' src='spring.webm'></video>",
         [ref.TagEdit])
 
 
@@ -773,7 +773,7 @@ def test_a_gif_and_a_video_of_one_stem_each_keep_their_own_webm(tmp_path):
     code, output = _call(ref.run, _reference_cfg(db_path, before_path, manifest=manifest))
     assert code == 0, output
     assert animated._stored_media(db_path, "a/page")[2] == (
-        b'<video autoplay loop muted playsinline role="img" aria-label="Spin" src="m/foo.webm"></video>'
+        b'<video autoplay loop muted playsinline role=img aria-label="Spin" src="m/foo.webm"></video>'
         b'<video><source src="m/foo-mp4.webm" type="video/webm"/></video>')
 
 
