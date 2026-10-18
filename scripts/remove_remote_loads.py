@@ -56,7 +56,9 @@ example, an <img> whose src is not a stored file is left (dropping its srcset
 would leave it showing nothing), as is a dark <source> outside a <picture>, or
 a YouTube <video> with an attribute this tool has not seen. An <img src> on
 developer.android.com without a srcset is bundle_remote_images.py's, and is
-neither touched nor reported here.
+neither touched nor reported here. A remote load in any other shape - an
+<iframe>, a stylesheet <link>, a CSS url() - is not this tool's to find;
+check_remote_loads.py, which runs last, reports any that is left.
 
 The edit is made on the decoded bytes. Each changed row is re-compressed the
 way its ContentTypes row says (against the shared CompressionDictionary when
@@ -74,7 +76,7 @@ could not be restored. It goes after bundle_remote_images.py because an <img>
 can carry both a src that step stores and a remote srcset: this step drops the
 srcset only once the src is stored, so run first it would report the <img>
 and leave it, and the srcset would stay after bundle_remote_images.py fixed
-the src.
+the src. check_remote_loads.py runs after it, last.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards - all three only when there is something to

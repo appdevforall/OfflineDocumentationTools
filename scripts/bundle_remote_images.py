@@ -47,12 +47,15 @@ a/android/media/MediaPlayer.html that is
 ../../devsite/media/images_mediaplayer_state_diagram.gif.
 
 Only an exact src="URL" on an <img> is rewritten. Any other appearance of one
-of these URLs - another attribute, a srcset, a link, JSON-escaped markup - is
-left as it is, named, and the run exits non-zero at the end. A file is stored
-only when a page still loads it from the internet, so a second run (or a run
-after optimize_db_media.py has converted a stored file) adds nothing. A row
-already at a file's path is used only if it holds the same bytes; one holding
-anything else is reported, and the pages that load that file are left alone.
+of these URLs spelled as listed - another attribute, a srcset, a link,
+JSON-escaped markup - is left as it is, named, and the run exits non-zero at
+the end. The same file spelled any other way (http://, //developer.android.com/,
+an entity inside the URL) is not recognised here; check_remote_loads.py, which
+runs last, reports it wherever it loads. A file is stored only when a page
+still loads it from the internet, so a second run (or a run after
+optimize_db_media.py has converted a stored file) adds nothing. A row already
+at a file's path is used only if it holds the same bytes; one holding anything
+else is reported, and the pages that load that file are left alone.
 
 Where it goes in the pipeline: right after remove_skin_font_comment.py and
 before remove_remote_loads.py, all before the `cp DB migrated.db` snapshot.

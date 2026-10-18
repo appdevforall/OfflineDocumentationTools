@@ -169,7 +169,7 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, and three steps that run in this
+  `create_empty_database.py`, `list_database_documents.py`, and four steps that run in this
   order before the `--before` snapshot `update_media_references.py` diffs against:
   `remove_skin_font_comment.py` (cuts Help+Manual's commented-out Google Fonts note out of the
   `i/` pages until the skin fix, ADFA-6609, ships; first - its docstring says why),
@@ -179,11 +179,12 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   holding its image instead; ADFA-6589), then `remove_remote_loads.py` (takes out the markup that
   makes pages fetch from the internet where no download is needed - a remote `srcset` beside a
   stored `src`, dark-theme `<source>`s, kotl.in badges, YouTube players - ADFA-6589; after
-  `bundle_remote_images.py`, because it drops a remote `srcset` only beside a stored `src`).
+  `bundle_remote_images.py`, because it drops a remote `srcset` only beside a stored `src`), and
+  last `check_remote_loads.py` (reads every page, template and tooltip, and fails the build,
+  naming each, if anything would still load from off the device; it writes nothing - ADFA-6589).
   **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
-  only): `tooltips.py`,
-  `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
-  `load_android_data.py`.
+  only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
+  `android_html_page.py`, `load_android_data.py`.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
