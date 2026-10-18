@@ -10,8 +10,10 @@
 remove_skin_font_comment.py
 
 Removes the commented-out Google Fonts note that Help+Manual's skin writes into
-every page it generates. In the 2026-10-13 database that is all 362 text/html
-rows under i/, each carrying the same 1,005-byte comment:
+its pages. In the 2026-10-13 database 362 of the 366 text/html rows under i/
+carry it, each the same 1,005-byte comment; the other four are Help+Manual
+template files without it (_hmXpopup.htm, _hmXtopic.htm, _hm_print_window.htm,
+_hmpermalink.html):
 
     <!-- Insert Google web fonts references here.
     ...
@@ -86,7 +88,7 @@ OPENING = b"Insert Google web fonts references here."
 
 # sha256 of the note's content - every byte between "<!--" and "-->", including
 # the leading space and the CRLF line endings - as Help+Manual's skin wrote it
-# into all 362 i/ pages of the 2026-10-13 database (1,005 bytes, one digest).
+# into 362 of the 2026-10-13 database's i/ pages (1,005 bytes, one digest).
 # A comment opening with OPENING but hashing to anything else is a different
 # note and is reported, not removed.
 KNOWN_NOTE_SHA256 = "63838dc41d48cb0c3d0dc09d94b08e2c20e9f95cb9c033d2d875b1ef4b60ecea"
