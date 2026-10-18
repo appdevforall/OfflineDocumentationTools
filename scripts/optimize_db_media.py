@@ -47,14 +47,16 @@ Modes:
     stored when its original was gathered (--write-video-digests writes it
     then, and adds originals gathered later; --rerecord-video-digest records a
     replaced clip again). A row with no original there, one whose clip has
-    changed since, or one whose original is not plausibly the same clip (see
-    encode_video_webm) is left as it is and listed in the summary, never
-    re-encoded from the stored copy, and the run exits non-zero once the rows
-    that did convert are committed. Pages reference video by <video src> or
-    <source src>, which play WebM as well, so update_media_references.py only
-    renames those references, setting a <source>'s type to video/webm where it
-    has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
-    needs.
+    changed since, one whose original is not plausibly the same clip (see
+    encode_video_webm), or one named in a <source> update_media_references.py
+    cannot parse is left as it is and listed in the summary, never re-encoded
+    from the stored copy, and the run exits non-zero once the rows that did
+    convert are committed; a script chaining the steps must still run
+    update_media_references.py for those before it stops on that exit code.
+    Pages reference video by <video src> or <source src>, which play WebM as
+    well, so update_media_references.py only renames those references,
+    setting a <source>'s type to video/webm where it has one. Needs ffmpeg and
+    ffprobe, and the video/webm content type --webm needs.
 
   NOTE: none of the converting modes rewrites the references that point at
   the old filenames, so pages will link to names that no longer exist until
@@ -659,17 +661,39 @@ VIDEO_DIGESTS_HEADER = "# optimize_db_media video originals v1"
 VIDEO_DIGESTS_COLUMNS = "# name\tstored-sha256"
 
 
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+
 def read_video_digests(path: Path) -> dict:
     """{original's file name: sha256 of the clip its row stored} from a
-    VIDEO_DIGESTS file. An unparseable line is fatal, as in read_manifest."""
-    entries = {}
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    VIDEO_DIGESTS file. Anything but the file as written is fatal, naming the
+    line, as in read_manifest: a missing or wrong header, a line without two
+    tab-separated fields, a name given twice, or a digest that is not 64
+    lowercase hex digits. Otherwise a mistyped digest is reported as a changed
+    clip and a repeated name's last line wins. CRLF line ends and blank lines
+    are read."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"{path}: not UTF-8 text ({exc})") from exc
+    if not lines or lines[0] != VIDEO_DIGESTS_HEADER:
+        raise RuntimeError(f"{path}:1: expected the header {VIDEO_DIGESTS_HEADER!r}, found "
+                           f"{repr(lines[0][:80]) if lines else 'an empty file'}")
+    entries, where = {}, {}
+    for number, line in enumerate(lines[1:], start=2):
         if not line.strip() or line.startswith("#"):
             continue
         fields = line.split("\t")
         if len(fields) != 2:
             raise RuntimeError(f"{path}:{number}: expected 2 tab-separated fields, got {len(fields)}")
-        entries[fields[0]] = fields[1]
+        name, sha = fields
+        if not name:
+            raise RuntimeError(f"{path}:{number}: no file name")
+        if not _SHA256_RE.fullmatch(sha):
+            raise RuntimeError(f"{path}:{number}: {sha[:80]!r} is not a sha256 digest (64 lowercase hex digits)")
+        if name in entries:
+            raise RuntimeError(f"{path}:{number}: {name} is recorded already, on line {where[name]}")
+        entries[name], where[name] = sha, number
     return entries
 
 
@@ -1428,7 +1452,7 @@ def run(cfg: dict) -> int:
             return 1
         try:
             video_digests = read_video_digests(digests_path)
-        except RuntimeError as exc:
+        except (OSError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
@@ -1886,7 +1910,7 @@ def run(cfg: dict) -> int:
           f"{stats['archive_blocked']} left alone because archiving them failed, "
           f"{stats['errors']} error(s).")
     if stats["replaced_stale"]:
-        print(f"  {stats['replaced_stale']} re-inserted source image(s) replaced the stale output "
+        print(f"  {stats['replaced_stale']} re-inserted source file(s) replaced the stale output "
               "they had produced in an earlier run.")
     for value in sorted(per_type):
         b = per_type[value]
@@ -1904,6 +1928,10 @@ def run(cfg: dict) -> int:
         kinds = {kind for _path, _why, kind in videos_unconverted}
         print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
               "for these.", file=sys.stderr)
+        if stats["converted"] and not cfg["dry_run"]:
+            print(f"  {stats['converted']} file(s) did convert under new names: run update_media_references.py "
+                  "for them before a script stops on this exit code, or their pages go on naming the removed "
+                  "files.", file=sys.stderr)
         if "original" in kinds:
             originals = cfg["video_originals"]
             print(f"  For a clip with no original, or none recorded, gather it into {originals} and record it "
@@ -2141,9 +2169,9 @@ def write_video_digests(cfg: dict) -> int:
     text, recorded = "", {}
     if target.exists():
         try:
-            text = target.read_text(encoding="utf-8")
             recorded = read_video_digests(target)
-        except (OSError, UnicodeDecodeError, RuntimeError) as exc:
+            text = target.read_text(encoding="utf-8")
+        except (OSError, RuntimeError) as exc:
             print(f"error: {exc}; nothing was written", file=sys.stderr)
             return 1
     conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
@@ -2242,9 +2270,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--video-webm", action="store_true",
                    help="Convert every video/mp4 and video/quicktime row to VP9 WebM (15 fps, at most 480 px "
                         "wide), encoded from its original in --video-originals rather than from the stored "
-                        "copy, and kept only when smaller. A row with no original there is left as it is and "
-                        "listed. Needs ffmpeg, ffprobe and a video/webm content type; run "
-                        "update_media_references.py afterwards to rename the references")
+                        "copy, and kept only when smaller. A row with no usable original there is left as it is "
+                        "and listed, and the run exits non-zero. Needs ffmpeg, ffprobe and a video/webm content "
+                        "type; run update_media_references.py afterwards to rename the references, even when "
+                        "this exits non-zero")
     p.add_argument("--video-originals", type=Path, default=None, metavar="DIR",
                    help="With --video-webm (and required by it): the directory holding each video row's "
                         "original under the row's own file name, e.g. DIR/foo.mp4 for a/devsite/media/foo.mp4, "
@@ -2321,10 +2350,20 @@ def main() -> None:
         parser.error("--video-webm needs --video-originals: it encodes each video from its original, never "
                      "from the stored copy")
     # Recorded just before converting, the digests would match whatever the
-    # rows hold by then, stale originals included.
+    # rows hold by then, stale originals included. Nothing else applies to
+    # writing them, --dry-run included, so any other option is refused rather
+    # than ignored.
     if args.write_video_digests is not None and (args.video_webm or args.save_originals or args.restore_originals):
         parser.error("--write-video-digests runs on its own, when the originals are gathered, not as part of a "
                      "conversion")
+    if args.write_video_digests is not None:
+        alone = ("db_path", "write_video_digests", "rerecord_video_digest")
+        others = [f"--{dest.replace('_', '-')}" for dest, value in vars(args).items()
+                  if dest not in alone and value != parser.get_default(dest)]
+        if others:
+            parser.error(f"--write-video-digests runs on its own, when the originals are gathered: it writes only "
+                         f"DIR/{VIDEO_DIGESTS}, changes nothing in the database and has no dry run, so it takes no "
+                         f"other option ({', '.join(others)}) except --rerecord-video-digest")
     if args.rerecord_video_digest and args.write_video_digests is None:
         parser.error("--rerecord-video-digest only works with --write-video-digests")
     cfg = {

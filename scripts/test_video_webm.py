@@ -171,8 +171,9 @@ def test_a_video_with_no_original_is_left_and_reported(tmp_path):
     """Encoding the stored copy instead would stack a second generation of loss
     on a clip that is lossy already, which is what the originals are for. The
     rest are committed, but the run exits non-zero, so a wrong originals
-    folder cannot pass for a clean run; given the original, a rerun converts
-    the clip that was left."""
+    folder cannot pass for a clean run. A script stopping on that exit code
+    must still rewrite the references to the clips that did convert, so the
+    run says so. Given the original, a rerun converts the clip that was left."""
     db_path, originals = _scene(tmp_path)
     aside = tmp_path / "wide.mp4"
     (originals / "wide.mp4").rename(aside)
@@ -185,6 +186,7 @@ def test_a_video_with_no_original_is_left_and_reported(tmp_path):
     assert after["a/media/wide.mp4"] == before["a/media/wide.mp4"], "converted with no original"
     assert "a/media/talk.webm" in after, "the other clips should still convert"
     assert "a/media/wide.mp4: no original" in output and "exits non-zero" in output, output
+    assert "run update_media_references.py" in output, "the references step must still run for the rest"
     assert " 0 error(s)" in output, "a clip left for want of its original is listed, not counted as an error"
     assert "a/media/wide.mp4" not in opt.read_manifest(manifest), "a later run with the original must retry it"
 
@@ -265,6 +267,40 @@ def test_the_digests_record_the_clip_each_original_was_gathered_for(tmp_path):
     _record_digests(db_path, originals)
     assert digests.read_text() == written, "nothing was left to record, yet the file changed"
     assert base._snapshot(db_path) == snapshot, "writing the digests changed the database"
+
+
+def test_a_digest_file_not_as_written_is_refused_naming_the_line(tmp_path):
+    """A wrong digest used to be reported as a changed clip, a name given
+    twice let its last line win, and a missing header went unnoticed. Each is
+    now refused, naming the line, by the run and by the writer before either
+    does anything. Windows line ends and a trailing blank line are read."""
+    sha = "a" * 64
+    good = f"{opt.VIDEO_DIGESTS_HEADER}\n{opt.VIDEO_DIGESTS_COLUMNS}\nwide.mp4\t{sha}\n"
+    path = tmp_path / opt.VIDEO_DIGESTS
+    for text in (good.replace("\n", "\r\n"), good + "\n"):
+        path.write_text(text, encoding="utf-8", newline="")
+        assert opt.read_video_digests(path) == {"wide.mp4": sha}
+    duplicated = good + f"wide.mp4\t{'b' * 64}\n"
+    for text, line, why in ((f"wide.mp4\t{sha}\n", 1, "header"), (good.replace(" v1", " v2"), 1, "header"),
+                            ("", 1, "header"), (duplicated, 4, "wide.mp4 is recorded already, on line 3"),
+                            (good.replace(sha, sha.upper()), 3, "not a sha256"),
+                            (good.replace(sha, sha[1:]), 3, "not a sha256"),
+                            (good.replace(sha, sha + " "), 3, "not a sha256")):
+        path.write_text(text, encoding="utf-8", newline="")
+        with pytest.raises(RuntimeError) as caught:
+            opt.read_video_digests(path)
+        assert f"{path}:{line}: " in str(caught.value) and why in str(caught.value), (text, caught.value)
+
+    db_path, originals = tmp_path / "documentation.db", tmp_path / "originals"
+    originals.mkdir()
+    (originals / "wide.mp4").write_bytes(b"an original")
+    (originals / opt.VIDEO_DIGESTS).write_text(duplicated)
+    animated._build_database(db_path, [("a/media/wide.mp4", "video/mp4", b"a clip")], VIDEO_TYPES)
+    code, output = _run(_video_cfg(db_path, originals))
+    assert code == 1 and "recorded already" in output and "Backing up" not in output, output
+    code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+    assert code == 1 and "recorded already" in output, output
+    assert (originals / opt.VIDEO_DIGESTS).read_text() == duplicated
 
 
 def _digests_cfg(db_path: Path, originals: Path) -> dict:
@@ -514,6 +550,28 @@ def test_writing_the_digests_is_refused_as_part_of_a_conversion(tmp_path):
         assert "--write-video-digests runs on its own" in result.stderr, result.stderr
         assert not digests.exists(), f"{flags[0]}: the digests were written"
     assert base._snapshot(db_path) == before
+
+
+def test_writing_the_digests_takes_no_other_option(tmp_path):
+    """The writer changes nothing in the database and has no dry run: under
+    --dry-run it used to write the file anyway, and it ignored the optimizing
+    and output options without a word. Each is now refused, by name.
+    --rerecord-video-digest is the one option it takes."""
+    db_path, originals, manifest = tmp_path / "documentation.db", tmp_path / "originals", tmp_path / "m.tsv"
+    originals.mkdir()
+    (originals / "wide.mp4").write_bytes(b"an original")
+    animated._build_database(db_path, [("a/media/wide.mp4", "video/mp4", b"a clip")], VIDEO_TYPES)
+    digests = originals / opt.VIDEO_DIGESTS
+    for flags in (["--dry-run"], ["--webp"], ["--manifest-out", manifest], ["--types", "video/mp4"],
+                  ["--max-width", "100"], ["--verbose"]):
+        result = _optimizer(db_path, "--write-video-digests", originals, *flags)
+
+        assert result.returncode == 2, result
+        assert "--write-video-digests runs on its own" in result.stderr and flags[0] in result.stderr, result.stderr
+        assert not digests.exists() and not manifest.exists(), f"{flags[0]}: a file was written"
+    assert _optimizer(db_path, "--write-video-digests", originals).returncode == 0
+    result = _optimizer(db_path, "--write-video-digests", originals, "--rerecord-video-digest", "wide.mp4")
+    assert result.returncode == 0, result
 
 
 def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
