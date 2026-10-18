@@ -121,18 +121,18 @@ def database_path_for(url: str) -> str:
 
 
 def read_index(media_dir: Path) -> tuple:
-    """([Entry], [problem]) from media_dir/files.tsv and, if there is one,
-    media_dir/existing.tsv. A problem is anything that keeps the record from
-    describing the files exactly: a missing or foreign header, a line with the
-    wrong number of fields, a malformed size or digest, a files.tsv path that
-    does not follow the a/devsite/media/ naming, a URL or path listed twice in
-    either list or across them."""
+    """([Entry], [(list name, problem)]) from media_dir/files.tsv and, if there
+    is one, media_dir/existing.tsv. A problem is anything that keeps the record
+    from describing the files exactly: a missing or foreign header, a line with
+    the wrong number of fields, a malformed size or digest, a files.tsv path
+    that does not follow the a/devsite/media/ naming, a URL or path listed twice
+    in either list or across them."""
     entries, problems, paths, urls = [], [], set(), set()
     _read_list(media_dir / INDEX_NAME, INDEX_HEADER, False, entries, problems, paths, urls)
     if (media_dir / EXISTING_NAME).exists():
         _read_list(media_dir / EXISTING_NAME, EXISTING_HEADER, True, entries, problems, paths, urls)
     if not any(not entry.existing for entry in entries) and not problems:
-        problems.append(f"{media_dir / INDEX_NAME} lists no files")
+        problems.append((INDEX_NAME, f"{media_dir / INDEX_NAME} lists no files"))
     return entries, problems
 
 
@@ -140,39 +140,41 @@ def _read_list(path: Path, header: str, existing: bool, entries: list, problems:
                urls: set) -> None:
     """Appends one list's entries and problems; `paths` and `urls` carry what
     the lists read before it hold, so a duplicate across lists is caught."""
+    def problem(text):
+        problems.append((path.name, text))
     if not path.is_file():
-        problems.append(f"{path} does not exist")
+        problem(f"{path} does not exist")
         return
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0] != header:
-        problems.append(f"{path}: the first line is not {header!r}")
+        problem(f"{path}: the first line is not {header!r}")
         return
     for number, line in enumerate(lines[1:], start=2):
         if not line.strip() or line.startswith("#"):
             continue
         fields = line.split("\t")
         if len(fields) != len(INDEX_COLUMNS):
-            problems.append(f"{path}:{number}: expected {len(INDEX_COLUMNS)} tab-separated fields, got {len(fields)}")
+            problem(f"{path}:{number}: expected {len(INDEX_COLUMNS)} tab-separated fields, got {len(fields)}")
             continue
         url, database_path, content_type, size, sha, license_ = fields
         parts = urlsplit(url)
         if not url.startswith(SOURCE_PREFIX) or parts.query or parts.fragment:
-            problems.append(f"{path}:{number}: {url!r} is not a {SOURCE_PREFIX} URL without a query or fragment")
+            problem(f"{path}:{number}: {url!r} is not a {SOURCE_PREFIX} URL without a query or fragment")
             continue
         if not existing and database_path != database_path_for(url):
-            problems.append(f"{path}:{number}: {database_path!r} is not the a/devsite/media/ path for {url!r}")
+            problem(f"{path}:{number}: {database_path!r} is not the a/devsite/media/ path for {url!r}")
             continue
         if not _PLAIN_PATH.fullmatch(database_path):
-            problems.append(f"{path}:{number}: {database_path!r} would need percent-encoding in a relative src")
+            problem(f"{path}:{number}: {database_path!r} would need percent-encoding in a relative src")
             continue
         if not size.isdigit() or not _SHA256.fullmatch(sha):
-            problems.append(f"{path}:{number}: expected a byte count and a sha256, got {size!r} and {sha!r}")
+            problem(f"{path}:{number}: expected a byte count and a sha256, got {size!r} and {sha!r}")
             continue
         if not content_type.startswith("image/"):
-            problems.append(f"{path}:{number}: {content_type!r} is not an image/ content type")
+            problem(f"{path}:{number}: {content_type!r} is not an image/ content type")
             continue
         if database_path in paths or url in urls:
-            problems.append(f"{path}:{number}: {url} is listed twice")
+            problem(f"{path}:{number}: {url} is listed twice")
             continue
         paths.add(database_path)
         urls.add(url)
@@ -241,15 +243,23 @@ def run(cfg: dict) -> int:
         print(f"error: {db_path} does not exist", file=sys.stderr)
         return 1
     entries, problems = read_index(media_dir)
-    data, file_problems = check_files(media_dir, entries) if not problems else ({}, [])
-    problems += file_problems
+    if problems:
+        for _name, problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        names = list(dict.fromkeys(name for name, _problem in problems))
+        print(f"error: {' and '.join(names)} in {media_dir} {'has' if len(names) == 1 else 'have'} the problems "
+              "above; nothing was written.", file=sys.stderr)
+        return 1
+    data, problems = check_files(media_dir, entries)
     if problems:
         for problem in problems:
             print(f"  {problem}", file=sys.stderr)
         print(f"error: the files in {media_dir} do not match {INDEX_NAME}; nothing was written.", file=sys.stderr)
         return 1
-    print(f"{len(data)} file(s) in {media_dir} match {INDEX_NAME} (size and sha256); "
-          f"{len(entries) - len(data)} URL(s) in {EXISTING_NAME} name images already in the database.")
+    print(f"{len(data)} file(s) in {media_dir} match {INDEX_NAME} (size and sha256).")
+    if len(entries) > len(data):
+        print(f"{len(entries) - len(data)} URL(s) in {EXISTING_NAME} name a row the database should already hold; "
+              "each row is checked against its record when a page loads its URL.")
     by_url = {entry.source_url: entry for entry in entries}
 
     conn = sqlite3.connect(db_path)

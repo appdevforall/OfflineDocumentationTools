@@ -229,6 +229,7 @@ def test_each_file_is_stored_like_the_other_devsite_media(tmp_path: Path):
         assert (_decompress(content) if TYPES[content_type][1] == "brotli" else content) == data, path
     assert rows[PNG_PATH][2] == PNG and rows[SVG_PATH][2] != SVG
     assert "Storing 3 file(s)" in out
+    assert "3 file(s) in" in out and "URL(s) in existing.tsv" not in out
 
 
 def test_each_img_src_points_at_the_stored_file(tmp_path: Path):
@@ -329,6 +330,7 @@ def test_a_list_not_as_written_is_refused(tmp_path: Path):
         assert code == 1, name
         assert db_path.read_bytes() == before, name
         assert message in err, (name, err)
+        assert f"error: {tool.INDEX_NAME} in {media_dir} has the problems above; nothing was written." in err, name
 
 
 def test_a_content_type_the_database_lacks_is_refused(tmp_path: Path):
@@ -518,6 +520,8 @@ def test_a_url_in_existing_tsv_points_at_the_row_already_there(tmp_path: Path):
     assert after[OLD_PATH] == before[OLD_PATH]
     assert set(after) - set(before) == {PNG_PATH, GIF_PATH, SVG_PATH}
     assert "Storing 3 file(s)" in out and "1 already stored, 1 of them under another path" in out
+    assert ("1 URL(s) in existing.tsv name a row the database should already hold; each row is checked against "
+            "its record when a page loads its URL.") in out
     for path, expected in EXPECTED.items():
         assert _page(db_path, path) == expected, path
 
@@ -555,8 +559,9 @@ def test_an_existing_row_that_is_missing_changed_or_retyped_is_reported(tmp_path
 def test_an_existing_tsv_not_as_written_is_refused(tmp_path: Path):
     """A foreign header, a URL listed in both lists, a path that needs
     percent-encoding, a malformed digest: each stops the run before the
-    database is touched. Unlike files.tsv, its path need not follow the
-    a/devsite/media/ naming of its URL."""
+    database is touched, and the error names existing.tsv, not files.tsv.
+    Unlike files.tsv, its path need not follow the a/devsite/media/ naming of
+    its URL."""
     cases = {
         "foreign header": (None, "the first line is not"),
         "in both lists": ([_existing_line(url=PNG_URL)], "is listed twice"),
@@ -577,6 +582,8 @@ def test_an_existing_tsv_not_as_written_is_refused(tmp_path: Path):
         assert code == 1, name
         assert db_path.read_bytes() == before, name
         assert message in err, (name, err)
+        assert f"error: {tool.EXISTING_NAME} in {media_dir} has the problems above; nothing was written." in err, name
+        assert f"do not match {tool.INDEX_NAME}" not in err, name
 
 
 def test_a_files_tsv_listing_no_files_is_refused(tmp_path: Path):
