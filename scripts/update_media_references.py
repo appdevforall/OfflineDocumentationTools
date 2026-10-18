@@ -392,6 +392,24 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
     return source.replace('"', '\\"') if escaped else source
 
 
+# What follows a tag's name up to its end, read with its quotes: a "<" or ">"
+# inside a quoted value ends nothing.
+_QUOTED_TAG_BODY_RE = re.compile(r"""(?:[^"'<>]|"[^"]*"|'[^']*')*""")
+
+
+def in_hidden_source_tag(text: str, start: int) -> bool:
+    """Whether text[start] lies inside a <source> tag that enclosing_tag, which
+    reads no quotes, does not find: a ">" in a quoted value before the name
+    (<source title="a > b" src="clip.mp4" type="video/mp4">) seems to end the
+    tag there, and a "<" seems to open another. Renamed as though it were
+    outside any <source>, the name would leave that tag's type saying
+    video/mp4."""
+    opening = -1
+    for tag in _SOURCE_TAG_RE.finditer(text, 0, start):
+        opening = tag.start()
+    return opening != -1 and _QUOTED_TAG_BODY_RE.match(text, opening + len("<source")).end() > start
+
+
 def check_same_lineage(conn, before_conn) -> str:
     """Returns a complaint if --before doesn't look like a pre-conversion copy
     of this same database, or "" if it does.
@@ -594,7 +612,8 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
     referenced, except as the src of a <source> declaring a type: that tag is
     a TagEdit too, its type set to video/webm (source_tag_to_webm). A
     <source> naming one whose attributes cannot be parsed raises
-    UnconvertibleReference.
+    UnconvertibleReference, as does one enclosing_tag cannot find
+    (in_hidden_source_tag).
 
     Still a single pass over the original text, so a replacement can never be
     re-matched by another; the output is assembled piece by piece instead of
@@ -607,10 +626,15 @@ def rewrite_text(text: str, pattern: re.Pattern, renames: dict) -> tuple:
             continue
         span = enclosing_tag(text, match.start(1), match.end(1))
         if is_video(old):
-            if span is not None and span[0] not in tags and _SOURCE_TAG_RE.match(text, span[0]):
-                source = source_tag_to_webm(text[span[0]:span[1]], pattern, renames)
-                if source is not None:
-                    tags[span[0]] = (span[1], source)
+            if span is not None and _SOURCE_TAG_RE.match(text, span[0]):
+                if span[0] not in tags:
+                    source = source_tag_to_webm(text[span[0]:span[1]], pattern, renames)
+                    if source is not None:
+                        tags[span[0]] = (span[1], source)
+            elif in_hidden_source_tag(text, match.start(1)):
+                context = text[max(0, match.start(1) - 60):match.end(1) + 20]
+                raise UnconvertibleReference(f"cannot parse the <source> naming {old}, so its type cannot be set to "
+                                             f"video/webm: {context!r}")
             continue
         if span is None or not _IMG_TAG_RE.match(text, span[0]):
             context = text[max(0, match.start(1) - 60):match.end(1) + 20]
@@ -676,9 +700,10 @@ def names_not_convertible_to_video(conn, codec, names, workers: int = 8, video_n
     """{name: paths of the rows naming it} for each of `names`, animated GIFs,
     referenced anywhere a <video> could not replace - outside an <img>, or by
     an <img> img_tag_to_video refuses - and for each of `video_names`, H.264
-    videos, named inside a <source> whose attributes cannot be parsed.
-    rewrite_text refuses such a <source> for any converted video it names,
-    since nothing then says whether it has a type to change.
+    videos, named inside a <source> whose attributes cannot be parsed, or
+    which enclosing_tag cannot find (in_hidden_source_tag). rewrite_text
+    refuses such a <source> for any converted video it names, since nothing
+    then says whether it has a type to change.
 
     optimize_db_media.py asks this before converting, under --webm and
     --video-webm, so it never makes a WebM that this script then has to refuse
@@ -715,6 +740,8 @@ def names_not_convertible_to_video(conn, codec, names, workers: int = 8, video_n
                         source_tag_to_webm(text[span[0]:span[1]], pattern, identity)
                     except UnconvertibleReference:
                         blocked.add(name)
+                elif in_hidden_source_tag(text, match.start(1)):
+                    blocked.add(name)
                 continue
             if span is None or not _IMG_TAG_RE.match(text, span[0]):
                 blocked.add(name)

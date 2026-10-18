@@ -663,6 +663,44 @@ def test_a_source_whose_type_cannot_be_set_is_refused():
         ref.rewrite_text('<source src="media/clip.mp4" type="video/mp4" title="a > b">', PATTERN, RENAMES)
 
 
+def test_a_source_hidden_by_an_angle_bracket_in_a_value_is_refused():
+    """A ">" in a quoted value before src seemed to end the tag before the
+    name, and a "<" in one to open another tag, so enclosing_tag found no
+    <source> around it: the src was renamed as though it stood outside one,
+    and the type went on saying video/mp4. Such a tag is now refused, as one
+    whose attributes cannot be parsed is. A name after a <source> that has
+    ended is still renamed, and an <img> hidden the same way was refused
+    already."""
+    for text in ('<source title="a > b" src="media/clip.mp4" type="video/mp4">',
+                 "<source data-x='1>0' src=clip.mp4 type=video/mp4>",
+                 '<source src="media/clip.mp4" title="<b>" type="video/mp4">',
+                 '<source title="<b" src="media/clip.mp4" type="video/mp4">'):
+        with pytest.raises(ref.UnconvertibleReference, match="cannot parse"):
+            ref.rewrite_text(text, PATTERN, RENAMES)
+    assert _rewrite('<source src="keep.mp4" type="video/mp4"><video title="a > b" src="bias.mov"></video>') == (
+        '<source src="keep.mp4" type="video/mp4"><video title="a > b" src="bias.webm"></video>', [str])
+    with pytest.raises(ref.UnconvertibleReference, match="outside an <img> tag"):
+        ref.rewrite_text('<img title="a > b" src="spring.gif">', PATTERN, RENAMES)
+
+
+def test_the_optimizer_is_told_of_a_source_hidden_by_an_angle_bracket(tmp_path):
+    """The optimizer's check found tags as rewrite_text did, so it converted
+    the video such a <source> names, and the references step then left the
+    tag's type saying video/mp4."""
+    db_path = tmp_path / "documentation.db"
+    animated._build_database(db_path, [
+        ("a/one.html", "text/html", b'<video><source title="a > b" src="media/clip.mp4" type="video/mp4"></video>'),
+        ("a/two.html", "text/html", b'<video title="a > b" src="media/bias.mov"></video>'),
+    ], VIDEO_TYPES)
+    with sqlite3.connect(db_path) as conn:
+        codec = opt.BrotliCodec(opt.load_dictionary(conn))
+        try:
+            blocked = ref.names_not_convertible_to_video(conn, codec, set(), 2, video_names={"clip.mp4", "bias.mov"})
+        finally:
+            codec.close()
+    assert blocked == {"clip.mp4": ["a/one.html"]}
+
+
 def test_a_backslash_quote_in_html_is_not_json_escaping():
     """Only markup whose every double quote is escaped is JSON-escaped. One
     literal \\" in an HTML attribute used to make the whole tag count as
