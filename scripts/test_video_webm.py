@@ -317,6 +317,27 @@ def test_the_digest_writer_leaves_a_file_changed_while_it_read_the_database(tmp_
     assert digests.read_text().endswith(meanwhile), "the line written during the scan was lost"
 
 
+def test_the_digest_writer_leaves_a_file_it_cannot_read_again(tmp_path, monkeypatch):
+    """Read again after the scan, a file that is no longer UTF-8 cannot be
+    shown to be the one read before, so it counts as changed and is left as
+    it is."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.write_text("".join(line for line in digests.read_text().splitlines(keepends=True)
+                               if not line.startswith("narrow.mov\t")))
+    spoiled, reassemble = digests.read_bytes() + b"\xff\n", opt.reassemble
+
+    def reassemble_and_spoil(conn, path, blob):
+        digests.write_bytes(spoiled)
+        return reassemble(conn, path, blob)
+
+    monkeypatch.setattr(opt, "reassemble", reassemble_and_spoil)
+    code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+
+    assert code == 1 and "changed while the database was read" in output, output
+    assert digests.read_bytes() == spoiled
+
+
 def test_a_digest_file_not_as_written_is_refused_naming_the_line(tmp_path):
     """A wrong digest used to be reported as a changed clip, a name given
     twice let its last line win, and a missing header went unnoticed. Each is
@@ -714,6 +735,21 @@ def test_whitespace_after_a_sources_equals_sign_still_sets_its_type():
         '<source type =\tvideo/webm src =\n media/clip.webm>', [ref.TagEdit])
 
 
+def test_json_escaped_whitespace_in_a_source_still_sets_its_type():
+    """A JSON string writes a line break or tab between attributes as \\n or
+    \\t. Read as part of the next name, "\\ntype" hid the type, so the src
+    was renamed and the type went on saying video/mp4; a tag ending in \\n
+    must still parse."""
+    for html, source in (
+            ('<source src="clip.mp4"\ntype="video/mp4">', '<source src="clip.webm"\ntype="video/webm">'),
+            ('<source\nsrc="clip.mp4" type="video/mp4">', '<source\nsrc="clip.webm" type="video/webm">'),
+            ('<source src="clip.mp4"\ttype="video/mp4">', '<source src="clip.webm"\ttype="video/webm">'),
+            ('<source src="clip.mp4" type="video/mp4"\n>', '<source src="clip.webm" type="video/webm"\n>'),
+            ("<source src=clip.mp4\ntype=video/mp4>", "<source src=clip.webm\ntype=video/webm>")):
+        rewritten, kinds = _rewrite(json.dumps({"h": f"<video>{html}</video>"}))
+        assert json.loads(rewritten) == {"h": f"<video>{source}</video>"} and kinds == [ref.TagEdit], repr(html)
+
+
 def test_a_source_keeps_its_type_when_the_converted_video_is_not_its_src():
     """Only the src decides: a converted name elsewhere in the tag is renamed
     and the type is left alone."""
@@ -950,6 +986,28 @@ def test_a_video_named_in_a_source_that_cannot_be_parsed_is_left_unconverted(tmp
     code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion))
     assert code == 0, output
     assert base._snapshot(db_path) == after
+
+
+def test_whitespace_after_a_quote_stops_the_run_rather_than_leave_a_video_named(tmp_path):
+    """A browser trims whitespace at the start of a quoted URL, so these load
+    the clip. The rewrite leaves whitespace after a quote alone, since it can
+    be prose, and the optimizer does not see these either, so the clips were
+    converted and the pages went on naming the deleted files with exit 0. The
+    references step now stops and writes nothing."""
+    db_path, originals = _scene(tmp_path, [
+        ("a/media/one.html", "text/html", b'<video><source src=" wide.mp4" type="video/mp4"></video>'),
+        ("a/media/two.html", "text/html", b'<video src="\tnarrow.mov"></video>')])
+    pre_conversion = tmp_path / "before.db"
+    shutil.copy(db_path, pre_conversion)
+    assert opt.run(_video_cfg(db_path, originals)) == 0
+    converted = base._snapshot(db_path)
+    assert "a/media/wide.webm" in converted and "a/media/narrow.webm" in converted
+
+    code, output = _call(ref.run, _reference_cfg(db_path, pre_conversion))
+    assert code == 1, output
+    for page, clip in (("one", "wide.mp4 became wide.webm"), ("two", "narrow.mov became narrow.webm")):
+        assert f"a/media/{page}.html: {clip}" in output, output
+    assert base._snapshot(db_path) == converted
 
 
 def test_a_manifest_that_does_not_describe_the_stored_file_is_refused(tmp_path):

@@ -76,10 +76,11 @@ whose attributes cannot be parsed stops the run before anything is written.
 optimize_db_media.py --video-webm makes the same check before converting,
 leaving a video named in such a tag as stored.
 
-A converted filename after a quote and whitespace (src=" demo.gif") is not
-rewritten, because a closing quote, a space and a filename can be prose. A
-browser trims that whitespace and loads the file, though, so any such name
-left after rewriting stops the run too (build_leftover_pattern).
+A converted filename after a quote and whitespace (src=" demo.gif",
+src=" clip.mp4") is not rewritten, because a closing quote, a space and a
+filename can be prose. A browser trims that whitespace and loads the file,
+though, so any such name left after rewriting stops the run too
+(build_leftover_pattern).
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the work and reports what
@@ -365,7 +366,8 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
     Everything else in the tag stays as written, attribute order, quoting and
     spacing included; only the renamed filenames and the type's value change.
     Like img_tag_to_video it works on JSON-escaped markup, undoing the
-    escaping to parse the tag and applying it again to the result."""
+    escaping to parse the tag and applying it again to the result, and reads
+    a JSON string's \\n, \\t, \\r and \\f as whitespace (_ATTRIBUTE_RE)."""
     markup, escaped = unescape_tag(tag)
     match = re.fullmatch(r"<source\b(.*?)/?>", markup, re.IGNORECASE | re.DOTALL)
     if match is None:
@@ -377,7 +379,7 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
             break
         attributes.setdefault(attribute.group(1).lower(), attribute)  # the first one counts, as in HTML
         position = attribute.end()
-    if body[position:].strip():
+    if not re.fullmatch(f"{_TAG_SPACE}*", body[position:]):
         raise UnconvertibleReference(f"cannot parse the attributes of {tag[:120]!r}, so its type cannot be set "
                                      "to video/webm")
     src, kind = attributes.get("src"), attributes.get("type")
