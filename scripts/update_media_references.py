@@ -372,15 +372,17 @@ def source_tag_to_webm(tag: str, pattern: re.Pattern, renames: dict):
     src, kind = attributes.get("src"), attributes.get("type")
     if src is None or kind is None or src.group(2) is None or kind.group(2) is None:
         return None
+    # Searched from the tag's start, not the value's: a match can begin at
+    # whitespace before the value (src= clip.mp4), outside its span.
     src_start, src_end = offset + src.start(2), offset + src.end(2)
-    if not any(is_video(m.group(1)) and is_video(renames[m.group(1)])
-               for m in pattern.finditer(markup, src_start, src_end)):
+    if not any(src_start <= m.start(1) < src_end and is_video(m.group(1)) and is_video(renames[m.group(1)])
+               for m in pattern.finditer(markup)):
         return None
     type_start, type_end = offset + kind.start(2), offset + kind.end(2)
     quote = kind.group(2)[0] if kind.group(2)[0] in "\"'" else ""
     edits = [(type_start, type_end, f"{quote}video/webm{quote}")]
-    edits += [(m.start(), m.end(), renames[m.group(1)]) for m in pattern.finditer(markup)
-              if not type_start <= m.start() < type_end]
+    edits += [(m.start(1), m.end(1), renames[m.group(1)]) for m in pattern.finditer(markup)
+              if not type_start <= m.start(1) < type_end]
     pieces, read = [], 0
     for start, end, new in sorted(edits):
         pieces += [markup[read:start], new]

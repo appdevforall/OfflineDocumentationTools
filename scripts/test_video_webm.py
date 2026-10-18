@@ -631,6 +631,17 @@ def test_a_source_keeps_everything_but_its_names_and_its_type():
         "<source  poster='hero.webp' src=clip.webm TYPE='video/webm' >", [ref.TagEdit])
 
 
+def test_whitespace_after_a_sources_equals_sign_still_sets_its_type():
+    """build_pattern finds src= clip.mp4 now, but source_tag_to_webm looked for
+    the name only from where the src value starts, after the whitespace such a
+    match begins with. It found none there, so the src was renamed and the type
+    went on saying video/mp4."""
+    assert _rewrite('<source src= clip.mp4 type="video/mp4">') == (
+        '<source src= clip.webm type="video/webm">', [ref.TagEdit])
+    assert _rewrite('<source type =\tvideo/mp4 src =\n media/clip.mp4>') == (
+        '<source type =\tvideo/webm src =\n media/clip.webm>', [ref.TagEdit])
+
+
 def test_a_source_keeps_its_type_when_the_converted_video_is_not_its_src():
     """Only the src decides: a converted name elsewhere in the tag is renamed
     and the type is left alone."""
