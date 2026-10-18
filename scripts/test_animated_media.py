@@ -704,6 +704,38 @@ def test_an_unquoted_src_becomes_the_webm_and_restores_exactly(tmp_path):
     assert base._snapshot(db_path) == before
 
 
+def test_whitespace_after_the_equals_sign_still_names_the_gif(tmp_path):
+    """HTML allows whitespace around an attribute's "=", but the pattern needed
+    the "=" right before the name. The optimizer replaced demo.gif with
+    demo.webm, the references step left <img src= demo.gif> naming the deleted
+    GIF, and both exited 0. A link written that way keeps its GIF out of WebM,
+    as any link does, and is renamed with whatever that GIF became."""
+    db_path, bundle, pre_conversion = tmp_path / "documentation.db", tmp_path / "bundle", tmp_path / "before.db"
+    _build_database(db_path, [("a/media/demo.gif", "image/gif", _gradient_animation()),
+                              ("a/media/linked.gif", "image/gif", _gradient_animation(frames=12)),
+                              ("a/media/page.html", "text/html",
+                               b'<img src= demo.gif alt="Demo" title="a= linked.gif"><a href =\nlinked.gif>play</a>')],
+                    WEBM_TYPES)
+    before = base._snapshot(db_path)
+    shutil.copy(db_path, pre_conversion)
+
+    assert opt.run(_webm_cfg(db_path, save_originals=bundle)) == 0
+    linked, value, _data = _stored_media(db_path, "a/media/linked")
+    assert value != "video/webm", "a GIF a link names became WebM"
+    reference_cfg = {"db_path": db_path, "before": pre_conversion, "dry_run": False, "workers": 2,
+                     "verbose": False, "save_originals": bundle, "restore_originals": None}
+    assert ref.run(reference_cfg) == 0
+    linked = linked.rsplit("/", 1)[-1]
+    assert _stored_media(db_path, "a/media/page")[2] == (
+        f'<video autoplay loop muted playsinline src=demo.webm role=img aria-label="Demo" title="a= {linked}">'
+        f'</video><a href =\n{linked}>play</a>').encode()
+
+    assert opt.restore_originals(base._optimize_cfg(db_path, restore_originals=bundle)) == 0
+    assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
+                                   "restore_originals": bundle}) == 0
+    assert base._snapshot(db_path) == before
+
+
 def test_a_webm_keeps_its_manifest_entry_and_provenance(tmp_path):
     """The next run has to recognise the WebM as this tool's output and know
     which GIF it came from - or a re-inserted GIF lands beside it under a

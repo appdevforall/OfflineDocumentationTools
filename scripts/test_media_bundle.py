@@ -83,6 +83,24 @@ def test_rewrite_and_undo_are_exact_inverses():
     assert ref.undo_rewrite(rewritten, sites, renames) == text
 
 
+def test_whitespace_after_an_equals_sign_or_a_parenthesis_still_marks_a_reference():
+    """HTML allows whitespace after an attribute's "=", and CSS and markdown
+    inside url( ) and ( ). The pattern needed the "=" or "(" right before the
+    name, so these went on naming a file the optimizer had deleted, and the run
+    exited 0. A JSON string writes a line break or tab there as \\n or \\t."""
+    renames = {"copy.png": "copy.webp"}
+    pattern = ref.build_pattern(renames)
+    for text, expected in (('<img src= copy.png>', '<img src= copy.webp>'),
+                           ('<img src =\tcopy.png alt="x">', '<img src =\tcopy.webp alt="x">'),
+                           ('<img\nsrc=\n  copy.png>', '<img\nsrc=\n  copy.webp>'),
+                           ('{"h":"<img src=\\ncopy.png>"}', '{"h":"<img src=\\ncopy.webp>"}'),
+                           ('div{background:url( copy.png )}', 'div{background:url( copy.webp )}'),
+                           ('![shot]( copy.png )', '![shot]( copy.webp )')):
+        rewritten, sites = ref.rewrite_text(text, pattern, renames)
+        assert rewritten == expected, text
+        assert ref.undo_rewrite(rewritten, sites, renames) == text
+
+
 def test_rewrite_reports_no_sites_when_nothing_matches():
     pattern = ref.build_pattern({"copy.png": "copy.webp"})
     text = "<p>nothing to see</p>"
