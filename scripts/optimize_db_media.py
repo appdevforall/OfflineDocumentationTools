@@ -664,18 +664,25 @@ VIDEO_DIGESTS_COLUMNS = "# name\tstored-sha256"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
-def read_video_digests(path: Path) -> dict:
-    """{original's file name: sha256 of the clip its row stored} from a
-    VIDEO_DIGESTS file. Anything but the file as written is fatal, naming the
-    line, as in read_manifest: a missing or wrong header, a line without two
-    tab-separated fields, a name given twice, or a digest that is not 64
-    lowercase hex digits. Otherwise a mistyped digest is reported as a changed
-    clip and a repeated name's last line wins. CRLF line ends and blank lines
-    are read."""
+def read_as_stored(path: Path) -> str:
+    """The text of `path` with its line ends as stored, CRLF included, which
+    Path.read_text turns into LF; RuntimeError if it is not UTF-8."""
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open(encoding="utf-8", newline="") as stream:
+            return stream.read()
     except UnicodeDecodeError as exc:
         raise RuntimeError(f"{path}: not UTF-8 text ({exc})") from exc
+
+
+def read_video_digests(path: Path, text: str = None) -> dict:
+    """{original's file name: sha256 of the clip its row stored} from a
+    VIDEO_DIGESTS file, or from `text`, its content read already. Anything but
+    the file as written is fatal, naming the line, as in read_manifest: a
+    missing or wrong header, a line without two tab-separated fields, a name
+    given twice, or a digest that is not 64 lowercase hex digits. Otherwise a
+    mistyped digest is reported as a changed clip and a repeated name's last
+    line wins. CRLF line ends and blank lines are read."""
+    lines = (read_as_stored(path) if text is None else text).splitlines()
     if not lines or lines[0] != VIDEO_DIGESTS_HEADER:
         raise RuntimeError(f"{path}:1: expected the header {VIDEO_DIGESTS_HEADER!r}, found "
                            f"{repr(lines[0][:80]) if lines else 'an empty file'}")
@@ -999,18 +1006,20 @@ ORIGINALS_COLUMNS = ("# sha256\tbytes\tpath\tcontent-type\tlanguageID\ttemplateI
                      "\tconverted-to")
 
 
-def write_atomically(path: Path, text: str) -> Path:
+def write_atomically(path: Path, text: str, newline: str = None) -> Path:
     """Writes through a temporary file and renames it into place, so a failing
     or interrupted write leaves the previous contents rather than a truncated
     file the reader would reject - taking the whole bundle with it. The
     temporary is removed on failure so a half-written one is not left beside
-    the real file for someone to mistake for it.
+    the real file for someone to mistake for it. `newline` is open()'s: ""
+    writes the text's line ends as they are.
 
     Lives here rather than in update_media_references.py because both halves of
     the bundle need it and the import runs in this direction."""
     temporary = path.with_name(path.name + ".tmp")
     try:
-        temporary.write_text(text, encoding="utf-8")
+        with temporary.open("w", encoding="utf-8", newline=newline) as stream:
+            stream.write(text)
         temporary.replace(path)
     except OSError:
         temporary.unlink(missing_ok=True)
@@ -2166,11 +2175,11 @@ def write_video_digests(cfg: dict) -> int:
         if not present:
             print(f"error: {needed} does not exist", file=sys.stderr)
             return 1
-    text, recorded = "", {}
+    text, recorded = None, {}
     if target.exists():
         try:
-            recorded = read_video_digests(target)
-            text = target.read_text(encoding="utf-8")
+            text = read_as_stored(target)
+            recorded = read_video_digests(target, text)
         except (OSError, RuntimeError) as exc:
             print(f"error: {exc}; nothing was written", file=sys.stderr)
             return 1
@@ -2229,16 +2238,29 @@ def write_video_digests(cfg: dict) -> int:
         print(f"{target} already records every original in {directory}; nothing was written.")
         return 0
     new = lambda name: f"{name}\t{next(iter(found[name]))}"  # noqa: E731
-    lines = text.splitlines(keepends=True) or [f"{VIDEO_DIGESTS_HEADER}\n", f"{VIDEO_DIGESTS_COLUMNS}\n"]
+    lines = (text or "").splitlines(keepends=True) or [f"{VIDEO_DIGESTS_HEADER}\n", f"{VIDEO_DIGESTS_COLUMNS}\n"]
+    # A line added ends as the header does, so a file with CRLF line ends
+    # stays one.
+    end = lines[0][len(lines[0].rstrip("\r\n")):] or "\n"
     for number, line in enumerate(lines):
         name = line.split("\t", 1)[0]
         if name in rerecord and name in recorded and not line.startswith("#"):
             lines[number] = new(name) + line[len(line.rstrip("\r\n")):]
     if not lines[-1].endswith(("\n", "\r")):
-        lines[-1] += "\n"
+        lines[-1] += end
     added = [name for name in writing if name not in recorded]
-    lines.extend(f"{new(name)}\n" for name in added)
-    write_atomically(target, "".join(lines))
+    lines.extend(f"{new(name)}{end}" for name in added)
+    # Read before the database and replaced after it, the file would lose any
+    # line written to it meanwhile.
+    try:
+        unchanged = (read_as_stored(target) if target.exists() else None) == text
+    except (OSError, RuntimeError):
+        unchanged = False
+    if not unchanged:
+        print(f"error: {target} changed while the database was read; nothing was written. Run this again.",
+              file=sys.stderr)
+        return 1
+    write_atomically(target, "".join(lines), newline="")
     again = len(writing) - len(added)
     print(f"Recorded the stored clip of {len(added)} video row(s) in {target}"
           f"{f', and of {again} again' if again else ''}; {len(recorded) - again} line(s) already there are "

@@ -269,6 +269,53 @@ def test_the_digests_record_the_clip_each_original_was_gathered_for(tmp_path):
     assert base._snapshot(db_path) == snapshot, "writing the digests changed the database"
 
 
+def test_the_digest_writer_keeps_the_files_line_ends(tmp_path):
+    """Read through Path.read_text, a file with CRLF line ends came back from
+    the writer with LF ones, every line changed. Each line it does not record
+    now stays byte for byte, and a line it adds or records again ends as the
+    file's lines do."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    lines = digests.read_bytes().replace(b"\n", b"\r\n").splitlines(keepends=True)
+    narrow = next(line for line in lines if line.startswith(b"narrow.mov\t"))
+    digests.write_bytes(b"".join(line for line in lines if line != narrow))
+    gathered = digests.read_bytes()
+
+    _record_digests(db_path, originals)
+    assert digests.read_bytes() == gathered + narrow
+
+    shutil.copy(_replace_clip(db_path, "wide.mp4", tmp_path), originals / "wide.mp4")
+    with sqlite3.connect(db_path) as conn:
+        (clip,) = conn.execute("SELECT content FROM Content WHERE path = 'a/media/wide.mp4'").fetchone()
+    old_line = next(line for line in lines if line.startswith(b"wide.mp4\t"))
+    _record_digests(db_path, originals, rerecord=["wide.mp4"])
+    assert digests.read_bytes() == (gathered + narrow).replace(
+        old_line, f"wide.mp4\t{hashlib.sha256(clip).hexdigest()}\r\n".encode())
+
+
+def test_the_digest_writer_leaves_a_file_changed_while_it_read_the_database(tmp_path, monkeypatch):
+    """The file was read before the database was scanned and replaced after,
+    so a line written to it meanwhile was lost. The writer reads it again
+    before replacing it, and leaves it alone if it changed."""
+    db_path, originals = _scene(tmp_path)
+    digests = originals / opt.VIDEO_DIGESTS
+    digests.write_text("".join(line for line in digests.read_text().splitlines(keepends=True)
+                               if not line.startswith("narrow.mov\t")))
+    meanwhile, reassemble = f"other.mp4\t{'c' * 64}\n", opt.reassemble
+
+    def reassemble_and_edit(conn, path, blob):
+        if meanwhile not in digests.read_text():
+            with digests.open("a") as stream:
+                stream.write(meanwhile)
+        return reassemble(conn, path, blob)
+
+    monkeypatch.setattr(opt, "reassemble", reassemble_and_edit)
+    code, output = _call(opt.write_video_digests, _digests_cfg(db_path, originals))
+
+    assert code == 1 and "changed while the database was read" in output, output
+    assert digests.read_text().endswith(meanwhile), "the line written during the scan was lost"
+
+
 def test_a_digest_file_not_as_written_is_refused_naming_the_line(tmp_path):
     """A wrong digest used to be reported as a changed clip, a name given
     twice let its last line win, and a missing header went unnoticed. Each is
