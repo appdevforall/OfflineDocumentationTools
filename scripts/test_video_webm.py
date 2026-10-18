@@ -339,11 +339,11 @@ def test_a_rerun_converts_nothing(tmp_path):
     converted = base._snapshot(db_path)
 
     code, output = _run(_video_cfg(db_path, originals))
-    assert code == 0 and "optimized 0 image(s)" in output, output
+    assert code == 0 and "optimized 0 media file(s)" in output, output
     assert base._snapshot(db_path) == converted
 
     code, output = _run(_video_cfg(db_path, originals, manifest_in=first, manifest_out=second))
-    assert code == 0 and "optimized 0 image(s)" in output, output
+    assert code == 0 and "optimized 0 media file(s)" in output, output
     assert base._snapshot(db_path) == converted
     assert opt.read_manifest(second) == opt.read_manifest(first)
 
@@ -362,6 +362,16 @@ def test_without_video_webm_video_rows_are_neither_read_nor_archived(tmp_path):
     assert not archived & set(before), sorted(archived)
 
 
+def test_video_settings_without_video_webm_are_reported_as_ignored(tmp_path):
+    db_path = tmp_path / "documentation.db"
+    animated._build_database(db_path, [], VIDEO_TYPES)
+
+    code, output = _run(base._optimize_cfg(db_path, video_originals=tmp_path, video_crf=30))
+
+    assert code == 0, output
+    assert "warning: --video-originals, --video-crf has no effect without --video-webm" in output, output
+
+
 def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
     """And the digests of the clips they were gathered for, without which no
     original can be trusted. Each is refused before the run starts, with no
@@ -378,7 +388,6 @@ def test_video_webm_needs_its_originals_and_a_video_type_to_convert(tmp_path):
     assert code == 0, output
     after = base._snapshot(db_path)
     assert "a/media/narrow.webm" in after and after["a/media/wide.mp4"] == before["a/media/wide.mp4"]
-
 
 
 RENAMES = {"clip.mp4": "clip.webm", "bias.mov": "bias.webm", "spring.gif": "spring.webm", "hero.png": "hero.webp"}
@@ -581,6 +590,7 @@ def test_convert_rewrite_then_restore_reproduces_the_database(tmp_path):
     assert ref.restore_references({**reference_cfg, "before": None, "save_originals": None,
                                    "restore_originals": bundle}) == 0
     assert base._snapshot(db_path) == before
+
 
 if __name__ == "__main__":
     sys.exit(base._main(globals()))

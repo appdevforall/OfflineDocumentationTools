@@ -13,9 +13,10 @@ optimize_db_media.py
 
 Applies the image optimization from PR #24 (the Kotlin website's
 optimize_media.py) to *every* media file already stored in a
-documentation.db, across all doc sets (a/, i/, k/, p/, j/, ...).
+documentation.db, across all doc sets (a/, i/, k/, p/, j/, ...), and can
+convert its H.264 video to VP9 WebM.
 
-Two modes:
+Modes:
 
   * Default - optimize each image **in place**: same Content.path, same
     extension, same contentTypeID. Every reference to it keeps resolving,
@@ -54,15 +55,15 @@ Two modes:
     has one. Needs ffmpeg and ffprobe, and the video/webm content type --webm
     needs.
 
-    NOTE: --webp does NOT rewrite the references that point at the old
-    filenames, so pages will link to names that no longer exist until those
-    references are fixed separately. insert_optimized_media.py can only do
-    that rewriting for Kotlin, whose pages embed a literal
-    "/k/html/images/<name>"; the other doc sets don't share that form (an
-    Android page references media by absolute URL, e.g.
-    "https://developer.android.com/images/foo.gif", with no literal link to
-    the stored path "a/devsite/media/..._foo.gif"), so fixing them up is a
-    separate job this tool deliberately leaves alone.
+  NOTE: none of the converting modes rewrites the references that point at
+  the old filenames, so pages will link to names that no longer exist until
+  update_media_references.py fixes them. insert_optimized_media.py can only
+  do that rewriting for Kotlin, whose pages embed a literal
+  "/k/html/images/<name>"; the other doc sets don't share that form (an
+  Android page references media by absolute URL, e.g.
+  "https://developer.android.com/images/foo.gif", with no literal link to
+  the stored path "a/devsite/media/..._foo.gif"), so fixing them up is a
+  separate job this tool deliberately leaves alone.
 
 What it does, per media Content row (inside one transaction, rolled back on
 any error), mirroring optimize_media.py's own encoders and defaults:
@@ -94,7 +95,7 @@ Each row's bytes are decompressed per its ContentTypes.compression ("brotli"
 -> plain, or against the shared CompressionDictionary when the database has
 one; "none" -> raw), optimized, then compressed the way the *resulting*
 format's content type says to. A row is only rewritten when the result is
-actually smaller than what's already stored - an image is never made larger,
+actually smaller than what's already stored - a file is never made larger,
 and never renamed for no benefit.
 
 Reads/writes bytes straight from/to the DB; needs no source directory. Backs
@@ -164,7 +165,7 @@ Keeping the originals (--save-originals / --restore-originals):
   that run's manifest back is the one way to get optimized media archived as
   though it were original, so doing so warns.
 
-  Archiving is a precondition, not a side effect: an image whose original
+  Archiving is a precondition, not a side effect: a file whose original
   cannot be written to the bundle - a full disk, a permission problem, a
   Content.path that is not a usable filename - is left UNOPTIMIZED, and the run
   exits non-zero. Rewriting it would be precisely the loss this flag was asked
@@ -707,8 +708,9 @@ def encode_video_webm(original: Path, stored: bytes, recorded: str | None, crf: 
     320 px - and -2 keeps the aspect ratio with an even height. Opus carries the
     audio when the original has any, and -an leaves the track out otherwise.
     -threads 8 and -fflags +bitexact make a rerun write the same bytes on any
-    machine, for the reasons encode_webm gives. These settings were measured
-    over the 69 clips in the 2026-10-13 database (ADFA-6596)."""
+    machine with the same ffmpeg, libvpx and libopus, for the reasons
+    encode_webm gives. These settings were measured over the 69 clips in the
+    2026-10-13 database (ADFA-6596)."""
     if not original.is_file():
         raise UnusableOriginal(f"no original named {original.name} in {original.parent}")
     if recorded is None:
@@ -1383,6 +1385,16 @@ def run(cfg: dict) -> int:
     # for, its manifest entry carried over, its bytes left alone.
     types = cfg.get("types")
     video = bool(cfg.get("video_webm"))
+    if not video:
+        # Like the --webp knobs above: say so rather than let a setting look
+        # as though it took effect.
+        ignored = [flag for flag, given in
+                   (("--video-originals", cfg.get("video_originals") is not None),
+                    ("--video-crf", cfg.get("video_crf", DEFAULTS["video_crf"]) != DEFAULTS["video_crf"]))
+                   if given]
+        if ignored:
+            print(f"warning: {', '.join(ignored)} has no effect without --video-webm (no video is converted)",
+                  file=sys.stderr)
     # Video types count as convertible only under --video-webm, and --types
     # narrows them as it narrows the image types. A --types list naming no
     # video type would leave --video-webm converting nothing, so it is refused
@@ -1552,11 +1564,11 @@ def run(cfg: dict) -> int:
             "c.languageID FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
             f"WHERE ct.value LIKE 'image/%' OR ct.value IN ({','.join('?' * len(read_types))}) ORDER BY c.path",
             read_types).fetchall()
-        # {path: stored length} over every image row, so a "<base>-<N>" row can
+        # {path: stored length} over every row read, so a "<base>-<N>" row can
         # be recognized as a continuation only when its base is exactly
         # CHUNK_SIZE bytes (see content_chunking) rather than by its name alone.
         lengths = {path: len(blob) for path, blob, *_rest in rows}
-        print(f"Scanning {len(rows)} image row(s) ({sum(1 for p in lengths if is_continuation_path(lengths, p))} "
+        print(f"Scanning {len(rows)} media row(s) ({sum(1 for p in lengths if is_continuation_path(lengths, p))} "
               "chunk-continuation row(s) will be folded into their base)...")
         warn = lambda message: print(message, file=sys.stderr)  # noqa: E731
         # What the manifest will say about this database afterwards. Every row
@@ -1670,7 +1682,7 @@ def run(cfg: dict) -> int:
                 # have the original picks the row up.
                 videos_unconverted.append((path, str(exc)))
                 continue
-            except Exception as exc:  # noqa: BLE001 - one bad image is not the whole run
+            except Exception as exc:  # noqa: BLE001 - one bad file is not the whole run
                 stats["errors"] += 1
                 print(f"  error: failed to optimize {path}: {exc}", file=sys.stderr)
                 continue
@@ -1818,7 +1830,7 @@ def run(cfg: dict) -> int:
             print(f"  {archive.replaced_missing} asset(s) were recorded in the index but missing from the "
                   "bundle, and have been written again.", file=sys.stderr)
         if stats["archive_blocked"]:
-            print(f"  {stats['archive_blocked']} image(s) left UNOPTIMIZED because their original could not "
+            print(f"  {stats['archive_blocked']} file(s) left UNOPTIMIZED because their original could not "
                   "be archived; fix the archive directory and re-run to pick them up.", file=sys.stderr)
         if stats["archive_not_original"]:
             print(f"  {stats['archive_not_original']} row(s) not archived: --manifest-in says they hold this "
@@ -1839,8 +1851,8 @@ def run(cfg: dict) -> int:
     verb = "would optimize" if cfg["dry_run"] else "optimized"
     print()
     print(f"{'Dry run complete. ' if cfg['dry_run'] else 'Done. '}"
-          f"{verb} {stats['optimized']} image(s), of which {stats['converted']} changed format "
-          f"(new extension, old row deleted); {stats['no_gain']} already minimal, "
+          f"{verb} {stats['optimized']} media file(s), of which {stats['converted']} changed format "
+          f"(new extension, old row deleted); {stats['no_gain']} kept as stored (re-encoding saved nothing), "
           f"{stats['skipped_type']} untouched (a type this run does not optimize), "
           f"{stats['skipped_animated']} animated WEBP/APNG left alone, "
           f"{stats['skipped_manifest']} already optimized per the manifest, "
@@ -1867,7 +1879,7 @@ def run(cfg: dict) -> int:
         print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
               f"for these. Gather their originals into {cfg['video_originals']}, with their stored digests in "
               f"{VIDEO_DIGESTS}, and run it again to convert them.", file=sys.stderr)
-    print(f"Image bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
+    print(f"Media bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
     # An archive that silently lost originals must not look like a clean run to
@@ -2220,7 +2232,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "is. Without a manifest from the run that optimized the rest, this is how to avoid "
                         "re-encoding lossy output from lossy input. With --video-webm the list may name, and "
                         "must include one of, video/mp4 and video/quicktime")
-    p.add_argument("--verbose", action="store_true", help="Log every optimized image, with byte sizes")
+    p.add_argument("--verbose", action="store_true", help="Log every optimized file, with byte sizes")
     return p
 
 

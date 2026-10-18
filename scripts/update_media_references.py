@@ -393,10 +393,10 @@ def check_same_lineage(conn, before_conn) -> str:
 
     here, there = pages(conn), pages(before_conn)
     if not there:
-        return "it contains no non-image content at all"
+        return "it contains no non-media content at all"
     drift = len(here ^ there) / len(there)
     if drift > 0.01:
-        return (f"{len(here ^ there)} of {len(there)} non-image paths differ ({drift:.0%}); "
+        return (f"{len(here ^ there)} of {len(there)} non-media paths differ ({drift:.0%}); "
                 "converting media does not add or remove pages")
     return ""
 
