@@ -570,6 +570,21 @@ def test_the_committed_files_match_their_lists():
     assert {path.name for path in tool.MEDIA_DIR.iterdir()} == names
 
 
+def test_git_never_converts_the_committed_files():
+    """.gitattributes marks remote_media/ -text, so a checkout with
+    core.autocrlf leaves every file's bytes, and so its sha256, as recorded.
+    Outside a git work tree (an exported copy) there is nothing to check."""
+    names = sorted(path.name for path in tool.MEDIA_DIR.iterdir())
+    try:
+        result = subprocess.run(["git", "check-attr", "text", "--", *names], cwd=tool.MEDIA_DIR,
+                                capture_output=True, text=True)
+    except FileNotFoundError:
+        return
+    if result.returncode != 0:
+        return
+    assert result.stdout.splitlines() == [f"{name}: text: unset" for name in names]
+
+
 def _main() -> int:
     """Runs the tests without pytest installed as a runner, so this file works
     the same way the tools beside it do (`uv run scripts/test_bundle_remote_images.py`)."""
