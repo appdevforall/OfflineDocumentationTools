@@ -458,6 +458,64 @@ def test_refuses_tables_in_neither_shape(tmp_path):
                     "ALTER TABLE TooltipButtons ADD COLUMN extra TEXT")
 
 
+def test_refuses_an_extra_tooltips_column(tmp_path):
+    # Read as the old shape, the column would be dropped with the old table.
+    _assert_refused(tmp_path, "in neither the old nor the new shape", "ALTER TABLE Tooltips ADD COLUMN extra TEXT")
+
+
+def test_refuses_old_tooltips_columns_in_a_without_rowid_table(tmp_path):
+    schema = OLD_SCHEMA.replace("id INTEGER PRIMARY KEY AUTOINCREMENT,\n categoryId", "id INTEGER PRIMARY KEY,\n categoryId")
+    schema = schema.replace(" FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id)\n);",
+                            " FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id)\n) WITHOUT ROWID;")
+    assert schema.count("WITHOUT ROWID") == 1
+    _assert_refused(tmp_path, "in neither the old nor the new shape", schema=schema)
+
+
+def test_refuses_old_button_columns_in_a_without_rowid_table(tmp_path):
+    schema = OLD_SCHEMA.replace(" FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)\n);",
+                                " PRIMARY KEY (tooltipId, buttonNumberId),\n"
+                                " FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id)\n) WITHOUT ROWID;")
+    assert schema.count("WITHOUT ROWID") == 1
+    _assert_refused(tmp_path, "in neither the old nor the new shape", schema=schema)
+
+
+def test_refuses_the_replaced_index_name_on_another_table(tmp_path):
+    # Only TooltipButtons' TooltipButtonsByTooltip is the new key; one of that name elsewhere would be dropped silently.
+    _assert_refused(tmp_path, "index TooltipButtonsByTooltip on Tooltips, which the conversion would drop",
+                    "CREATE INDEX TooltipButtonsByTooltip ON Tooltips (summary)")
+
+
+def test_refuses_a_converted_database_whose_tooltip_texts_changed_shape(tmp_path):
+    _assert_converted_refused(tmp_path, "in neither the old nor the new shape",
+                              "ALTER TABLE TooltipTexts ADD COLUMN extra TEXT")
+
+
+def test_refuses_a_converted_database_missing_a_lookup_table(tmp_path):
+    _assert_converted_refused(tmp_path, "in neither the old nor the new shape", "DROP TABLE TooltipButtonUris")
+
+
+def test_refuses_a_converted_database_whose_lookup_table_changed_shape(tmp_path):
+    _assert_converted_refused(tmp_path, "in neither the old nor the new shape",
+                              "ALTER TABLE TooltipButtonDescriptions ADD COLUMN extra TEXT")
+
+
+def test_refuses_a_converted_database_whose_tooltips_table_has_rowids(tmp_path):
+    _assert_converted_refused(tmp_path, "in neither the old nor the new shape",
+                              "CREATE TABLE Rowid (id INTEGER NOT NULL, categoryId INTEGER NOT NULL, tag TEXT NOT NULL, "
+                              "PRIMARY KEY (categoryId, tag));"
+                              "INSERT INTO Rowid SELECT id, categoryId, tag FROM Tooltips;"
+                              "DROP TABLE Tooltips; ALTER TABLE Rowid RENAME TO Tooltips;")
+
+
+def test_refuses_a_converted_database_whose_buttons_table_has_rowids(tmp_path):
+    _assert_converted_refused(tmp_path, "in neither the old nor the new shape",
+                              "CREATE TABLE Rowid (tooltipId INTEGER NOT NULL, buttonNumberId INTEGER NOT NULL, "
+                              "descriptionId INTEGER NOT NULL, uriId INTEGER NOT NULL, "
+                              "PRIMARY KEY (tooltipId, buttonNumberId));"
+                              "INSERT INTO Rowid SELECT * FROM TooltipButtons;"
+                              "DROP TABLE TooltipButtons; ALTER TABLE Rowid RENAME TO TooltipButtons;")
+
+
 def test_refuses_a_half_converted_database(tmp_path):
     _assert_refused(tmp_path, "in neither the old nor the new shape",
                     "CREATE TABLE TooltipButtonUris (id INTEGER PRIMARY KEY, uri TEXT NOT NULL)")
@@ -520,6 +578,37 @@ def test_rolls_back_a_conversion_that_reorders_buttons(tmp_path):
                         "reads back differently")
 
 
+def test_rolls_back_a_conversion_that_leaves_an_extra_text_row(tmp_path):
+    # No tooltip points at the extra row, so only the row count sees it.
+    _assert_rolled_back(tmp_path, _with_fill(0, "FROM Tooltips_old ORDER BY id",
+                                             "FROM Tooltips_old UNION ALL SELECT 999999, 'x', 'y' ORDER BY 1"),
+                        "TooltipTexts holds 61 row(s), not 60")
+
+
+def test_rolls_back_a_conversion_that_renumbers_buttons(tmp_path):
+    # The buttons keep their order, so the app shows the same tooltips; only the button rows' digest sees it.
+    _assert_rolled_back(tmp_path, _with_fill(6, "SELECT b.tooltipId, b.buttonNumberId,",
+                                             "SELECT b.tooltipId, b.buttonNumberId + 10,"),
+                        "TooltipButtons' rows differ")
+
+
+def test_read_back_compares_the_tooltip_rows_as_well(tmp_path):
+    # Every conversion bug found so far that changes a Tooltips row also fails the per-tooltip read-back or the row
+    # count, so the rows' digest is checked directly: a snapshot whose Tooltips rows differ must be reported.
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db, isolation_level=None)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        before = tool.snapshot(conn)
+        tool.convert(conn)
+        assert tool.read_back(conn, before) == []
+        count, _rows_digest = before["tooltips"]
+        assert tool.read_back(conn, dict(before, tooltips=(count, "0" * 64))) == ["Tooltips' rows differ"]
+    finally:
+        conn.execute("ROLLBACK")
+        conn.close()
+
+
 @contextlib.contextmanager
 def _patched(name: str, value):
     """A context in which the tool's `name` is `value`, standing in for the app's query and the new tables
@@ -548,17 +637,35 @@ def test_rolls_back_when_the_apps_query_finds_something_else(tmp_path):
 
 
 def test_converts_tooltips_whose_category_name_is_shared(tmp_path):
-    # Two categories named "kotlin" both hold tag0: the app's query finds both, before and after.
+    # Seven categories named "kotlin" all hold tag0: the app's query finds all seven, in no set order, before and
+    # after, and the read-back must not take that for a difference.
     db = _database(tmp_path)
     conn = sqlite3.connect(db)
-    conn.executescript("INSERT INTO TooltipCategories VALUES (5, 'kotlin');"
-                       "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (5000, 5, 'tag0', 'S', 'D');"
-                       "INSERT INTO TooltipButtons VALUES (5000, 1, 'Examples', 'a/x.html');")
+    for n in range(5, 11):
+        conn.execute("INSERT INTO TooltipCategories VALUES (?, 'kotlin')", (n,))
+        conn.execute("INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, ?, 'tag0', ?, 'D')",
+                     (5000 + n, n, f"S{n}"))
+        conn.execute("INSERT INTO TooltipButtons VALUES (?, 1, 'Examples', ?)", (5000 + n, f"a/x{n}.html"))
+    conn.commit()
     conn.close()
     before = sorted(_query(db, OLD_APP_TOOLTIP_QUERY, ("kotlin", "tag0")))
     code, _out, err = _run(db)
     assert code == 0, err
-    assert len(before) == 2 and sorted(_query(db, APP_TOOLTIP_QUERY, ("kotlin", "tag0"))) == before
+    assert len(before) == 7 and sorted(_query(db, APP_TOOLTIP_QUERY, ("kotlin", "tag0"))) == before
+
+
+def test_rolls_back_a_change_to_a_tooltip_the_app_cannot_reach(tmp_path):
+    # A tooltip whose categoryId names no category is found by its key only, so only that read-back sees it change.
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (7000, 9, 'orphan', 'S', 'D')")
+    conn.commit()
+    conn.close()
+    with _with_fill(0, "SELECT id, summary, detail", "SELECT id, summary || CASE id WHEN 7000 THEN '!' ELSE '' END, "
+                                                     "detail"):
+        code, _out, err = _run(db)
+    assert code == 1 and "tooltip (9, 'orphan') reads back differently\n" in err, err
+    assert "rolled back, nothing was changed" in err and "through the app's query" not in err, err
 
 
 def _main() -> int:
