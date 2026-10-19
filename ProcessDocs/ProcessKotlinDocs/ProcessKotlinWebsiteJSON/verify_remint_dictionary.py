@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "brotli",
+#     "markdown-it-py>=2.0",
+# ]
+# ///
 """
 verify_remint_dictionary.py
 
@@ -9,7 +16,7 @@ dictionary, decode the same path out of the original with the old dictionary
 (falling back to plain), and require the two plaintexts to be byte-identical.
 Exits non-zero on any mismatch, so it can gate the swap:
 
-    ./verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
+    uv run verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
 
 This is the check that makes re-minting safe to do at all. A row recompressed
 against a mismatched dictionary does not fail loudly -- measured on the real

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "brotli",
+#     "markdown-it-py>=2.0",
+# ]
+# ///
 """
 remint_dictionary.py
 
@@ -59,8 +66,8 @@ against a mismatched dictionary decodes without error into *different* bytes
 
 Usage:
     cp documentation.db remint.db
-    ./remint_dictionary.py remint.db --seeds 4
-    ./verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
+    uv run remint_dictionary.py remint.db --seeds 4
+    uv run verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
 """
 import argparse
 import atexit
