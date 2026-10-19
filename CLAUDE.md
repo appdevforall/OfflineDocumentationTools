@@ -82,6 +82,11 @@ edit that database** — it contains no part of the production Android app itsel
 > PRs (#45, #50): the re-mint and verifier before it handle Content only, so they refuse a database
 > declaring 3.0.0.
 >
+> `populate_db.py`, `sync_javadoc_json_to_db.py` and `load_android_json_db.py` write plain templates,
+> so each refuses a database declaring 3.0.0 or later before writing anything, backup included.
+> `load_android_json_db.py` keeps the major it finds, so a late run would otherwise leave a file
+> declaring 3.1.0 with plain templates in it, which the app cannot read.
+>
 > **Every tool in this repo still reads and writes the 2.x shape**: `check-tools` (whose daily
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
 > `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`), `TooltipManager.py` and

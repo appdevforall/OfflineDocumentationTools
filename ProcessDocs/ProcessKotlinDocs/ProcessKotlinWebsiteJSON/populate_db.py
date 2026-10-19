@@ -499,7 +499,37 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
     return True
 
 
+# From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
+# against the dictionary, and the app decodes every one: a plain template written into such a database would not
+# render, and the file would still declare 3.x.
+COMPRESSED_TEMPLATES_MAJOR = 3
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major the database declares - its newest DocumentationDatabaseVersion row, ordered as
+    Code On The Go orders them (changeTime, then rowid) - or None if it declares none."""
+    if not _table_exists(conn, "DocumentationDatabaseVersion"):
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
+
+
+def compressed_templates_refusal(conn) -> str | None:
+    """Why no plain template may be written into this database, or None."""
+    major = declared_major(conn)
+    if major is None or major < COMPRESSED_TEMPLATES_MAJOR:
+        return None
+    return (f"the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 every "
+            "template is stored compressed, and this step writes plain ones. Run it before migrate_tooltip_schema.py")
+
+
 def upsert_template(conn, name: str, content: str) -> int:
+    """Writes one plain template. Raises RuntimeError, writing nothing, if the database's templates are stored
+    compressed."""
+    refusal = compressed_templates_refusal(conn)
+    if refusal:
+        raise RuntimeError(refusal)
     conn.execute(
         "INSERT INTO Templates (name, content) VALUES (?, ?) "
         "ON CONFLICT(name) DO UPDATE SET content = excluded.content",
@@ -647,6 +677,15 @@ def main():
             sys.exit(1)
     if not args.db_path.is_file():
         print(f"error: {args.db_path} does not exist", file=sys.stderr)
+        sys.exit(1)
+    # Checked before the conversion and the backup, so a refusal costs nothing and writes nothing.
+    conn = sqlite3.connect(f"file:{args.db_path}?mode=ro", uri=True)
+    try:
+        refusal = compressed_templates_refusal(conn)
+    finally:
+        conn.close()
+    if refusal:
+        print(f"error: {refusal}; nothing was changed", file=sys.stderr)
         sys.exit(1)
 
     config = load_config(args.config)
