@@ -271,7 +271,14 @@ class DictionaryCodec:
     DictionaryCompressor invokes it (`brotli -D <dictionary> -c`, default quality, here with its default window
     made explicit), since the Python brotli package takes no dictionary. Not imported from there: populate_db.py
     needs markdown-it, and this step needs nothing outside the standard library but the CLI. The dictionary is
-    written once to a private temporary file."""
+    written once to a private temporary file.
+
+    The CLI exits 1 both when it cannot run and when its input is no stream against the dictionary, so a CLI
+    that fails would make every template look undecodable. The codec therefore round-trips a probe text first
+    and raises Refused, with the CLI's own message, if that fails: after it passes, a template that does not
+    decode is the template's fault."""
+
+    PROBE = b"<p>{{ probe | raw }}</p>"
 
     def __init__(self, dictionary: bytes):
         self._brotli = shutil.which("brotli")
@@ -281,22 +288,34 @@ class DictionaryCodec:
         self._dictionary = Path(self._dir.name) / "dictionary.bin"
         self._dictionary.write_bytes(dictionary)
         self.dictionary = dictionary
+        stream, error = self._run("-w", str(WINDOW_BITS), data=self.PROBE)
+        if stream is not None:
+            text, error = self._run("-d", data=stream)
+            if text == self.PROBE:
+                return
+            error = error or "it decoded to other bytes"
+        self.close()
+        raise Refused(f"the brotli CLI ({self._brotli}) could not compress and decode a test text against the "
+                      f"dictionary: {error}")
 
-    def _run(self, *args: str, data: bytes):
+    def _run(self, *args: str, data: bytes) -> tuple:
+        """(output, None) if the CLI succeeds, else (None, what it printed on stderr)."""
         result = subprocess.run([self._brotli, "-D", str(self._dictionary), *args, "-c"], input=data,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-        return result.stdout if result.returncode == 0 else None
+        if result.returncode == 0:
+            return result.stdout, None
+        return None, result.stderr.decode("utf-8", "replace").strip() or f"exit status {result.returncode}"
 
     def compress(self, data: bytes) -> bytes:
-        out = self._run("-w", str(WINDOW_BITS), data=data)
+        out, error = self._run("-w", str(WINDOW_BITS), data=data)
         if out is None:
-            raise RuntimeError("brotli could not compress a template")
+            raise RuntimeError(f"the brotli CLI could not compress a template: {error}")
         return out
 
     def decompress(self, data: bytes):
         """The plaintext, or None if `data` is not a Brotli stream against this dictionary. A large-window stream
         decodes here, though not in the app: see large_window."""
-        return self._run("-d", data=data)
+        return self._run("-d", data=data)[0]
 
     def close(self) -> None:
         self._dir.cleanup()

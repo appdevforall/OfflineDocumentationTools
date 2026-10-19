@@ -813,6 +813,58 @@ def test_refuses_when_the_brotli_cli_is_missing(tmp_path):
     assert _sha(db) == sha and _backups(db) == []
 
 
+def _failing_brotli(tmp_path: Path, script: str) -> str:
+    """A `brotli` on PATH that runs `script` (Python) in place of the CLI, with the real one as REAL."""
+    stub = tmp_path / "bin" / "brotli"
+    stub.parent.mkdir()
+    stub.write_text(f"#!{sys.executable}\nimport subprocess, sys\nREAL = {shutil.which('brotli')!r}\n{script}")
+    stub.chmod(0o755)
+    return str(stub)
+
+
+# A brotli that does not know -D, as an old or a different build would.
+REJECTS_DICTIONARIES = 'sys.stderr.write("brotli: unknown option -D\\n")\nsys.exit(1)\n'
+
+
+def test_refuses_when_the_brotli_cli_fails_before_the_backup(tmp_path):
+    db = _database(tmp_path)
+    sha = _sha(db)
+    stub = _failing_brotli(tmp_path, REJECTS_DICTIONARIES)
+    with _patched_attr(shutil, "which", lambda _name: stub):
+        code, _out, err = _run(db)
+    assert code == 1 and "could not compress and decode a test text against the dictionary: brotli: unknown " \
+                         "option -D" in err, err
+    assert not any(blame in err for blame in ("do not decode", "neither UTF-8", "could not compress a template")), err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_refuses_a_converted_database_when_the_brotli_cli_fails(tmp_path):
+    # Every template decodes; the CLI is what fails, and the message must say so.
+    db = _converted(tmp_path)
+    sha = _sha(db)
+    stub = _failing_brotli(tmp_path, REJECTS_DICTIONARIES)
+    with _patched_attr(shutil, "which", lambda _name: stub):
+        code, _out, err = _run(db)
+    assert code == 1 and "brotli: unknown option -D" in err and "do not decode" not in err, err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_reports_the_cli_error_when_a_template_fails_to_compress(tmp_path):
+    # The CLI passes its probe, then fails on one template, as an out-of-memory CLI would.
+    db = _database(tmp_path)
+    stub = _failing_brotli(tmp_path, "data = sys.stdin.buffer.read()\n"
+                                     "if b'<nav>' in data and '-d' not in sys.argv:\n"
+                                     "    sys.stderr.write('brotli: out of memory\\n')\n"
+                                     "    sys.exit(1)\n"
+                                     "sys.stdout.buffer.write(subprocess.run([REAL, *sys.argv[1:]], input=data, "
+                                     "stdout=subprocess.PIPE, check=True).stdout)\n")
+    with _patched_attr(shutil, "which", lambda _name: stub):
+        code, _out, err = _run(db)
+    assert code == 1 and "the brotli CLI could not compress a template: brotli: out of memory" in err, err
+    assert all(text is None for _stored, text in _templates(db).values())
+    assert _query(db, "SELECT major FROM DocumentationDatabaseVersion") == [(2,)]
+
+
 def test_refuses_a_converted_database_whose_template_does_not_decode(tmp_path):
     # What a tool that writes Templates leaves when it runs after the conversion: a plain template.
     _assert_converted_refused(tmp_path, "1 of 3 template(s) do not decode against the dictionary as the app decodes "
@@ -909,7 +961,7 @@ def test_templates_read_back_compares_every_template(tmp_path):
 def _large_window_compress(self, data: bytes) -> bytes:
     """What the codec's compress would store if it asked for a large window: a stream the CLI decodes and the app
     cannot."""
-    return self._run("--large_window=26", data=data)
+    return self._run("--large_window=26", data=data)[0]
 
 
 def test_large_window_reads_the_stream_header():
