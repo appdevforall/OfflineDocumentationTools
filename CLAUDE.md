@@ -186,6 +186,15 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   (ADFA-6589); this step ships after both. A media rollback (`--restore-originals`) cannot undo its
   pages: start the rollback from this step's pre-run backup, keep that backup with the rollback
   bundle, and run this step again afterwards.
+- **`scripts/android_pages_to_templates.py`** - stores the Android reference pages under `a/`
+  (except `a/devsite/`) as JSON plus `android-reference.peb` and one shared include per
+  inherited-member block header (`android-inherited-<n>.peb`), after rendering every page back
+  byte for byte with the app's engine (`scripts/hm_render_check/`, as above); a page that does not
+  render back, or is over the app's render limit, stays HTML (ADFA-3305). Run it on the ship-time
+  copy only, never on the master: after the steps that write `a/` pages and the Kotlin trim,
+  before the 3.0.0 migration (which compresses every template; the app reads compressed templates
+  from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final dictionary re-mint.
+  It refuses a database that already holds its templates.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
