@@ -204,7 +204,9 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `check-tools/main.py` against it), `build-kotlin-docs.yaml` and its local-filesystem counterpart
   `build-kotlin-docs-local.yaml` (manual dispatch, the five-step Kotlin docs pipeline — these two
   are the only ones with Slack notifications), and `python-tests.yaml` (push/PR, runs the pytest
-  suites).
+  suites). No workflow runs `scripts/trim_kotlin_json.py`: the pipeline's last step,
+  `sync_kdoc_json_to_db.py`, rewrites every k/ row, so the trim, like the other ADFA-3305
+  size-reduction steps, is run by hand on the pipeline's output (after the dictionary re-mint).
 
 ## Decisions log
 

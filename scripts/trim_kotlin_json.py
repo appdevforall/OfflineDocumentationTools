@@ -41,20 +41,29 @@ at layout.pebble: move them off it first.
 
 Measured on the 2026-10-18 database (the ADFA-6627 state, 110,895,104
 bytes): the 3,237 rows go from 35,468,934 decoded bytes to 13,118,583 without
-T03 and 12,138,123 with it. Bytes saved against that database packed the same
-way (rebuild_database.py --pack Content,Tooltips --page-size 4096; .br made
-with brotli -q 11 -w 24):
+T03 and 12,138,123 with it. Bytes saved, every copy packed with PR #38's
+rebuild_database.py --pack Content,Tooltips --page-size 4096 and the .br made
+with brotli -q 11 -w 24:
 
-                  rows stored      file       .br
-    T01 T02 T04 T05   637,435   643,072   779,293
-    all five          732,279   737,280   867,001
+                  rows stored      file   .br (approximate)
+    T01 T02 T04 T05   637,435   643,072   0.67-0.78 MB
+    all five          732,279   737,280   0.77-0.87 MB
 
-Re-minting the dictionary afterwards made the file larger, by 536,576 and
-335,872 bytes, so this step needs no re-mint. Row order alone moves the .br:
-packing the same database a second time changed it by 173,277 bytes.
+The .br figures are a range because row order alone moves the .br: packing
+the same database a second time changed it by 173,277 bytes. That run saved
+779,293 and 867,001; a review re-measure on a database with the same Kotlin
+JSON and another dictionary saved 667,714 and 766,108 (file: 671,744 and
+765,952).
+
+Re-minting the dictionary after this step made the file larger, by 536,576
+and 335,872 bytes, so no re-mint should follow it.
 
 Pipeline position: after every step that writes the Kotlin API rows
-(sync_kdoc_json_to_db.py), and before rebuild_database.py.
+(sync_kdoc_json_to_db.py) and after the dictionary re-mint
+(remint_dictionary.py), then packing (PR #38's rebuild_database.py) if the
+build packs the database. No workflow runs this step: the build-kotlin-docs
+workflows end with sync_kdoc_json_to_db.py, which rewrites every k/ row, so
+it is run by hand on their output.
 
 Usage:
     ./trim_kotlin_json.py documentation.db [--changes T01,T02,T03,T04,T05] [--dry-run] [--workers N] [--verbose]
