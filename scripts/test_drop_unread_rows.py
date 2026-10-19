@@ -828,6 +828,52 @@ def test_a_fragment_goes_to_the_split_page_that_holds_its_anchor():
     assert new == b'<a href="../index-all.html#I:Z">' and count == 0 and "an anchor no split index page holds" in problems[0]
 
 
+def test_upper_case_attributes_and_file_names_are_pointed_at_the_split_index():
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html"}}
+    for link in (b'<a HREF="../index-all.html">', b'<img SRC="../index-all.html">', b'<a href="../INDEX-ALL.HTML">'):
+        new, count, problems = tool.point_at_split_index(link, "j/api/m", split)
+        expected = link.replace(b"index-all.html", b"index-files/index-1.html").replace(b"INDEX-ALL.HTML",
+                                                                                      b"index-files/index-1.html")
+        assert (new, count, problems) == (expected, 1, []), link
+
+
+def test_xlink_and_data_href_links_are_left_to_the_reference_check(tmp_path: Path):
+    # Only a bare href or src attribute is rewritten; a longer name ending in one is not, so the reference check
+    # sees the link to the one-page index and the run refuses.
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html"}}
+    for link in (b'<use xlink:href="../index-all.html"/>', b'<div data-href="../index-all.html">',
+                 b'<img data-src="../index-all.html">'):
+        assert tool.point_at_split_index(link, "j/api/m", split) == (link, 0, []), link
+    cases = [("j/html/api/m/a/G.svg", ("image/svg+xml", b'<svg xmlns:xlink="http://www.w3.org/1999/xlink">'
+                                                        b'<a xlink:href="../../index-all.html">Index</a></svg>')),
+             ("j/html/api/m/a/H.html", ("text/html", b'<div data-href="../../index-all.html">Index</div>'))]
+    for i, (path, row) in enumerate(cases):
+        rows, _expected = _index_rows()
+        rows[path] = row
+        _refused(tmp_path / str(i), rows, f"{path} links to j/html/api/index-all.html")
+
+
+def test_a_percent_encoded_fragment_goes_to_the_page_holding_the_decoded_id():
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html", "I:A": "j/api/index-files/index-1.html",
+                                      "I:B": "j/api/index-files/index-2.html"}}
+    new, count, problems = tool.point_at_split_index(b'<a href="../index-all.html#I%3AB">', "j/api/m", split)
+    assert (new, count, problems) == (b'<a href="../index-files/index-2.html#I%3AB">', 1, [])
+
+
+def test_an_id_on_several_split_pages_goes_to_the_first(tmp_path: Path):
+    # javadoc repeats its navbar ids on every split page; a link to one goes to index-1.html, not the last page read.
+    rows, _expected = _index_rows()
+    for page in ("j/html/api/index-files/index-1.html", "j/html/api/index-files/index-2.html"):
+        rows[page] = (rows[page][0], rows[page][1].replace(b'<body class="index-page">',
+                                                             b'<body class="index-page"><nav id="navbar-top"></nav>'))
+    rows["j/html/api/m/a/D.html"] = ("text/html", b'<a href="../../index-all.html#navbar-top">Top</a>')
+    db = _database(tmp_path, rows)
+    code, _out, err = _run(db, groups=["javadoc-index-all"])
+    assert code == 0, err
+    assert _decompress(_stored(db)["j/html/api/m/a/D.html"][1]) == \
+        b'<a href="../../index-files/index-1.html#navbar-top">Top</a>'
+
+
 def test_a_link_to_an_anchor_no_split_page_holds_refuses(tmp_path: Path):
     rows, _expected = _index_rows()
     rows["j/html/api/m/a/D.html"] = ("text/html", b'<a href="../../index-all.html#I:Z">Z names</a>')
