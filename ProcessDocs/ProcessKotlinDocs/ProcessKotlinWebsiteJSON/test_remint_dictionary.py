@@ -150,6 +150,54 @@ class RemintDictionaryTest(unittest.TestCase):
             self.assertEqual(self.plaintext(path), plain, f"{path} lost its content")
         self.assertEqual(verify(before, self.db_path), [])
 
+    def test_a_winner_in_the_middle_is_kept(self):
+        """Noise, a trained dictionary, then noise: the second candidate must be kept, its dictionary stored and its
+        rows written - neither the first nor the last, so keeping or writing either of those fails."""
+        before = self.snapshot()
+        noise = random.Random(9)
+        real = remint_dictionary.train_dictionary
+        trained = []
+
+        def candidates(samples, dict_size):
+            trained.append(real(samples, dict_size) if len(trained) == 1 else noise.randbytes(dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=candidates):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(stats["seed"], 1000)
+        self.assertEqual(load_dictionary(self.conn), trained[1])
+        self.assertEqual(stats["after"], stats["candidates"][1][1])
+        self.assertEqual(self.stored_bytes(), stats["after"], "the rows written are not the chosen candidate's")
+        self.assertLess(stats["candidates"][1][1], min(stats["candidates"][0][1], stats["candidates"][2][1]))
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_each_candidate_trains_on_its_own_sample(self):
+        """Candidates differ only by their sample seed; if every pass drew the same sample, --seeds would retrain
+        one dictionary several times."""
+        real = remint_dictionary.train_dictionary
+        samples_seen = []
+
+        def record(samples, dict_size):
+            samples_seen.append(list(samples))
+            return real(samples, dict_size)
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=record):
+            remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(len(samples_seen), 3)
+        for i in range(3):
+            for j in range(i + 1, 3):
+                self.assertNotEqual(samples_seen[i], samples_seen[j], f"candidates {i} and {j} trained on one sample")
+
+    def test_main_reports_how_much_smaller(self):
+        stored_before = self.stored_bytes()
+        printed = self.run_main("--sample-seed", "999", "--seeds", "1")
+        stored_after = self.stored_bytes()
+        self.assertLess(stored_after, stored_before)
+        self.assertIn(f"{stored_before:,} -> {stored_after:,} bytes "
+                      f"({100 * (stored_before - stored_after) / stored_before:.1f}% smaller)", printed)
+
     def contents(self) -> dict:
         return {path: content for path, content in self.conn.execute("SELECT path, content FROM Content")}
 
