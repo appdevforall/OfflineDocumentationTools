@@ -20,6 +20,10 @@ from remint_dictionary import remint
 from verify_remint_dictionary import verify
 from test_migrate_content_to_dictionary_brotli import SCHEMA_SQL, insert_plain_chunked, make_text
 
+# The dictionary the fixture is first minted with. Small on purpose, so a 16 KiB re-mint beats it by hundreds of
+# bytes rather than a handful, whatever zstd and brotli version runs the tests.
+MIGRATE_DICT_SIZE = 1024
+
 
 class RemintDictionaryTest(unittest.TestCase):
     def setUp(self):
@@ -32,15 +36,16 @@ class RemintDictionaryTest(unittest.TestCase):
         self.conn.execute("INSERT INTO ContentTypes (value, compression) VALUES ('text/html', 'brotli')")
         self.html_type_id = 1
         self.originals = {}
-        # Spread across doc sets, so the stratified sampler has something to stratify.
-        for doc_set in ("a", "j", "k"):
+        # Spread across doc sets, so the stratified sampler has something to stratify. The text seeds are fixed:
+        # hash() of a tuple changes with PYTHONHASHSEED, which made which candidate won vary from run to run.
+        for k, doc_set in enumerate(("a", "j", "k")):
             for i in range(12):
                 path_ = f"{doc_set}/page{i}.html"
-                plain = make_text(220, seed=hash((doc_set, i)) % 9973)
+                plain = make_text(220, seed=100 * k + i)
                 insert_plain_chunked(self.conn, path_, 1, self.html_type_id, 0, plain)
                 self.originals[path_] = plain
         self.conn.commit()
-        migrate(self.conn, sample_size=30, dict_size=16384)
+        migrate(self.conn, sample_size=30, dict_size=MIGRATE_DICT_SIZE)
         self.conn.commit()
         self.first_dictionary = load_dictionary(self.conn)
 
@@ -82,7 +87,7 @@ class RemintDictionaryTest(unittest.TestCase):
         corpus is a no-op, and the verifier says so rather than pretending
         something changed."""
         before = self.snapshot()
-        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20)
+        remint(self.conn, sample_size=30, dict_size=MIGRATE_DICT_SIZE, training_bytes=1 << 20)
         self.assertEqual(load_dictionary(self.conn), self.first_dictionary)
         self.assertEqual(verify(before, self.db_path), [])
 
