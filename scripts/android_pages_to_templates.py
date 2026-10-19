@@ -200,13 +200,13 @@ _TR_OPEN = re.compile(r"<tr[\s>]")
 
 # Pebble drops the line break right after any tag: one match of these, in this order
 # (io.pebbletemplates.pebble.lexer.Syntax), at the tag's end.
-_PEBBLE_NEWLINE = re.compile("\r\n|\n\r|\r|\n|\u0085| | ")
+_PEBBLE_NEWLINE = re.compile("\r\n|\n\r|\r|\n|\u0085|\u2028|\u2029")
 _PEBBLE_SYNTAX = ("{{", "{%", "{#")
 _END_VERBATIM = re.compile(r"\{%-?\s*endverbatim")
 # What Pebble 4.1.1 strips from the start of a verbatim block, all of it: Java's Character.isWhitespace plus
 # U+0085 (measured, one character at a time).
-_VERBATIM_STRIPS = frozenset("\t\n\u000b\f\r\u001c\u001d\u001e\u001f \u0085      "
-                             "        　")
+_VERBATIM_STRIPS = frozenset("\t\n\u000b\f\r\u001c\u001d\u001e\u001f \u0085\u1680\u2000\u2001\u2002\u2003"
+                             "\u2004\u2005\u2006\u2008\u2009\u200a\u2028\u2029\u205f\u3000")
 
 
 class Unrepresentable(ValueError):

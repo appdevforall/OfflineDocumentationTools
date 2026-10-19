@@ -326,12 +326,12 @@ def stored_context(db: Path, path: str) -> dict:
 
 # --- Pebble text rules ---------------------------------------------------------------
 
-BREAKS = ["\n", "\r", "\r\n", "\n\r", "\u0085", " ", " ", "\n\n", "x\n"]
+BREAKS = ["\n", "\r", "\r\n", "\n\r", "\u0085", "\u2028", "\u2029", "\n\n", "x\n"]
 
 
 def test_after_tag_doubles_only_a_leading_line_break():
     for text in BREAKS:
-        expected = text[0] + text if text[0] in "\r\n\u0085  " else text
+        expected = text[0] + text if text[0] in "\r\n\u0085\u2028\u2029" else text
         assert apt.after_tag(text) == expected, repr(text)
     assert apt.after_tag("") == ""
 
