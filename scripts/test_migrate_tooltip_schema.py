@@ -264,6 +264,49 @@ def test_a_second_run_changes_nothing(tmp_path):
     assert _sha(db) == sha and _backups(db) == []
 
 
+def _converted(tmp_path: Path, sql: str = "") -> Path:
+    """A database this tool converted, its backup removed, then changed by `sql`."""
+    db = _database(tmp_path)
+    assert _run(db)[0] == 0
+    for backup in _backups(db):
+        backup.unlink()
+    if sql:
+        conn = sqlite3.connect(db)
+        conn.executescript(sql)
+        conn.close()
+    return db
+
+
+def _assert_converted_refused(tmp_path, phrase: str, sql: str):
+    db = _converted(tmp_path, sql)
+    sha = _sha(db)
+    code, out, err = _run(db)
+    assert code == 1, (out, err)
+    assert phrase in err, err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_refuses_a_converted_database_that_declares_version_2(tmp_path):
+    # What populate_db.py's declare_database_version leaves when it runs after the conversion.
+    _assert_converted_refused(tmp_path, "already in the new shape, but DocumentationDatabaseVersion declares major 2",
+                              "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                              "VALUES (2, 0, 0, 'populate_db', 'later', '2999-01-01')")
+
+
+def test_refuses_a_converted_database_without_a_version(tmp_path):
+    _assert_converted_refused(tmp_path, "DocumentationDatabaseVersion is empty",
+                              "DELETE FROM DocumentationDatabaseVersion")
+
+
+def test_leaves_a_converted_database_declaring_a_later_version_alone(tmp_path):
+    db = _converted(tmp_path, "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                              "VALUES (4, 0, 0, 'later', 'later', '2999-01-01')")
+    sha = _sha(db)
+    code, out, _err = _run(db)
+    assert code == 0 and "already in the new shape; nothing to do" in out
+    assert _sha(db) == sha and _backups(db) == []
+
+
 def test_a_dry_run_converts_and_checks_but_writes_nothing(tmp_path):
     db = _database(tmp_path)
     sha = _sha(db)

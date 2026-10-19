@@ -56,10 +56,14 @@ one-off scripts), and before rebuild_database.py, which then packs
 Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not Tooltips. Its
 order against the Content steps does not matter.
 
-A database already converted is left alone (exit 0). One whose tooltip tables
-are in neither shape, or hold data the new keys cannot (a button with no
-tooltip, two buttons with one number, a NULL), or that does not declare major
-version 2, is refused with nothing written (exit 1).
+A database already converted, and declaring major version 3 or later, is left
+alone (exit 0). One already in the new shape that declares less is refused: the
+app refuses it too, and only a step run after the conversion can have rewritten
+its version row (populate_db.py's declare_database_version does), so this step
+does not guess what else that step changed. One whose tooltip tables are in
+neither shape, or hold data the new keys cannot (a button with no tooltip, two
+buttons with one number, a NULL), or that does not declare major version 2, is
+refused too. A refusal writes nothing and exits 1.
 
 Usage:
     ./migrate_tooltip_schema.py documentation.db [--dry-run]
@@ -368,6 +372,12 @@ def run(cfg: dict) -> int:
     try:
         try:
             if schema_state(conn) == "new":
+                major = newest_major(conn)
+                if major < TO_MAJOR:
+                    raise Refused(f"the tooltip tables are already in the new shape, but DocumentationDatabaseVersion "
+                                  f"declares major {major}, so the app refuses this file; a step run after the "
+                                  f"conversion rewrote the version row. Declare {TO_MAJOR}.0.0 by hand once you know "
+                                  "it changed nothing else")
                 print(f"{db_path}: the tooltip tables are already in the new shape; nothing to do.")
                 return 0
             found = problems(conn)
