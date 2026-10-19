@@ -74,9 +74,9 @@ class RemintDictionaryTest(unittest.TestCase):
 
     def test_replaces_the_dictionary_and_preserves_every_payload(self):
         before = self.snapshot()
-        # A different seed is what makes this a real re-mint: the sampler is
-        # deterministic, so re-training on the same corpus with the same seed
-        # reproduces the stored dictionary byte for byte (see the sibling test).
+        # A different seed is what makes this a real re-mint: on this fixture the
+        # same seed draws the same sample and retrains the stored dictionary byte for
+        # byte (see the sibling test).
         stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999)
         self.assertEqual(stats["items"], len(self.originals))
 
@@ -88,9 +88,11 @@ class RemintDictionaryTest(unittest.TestCase):
 
     def test_same_seed_reproduces_the_stored_dictionary(self):
         """The sampler is seeded so a dictionary's training set can be
-        reproduced later -- which also means re-minting with the same seed and
-        corpus is a no-op, and the verifier says so rather than pretending
-        something changed."""
+        reproduced later. On this fixture the same seed draws the same sample, so
+        the re-mint keeps the stored dictionary and the verifier finds nothing
+        changed. That is not true in general: the sampler weighs each doc set by
+        its stored bytes, which a re-mint changes, so a second re-mint of real data
+        at the same seed drew a different sample (and stored 0.1% less)."""
         before = self.snapshot()
         remint(self.conn, sample_size=30, dict_size=MIGRATE_DICT_SIZE, training_bytes=1 << 20)
         self.assertEqual(load_dictionary(self.conn), self.first_dictionary)
