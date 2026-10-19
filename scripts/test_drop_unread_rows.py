@@ -837,6 +837,18 @@ def test_upper_case_attributes_and_file_names_are_pointed_at_the_split_index():
         assert (new, count, problems) == (expected, 1, []), link
 
 
+def test_a_row_whose_only_link_is_upper_case_is_rewritten_too(tmp_path: Path):
+    # The rewrite matches the name in any case, so whether a row is rewritten must not hang on it also holding a
+    # lower-case link.
+    rows, _expected = _index_rows()
+    rows["j/html/api/m/a/U.html"] = ("text/html", b'<a href="../../INDEX-ALL.HTML">Index</a>')
+    db = _database(tmp_path, rows)
+    code, out, err = _run(db, groups=["javadoc-index-all"])
+    assert code == 0, err
+    assert _decompress(_stored(db)["j/html/api/m/a/U.html"][1]) == b'<a href="../../index-files/index-1.html">Index</a>'
+    assert "javadoc-index-all: 6 link(s) in 5 row(s) pointed at the split index" in out
+
+
 def test_xlink_and_data_href_links_are_left_to_the_reference_check(tmp_path: Path):
     # Only a bare href or src attribute is rewritten; a longer name ending in one is not, so the reference check
     # sees the link to the one-page index and the run refuses.

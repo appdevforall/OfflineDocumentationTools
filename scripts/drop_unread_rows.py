@@ -38,9 +38,10 @@ The rows, in five groups (pick some with --only; the default is all five):
 - javadoc-index-all: javadoc's one-page index (j/**/index-all.html), which
   repeats its split index (index-files/index-1.html to index-27.html) in one
   page of 23 MB. It is the only group that changes kept rows: every quoted
-  href or src that resolves to it is pointed at index-files/index-1.html
-  instead, keeping the link's own relative or rooted prefix (a fragment goes
-  to the split page that holds its anchor). On a Pixel 6 Pro the one-page
+  href or src that resolves to it, its file name matched in any letter case,
+  is pointed at index-files/index-1.html instead, keeping the link's own
+  relative or rooted prefix (a fragment goes to the split page that holds its
+  anchor, index-1.html first when several do). On a Pixel 6 Pro the one-page
   index took 5.0 s to load and a split page 0.5-0.8 s. A page named
   index-all.html must be a javadoc index page (body class "index-page"), and
   the split index must exist, or the run refuses.
@@ -163,6 +164,9 @@ SPLIT_INDEX_DIR = "index-files"
 _SPLIT_ANCHOR = re.compile(rb'\bid="([^"]+)"')
 _INDEX_LINK = re.compile(rb"""((?<![\w:-])(?:href|src)\s*=\s*)(["'])([^"'<>]*?)index-all\.html(#[^"'<>]*)?\2""",
                          re.I)
+# The cheap test for a row _INDEX_LINK might change, in the same letter case rule, so a row's links are rewritten
+# whether or not it also names the index in lower case.
+_INDEX_ALL_NAME = re.compile(re.escape(INDEX_ALL.encode()), re.I)
 
 # References to rows this step deletes that nothing follows, as (referring row,
 # deleted row) -> why. Each is printed when found, so it stays visible.
@@ -707,7 +711,7 @@ def run(cfg: dict) -> int:
             if raw is None:
                 return path, None, error, None, 0, []
             new, count, link_problems = raw, 0, []
-            if split_index and rows[path][4] == 0 and INDEX_ALL.encode() in raw:
+            if split_index and rows[path][4] == 0 and _INDEX_ALL_NAME.search(raw):
                 new, count, link_problems = point_at_split_index(raw, posixpath.dirname(path), split_index)
             text = new.decode("utf-8", errors="replace")
             return (path, refs.in_text(text, (posixpath.dirname(path),), rows[path][4] != 0), None,
