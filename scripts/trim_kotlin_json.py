@@ -31,10 +31,13 @@ with Pebble 4.1.1 and Gson 2.12.1 set up as the app sets them up).
 The template is found by name. The changes are only right for the template
 they were checked against, so the step refuses to run when layout.pebble's
 Pebble code differs from that (TEMPLATE_CODE_SHA256; whitespace outside
-Pebble tags and {# #} comments do not count). A row that cannot be read, is
-not a JSON object, or is not stored as compact JSON (the form json.dumps with
-separators=(",", ":") and ensure_ascii=False writes, which every row had) is
-left as it is, and the step exits 1.
+Pebble tags and {# #} comments do not count). If any layout.pebble row cannot
+be read, is not a JSON object, or is not stored as compact JSON (the form
+json.dumps with separators=(",", ":") and ensure_ascii=False writes, which
+every row had), the step names those rows and writes nothing. So exit 1
+always means the database was left as it was, and 0 that the run finished.
+The k/*package-list rows of ADFA-6630 are such rows while they still point
+at layout.pebble: move them off it first.
 
 Measured on the 2026-10-18 database (the ADFA-6627 state, 110,895,104
 bytes): the 3,237 rows go from 35,468,934 decoded bytes to 13,118,583 without
@@ -438,8 +441,14 @@ def run(cfg: dict) -> int:
             count, saved = per_change[name]
             print(f"  {name} {CHANGES[name][0].__name__}: {human(count)} row(s), {human(saved)} decoded byte(s) of "
                   f"{CHANGES[name][1]}")
-        for path, problem in sorted(skipped.items()):
-            print(f"  skipped {path}: {problem}", file=sys.stderr)
+        # All or nothing, so exit 1 always means the database was not touched and a rerun starts from the same
+        # state: trimming the other rows would leave a half-trimmed database that still exits 1.
+        if skipped:
+            print(f"error: {len(skipped)} {TEMPLATE_NAME} row(s) cannot be trimmed safely, so nothing was written:",
+                  file=sys.stderr)
+            for path, problem in sorted(skipped.items()):
+                print(f"  {path}: {problem}", file=sys.stderr)
+            return 1
 
         if cfg["dry_run"]:
             print("Dry run: nothing written.")
@@ -472,14 +481,11 @@ def run(cfg: dict) -> int:
 
     verb = "would change" if cfg["dry_run"] else "changed"
     print(f"\nDone. {verb} {human(len(changes))} row(s), saving {human(sum(c[6] for c in changes))} decoded and "
-          f"{human(sum(c[7] for c in changes))} stored byte(s) against the current dictionary; "
-          f"{len(skipped)} row(s) skipped.")
+          f"{human(sum(c[7] for c in changes))} stored byte(s) against the current dictionary.")
     if changes and not cfg["dry_run"]:
-        print("Next: rebuild_database.py --pack. No dictionary re-mint is needed; measured, one made the file "
-              "larger after this step.")
-    if skipped:
-        print(f"error: {len(skipped)} row(s) could not be trimmed and were left as they were.", file=sys.stderr)
-    return 1 if skipped else 0
+        print("Next: pack the database if the build packs it (rebuild_database.py --pack, from PR #38). Do not "
+              "re-mint the dictionary after this step; measured, a re-mint made the file larger.")
+    return 0
 
 
 def changes_arg(value: str) -> list:

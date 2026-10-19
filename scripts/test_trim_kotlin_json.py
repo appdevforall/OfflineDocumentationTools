@@ -535,27 +535,42 @@ def test_a_changed_template_stops_the_step(tmp_path: Path):
     assert _run(db)[0] == 0
 
 
-def test_an_unreadable_row_is_reported_and_the_rest_still_change(tmp_path: Path):
+def test_an_unreadable_row_stops_the_run_before_anything_is_written(tmp_path: Path):
     _needs("brotli")
     db = _database(tmp_path, {"k/a.html": ("text/html", _dump(FUNCTION_PAGE)),
                               "k/broken.html": ("text/html", b"not brotli at all", 7, True)})
+    before = _stored(db)
     code, _out, err = _run(db)
-    assert code == 1 and "skipped k/broken.html: could not be read" in err
-    assert _decompress(_stored(db)["k/a.html"][1]) == _dump(_all(FUNCTION_PAGE))
+    assert code == 1 and "nothing was written" in err and "k/broken.html: could not be read" in err
+    # The good row is not trimmed either, and no backup is made: exit 1 means the database was not touched.
+    assert _stored(db) == before
+    assert [p.name for p in tmp_path.iterdir()] == ["documentation.db"]
 
 
-def test_a_row_that_is_not_a_json_object_is_left_as_it_is(tmp_path: Path):
+def test_a_row_that_is_not_a_json_object_stops_the_run_before_anything_is_written(tmp_path: Path):
     _needs("brotli")
+    # The package-list row is ADFA-6630's case: plain text left on layout.pebble.
     db = _database(tmp_path, {"k/a.html": ("text/html", _dump(FUNCTION_PAGE)),
                               "k/list.html": ("text/html", b'[{"name":"x","dri":"y"}]'),
                               "k/package-list": ("text/html", b"$dokka.format:html-v1\nkotlin\n")})
     before = _stored(db)
     code, _out, err = _run(db)
-    after = _stored(db)
-    assert code == 1
-    assert "skipped k/list.html: is JSON but not an object" in err and "skipped k/package-list: is not JSON" in err
-    assert after["k/list.html"] == before["k/list.html"] and after["k/package-list"] == before["k/package-list"]
-    assert after["k/a.html"] != before["k/a.html"]
+    assert code == 1 and "nothing was written" in err
+    assert "k/list.html: is JSON but not an object" in err and "k/package-list: is not JSON" in err
+    assert _stored(db) == before
+    # A rerun refuses the same way and still writes nothing.
+    assert _run(db)[0] == 1 and _stored(db) == before
+    assert [p.name for p in tmp_path.iterdir()] == ["documentation.db"]
+
+
+def test_a_refused_dry_run_exits_1_too(tmp_path: Path):
+    _needs("brotli")
+    db = _database(tmp_path, {"k/a.html": ("text/html", _dump(FUNCTION_PAGE)),
+                              "k/package-list": ("text/html", b"kotlin\n")})
+    before = _stored(db)
+    code, _out, err = _run(db, dry_run=True)
+    assert code == 1 and "k/package-list: is not JSON" in err
+    assert _stored(db) == before
 
 
 def test_a_row_not_stored_as_compact_json_is_left_as_it_is(tmp_path: Path):
