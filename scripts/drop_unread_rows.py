@@ -14,7 +14,7 @@ drop_unread_rows.py
 Deletes Content rows that nothing in the app or the documentation reads, after
 checking that no row it keeps refers to one of them.
 
-The rows, in five groups (pick some with --only; the default is all five):
+The rows, in six groups (pick some with --only; the default is all six):
 
 - javadoc-use: the javadoc Use pages (j/html/api/**/class-use/*.html and
   *package-use.html) and the module graphs (j/html/api/**/*module-graph.svg).
@@ -47,6 +47,20 @@ The rows, in five groups (pick some with --only; the default is all five):
   index-19.html 537 ms and 832 ms. A page named
   index-all.html must be a javadoc index page (body class "index-page"), and
   the split index must exist, or the run refuses.
+- duplicate-media: byte-identical copies of an image, video or audio row
+  (same stored bytes, chunks joined, same type and language). One copy of each
+  set is kept: the one the most rows link to (pages, templates, tooltip
+  buttons and Bookshelf entries counted), then the shortest path, then the
+  lowest id. Every link to a dropped copy is pointed at the kept one, keeping
+  the link's own directory prefix: in kept text rows, templated rows' JSON
+  included, and in tooltip button URIs. A link in a template is not rewritten,
+  so it refuses the run, as does any link the rewrite does not reach. Most of
+  these are the Help+Manual image toggles whose small and zoomed images became
+  identical when the images were resized (ADFA-6645, item 2), so a toggle now
+  swaps one file for itself. PDFs are left alone: the Bookshelf lists each
+  placeholder book on its own even when their bytes match, and deleting one
+  fires the DeleteBook trigger. So are text rows: the only identical ones are
+  licence notices, kept beside what they cover.
 
 A row's chunk continuations ("<path>-1", "-2", ...) go with it.
 
@@ -84,7 +98,11 @@ when any check fails, writing nothing:
   references are expected and allowed; ALLOWED below says why each is dead.
   Rows are read after javadoc-index-all's rewrite, so a link to a one-page
   index that the rewrite does not reach (unquoted, built by a script, or in a
-  templated row's JSON, which is not rewritten) refuses the run too.
+  templated row's JSON, which is not rewritten) refuses the run too. They are
+  also read after duplicate-media's rewrite, and tooltip button uris as they
+  will be written, so a link to a dropped copy that it does not reach refuses
+  the run the same way; so does a templated row whose JSON no longer parses
+  after it.
 - Content. Each x/ row must be a placeholder page, each javadoc-use HTML row a
   "Uses of" page and each module graph an SVG, and p/web/cmaps/ may hold only
   .bcmap files and LICENSE, so a real page that lands on one of these paths is
@@ -120,7 +138,8 @@ tooltips, so the reference check sees the final pages, and before
 rebuild_database.py. It may run before or after migrate_tooltip_schema.py,
 since it reads both tooltip shapes and both template encodings. Deleting
 rows does not call for a dictionary re-mint. rebuild_database.py --pack has to
-follow it: javadoc-index-all's rewritten rows store a few bytes more each, and
+follow it: rows whose links it rewrites (javadoc-index-all, duplicate-media)
+change size, and javadoc-index-all's store a few bytes more each, and
 VACUUM keeps row order, so in a file that was already packed they move to new
 pages and leave their old ones mostly empty. On the 2026-10-19 ship-time build
 (packed, 90,783,744 bytes) the file grew to 99,475,456 bytes; packed again it
@@ -137,6 +156,7 @@ from __future__ import annotations
 import argparse
 import base64
 import bisect
+import hashlib
 import html
 import json
 import posixpath
@@ -147,7 +167,7 @@ import zlib
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from optimize_db_media import (
     BrotliCodec, backup_database, delete_media_row, human, is_continuation_path, load_dictionary,
@@ -175,6 +195,11 @@ _INDEX_LINK = re.compile(rb"""((?<![\w:-])(?:href|src)\s*=\s*)(["'])([^"'<>]*?)i
 # The cheap test for a row _INDEX_LINK might change, in the same letter case rule, so a row's links are rewritten
 # whether or not it also names the index in lower case.
 _INDEX_ALL_NAME = re.compile(re.escape(INDEX_ALL.encode()), re.I)
+# The types whose byte-identical copies duplicate-media merges; the docstring says why PDFs and text are not.
+DUPLICATE_MEDIA_PREFIXES = ("image/", "video/", "audio/")
+# A character a link's path can hold as written in a page; anything else (a quote, "(", "=", a space, a JSON
+# escape's backslash) ends the path.
+_PATH_CHARS = rb"A-Za-z0-9._~%:@+\-"
 
 # References to rows this step deletes that nothing follows, as (referring row,
 # deleted row) -> why. Each is printed when found, so it stays visible.
@@ -272,6 +297,8 @@ GROUPS = {
                      None),
     "x-placeholders": ("x/ placeholder pages", lambda path: path.startswith("x/"), _check_placeholder),
     "javadoc-index-all": ("javadoc one-page indexes", _javadoc_index_all, _check_index_page),
+    # Chosen from the data, not by path: see run().
+    "duplicate-media": ("byte-identical media copies", None, None),
 }
 
 
@@ -299,6 +326,40 @@ def point_at_split_index(raw: bytes, row_dir: str, split_index: dict) -> tuple:
         return m.group(1) + m.group(2) + new.encode("utf-8") + fragment + m.group(2)
 
     return _INDEX_LINK.sub(repl, raw), changed, problems
+
+
+def dropped_copy_links(remap: dict):
+    """A pattern for the links point_at_kept_copies may change: a path whose last segment is a dropped copy's file
+    name, as stored or percent-encoded, with its directory prefix in group 1 and the name in group 2."""
+    names = set()
+    for dropped in remap:
+        name = posixpath.basename(dropped)
+        names.update({name, quote(name)})
+    alternatives = b"|".join(re.escape(name.encode("utf-8")) for name in sorted(names, key=len, reverse=True))
+    return re.compile(rb"(?<![" + _PATH_CHARS + rb"/])((?:[" + _PATH_CHARS + rb"]*/)*)(" + alternatives
+                      + rb")(?![" + _PATH_CHARS + rb"/])")
+
+
+def point_at_kept_copies(raw: bytes, row_dir: str, remap: dict, pattern) -> tuple:
+    """(raw with every link that resolves to a dropped copy pointed at the copy kept in its place, the number of links
+    changed). remap maps each dropped path to the path kept; pattern is dropped_copy_links(remap). A link keeps its
+    own directory prefix, and stays percent-encoded if it was, so a relative, rooted or http://localhost:6174/ link
+    stays one. JSON text is rewritten in place, inside its strings."""
+    changed = 0
+
+    def repl(m):
+        nonlocal changed
+        prefix, name = m.group(1).decode("utf-8", errors="replace"), m.group(2).decode("utf-8", errors="replace")
+        target = next((p for p in link_paths(prefix + name, (row_dir,)) if p in remap), None)
+        if target is None:
+            return m.group(0)
+        new = posixpath.relpath(remap[target], posixpath.dirname(target))
+        if name != posixpath.basename(target):  # the link spelled the name percent-encoded
+            new = quote(new)
+        changed += 1
+        return m.group(1) + new.encode("utf-8")
+
+    return pattern.sub(repl, raw), changed
 
 
 def turn_scripting_off(viewer: bytes) -> tuple:
@@ -631,9 +692,9 @@ def run(cfg: dict) -> int:
             return 1
         buttons_query, texts_query = queries
         codec = BrotliCodec(load_dictionary(conn))
-        rows = {path: (row_id, length, mime, compression, template_id)
-                for row_id, path, length, mime, compression, template_id in conn.execute(
-                    "SELECT c.id, c.path, LENGTH(c.content), ct.value, ct.compression, c.templateId "
+        rows = {path: (row_id, length, mime, compression, template_id, language_id)
+                for row_id, path, length, mime, compression, template_id, language_id in conn.execute(
+                    "SELECT c.id, c.path, LENGTH(c.content), ct.value, ct.compression, c.templateId, c.languageID "
                     "FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id ORDER BY c.path")}
         lengths = {path: row[1] for path, row in rows.items()}
         bases = [path for path in rows if not is_continuation_path(lengths, path)]
@@ -645,7 +706,87 @@ def run(cfg: dict) -> int:
 
         doomed = {}  # base row -> its group
         for group in groups:
-            doomed.update((path, group) for path in bases if GROUPS[group][1](path))
+            if GROUPS[group][1] is not None:
+                doomed.update((path, group) for path in bases if GROUPS[group][1](path))
+
+        # A template renders at the paths of the rows that use it.
+        dirs_by_template = defaultdict(set)
+        for path, row in rows.items():
+            if row[4]:
+                dirs_by_template[row[4]].add(posixpath.dirname(path))
+        major = declared_major(conn)
+        compressed = major is not None and major >= COMPRESSED_TEMPLATES_MAJOR
+        templates = []  # (name, render dirs, decoded text, or None and why it could not be decoded)
+        for template_id, name, content in conn.execute("SELECT id, name, content FROM Templates"):
+            dirs = ("",) + tuple(sorted(dirs_by_template[template_id]))
+            try:
+                raw = codec.decompress(bytes(content), "brotli") if compressed else bytes(content)
+            except Exception as exc:  # noqa: BLE001 - reported, and the run refused
+                templates.append((name, dirs, None, str(exc)))
+                continue
+            templates.append((name, dirs, raw.decode("utf-8", errors="replace"), None))
+
+        def kept_copies() -> dict:
+            """duplicate-media: {each dropped copy: the copy kept in its place}. Copies are rows of a media type with
+            the same type, language and stored bytes (chunks joined) that no other group deletes. The copy kept is
+            the one the most rows link to (kept text rows, templates, tooltip buttons, Bookshelf entries), then the
+            one with the shortest path, then the one with the lowest id."""
+            by_shape = defaultdict(list)
+            for path in bases:
+                if path not in doomed and rows[path][2].startswith(DUPLICATE_MEDIA_PREFIXES):
+                    by_shape[(rows[path][2], rows[path][5], lengths[path])].append(path)
+            sets = defaultdict(list)
+            for shape, paths in by_shape.items():
+                if len(paths) > 1:
+                    for path in paths:
+                        sets[shape + (hashlib.sha256(stored_bytes(path)).digest(),)].append(path)
+            copies = [paths for paths in sets.values() if len(paths) > 1]
+            if not copies:
+                return {}
+            members = {path for paths in copies for path in paths}
+            counter = References(set(rows), members)
+            # A row can link to a copy only by naming it, so a row that does not is not read for links.
+            named = dropped_copy_links({path: path for path in members})
+            linked_from = defaultdict(set)
+
+            def count(item):
+                path, full = item
+                try:
+                    raw = codec.decompress(full, rows[path][3])
+                except Exception:  # noqa: BLE001 - the reference pass reports it and refuses the run
+                    return ()
+                if not named.search(raw):
+                    return ()
+                text = raw.decode("utf-8", errors="replace")
+                return [(target, path) for target, _how in
+                        counter.in_text(text, (posixpath.dirname(path),), rows[path][4] != 0)]
+
+            texts = [(path, stored_bytes(path)) for path in bases
+                     if path not in doomed and path not in members and rows[path][2] in SCANNED_TYPES]
+            with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
+                for links in pool.map(count, texts):
+                    for target, source in links:
+                        linked_from[target].add(source)
+            for name, dirs, text, _error in templates:
+                if text is not None:
+                    for target, _how in counter.in_text(text, dirs):
+                        linked_from[target].add(f"template {name}")
+            for tooltip_id, uri in conn.execute(buttons_query):
+                for target, _how in counter.targets(uri, ("",)):
+                    linked_from[target].add(f"tooltip {tooltip_id} button")
+            by_id = {rows[path][0]: path for path in members}
+            for (content_id,) in conn.execute("SELECT contentID FROM Bookshelf"):
+                if content_id in by_id:
+                    linked_from[by_id[content_id]].add(f"Bookshelf {content_id}")
+            chosen = {}
+            for paths in copies:
+                keep = min(paths, key=lambda p: (-len(linked_from[p]), len(p), rows[p][0]))
+                chosen.update((path, keep) for path in paths if path != keep)
+            return chosen
+
+        remap = kept_copies() if "duplicate-media" in groups else {}
+        doomed.update((path, "duplicate-media") for path in remap)
+        copy_links = dropped_copy_links(remap) if remap else None
         deleted = {}  # every row deleted, chunk rows included -> its group
         for path, group in doomed.items():
             deleted[path] = group
@@ -713,21 +854,30 @@ def run(cfg: dict) -> int:
 
         def scan(item):
             """References a kept row makes, read after its links to a one-page index being deleted are pointed at
-            the split index, so a link the rewrite misses is still caught. A templated row's JSON is not rewritten:
-            a link there to a deleted index refuses the run."""
+            the split index and its links to dropped copies at the kept ones, so a link either rewrite misses is
+            still caught. A templated row's JSON gets only the second: a link there to a deleted index refuses the
+            run."""
             path, raw, error = decode(item)
             if raw is None:
-                return path, None, error, None, 0, []
-            new, count, link_problems = raw, 0, []
+                return path, None, error, None, 0, 0, []
+            new, count, copies, link_problems = raw, 0, 0, []
             if split_index and rows[path][4] == 0 and _INDEX_ALL_NAME.search(raw):
                 new, count, link_problems = point_at_split_index(raw, posixpath.dirname(path), split_index)
+            if copy_links is not None and copy_links.search(new):
+                new, copies = point_at_kept_copies(new, posixpath.dirname(path), remap, copy_links)
+                if copies and rows[path][4] != 0:
+                    try:
+                        json.loads(new)
+                    except ValueError as exc:
+                        link_problems.append(f"is no longer JSON once its links point at the kept copies: {exc}")
             text = new.decode("utf-8", errors="replace")
             return (path, refs.in_text(text, (posixpath.dirname(path),), rows[path][4] != 0), None,
-                    new if count else None, count, link_problems)
+                    new if count or copies else None, count, copies, link_problems)
 
-        rewrites, links_pointed = {}, 0  # kept row -> its decoded bytes with the index links pointed elsewhere
+        # kept row -> its decoded bytes with its links pointed at the split index or at the kept copies
+        rewrites, links_pointed, index_rows, copies_pointed, copy_rows = {}, 0, 0, 0, 0
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
-            for path, targets, error, new, count, link_problems in pool.map(scan, texts):
+            for path, targets, error, new, count, copies, link_problems in pool.map(scan, texts):
                 if targets is None:
                     problems.append(f"{path} could not be read, so its references were not checked: {error}")
                     continue
@@ -736,25 +886,25 @@ def run(cfg: dict) -> int:
                 if new is not None:
                     rewrites[path] = new
                     links_pointed += count
+                    index_rows += 1 if count else 0
+                    copies_pointed += copies
+                    copy_rows += 1 if copies else 0
         texts = None
 
-        # A template renders at the paths of the rows that use it.
-        dirs_by_template = defaultdict(set)
-        for path, row in rows.items():
-            if row[4]:
-                dirs_by_template[row[4]].add(posixpath.dirname(path))
-        major = declared_major(conn)
-        compressed = major is not None and major >= COMPRESSED_TEMPLATES_MAJOR
-        for template_id, name, content in conn.execute("SELECT id, name, content FROM Templates"):
-            dirs = ("",) + tuple(sorted(dirs_by_template[template_id]))
-            try:
-                raw = codec.decompress(bytes(content), "brotli") if compressed else bytes(content)
-            except Exception as exc:  # noqa: BLE001 - reported, and the run refused
-                problems.append(f"template {name} could not be decoded, so its links were not checked: {exc}")
+        for name, dirs, text, error in templates:
+            if text is None:
+                problems.append(f"template {name} could not be decoded, so its links were not checked: {error}")
                 continue
-            text = raw.decode("utf-8", errors="replace")
             found.update((f"template {name}", target, how) for target, how in refs.in_text(text, dirs))
+        # Tooltip button uris pointed at the kept copies, checked as they will be written.
+        uri_rewrites = {}
+        if copy_links is not None:
+            for _tooltip_id, uri in conn.execute(buttons_query):
+                new, changed = point_at_kept_copies(uri.encode("utf-8"), "", remap, copy_links)
+                if changed:
+                    uri_rewrites[uri] = new.decode("utf-8")
         for tooltip_id, uri in conn.execute(buttons_query):
+            uri = uri_rewrites.get(uri, uri)
             found.update((f"tooltip {tooltip_id} button", target, how) for target, how in refs.targets(uri, ("",)))
         for tooltip_id, summary, detail in conn.execute(texts_query):
             found.update((f"tooltip {tooltip_id} text", target, how)
@@ -793,8 +943,14 @@ def run(cfg: dict) -> int:
                   + (f" and {chunks} chunk row(s)" if chunks else "") + f", {human(freed)} stored byte(s)")
         if viewer_changed:
             print(f"  {VIEWER}: enableScripting default set to false")
-        if rewrites:
-            print(f"  javadoc-index-all: {links_pointed} link(s) in {len(rewrites)} row(s) pointed at the split index")
+        if links_pointed:
+            print(f"  javadoc-index-all: {links_pointed} link(s) in {index_rows} row(s) pointed at the split index")
+        if remap:
+            print(f"  duplicate-media: {copies_pointed} link(s) in {copy_rows} row(s) and {len(uri_rewrites)} tooltip "
+                  f"uri(s) pointed at the {len(set(remap.values()))} kept copies")
+            if cfg["verbose"]:
+                for path in sorted(remap):
+                    print(f"  [COPY] {path} -> {remap[path]}")
 
         if cfg["dry_run"]:
             print("Dry run: nothing written.")
@@ -816,6 +972,10 @@ def run(cfg: dict) -> int:
                                 template_id, lambda m: print(m, file=sys.stderr))
                     if cfg["verbose"]:
                         print(f"  [LINK] {path}")
+                # The uri table of the database's tooltip schema: TooltipButtonUris in 3, TooltipButtons in 2.
+                uri_table = "TooltipButtonUris" if "TooltipButtonUris" in buttons_query else "TooltipButtons"
+                for old, new in sorted(uri_rewrites.items()):
+                    conn.execute(f"UPDATE {uri_table} SET uri = ? WHERE uri = ?", (new, old))
                 if viewer_changed:
                     language_id, content_type_id, template_id = conn.execute(
                         "SELECT languageID, contentTypeID, templateId FROM Content WHERE path = ?",
@@ -842,8 +1002,10 @@ def run(cfg: dict) -> int:
     verb = "would delete" if cfg["dry_run"] else "deleted"
     print(f"\nDone. {verb} {len(deleted)} row(s), {human(freed_total)} stored byte(s)"
           + ("; scripting turned off in the viewer" if viewer_changed else "")
-          + (f"; {'would point' if cfg['dry_run'] else 'pointed'} {links_pointed} index link(s) in {len(rewrites)} "
-             "row(s) at the split index" if rewrites else "") + ".")
+          + (f"; {'would point' if cfg['dry_run'] else 'pointed'} {links_pointed} index link(s) in {index_rows} "
+             "row(s) at the split index" if links_pointed else "")
+          + (f"; {'would point' if cfg['dry_run'] else 'pointed'} {copies_pointed} link(s) in {copy_rows} row(s) and "
+             f"{len(uri_rewrites)} tooltip uri(s) at the kept copies" if remap else "") + ".")
     return 0
 
 

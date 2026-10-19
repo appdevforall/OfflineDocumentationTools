@@ -19,8 +19,13 @@ template, tooltip or Bookshelf entry refers to a deleted row, when a row to
 delete is not what its group expects, when a stored PDF needs a CMap or its
 fonts cannot all be read, when the viewer cannot be edited, when the tooltip
 tables are in neither shape, or when a kept row, a template, a row to delete or
-a PDF cannot be read. A run is all or nothing, a dry run writes nothing, and a
-second run changes nothing.
+a PDF cannot be read. Byte-identical media copies (one type and language,
+chunks joined; not PDFs or text) are merged into the copy the most rows link
+to, then the shortest, then the lowest id, with every link to a dropped copy -
+in pages, templated rows' JSON and tooltip button uris - pointed at the kept
+one, prefix and percent-encoding kept; a link the rewrite cannot reach, and a
+JSON row that would stop parsing, refuse the run. A run is all or nothing, a
+dry run writes nothing, and a second run changes nothing.
 
 Run it either way - as a plain script:
 
@@ -55,8 +60,10 @@ import drop_unread_rows as tool  # noqa: E402
 
 CHUNK_SIZE = 1024 * 1024
 
-TYPES = {"text/css": (1, "brotli"), "image/svg+xml": (2, "brotli"), "text/javascript": (6, "brotli"),
-         "application/json": (8, "brotli"), "text/html": (12, "brotli"), "text": (13, "none"),
+TYPES = {"text/css": (1, "brotli"), "image/svg+xml": (2, "brotli"), "image/webp": (3, "none"),
+         "image/png": (4, "none"), "video/webm": (5, "none"), "text/javascript": (6, "brotli"),
+         "application/json": (8, "brotli"), "text/markdown": (9, "brotli"), "text/html": (12, "brotli"),
+         "text": (13, "none"),
          "application/pdf": (14, "brotli"), "application/wasm": (19, "brotli"),
          "application/octet-stream": (27, "brotli")}
 
@@ -971,6 +978,226 @@ def test_a_chunked_page_is_rewritten_and_rechunked(tmp_path: Path):
     chunks = [after[p][1] for p in sorted(after) if p.startswith("j/html/api/m/a/Big.html")]
     assert len(chunks) >= 2 and all(len(c) == CHUNK_SIZE for c in chunks[:-1])
     assert _decompress(b"".join(chunks)) == page.replace(b"../../index-all.html", b"../../index-files/index-1.html")
+
+
+PICTURE = b"RIFF\x10\x00\x00\x00WEBPVP8 picture"
+DIAGRAM = b"RIFF\x10\x00\x00\x00WEBPVP8 diagram"
+
+
+def _copy_rows() -> dict:
+    """Two sets of byte-identical images, linked in every form the rewrite reaches, with what each linking row must
+    read once its links point at the kept copy."""
+    rows = {
+        # A Help+Manual toggle: the small and zoomed images became identical. Both linked once, so the shorter is kept.
+        "i/images/shot.webp": ("image/webp", PICTURE),
+        "i/images/shot_zoom25.webp": ("image/webp", PICTURE),
+        "i/topic.html": ("text/html", b'{"body": "<a class=\\"imagetogglelink\\" href=\\"./images/shot.webp\\">'
+                                      b'<img src=\\"./images/shot_zoom25.webp\\" data-src0=\\"./images/shot_zoom25.webp'
+                                      b'\\" data-src1=\\"./images/shot.webp\\"></a>"}', 1),
+        # The longer name is linked from four rows, the shorter from two (three with the tooltip button the first
+        # test adds), so the longer is kept.
+        "a/devsite/media/arch-overview.webp": ("image/webp", DIAGRAM),
+        "a/devsite/media/arch.webp": ("image/webp", DIAGRAM),
+        "a/devsite/one.html": ("text/html", b'<img src="media/arch-overview.webp">'),
+        "a/devsite/three.html": ("text/html", b'<img src="media/arch-overview.webp">'),
+        "a/devsite/four.html": ("text/html", b'<img src="./media/arch-overview.webp">'),
+        "a/devsite/two.html": ("text/html", b'<img srcset="media/arch.webp 1x, /a/devsite/media/arch-overview.webp '
+                                            b'2x"><div style="background:url(\'media/arch.webp\')"></div>'
+                                            b'<a href="http://localhost:6174/a/devsite/media/arch.webp">big</a>'),
+        "a/devsite/style.css": ("text/css", b".hero{background:url(media/arch.webp)}"),
+        # Same name, other bytes, other directory: not a copy, and its links stay.
+        "k/images/shot_zoom25.webp": ("image/webp", b"RIFF\x10\x00\x00\x00WEBPVP8 kotlin"),
+        "k/page.html": ("text/html", b'<img src="images/shot_zoom25.webp">'),
+    }
+    expected = {
+        "i/topic.html": b'{"body": "<a class=\\"imagetogglelink\\" href=\\"./images/shot.webp\\">'
+                        b'<img src=\\"./images/shot.webp\\" data-src0=\\"./images/shot.webp'
+                        b'\\" data-src1=\\"./images/shot.webp\\"></a>"}',
+        "a/devsite/two.html": b'<img srcset="media/arch-overview.webp 1x, /a/devsite/media/arch-overview.webp '
+                              b'2x"><div style="background:url(\'media/arch-overview.webp\')"></div>'
+                              b'<a href="http://localhost:6174/a/devsite/media/arch-overview.webp">big</a>',
+        "a/devsite/style.css": b".hero{background:url(media/arch-overview.webp)}",
+    }
+    return rows, expected
+
+
+def test_copies_are_deleted_and_their_links_pointed_at_the_kept_copy(tmp_path: Path):
+    rows, expected = _copy_rows()
+    db = _database(tmp_path, rows, buttons=[(1, "a/devsite/media/arch.webp#top"), (2, "k/page.html")])
+    before = _stored(db)
+    code, out, err = _run(db, groups=["duplicate-media"])
+    after = _stored(db)
+    assert code == 0, err
+    assert set(before) - set(after) == {"i/images/shot_zoom25.webp", "a/devsite/media/arch.webp"}
+    for path in after:
+        if path in expected:
+            assert _decompress(after[path][1]) == expected[path], path
+            assert after[path][0] == before[path][0] and after[path][2:] == before[path][2:], path
+        else:
+            assert after[path] == before[path], path
+    assert _table(db, "SELECT uri FROM TooltipButtons") == [("a/devsite/media/arch-overview.webp#top",),
+                                                           ("k/page.html",)]
+    assert "duplicate-media: 2 row(s) of byte-identical media copies" in out
+    assert "duplicate-media: 6 link(s) in 3 row(s) and 1 tooltip uri(s) pointed at the 2 kept copies" in out
+
+
+def test_tooltip_button_uris_are_pointed_at_the_kept_copy_in_schema_3(tmp_path: Path):
+    rows, _expected = _copy_rows()
+    db = _database(tmp_path, rows, schema=3, buttons=[(1, "a/devsite/media/arch.webp"), (2, "k/page.html")])
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    assert _table(db, "SELECT uri FROM TooltipButtonUris") == [("a/devsite/media/arch-overview.webp",),
+                                                              ("k/page.html",)]
+
+
+def test_the_kept_copy_is_the_most_linked_then_the_shortest_then_the_lowest_id(tmp_path: Path):
+    rows = {
+        # A link from a template, a tooltip button or the Bookshelf outweighs the shorter, unlinked name.
+        "m/template-linked.webp": ("image/webp", b"RIFF a"), "m/a.webp": ("image/webp", b"RIFF a"),
+        "m/tooltip-linked.webp": ("image/webp", b"RIFF b"), "m/b.webp": ("image/webp", b"RIFF b"),
+        "m/bookshelf-listed.webp": ("image/webp", b"RIFF c"), "m/c.webp": ("image/webp", b"RIFF c"),
+        # Two linking rows outweigh one.
+        "m/two-pages.webp": ("image/webp", b"RIFF f"), "m/f.webp": ("image/webp", b"RIFF f"),
+        "m/p1.html": ("text/html", b'<img src="two-pages.webp">'), "m/p2.html": ("text/html", b'<img src="two-pages.webp">'),
+        "m/p3.html": ("text/html", b'<img src="f.webp">'),
+        # Neither copy linked: the shorter is kept, and of two the same length, the lower id (inserted first).
+        "m/d-longer.webp": ("image/webp", b"RIFF d"), "m/d.webp": ("image/webp", b"RIFF d"),
+        "m/e2.webp": ("image/webp", b"RIFF e"), "m/e1.webp": ("image/webp", b"RIFF e"),
+    }
+    template = b'<img src="m/template-linked.webp"><img src="m/template-linked.webp">'
+    db = _database(tmp_path, rows, buttons=[(1, "m/tooltip-linked.webp")], templates={1: ("page.peb", template)})
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO Bookshelf (contentID, title) SELECT id, 'b' FROM Content WHERE path = "
+                 "'m/bookshelf-listed.webp'")
+    conn.commit()
+    conn.close()
+    code, out, err = _run(db, groups=["duplicate-media"], verbose=True)
+    assert code == 0, err
+    assert set(_stored(db)) == set(rows) - {"m/a.webp", "m/b.webp", "m/c.webp", "m/f.webp", "m/d-longer.webp", "m/e1.webp"}
+    assert "[COPY] m/a.webp -> m/template-linked.webp" in out and "[COPY] m/e1.webp -> m/e2.webp" in out
+
+
+def test_only_identical_media_of_one_type_and_language_are_copies(tmp_path: Path):
+    big = b"\x1aE\xdf\xa3" + bytes(range(256)) * (CHUNK_SIZE // 256)
+    rows = {
+        "m/same.webp": ("image/webp", PICTURE), "m/same.png": ("image/png", PICTURE),
+        "m/other-language.webp": ("image/webp", PICTURE),
+        "m/one-byte.webp": ("image/webp", PICTURE[:-1] + b"X"),
+        # Placeholder books: identical PDFs, each its own Bookshelf entry. And identical licence notices.
+        "b/one.pdf": ("application/pdf", PLAIN_PDF), "b/two.pdf": ("application/pdf", PLAIN_PDF),
+        "legal/a.md": ("text/markdown", b"MIT"), "legal/b.md": ("text/markdown", b"MIT"),
+        # Chunked videos: the same first chunk is not enough; the same chunks, joined, are.
+        "v/first.webm": ("video/webm", big[:CHUNK_SIZE]), "v/first.webm-1": ("video/webm", b"tail one"),
+        "v/second.webm": ("video/webm", big[:CHUNK_SIZE]), "v/second.webm-1": ("video/webm", b"tail two"),
+        "v/third.webm": ("video/webm", big[:CHUNK_SIZE]), "v/third.webm-1": ("video/webm", b"tail one"),
+    }
+    db = _database(tmp_path, rows)
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE Content SET languageID = 2 WHERE path = 'm/other-language.webp'")
+    conn.commit()
+    conn.close()
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    assert set(rows) - set(_stored(db)) == {"v/third.webm", "v/third.webm-1"}
+
+
+def test_a_link_to_a_dropped_copy_the_rewrite_does_not_reach_refuses(tmp_path: Path):
+    cases = [
+        # A template is not rewritten; it links to the copy fewer rows link to.
+        ("template page.peb links to m/b.webp", {}, {1: ("page.peb", b'<img src="m/b.webp">')}, []),
+        # An entity-encoded slash the rewrite cannot read as one path, but the reference check can.
+        ("n/p3.html links to m/b.webp", {"n/p3.html": ("text/html", b'<img src="../m&#47;b.webp">')}, {}, []),
+        # Tooltip text is not rewritten either.
+        ("tooltip 5 text links to m/b.webp", {}, {}, [(5, "See", '<img src="m/b.webp">')]),
+    ]
+    for i, (expected, extra, templates, tooltips) in enumerate(cases):
+        rows = {"m/a.webp": ("image/webp", PICTURE), "m/b.webp": ("image/webp", PICTURE),
+                "m/p1.html": ("text/html", b'<img src="a.webp">'), "m/p2.html": ("text/html", b'<img src="a.webp">')}
+        rows.update(extra)
+        _refused(tmp_path / str(i), rows, expected, templates=templates, tooltips=tooltips)
+
+
+def test_a_percent_encoded_link_stays_percent_encoded():
+    remap = {"m/shot copy.webp": "m/shot.webp"}
+    new, changed = tool.point_at_kept_copies(b'<img src="shot%20copy.webp"><img src="shot copy.webp">', "m", remap,
+                                             tool.dropped_copy_links(remap))
+    assert (new, changed) == (b'<img src="shot.webp"><img src="shot.webp">', 2)
+    remap = {"m/a b copy.webp": "m/a b.webp"}
+    new, changed = tool.point_at_kept_copies(b'<img src="a%20b%20copy.webp">', "m", remap,
+                                             tool.dropped_copy_links(remap))
+    assert (new, changed) == (b'<img src="a%20b.webp">', 1)
+
+
+def test_a_kept_copy_in_another_directory_keeps_the_link_prefix():
+    remap = {"i/images/x.webp": "a/media/y.webp"}
+    pattern = tool.dropped_copy_links(remap)
+    new, changed = tool.point_at_kept_copies(b'src="./images/x.webp" src="/i/images/x.webp" src="images/xx.webp"',
+                                             "i", remap, pattern)
+    assert (new, changed) == (b'src="./images/../../a/media/y.webp" src="/i/images/../../a/media/y.webp" '
+                              b'src="images/xx.webp"', 2)
+
+
+def test_a_longer_name_holding_a_dropped_copys_name_is_left_alone():
+    remap = {"i/images/x.webp": "i/images/y.webp"}
+    pattern = tool.dropped_copy_links(remap)
+    links = b'src="xx.webp" src="x.webpx" src="x.webp.png" src="x.webp"'
+    new, changed = tool.point_at_kept_copies(links, "i/images", remap, pattern)
+    assert (new, changed) == (b'src="xx.webp" src="x.webpx" src="x.webp.png" src="y.webp"', 1)
+
+
+def test_copies_ignore_rows_other_groups_delete(tmp_path: Path):
+    rows = _base_rows()
+    rows.update({
+        # The module graph goes with javadoc-use; its identical doc-files copy is not a copy of it, and stays.
+        "j/html/api/m/doc-files/graph.svg": ("image/svg+xml", MODULE_GRAPH),
+        "j/html/api/m/doc-files/guide.html": ("text/html", b'<img src="graph.svg">'),
+        # A link from a placeholder page, which x-placeholders deletes, does not count: the shorter name is kept.
+        "m/a.webp": ("image/webp", PICTURE), "m/bb.webp": ("image/webp", PICTURE),
+        "x/c.html": ("text/html", _placeholder("c") + b'<img src="../m/bb.webp">'),
+    })
+    db = _database(tmp_path, rows)
+    code, out, err = _run(db)
+    assert code == 0, err
+    assert set(rows) - set(_stored(db)) == DELETED | {"x/c.html", "m/bb.webp"}
+    assert "javadoc-use: 3 row(s)" in out and "duplicate-media: 1 row(s)" in out
+
+
+def test_a_json_row_that_would_stop_parsing_refuses(tmp_path: Path):
+    # The kept copy's name holds a quote, which would end the JSON string it is written into. Each copy has one
+    # link, so the shorter name is kept.
+    rows = {'m/".webp': ("image/webp", PICTURE), "m/longer.webp": ("image/webp", PICTURE),
+            "m/topic.html": ("text/html", b'{"body": "<img src=\\"longer.webp\\">"}', 1)}
+    _refused(tmp_path, rows, "m/topic.html is no longer JSON once its links point at the kept copies",
+             buttons=[(1, 'm/".webp')])
+
+
+def test_copies_dry_run_writes_nothing_and_a_second_run_changes_nothing(tmp_path: Path):
+    rows, _expected = _copy_rows()
+    db = _database(tmp_path, rows)
+    before = _stored(db)
+    code, out, err = _run(db, dry_run=True, groups=["duplicate-media"])
+    assert code == 0, err
+    assert "would point 6 link(s) in 3 row(s)" in out and _stored(db) == before
+    assert len(list(tmp_path.iterdir())) == 1
+    assert _run(db, groups=["duplicate-media"])[0] == 0
+    once = _stored(db)
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0 and "Nothing to do" in out, out + err
+    assert _stored(db) == once
+
+
+def test_copies_are_found_and_rewritten_in_a_dictionary_database_at_version_3(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    rows, expected = _copy_rows()
+    db = _database(tmp_path, rows, dictionary=TEMPLATE_DICTIONARY, schema=3,
+                   versions=[(3, 0, 0, "2026-10-19 07:09:52")],
+                   templates={1: ("page.peb", _compress(b"<main>{{ body | raw }}</main>", TEMPLATE_DICTIONARY))})
+    code, _out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    after = _stored(db)
+    for path, text in expected.items():
+        assert _decompress(after[path][1], TEMPLATE_DICTIONARY) == text, path
 
 
 def test_a_missing_database_is_an_error(tmp_path: Path):

@@ -173,8 +173,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   rows nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
   placeholders - after checking that nothing kept refers to them, before or after the schema-3
   migration, whose templates it decodes; it also drops javadoc's 23 MB one-page `index-all.html`
-  after pointing every link to it at the split `index-files/` pages, which loosens a packed file, so
-  `rebuild_database.py --pack` has to follow it), `clear_repeated_tooltip_detail.py`
+  after pointing every link to it at the split `index-files/` pages, and merges byte-identical media
+  copies (mostly Help+Manual zoom images, ADFA-6645 item 2) after pointing their links at the kept
+  copy; both rewrites loosen a packed file, so `rebuild_database.py --pack` has to follow it),
+  `clear_repeated_tooltip_detail.py`
   (empties a tooltip detail that repeats its summary). **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
