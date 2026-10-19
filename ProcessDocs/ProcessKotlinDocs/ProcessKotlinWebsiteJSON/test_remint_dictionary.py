@@ -21,7 +21,7 @@ from unittest import mock
 
 import brotli
 
-from migrate_content_to_dictionary_brotli import migrate
+from migrate_content_to_dictionary_brotli import load_base_rows, migrate
 from populate_db import CHUNK_SIZE, DictionaryCompressor, load_dictionary
 import remint_dictionary
 from remint_dictionary import remint
@@ -242,6 +242,8 @@ class RemintDictionaryTest(_RemintFixture):
         printed = self.run_main("--sample-seed", "999", "--seeds", "1")
         stored_after = self.stored_bytes()
         self.assertLess(stored_after, stored_before)
+        self.assertEqual(list(self.db_path.parent.glob(self.db_path.name + ".backup-*")), [],
+                         "--no-backup wrote a backup")
         self.assertIn(f"{stored_before:,} -> {stored_after:,} bytes "
                       f"({100 * (stored_before - stored_after) / stored_before:.1f}% smaller)", printed)
 
@@ -518,6 +520,113 @@ class RemintTemplatesTest(_RemintFixture):
         self.assertEqual(stats["templates"], len(TEMPLATE_NAMES))
         self.assertEqual(left, [], "temp dictionaries left behind")
 
+    def test_the_newest_version_row_decides_by_changetime_then_rowid(self):
+        """As the app's DatabaseVersionResolver reads it: the greatest changeTime wins, and rowid breaks a tie. Each
+        case is inserted so that the other orders (rowid alone, changeTime alone, the tie broken the other way)
+        pick the other row."""
+        jan, feb = "2026-01-01 00:00:00", "2026-02-01 00:00:00"
+        cases = {
+            "older changeTime, newer rowid: 3 then 2": ([(3, feb), (2, jan)], True),
+            "older changeTime, newer rowid: 2 then 3": ([(2, feb), (3, jan)], False),
+            "tie, the newer rowid declares 3": ([(2, feb), (3, feb)], True),
+            "tie, the newer rowid declares 2": ([(3, feb), (2, feb)], False),
+        }
+        for label, (rows, compressed) in cases.items():
+            with self.subTest(label):
+                conn = sqlite3.connect(":memory:")
+                conn.executescript(VERSION_SQL)
+                conn.executemany("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, "
+                                 "changeTime) VALUES (?, 0, 0, 'test', 'test', ?)", rows)
+                self.assertEqual(remint_dictionary.templates_compressed(conn), compressed)
+                conn.close()
+
+    def test_a_newer_changetime_in_an_older_row_still_gets_its_templates_reminted(self):
+        """The whole run, for the first case above: version 3 was written first but with the later changeTime.
+        Read by rowid it would look like 2, and the compressed templates would be left behind, undecodable."""
+        self.add_versions_and_templates(majors=())
+        self.conn.executemany("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, "
+                              "changeTime) VALUES (?, 0, 0, 'test', 'test', ?)",
+                              [(3, "2026-02-01 00:00:00"), (2, "2026-01-01 00:00:00")])
+        self.conn.commit()
+        before = self.snapshot()
+        stats = self.remint(seed=999)
+        self.assertEqual(stats["templates"], len(TEMPLATE_NAMES))
+        with DictionaryCompressor(load_dictionary(self.conn)) as compressor:
+            for name, stored in self.stored_templates().items():
+                self.assertEqual(compressor.decompress(stored), self.templates[name], name)
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_the_templates_share_of_the_sample_follows_their_stored_bytes(self):
+        """Templates are one doc set, weighted by their stored bytes like the others: heavy templates are all drawn,
+        light ones only in proportion to their few bytes. Weighting them by anything else - nothing, or one per
+        template - draws a different number."""
+        for label, size in {"heavy": 6000, "light": 8}.items():
+            with self.subTest(label):
+                self.tearDown()
+                self.setUp()
+                self.add_versions_and_templates()
+                with DictionaryCompressor(self.first_dictionary) as compressor:
+                    for i in range(27):
+                        text = make_template(100 + i, size)
+                        self.templates[f"extra{i}.peb"] = text
+                        self.conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)",
+                                          (f"extra{i}.peb", compressor.compress(text)))
+                    for name in TEMPLATE_NAMES:  # the three of add_versions_and_templates, at this size too
+                        text = make_template(TEMPLATE_NAMES.index(name), size)
+                        self.templates[name] = text
+                        self.conn.execute("UPDATE Templates SET content = ? WHERE name = ?",
+                                          (compressor.compress(text), name))
+                self.conn.commit()
+
+                # collect_training_samples' rule, at this fixture's sizes, where neither the 3x sample cap nor the
+                # byte budget binds: a set draws up to 3 x max(1, round(sample_size x its share of stored bytes)).
+                content_bytes = sum(row[4] for row in load_base_rows(self.conn))
+                template_bytes = self.conn.execute("SELECT SUM(LENGTH(content)) FROM Templates").fetchone()[0]
+                quota = max(1, round(30 * template_bytes / (content_bytes + template_bytes)))
+                expected = min(len(self.templates), 3 * quota)
+                if label == "heavy":
+                    self.assertGreater(expected, 3, "fixture premise: heavy templates draw more than the floor")
+                else:
+                    self.assertLess(expected, len(self.templates), "fixture premise: light templates draw only some")
+
+                real, seen = remint_dictionary.train_dictionary, []
+
+                def train(samples, dict_size):
+                    seen.extend(samples)
+                    return real(samples, dict_size)
+
+                with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=train):
+                    self.remint(seed=999)
+                drawn = sum(1 for sample in seen if sample in set(self.templates.values()))
+                self.assertEqual(drawn, expected)
+
+    def test_a_candidate_whose_content_alone_beats_the_best_total_is_not_kept(self):
+        """The first candidate stores Content and templates smallest in all; the second stores more in all, though
+        its Content alone is less than the first's total. Weighing a candidate's Content against the best's total
+        would keep the second."""
+        self.add_versions_and_templates()
+        before = self.snapshot()
+        words = " ".join(WORDS).encode("utf-8") * 40
+        candidates = [words + b"".join(self.templates.values()), words]
+
+        def stored(dictionary, texts):
+            with DictionaryCompressor(dictionary) as compressor:
+                return sum(len(compressor.compress(t)) for t in texts)
+        content = [stored(d, self.originals.values()) for d in candidates]
+        templates = [stored(d, self.templates.values()) for d in candidates]
+        self.assertLess(content[1], content[0] + templates[0],
+                        "fixture premise: the second candidate's Content is less than the first's total")
+        self.assertLess(content[0] + templates[0], content[1] + templates[1],
+                        "fixture premise: the first candidate stores less in all")
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=list(candidates)):
+            stats = self.remint(seed=999, seeds=2)
+
+        self.assertEqual(stats["kept"], "candidate")
+        self.assertEqual(load_dictionary(self.conn), candidates[0], "kept the candidate that stores more in all")
+        self.assertEqual(stats["after"], content[0] + templates[0])
+        self.assertEqual(verify(before, self.db_path), [])
+
     def test_templates_are_in_the_training_sample(self):
         self.add_versions_and_templates()
         real = remint_dictionary.train_dictionary
@@ -658,14 +767,17 @@ class CommandLineRefusalTest(_RemintFixture):
     def test_the_verifier_reports_a_database_with_no_dictionary_on_an_error_line(self):
         original = self.dir / "original.db"
         shutil.copy2(self.db_path, original)
-        self.conn.execute("DELETE FROM CompressionDictionary")
-        self.conn.commit()
-        result = self.run_script("verify_remint_dictionary.py", str(original), str(self.db_path))
-        self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
-        self.assertTrue(result.stderr.startswith("error: ") and "no CompressionDictionary row" in result.stderr,
-                        result.stderr)
-        self.assertNotIn("Byte-identical", result.stdout)
+        cases = {"no row": ("DELETE FROM CompressionDictionary", "no CompressionDictionary row"),
+                 "no table": ("DROP TABLE CompressionDictionary", "no CompressionDictionary table")}
+        for label, (sql, says) in cases.items():
+            with self.subTest(label):
+                self.conn.execute(sql)
+                self.conn.commit()
+                result = self.run_script("verify_remint_dictionary.py", str(original), str(self.db_path))
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertTrue(result.stderr.startswith("error: ") and says in result.stderr, result.stderr)
+                self.assertNotIn("Byte-identical", result.stdout)
 
 
 if __name__ == "__main__":
