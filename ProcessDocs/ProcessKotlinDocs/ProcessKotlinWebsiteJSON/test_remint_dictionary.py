@@ -400,6 +400,15 @@ class RemintDefaultsTest(_RemintFixture):
         sample_size, dict_size, training_bytes = calls[0][:3]
         self.assertEqual((sample_size, dict_size, training_bytes), (1200, 768 * 1024, 128 * 1024 * 1024))
 
+    def test_the_first_mint_keeps_its_smaller_defaults(self):
+        # The larger defaults are the re-mint's own: the docstring's "Dictionary size" and CLAUDE.md compare them
+        # with the first mint's 256 KiB on up to 900 rows within 32 MiB.
+        import migrate_content_to_dictionary_brotli
+        import populate_db
+        self.assertEqual((populate_db.DEFAULT_DICT_SIZE, migrate_content_to_dictionary_brotli.DEFAULT_SAMPLE_SIZE,
+                          migrate_content_to_dictionary_brotli.DEFAULT_TRAINING_BYTES),
+                         (256 * 1024, 300, 32 * 1024 * 1024))
+
 
 class RemintTemplatesTest(_RemintFixture):
     """From documentation version 3.0.0 on every Templates row is compressed against the shared dictionary,
