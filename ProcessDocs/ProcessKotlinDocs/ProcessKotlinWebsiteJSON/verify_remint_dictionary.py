@@ -14,7 +14,11 @@ Proves a re-minted database still holds exactly the content the original did.
 For every 'brotli' item: decode it out of the new database with the new
 dictionary, decode the same path out of the original with the old dictionary
 (falling back to plain), and require the two plaintexts to be byte-identical.
-Exits non-zero on any mismatch, so it can gate the swap:
+Every Templates row is compared the same way: decoded with each database's own
+dictionary where that database's templates are compressed (documentation
+version 3.0.0 on, as remint_dictionary.templates_compressed reads it), taken as
+stored where they are plain. Exits non-zero on any mismatch, so it can gate the
+swap:
 
     uv run verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
 
@@ -37,6 +41,7 @@ import brotli
 
 from populate_db import DictionaryCompressor
 from migrate_content_to_dictionary_brotli import load_base_rows, read_item
+from remint_dictionary import templates_compressed
 
 _thread_local = threading.local()
 
@@ -82,6 +87,43 @@ def check(old_dictionary: bytes, new_dictionary: bytes, old_db: Path, new_db: Pa
     return None
 
 
+def templates_of(conn) -> dict:
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Templates'").fetchone() is None:
+        return {}
+    return {name: content.encode("utf-8") if isinstance(content, str) else bytes(content)
+            for name, content in conn.execute("SELECT name, content FROM Templates")}
+
+
+def verify_templates(old_conn, new_conn, old_dictionary: bytes, new_dictionary: bytes) -> list:
+    """Every template's plaintext in both databases, as (label, problem) for each that differs."""
+    was, now = templates_of(old_conn), templates_of(new_conn)
+    old_compressed, new_compressed = templates_compressed(old_conn), templates_compressed(new_conn)
+    bad = []
+    with DictionaryCompressor(old_dictionary) as old, DictionaryCompressor(new_dictionary) as new:
+        for name in sorted(set(was) | set(now)):
+            label = f"template {name}"
+            if name not in now:
+                bad.append((label, "missing from the re-minted database"))
+                continue
+            if name not in was:
+                bad.append((label, "not in the original database"))
+                continue
+            try:
+                old_plain = old.decompress(was[name]) if old_compressed else was[name]
+            except RuntimeError:
+                bad.append((label, "original template does not decode with the old dictionary"))
+                continue
+            try:
+                new_plain = new.decompress(now[name]) if new_compressed else now[name]
+            except RuntimeError:
+                bad.append((label, "re-minted template does not decode with the new dictionary"))
+                continue
+            if old_plain != new_plain:
+                bad.append((label, f"plaintext differs ({len(old_plain):,} vs {len(new_plain):,} bytes)"))
+    print(f"Templates byte-identical: {len(set(was) | set(now)) - len(bad):,}/{len(set(was) | set(now)):,}")
+    return bad
+
+
 def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
     import sqlite3
     old_conn = sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)
@@ -105,7 +147,7 @@ def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
             if i % 6000 == 0:
                 print(f"  {i:,}/{len(items):,} checked, {len(bad)} mismatched", file=sys.stderr)
     print(f"Byte-identical: {len(items) - len(bad):,}/{len(items):,}")
-    return bad
+    return bad + verify_templates(old_conn, new_conn, old_dictionary, new_dictionary)
 
 
 def main() -> None:
