@@ -53,8 +53,10 @@ The rows, in seven groups (pick some with --only; the default is all seven):
   buttons and Bookshelf entries counted), then the shortest path, then the
   lowest id. Every link to a dropped copy is pointed at the kept one, keeping
   the link's own directory prefix: in kept text rows, templated rows' JSON
-  included, and in tooltip button URIs. A link in a template is not rewritten,
-  so it refuses the run, as does any link the rewrite does not reach. Most of
+  included, and in tooltip button URIs (at schema 3, a button whose new URI
+  TooltipButtonUris already holds is pointed at that row, so each URI stays
+  stored once). A link in a template is not rewritten, so it refuses the run,
+  as does any link the rewrite does not reach. Most of
   these are the Help+Manual image toggles whose small and zoomed images became
   identical when the images were resized (ADFA-6645, item 2), so a toggle now
   swaps one file for itself. PDFs are left alone: the Bookshelf lists each
@@ -1028,7 +1030,18 @@ def run(cfg: dict) -> int:
                 # The uri table of the database's tooltip schema: TooltipButtonUris in 3, TooltipButtons in 2.
                 uri_table = "TooltipButtonUris" if "TooltipButtonUris" in buttons_query else "TooltipButtons"
                 for old, new in sorted(uri_rewrites.items()):
-                    conn.execute(f"UPDATE {uri_table} SET uri = ? WHERE uri = ?", (new, old))
+                    # TooltipButtonUris stores each distinct uri once (writers look one up before inserting it), so
+                    # buttons whose new uri already has a row are pointed at that row and the old row goes.
+                    stored = None
+                    if uri_table == "TooltipButtonUris":
+                        stored = conn.execute("SELECT MIN(id) FROM TooltipButtonUris WHERE uri = ?",
+                                              (new,)).fetchone()[0]
+                    if stored is None:
+                        conn.execute(f"UPDATE {uri_table} SET uri = ? WHERE uri = ?", (new, old))
+                    else:
+                        conn.execute("UPDATE TooltipButtons SET uriId = ? WHERE uriId IN "
+                                     "(SELECT id FROM TooltipButtonUris WHERE uri = ?)", (stored, old))
+                        conn.execute("DELETE FROM TooltipButtonUris WHERE uri = ?", (old,))
                 if viewer_changed:
                     language_id, content_type_id, template_id = conn.execute(
                         "SELECT languageID, contentTypeID, templateId FROM Content WHERE path = ?",

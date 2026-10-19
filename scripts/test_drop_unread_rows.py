@@ -1050,6 +1050,28 @@ def test_tooltip_button_uris_are_pointed_at_the_kept_copy_in_schema_3(tmp_path: 
                                                               ("k/page.html",)]
 
 
+def test_a_schema_3_uri_already_stored_under_its_new_string_reuses_that_row(tmp_path: Path):
+    # TooltipButtonUris stores each distinct uri once, so the buttons on a dropped copy are pointed at the row the
+    # kept copy's uri already has, and the old row goes, rather than two rows holding one string.
+    rows, _expected = _copy_rows()
+    db = _database(tmp_path, rows, schema=3, buttons=[(1, "a/devsite/media/arch.webp"),
+                                                      (2, "a/devsite/media/arch-overview.webp")])
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    assert _table(db, "SELECT id, uri FROM TooltipButtonUris") == [(2, "a/devsite/media/arch-overview.webp")]
+    assert _table(db, "SELECT tooltipId, uriId FROM TooltipButtons") == [(1, 2), (2, 2)]
+
+
+def test_a_schema_3_uri_whose_new_string_is_not_stored_is_rewritten_in_place(tmp_path: Path):
+    rows, _expected = _copy_rows()
+    db = _database(tmp_path, rows, schema=3, buttons=[(1, "a/devsite/media/arch.webp#top"), (2, "k/page.html")])
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    assert _table(db, "SELECT id, uri FROM TooltipButtonUris") == [(1, "a/devsite/media/arch-overview.webp#top"),
+                                                                  (2, "k/page.html")]
+    assert _table(db, "SELECT tooltipId, uriId FROM TooltipButtons") == [(1, 1), (2, 2)]
+
+
 def test_the_kept_copy_is_the_most_linked_then_the_shortest_then_the_lowest_id(tmp_path: Path):
     rows = {
         # A link from a template, a tooltip button or the Bookshelf outweighs the shorter, unlinked name.
