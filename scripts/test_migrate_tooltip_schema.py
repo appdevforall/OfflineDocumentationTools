@@ -96,6 +96,16 @@ CREATE TABLE Content (
         UNIQUE(path)
     );
 CREATE TABLE Bookshelf (contentID INTEGER NOT NULL, title STRING DEFAULT '');
+CREATE TABLE CompressionDictionary (
+    id   INTEGER PRIMARY KEY CHECK (id = 1),
+    data BLOB NOT NULL
+);
+CREATE TABLE Templates (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  name    TEXT NOT NULL,
+  content BLOB NOT NULL,
+  UNIQUE(name)
+);
 CREATE TRIGGER AddBook AFTER INSERT ON Content WHEN NEW.path LIKE '%.pdf'
 BEGIN
     INSERT INTO Bookshelf (contentID, title) VALUES (NEW.id, CURRENT_TIMESTAMP || NEW.id);
@@ -103,6 +113,12 @@ END;
 """
 
 CATEGORIES = ["ide", "xml", "java", "kotlin"]
+DICTIONARY = b"<html><head><title>{{ title }}</title></head><body>{% for s in b %}{{ s.r | raw }}{% endfor %}" * 40
+# Plain templates as the tools that write Templates store them: UTF-8 in a BLOB, one as TEXT, and an empty one.
+TEMPLATES = [("layout.pebble", b"<html><title>{{ title | raw }}</title>\n{% for s in b %}{{ s.r | raw }}{% endfor %}"
+                               b"\n</html>\n"),
+             ("nav.peb", "<nav>\u00e9t\u00e9 \u2014 {{ nav }}</nav>"),
+             ("empty.peb", b"")]
 DESCRIPTIONS = ["View full documentation", "Examples", "Kotlin docs", "View full documentation"]
 
 
@@ -119,6 +135,10 @@ def _database(tmp_path: Path, schema: str = OLD_SCHEMA, major: int = 2, tooltips
         conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
                      "VALUES (?, 1, 0, 'test', 'test')", (major,))
     conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID) VALUES ('a/x.html', 1, x'00', 1)")
+    if "CREATE TABLE CompressionDictionary" in schema:
+        conn.execute("INSERT INTO CompressionDictionary (id, data) VALUES (1, ?)", (DICTIONARY,))
+    if "CREATE TABLE Templates" in schema:
+        conn.executemany("INSERT INTO Templates (name, content) VALUES (?, ?)", TEMPLATES)
     for n in range(tooltips):
         category = n % 4 + 1
         detail = "" if n % 7 == 0 else f"<p>Detail {n} — été</p>"
