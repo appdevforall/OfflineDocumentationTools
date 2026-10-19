@@ -172,7 +172,8 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content
   rows nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
   placeholders - after checking that nothing kept refers to them, before or after the schema-3
-  migration, whose templates it decodes), `clear_repeated_tooltip_detail.py`
+  migration, whose templates it decodes; it also drops javadoc's 23 MB one-page `index-all.html`
+  after pointing every link to it at the split `index-files/` pages), `clear_repeated_tooltip_detail.py`
   (empties a tooltip detail that repeats its summary). **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
