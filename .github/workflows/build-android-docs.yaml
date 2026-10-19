@@ -32,10 +32,11 @@ name: Build Android Docs
 # a quick structural check, not for a run whose output anyone will ship.
 #
 # TIMING, measured on the real corpus (a GitHub-hosted runner will differ, but
-# the proportions hold): ~1 min to convert, ~1.5 min to load, ~5.5 min to
-# re-mint and ~2 min to verify the re-mint. The re-mint recompresses every row
-# in the database at Brotli q11, not just the Android ones, which is why it
-# dominates. Budget ~15 minutes for a full run.
+# the proportions hold): ~1 min to convert, ~1.5 min to load, ~5.5 min per
+# re-mint pass and ~2 min to verify the re-mint. The re-mint makes 4 passes
+# (--seeds 4: one candidate dictionary each, the smallest kept), so ~22 min,
+# and each pass recompresses every row in the database at Brotli q11, not just
+# the Android ones, which is why it dominates. Budget ~32 minutes for a full run.
 #
 # Required secrets (already configured - see docdb-regression-test.yaml for
 # their other use in this repo):
@@ -99,9 +100,11 @@ on:
           row. Right in two cases: a structural check whose output nobody will
           ship, and a re-run against a database whose dictionary was already
           minted for this corpus and whose content has not materially changed
-          since - re-minting is not cumulative, and a second pass over an
-          already-minted database measured -0.7%, i.e. five and a half minutes
-          to get marginally worse. Otherwise leave it off: on a database coming
+          since - re-minting is not cumulative: a second pass over an
+          already-minted database measured -0.7%. The re-mint now keeps the
+          current dictionary when no candidate stores less, so it cannot get
+          worse, but its 4 passes (--seeds 4, ~5.5 minutes each) still cost
+          about 22 minutes for nothing. Otherwise leave it off: on a database coming
           from HTML it is worth about 16% (see WHY THE RE-MINT IS PART OF THE
           JOB above).
         required: false
@@ -265,7 +268,7 @@ jobs:
         if: ${{ !inputs.skip_remint }}
         run: |
           cp "$STAGED_DB" "$PREREMINT_DB"
-          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --no-backup
+          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --seeds 4 --no-backup
 
       - name: 'Step 5/5: verify_remint_dictionary.py (every row still decodes to the same bytes)'
         if: ${{ !inputs.skip_remint }}

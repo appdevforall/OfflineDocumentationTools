@@ -27,8 +27,9 @@ name: Build Android Docs (Local)
 # NOTE ON DISK AND TIME: the conversion writes ~350 MB of JSON and the load
 # copies the whole database, so a run needs roughly 1 GB of free space beside
 # the checkout. The re-mint recompresses every row in the database at Brotli
-# q11 - not just the Android ones - and is most of the wall clock: ~5.5 minutes
-# against the real database, where converting takes ~1 and loading ~1.5. Use
+# q11 - not just the Android ones - and is most of the wall clock: 4 passes
+# (--seeds 4) of ~5.5 minutes each, ~22 minutes, against the real database,
+# where converting takes ~1 and loading ~1.5. Use
 # --only for a subset run that exercises the whole pipeline in seconds, or
 # --skip-remint to leave the dictionary alone.
 #
@@ -102,9 +103,11 @@ on:
           row. Right in two cases: a structural check whose output nobody will
           ship, and a re-run against a database whose dictionary was already
           minted for this corpus and whose content has not materially changed
-          since - re-minting is not cumulative, and a second pass over an
-          already-minted database measured -0.7%, i.e. five and a half minutes
-          to get marginally worse. Otherwise leave it off: on a database coming
+          since - re-minting is not cumulative: a second pass over an
+          already-minted database measured -0.7%. The re-mint now keeps the
+          current dictionary when no candidate stores less, so it cannot get
+          worse, but its 4 passes (--seeds 4, ~5.5 minutes each) still cost
+          about 22 minutes for nothing. Otherwise leave it off: on a database coming
           from HTML it is worth about 16% (see WHY THE RE-MINT IS PART OF THE
           JOB above).
         required: false
@@ -242,7 +245,7 @@ jobs:
         if: ${{ !inputs.skip_remint }}
         run: |
           cp "$STAGED_DB" "$PREREMINT_DB"
-          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --no-backup
+          python3 "$KOTLIN_PIPELINE/remint_dictionary.py" "$STAGED_DB" --seeds 4 --no-backup
 
       - name: 'Step 5/5: verify_remint_dictionary.py (every row still decodes to the same bytes)'
         if: ${{ !inputs.skip_remint }}

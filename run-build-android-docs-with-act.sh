@@ -36,11 +36,12 @@
 #   convert           ~1 min     12,106 pages -> 12,906 JSON documents
 #   load              ~1.5 min   rows, templates, stylesheet
 #   verify (40 pages) ~1 min     one JVM per sampled page
-#   re-mint           ~5.5 min   recompresses EVERY row in the database, not
+#   re-mint           ~22 min    4 passes (--seeds 4) of ~5.5 min; each
+#                                recompresses EVERY row in the database, not
 #                                just the Android ones, at Brotli q11
 #   verify re-mint    ~2 min     decompresses both databases and compares
 #
-# About 12 minutes all told. --only cuts the first three to seconds and is the
+# About 28 minutes all told. --only cuts the first three to seconds and is the
 # way to smoke-test a change; --skip-remint drops the last two.
 #
 # Secrets: none are required. SLACK_WEBHOOK_URL is the only secret this workflow
@@ -183,7 +184,7 @@ fi
 if [ "$SKIP_REMINT" = "true" ]; then
   echo "note: --skip-remint - the shared Brotli dictionary is left as it is. On a database" >&2
   echo "note: coming from HTML that costs about 16% on the Android pages; on one already" >&2
-  echo "note: minted for this corpus it costs nothing, and skipping saves ~5.5 minutes." >&2
+  echo "note: minted for this corpus it costs nothing, and skipping saves ~22 minutes (4 passes)." >&2
 fi
 
 # The workflow reads SLACK_WEBHOOK_URL and tolerates it being unset, so pass it
