@@ -50,9 +50,9 @@ Measured on the 2026-10-18 database, packed as the pipeline packs it
 106,254,336 bytes (.br 86,658,719), and rebuild_database.py --pack
 Content,TooltipTexts --page-size 4096 then 105,697,280 (.br 86,693,653).
 Repacking alone moved that .br by 0.17 MB, so the .br change is within noise.
-On a desktop SQLite 3.46, warm, a tooltip's buttons took 0.005-0.008 ms
-instead of 2.5-3.7 ms (a scan and sort of all 54,799), and the tooltip itself
-0.009-0.014 ms instead of 0.011-0.016 ms.
+On a desktop SQLite 3.46, warm, one pinned core, 2,000 keys: a tooltip's
+buttons took 0.0033 ms instead of 1.36 ms median (a scan and sort of all
+54,799), and the tooltip itself was unchanged, 0.0056 ms against 0.0057.
 
 Before anything is committed, every tooltip and its buttons are read back
 through the new tables twice and compared with what the old tables held: by its
