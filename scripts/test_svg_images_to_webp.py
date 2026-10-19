@@ -28,13 +28,16 @@ import random
 import re
 import shutil
 import sqlite3
+import struct
 import sys
 import tempfile
 import traceback
+import zlib
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import brotli
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import ExifTags, Image, ImageCms, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -80,10 +83,26 @@ def brand() -> Image.Image:
     return img
 
 
-def png(img: Image.Image, level: int = 1) -> bytes:
+def png(img: Image.Image, level: int = 1, **params) -> bytes:
     buf = io.BytesIO()
-    img.save(buf, "PNG", compress_level=level)
+    img.save(buf, "PNG", compress_level=level, **params)
     return buf.getvalue()
+
+
+def jpeg(img: Image.Image, **params) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=95, **params)
+    return buf.getvalue()
+
+
+def with_chunk(data: bytes, kind: bytes, payload: bytes) -> bytes:
+    """A PNG with one more chunk right after IHDR, which Pillow cannot write itself (gAMA, sRGB)."""
+    chunk = struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
+    return data[:33] + chunk + data[33:]
+
+
+def gamma(value: int) -> bytes:
+    return struct.pack(">I", value)
 
 
 def uri(raw: bytes, wrap: int = 0) -> bytes:
@@ -211,7 +230,46 @@ def test_webp_and_animated_images_are_left_alone():
     frames[0].save(apng, "PNG", save_all=True, append_images=frames[1:])
     old = svg(already, uri(apng.getvalue()))
     new, images = tool.rewrite(old, {})
-    assert new == old and [k for k, *_ in images] == ["animated"]
+    assert new == old and [k for k, *_ in images] == ["left: animated"]
+
+
+# What the pixel checks cannot see. Each image below would re-encode as lossless or lossy WebP with its checks passing,
+# while the browser drew it differently afterwards (measured in Chrome in the review of PR #52), so it stays as it is.
+
+def _left_alone(raw: bytes) -> str:
+    new_uri, kind, _quality = tool.reencode(raw)
+    assert new_uri is None, f"re-encoded as {kind}"
+    assert kind.startswith(tool.LEFT), kind
+    return kind[len(tool.LEFT):]
+
+
+def test_an_image_with_a_colour_profile_is_left_as_it_is():
+    profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    assert _left_alone(png(screenshot(), icc_profile=profile)) == "an ICC colour profile"
+
+
+def test_an_image_with_a_gamma_other_than_srgbs_is_left_as_it_is():
+    plain = png(screenshot())
+    assert _left_alone(with_chunk(plain, b"gAMA", gamma(100000))) == "a gamma of 1.0 with no sRGB chunk"
+    # sRGB's own gamma, or any gamma beside an sRGB chunk (which a browser follows instead), changes nothing.
+    for raw in (with_chunk(plain, b"gAMA", gamma(45455)), with_chunk(plain, b"gAMA", gamma(45454)),
+                with_chunk(with_chunk(plain, b"gAMA", gamma(100000)), b"sRGB", b"\x00")):
+        assert tool.reencode(raw)[0] is not None
+
+
+def test_an_image_with_an_exif_orientation_is_left_as_it_is():
+    exif = Image.Exif()
+    exif[ExifTags.Base.Orientation] = 6
+    assert _left_alone(jpeg(screenshot(), exif=exif.tobytes())) == "EXIF orientation 6"
+    exif[ExifTags.Base.Orientation] = 1
+    assert tool.reencode(jpeg(screenshot(), exif=exif.tobytes()))[0] is not None
+
+
+def test_an_image_in_a_pixel_format_webp_cannot_hold_is_left_as_it_is():
+    deep = Image.new("I;16", (120, 80))
+    deep.putdata([(x * 500 + y * 40) % 65536 for y in range(80) for x in range(120)])
+    assert _left_alone(png(deep)) == "pixel format I;16"
+    assert _left_alone(jpeg(screenshot().convert("CMYK"))) == "pixel format CMYK"
 
 
 def test_a_kept_image_keeps_its_text_exactly():
@@ -303,6 +361,18 @@ def test_end_to_end_rewrites_each_kind_and_nothing_else(tmp_path: Path):
     conn = sqlite3.connect(db_path)
     assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0  # VACUUMed after the rewrite
     conn.close()
+
+
+def test_a_run_names_each_image_it_leaves_as_it_is(tmp_path: Path):
+    profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    profiled = uri(png(screenshot(), icc_profile=profile))
+    db_path = _database(tmp_path, {"a/profiled.svg": svg(profiled, uri(png(code_text())))})
+    out = io.StringIO()
+    with redirect_stdout(out):
+        assert tool.run(_cfg(db_path)) == 0
+    assert "a/profiled.svg: left 1 image(s) as they are: an ICC colour profile" in out.getvalue()
+    new = _read(db_path, "a/profiled.svg")
+    assert profiled in new and new.count(b"data:image/webp") == 1
 
 
 def test_dry_run_writes_nothing(tmp_path: Path):

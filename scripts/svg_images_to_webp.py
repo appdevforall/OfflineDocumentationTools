@@ -68,6 +68,16 @@ nothing written. Animated images are left alone (a WebP of their first frame
 would lose the animation), and so are images already in WebP, which is what
 makes a second run change nothing.
 
+Those checks compare decoded pixels, so they cannot see what else changes how
+a browser draws an image, and the WebP is written without it. An image is left
+as it is, and named in the report, when it carries an ICC colour profile, a
+PNG gamma other than sRGB's (gAMA 0.45455) with no sRGB chunk, or an EXIF
+orientation other than 1, or when it decodes to a pixel format outside 1, L,
+LA, P, PA, RGB and RGBA (16-bit, CMYK and the like, which Pillow would convert
+before the lossless check). None of the shipped images has any of these; the
+three i/ PNGs carry an sRGB chunk with the standard gAMA, which changes
+nothing.
+
 Only the data: URI of each re-encoded image changes (data:image/png;base64,...
 becomes data:image/webp;base64,...); the vector parts, attributes and text of
 the SVG stay byte for byte. Code On The Go's WebView draws a WebP inside an SVG
@@ -115,6 +125,13 @@ PALETTE_COLOURS = 256
 MIN_PSNR = 35.0
 # Backgrounds a transparent image is judged against: a light page and a dark one.
 BACKGROUNDS = ((255, 255, 255), (0, 0, 0))
+# Pixel formats a WebP holds exactly. Pillow converts any other (16-bit, CMYK, I, F) lossily, and before the lossless
+# check sees it, so such an image is left as it is.
+WEBP_MODES = frozenset({"1", "L", "LA", "P", "PA", "RGB", "RGBA"})
+# The PNG gAMA values that mean sRGB's 1/2.2, in the chunk's units of 1/100000: rounded, and as some encoders truncate.
+SRGB_GAMMAS = (45455, 45454)
+EXIF_ORIENTATION = 0x0112
+LEFT = "left: "
 
 
 class Refused(Exception):
@@ -180,15 +197,35 @@ def choose(stored_size: int, options: list):
     return best if len(best[1]) < stored_size else None
 
 
+def left_alone(img: Image.Image) -> str | None:
+    """Why `img` has to stay as it is, or None. The checks compare decoded pixels only, and the WebP is written without
+    what else a browser draws an image with, so an image that has any of it is not re-encoded."""
+    if getattr(img, "is_animated", False):
+        return "animated"
+    if img.info.get("icc_profile"):
+        return "an ICC colour profile"
+    gamma = img.info.get("gamma")
+    if gamma is not None and "srgb" not in img.info and round(gamma * 100000) not in SRGB_GAMMAS:
+        return f"a gamma of {gamma} with no sRGB chunk"
+    orientation = img.getexif().get(EXIF_ORIENTATION, 1)
+    if orientation != 1:
+        return f"EXIF orientation {orientation}"
+    if img.mode not in WEBP_MODES:
+        return f"pixel format {img.mode}"
+    return None
+
+
 def reencode(raw: bytes) -> tuple:
-    """(new data URI or None, kind, PSNR) for one embedded image's bytes."""
+    """(new data URI or None, kind, PSNR) for one embedded image's bytes. A kind starting with LEFT says why the image
+    was not even tried."""
     try:
         img = Image.open(io.BytesIO(raw))
         img.load()
     except Exception as exc:  # noqa: BLE001 - any decode failure is the same refusal
         raise Refused(f"an embedded image cannot be decoded ({exc})") from exc
-    if getattr(img, "is_animated", False):
-        return None, "animated", None
+    reason = left_alone(img)
+    if reason:
+        return None, LEFT + reason, None
     best = choose(len(raw), candidates(img))
     if best is None:
         return None, "kept", None
@@ -274,6 +311,9 @@ def run(cfg: dict) -> int:
         changes = []
         for path, blob, svg, lang, ctid, tid, comp in with_images:
             new_svg, images = rewrite(svg, cache)
+            left = [k[len(LEFT):] for k, *_ in images if k.startswith(LEFT)]
+            if left:
+                print(f"  {path}: left {len(left)} image(s) as they are: {', '.join(sorted(set(left)))}")
             if new_svg == svg:
                 continue
             changes.append((path, lengths[path], len(blob), codec.compress(new_svg, comp), lang, ctid, tid, images))
