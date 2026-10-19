@@ -587,6 +587,30 @@ def test_a_changed_template_stops_the_step(tmp_path: Path):
     assert _run(db)[0] == 0
 
 
+def test_a_database_declaring_version_3_is_refused(tmp_path: Path):
+    # From 3.0.0 migrate_tooltip_schema.py stores every template compressed, so the step has to run before it. The
+    # template here is plain, so only the version can stop the run.
+    _needs("brotli")
+    db = _database(tmp_path, {"k/a.html": ("text/html", _dump(FUNCTION_PAGE))})
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE DocumentationDatabaseVersion (major INT, minor INT, patch INT, who TEXT, "
+                 "comment TEXT, changeTime TIMESTAMP)")
+    conn.executemany("INSERT INTO DocumentationDatabaseVersion VALUES (?, 0, 0, 'test', '', ?)",
+                     [(2, "2026-08-20 22:52:54"), (3, "2026-10-19 03:15:03")])
+    conn.commit()
+    conn.close()
+    before = _stored(db)
+    code, _out, err = _run(db)
+    assert code == 1 and "Run it before migrate_tooltip_schema.py" in err
+    assert _stored(db) == before
+    # The newest row decides: with 3.0.0 gone, the 2.0.0 database is trimmed.
+    conn = sqlite3.connect(db)
+    conn.execute("DELETE FROM DocumentationDatabaseVersion WHERE major = 3")
+    conn.commit()
+    conn.close()
+    assert _run(db)[0] == 0
+
+
 def test_an_unreadable_row_stops_the_run_before_anything_is_written(tmp_path: Path):
     _needs("brotli")
     db = _database(tmp_path, {"k/a.html": ("text/html", _dump(FUNCTION_PAGE)),

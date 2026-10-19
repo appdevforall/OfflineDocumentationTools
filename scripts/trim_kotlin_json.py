@@ -62,13 +62,21 @@ the same database a second time changed it by 173,277 bytes. That run saved
 JSON and another dictionary saved 667,714 and 766,108 (file: 671,744 and
 765,952).
 
-Re-minting the dictionary after this step made the file larger, by 536,576
-and 335,872 bytes, so no re-mint should follow it.
+Re-minting the dictionary right after this step, with nothing else changed,
+made the file larger by 536,576 and 335,872 bytes. In the ADFA-3305
+ship-time build a re-mint follows anyway, since the a/ conversion needs one,
+and this step's place against it does not matter: three orders of that build
+(this step before the conversion and the re-mint, or after the re-mint) ended
+within 143,360 file and 122,915 .br bytes of each other, inside the 260-400
+KB spread between re-mint seeds.
 
 Pipeline position: after every step that writes the Kotlin API rows
-(sync_kdoc_json_to_db.py) and after the dictionary re-mint
-(remint_dictionary.py), then packing (PR #38's rebuild_database.py) if the
-build packs the database. No workflow runs this step: the build-kotlin-docs
+(sync_kdoc_json_to_db.py), and before migrate_tooltip_schema.py: from
+documentation schema 3.0.0 every template is stored compressed, so this step
+could not read layout.pebble, and it refuses a database declaring 3 or later.
+On the copy that ships: minify, row drops, this step, the a/ conversion, the
+3.0.0 migration, the 4-seed re-mint, then packing (PR #38's
+rebuild_database.py). No workflow runs this step: the build-kotlin-docs
 workflows end with sync_kdoc_json_to_db.py, which rewrites every k/ row, so
 it is run by hand on their output.
 
@@ -94,6 +102,9 @@ TEMPLATE_NAME = "layout.pebble"
 
 # template_code_fingerprint() of the layout.pebble these changes were checked against.
 TEMPLATE_CODE_SHA256 = "6aaa5b48a8c7453f47c22ba648ab318b98e829d2a6b069e3e08d7f8068fcc757"
+
+# From this documentation major version on, migrate_tooltip_schema.py has stored every template compressed.
+COMPRESSED_TEMPLATES_MAJOR = 3
 
 MEMBER_LISTS = ("modules", "packages", "classlikes", "typeAliases", "constructors", "properties", "functions",
                 "entries")
@@ -135,6 +146,17 @@ _PEBBLE_TAG = re.compile(
 
 class Unexpected(Exception):
     """A row this step does not know how to change safely."""
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major version the database declares - its newest DocumentationDatabaseVersion row, ordered
+    as Code On The Go orders them - or None if it declares none."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'DocumentationDatabaseVersion'").fetchone():
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
 
 
 def template_code_fingerprint(template: str) -> str:
@@ -402,6 +424,12 @@ def run(cfg: dict) -> int:
     changes, skipped = [], {}
     per_change = defaultdict(lambda: [0, 0])
     try:
+        major = declared_major(conn)
+        if major is not None and major >= COMPRESSED_TEMPLATES_MAJOR:
+            print(f"error: the database declares documentation version {major}; from "
+                  f"{COMPRESSED_TEMPLATES_MAJOR}.0.0 every template is stored compressed, so this step cannot read "
+                  f"{TEMPLATE_NAME}. Run it before migrate_tooltip_schema.py; nothing was changed", file=sys.stderr)
+            return 1
         template = conn.execute("SELECT id, content FROM Templates WHERE name = ?", (TEMPLATE_NAME,)).fetchone()
         if template is None:
             print(f"error: no template is named {TEMPLATE_NAME}; nothing was changed", file=sys.stderr)
@@ -499,8 +527,7 @@ def run(cfg: dict) -> int:
     print(f"\nDone. {verb} {human(len(changes))} row(s), saving {human(sum(c[6] for c in changes))} decoded and "
           f"{human(sum(c[7] for c in changes))} stored byte(s) against the current dictionary.")
     if changes and not cfg["dry_run"]:
-        print("Next: pack the database if the build packs it (rebuild_database.py --pack, from PR #38). Do not "
-              "re-mint the dictionary after this step; measured, a re-mint made the file larger.")
+        print("Next: the rest of the ship-time steps, in the order the docstring's pipeline position gives.")
     return 0
 
 
