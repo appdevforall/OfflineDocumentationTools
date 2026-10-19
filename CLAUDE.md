@@ -196,6 +196,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final dictionary re-mint.
   It refuses a database that already holds its templates, or that declares documentation version 3
   or later (whose templates are compressed, so its plain ones would not render).
+  ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` (run on the master
+  by `build-android-docs.yaml`, by hand only, never run so far) converts the same `a/android/` and
+  `a/androidx/` pages its own way; this step leaves rows already in another template alone, so after
+  that pipeline it converts almost nothing. Which of the two ships is still open.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and

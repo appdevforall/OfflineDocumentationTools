@@ -41,6 +41,16 @@ Pages: every text/html row under a/ with templateId 0, except a/devsite/
 (guide pages of another shape). A row in another template, a page that is not
 UTF-8 or holds a NUL is left as it is and named.
 
+Another pipeline does the same job: ADFA-5548's
+ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py, which
+build-android-docs.yaml runs on the master (by hand only; it has never run),
+replaces the scraped a/android/ and a/androidx/ rows with JSON from the
+committed source tree, rendered through its own android-class.peb,
+android-package.peb and android-index.peb. This step converts scraped HTML on
+the ship-time copy only. Rows already rendered through another template are
+left as they are, so after that pipeline has run this step converts almost
+nothing and saves almost nothing. Which of the two ships is still open.
+
 Before anything is written, every converted page is rendered with the real
 Pebble engine (scripts/hm_render_check/Render.java, built as the app builds
 it, with the app's 4 Mi-character render limit) and compared with the stored
