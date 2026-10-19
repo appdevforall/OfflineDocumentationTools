@@ -13,6 +13,10 @@ size; otherwise it keeps the source's.
 
     uv run scripts/rebuild_database.py documentation.db rebuilt.db --pack Content,Tooltips --page-size 4096
 
+On a database in documentation schema 3.0.0 (after migrate_tooltip_schema.py,
+#45), Tooltips is a WITHOUT ROWID table, which --pack refuses: pack
+Content,TooltipTexts there instead.
+
 Why (ADFA-3305): the database reserves 12 bytes at the end of every 1 KB page
 (file header byte 20), and on the 2026-10-13 database all of them, on all
 128,099 pages, are zero. Reserved space is for SQLite extensions - a per-page
@@ -511,7 +515,7 @@ def main() -> None:
                    type=lambda value: [t.strip() for t in value.split(",") if t.strip()],
                    help="Insert these tables' rows in an order that fills their leaf pages, each taking the next "
                         "AUTOINCREMENT id, with declared foreign keys and UNDECLARED_REFERENCES following "
-                        "(e.g. Content,Tooltips)")
+                        "(e.g. Content,Tooltips; Content,TooltipTexts on a schema 3.0.0 database)")
     p.add_argument("--page-size", type=page_size_arg, default=None, metavar="BYTES",
                    help="Page size for the copy, a power of two from 512 to 65536 (default: the source's; "
                         "use 4096 for documentation.db)")
