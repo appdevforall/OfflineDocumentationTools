@@ -190,6 +190,21 @@ def test_a_migrated_database_is_refused_by_name(tmp_path: Path):
     assert code == 1 and "migrate_tooltip_schema.py" in err and _details(db2) == before
 
 
+def test_the_script_declares_what_its_imports_need():
+    # `uv run scripts/clear_repeated_tooltip_detail.py` installs only what its PEP 723 block lists, and
+    # optimize_db_media, which it imports, imports brotli and PIL at module level. This test file declares both
+    # itself, so without this check a missing block shows up only when the step is run.
+    script = Path(tool.__file__).read_text()
+    block = re.search(r"^# /// script\n(.*?)^# ///$", script, re.S | re.M)
+    assert block, "no PEP 723 script block"
+    declared = set(re.findall(r'"([A-Za-z0-9_.-]+)', block.group(1).split("dependencies", 1)[-1]))
+    imported = Path(tool.__file__).with_name("optimize_db_media.py").read_text()
+    needed = {"brotli": r"^import brotli\b", "Pillow": r"^from PIL import"}
+    for package, pattern in needed.items():
+        assert re.search(pattern, imported, re.M), f"optimize_db_media no longer imports {package}; update this test"
+        assert package in declared, f"{package} is not declared"
+
+
 def test_a_database_without_tooltips_is_an_error(tmp_path: Path):
     db = tmp_path / "documentation.db"
     sqlite3.connect(db).close()
@@ -206,8 +221,9 @@ def _main() -> int:
         if not name.startswith("test_") or not callable(function):
             continue
         with tempfile.TemporaryDirectory() as directory:
+            needs_tmp = "tmp_path" in function.__code__.co_varnames[:function.__code__.co_argcount]
             try:
-                function(Path(directory))
+                function(Path(directory)) if needs_tmp else function()
             except (KeyboardInterrupt, SystemExit):
                 raise
             except BaseException as exc:  # noqa: BLE001 - a failure is the result here

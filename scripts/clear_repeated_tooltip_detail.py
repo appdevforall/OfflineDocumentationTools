@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "brotli",
+#     "Pillow",
+# ]
+# ///
 """
 clear_repeated_tooltip_detail.py
 
