@@ -38,8 +38,9 @@ edit that database** — it contains no part of the production Android app itsel
 >
 > As of 2026-08-20 `~/documentation.db` reports **2.0.0** in `DocumentationDatabaseVersion`
 > ("Add CompressionDictionary table", David) — a deliberately *incompatible* major bump. Every
-> `brotli` Content row is compressed against the shared 256 KiB raw LZ77 dictionary held in
-> `CompressionDictionary` (id 1). Measured on that database: **0 of 24 sampled brotli rows decode
+> `brotli` Content row is compressed against the shared raw LZ77 dictionary held in
+> `CompressionDictionary` (id 1): 256 KiB as first minted, 768 KiB after `remint_dictionary.py`
+> (ADFA-3305). Measured on that database: **0 of 24 sampled brotli rows decode
 > with plain Brotli; all 24 require `brotli -D`.** A dictionary stream and a plain one are not
 > interchangeable, so anything reading or writing `Content` has to go through the dictionary.
 >
@@ -111,6 +112,12 @@ In a database whose newest `DocumentationDatabaseVersion` row declares major 3 o
 plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
 the app does: from major 3 on they sample, recompress and verify the templates together with the
 `Content` rows, and below it they leave the templates exactly as stored.
+
+`remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
+(ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
+ship-time database that saved 1.66 MB of file and 1.92 MB of `.br`; a large dictionary needs the
+larger sample (with the small one, two of four 768 KiB seeds stored more than 256 KiB). The ship-time
+copy is always re-minted last, so what ships has the re-mint's size. Measurements are in its docstring.
 
 **This repo writes `Templates`, but not `Bookshelf` or `BookCategories`.** `populate_db.py`
 (`page.peb`, `nav.peb`), `sync_javadoc_json_to_db.py` (`javadoc.peb`) and `load_android_json_db.py`
