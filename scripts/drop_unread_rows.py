@@ -116,7 +116,12 @@ Pipeline position: after every step that writes page content, links or
 tooltips, so the reference check sees the final pages, and before
 rebuild_database.py. It may run before or after migrate_tooltip_schema.py,
 since it reads both tooltip shapes and both template encodings. Deleting
-rows does not call for a dictionary re-mint.
+rows does not call for a dictionary re-mint. rebuild_database.py --pack has to
+follow it: javadoc-index-all's rewritten rows store a few bytes more each, and
+VACUUM keeps row order, so in a file that was already packed they move to new
+pages and leave their old ones mostly empty. On the 2026-10-19 ship-time build
+(packed, 90,783,744 bytes) the file grew to 99,475,456 bytes; packed again it
+is 89,542,656.
 
     uv run scripts/drop_unread_rows.py documentation.db --dry-run
     uv run scripts/drop_unread_rows.py documentation.db [--only GROUP ...] [--workers N] [--verbose]
