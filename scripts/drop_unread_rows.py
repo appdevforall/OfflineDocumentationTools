@@ -14,7 +14,7 @@ drop_unread_rows.py
 Deletes Content rows that nothing in the app or the documentation reads, after
 checking that no row it keeps refers to one of them.
 
-The rows, in four groups (pick some with --only; the default is all four):
+The rows, in five groups (pick some with --only; the default is all five):
 
 - javadoc-use: the javadoc Use pages (j/html/api/**/class-use/*.html and
   *package-use.html) and the module graphs (j/html/api/**/*module-graph.svg).
@@ -35,6 +35,15 @@ The rows, in four groups (pick some with --only; the default is all four):
 - x-placeholders: the x/ pages, each "Placeholder for XML layout attribute
   ...". XML tooltips link to a/ pages instead. 1,238 rows. x.html and x.pdf
   are not in this group.
+- javadoc-index-all: javadoc's one-page index (j/**/index-all.html), which
+  repeats its split index (index-files/index-1.html to index-27.html) in one
+  page of 23 MB. It is the only group that changes kept rows: every quoted
+  href or src that resolves to it is pointed at index-files/index-1.html
+  instead, keeping the link's own relative or rooted prefix (a fragment goes
+  to the split page that holds its anchor). On a Pixel 6 Pro the one-page
+  index took 5.0 s to load and a split page 0.5-0.8 s. A page named
+  index-all.html must be a javadoc index page (body class "index-page"), and
+  the split index must exist, or the run refuses.
 
 A row's chunk continuations ("<path>-1", "-2", ...) go with it.
 
@@ -43,7 +52,10 @@ with rebuild_database.py --pack Content,Tooltips --page-size 4096, as bytes
 saved in the file and in its brotli -q 11 -w 24: javadoc-use 5,042,176 and
 4,330,908; pdfjs-cmaps 860,160 and 851,736; pdfjs-extras 339,968 and 346,809;
 x-placeholders 122,880 and 103,920. Repacking alone moves the .br by up to
-about 0.2 MB, so the last figure is within that.
+about 0.2 MB, so the last figure is within that. javadoc-index-all, measured
+on the 2026-10-19 ship-time build (every ADFA-3305 step, 90,783,744 bytes),
+packed with --pack Content,TooltipTexts: 1,241,088 and 1,252,817, with 5,224
+links in 5,222 javadoc pages pointed at the split index.
 
 Before deleting anything the step checks, and refuses with the list and exit 1
 when any check fails, writing nothing:
@@ -66,6 +78,9 @@ when any check fails, writing nothing:
   resolves to no row at all but is the name of a deleted row and of no kept
   one, which is how a script that builds its URLs names a file. Three such
   references are expected and allowed; ALLOWED below says why each is dead.
+  Rows are read after javadoc-index-all's rewrite, so a link to a one-page
+  index that the rewrite does not reach (unquoted, built by a script, or in a
+  templated row's JSON, which is not rewritten) refuses the run too.
 - Content. Each x/ row must be a placeholder page, each javadoc-use HTML row a
   "Uses of" page and each module graph an SVG, and p/web/cmaps/ may hold only
   .bcmap files and LICENSE, so a real page that lands on one of these paths is
@@ -87,6 +102,8 @@ when any check fails, writing nothing:
   the phone.
 - The viewer edit (pdfjs-extras). p/web/viewer.mjs must hold exactly one
   enableScripting default; if it holds none or more, nothing is written.
+- The index links (javadoc-index-all). A link whose fragment names an anchor
+  no split page holds refuses, as does a split page that cannot be read.
 - A kept text row or template that cannot be decoded cannot be checked, so it
   refuses too.
 
@@ -140,6 +157,12 @@ COMPRESSED_TEMPLATES_MAJOR = 3
 PDFJS_EXTRAS = ("p/web/wasm/openjpeg_nowasm_fallback.js", "p/web/wasm/jbig2_nowasm_fallback.js",
                 "p/web/wasm/quickjs-eval.wasm", "p/web/wasm/quickjs-eval.js", "p/build/pdf.sandbox.mjs")
 PLACEHOLDER = b"Placeholder for XML layout attribute"
+# javadoc's one-page index, and the split index (index-files/index-N.html) its links are pointed at instead.
+INDEX_ALL = "index-all.html"
+SPLIT_INDEX_DIR = "index-files"
+_SPLIT_ANCHOR = re.compile(rb'\bid="([^"]+)"')
+_INDEX_LINK = re.compile(rb"""((?<![\w:-])(?:href|src)\s*=\s*)(["'])([^"'<>]*?)index-all\.html(#[^"'<>]*)?\2""",
+                         re.I)
 
 # References to rows this step deletes that nothing follows, as (referring row,
 # deleted row) -> why. Each is printed when found, so it stays visible.
@@ -221,6 +244,14 @@ def _check_placeholder(path: str, raw: bytes):
     return None if PLACEHOLDER in raw else "is not a placeholder page"
 
 
+def _javadoc_index_all(path: str) -> bool:
+    return path.startswith("j/") and posixpath.basename(path) == INDEX_ALL
+
+
+def _check_index_page(path: str, raw: bytes):
+    return None if b'class="index-page"' in raw else "is not a javadoc index page"
+
+
 # name -> (what it holds, which rows it selects, a check on each row's decoded bytes)
 GROUPS = {
     "javadoc-use": ("javadoc Use pages and module graphs", _javadoc_use, _check_javadoc_use),
@@ -228,7 +259,34 @@ GROUPS = {
     "pdfjs-extras": ("pdf.js no-WebAssembly fallbacks and scripting sandbox", lambda path: path in PDFJS_EXTRAS,
                      None),
     "x-placeholders": ("x/ placeholder pages", lambda path: path.startswith("x/"), _check_placeholder),
+    "javadoc-index-all": ("javadoc one-page indexes", _javadoc_index_all, _check_index_page),
 }
+
+
+def point_at_split_index(raw: bytes, row_dir: str, split_index: dict) -> tuple:
+    """(raw with every quoted href or src that resolves to a one-page index in split_index pointed at that index's
+    split pages, the number of links changed, problems). split_index maps each index-all.html path to
+    {anchor id: split page path}, its first page under the key None. The link keeps its own prefix, so it stays
+    relative or rooted as it was; a fragment goes to the split page that holds its anchor."""
+    changed, problems = 0, []
+
+    def repl(m):
+        nonlocal changed
+        prefix, fragment = m.group(3).decode("utf-8", errors="replace"), m.group(4) or b""
+        target = next((p for p in link_paths(prefix + INDEX_ALL, (row_dir,)) if p in split_index), None)
+        if target is None:
+            return m.group(0)
+        anchor = unquote(fragment[1:].decode("utf-8", errors="replace")) if fragment else None
+        page = split_index[target].get(anchor)
+        if page is None:
+            problems.append(f"links to {target}{fragment.decode('utf-8', errors='replace')}, an anchor no split "
+                            "index page holds")
+            return m.group(0)
+        changed += 1
+        new = prefix + posixpath.relpath(page, posixpath.dirname(target))
+        return m.group(1) + m.group(2) + new.encode("utf-8") + fragment + m.group(2)
+
+    return _INDEX_LINK.sub(repl, raw), changed, problems
 
 
 def turn_scripting_off(viewer: bytes) -> tuple:
@@ -582,6 +640,25 @@ def run(cfg: dict) -> int:
             deleted.update((fragment, group) for fragment in owned_fragment_paths(conn, path, lengths[path]))
 
         problems = []
+        # Each one-page index being deleted -> {anchor id: split page}, the first split page under None.
+        split_index = {}
+        for path in sorted(p for p, group in doomed.items() if group == "javadoc-index-all"):
+            directory = posixpath.join(posixpath.dirname(path), SPLIT_INDEX_DIR)
+            first = posixpath.join(directory, "index-1.html")
+            pages = [p for p in bases if posixpath.dirname(p) == directory and rows[p][2] == "text/html"]
+            if first not in pages:
+                problems.append(f"{path} has no split index ({first}) to point its links at")
+                continue
+            anchors = {None: first}
+            for page in sorted(pages, key=lambda p: (p != first, p)):
+                try:
+                    raw = codec.decompress(stored_bytes(page), rows[page][3])
+                except Exception as exc:  # noqa: BLE001 - reported, and the run refused
+                    problems.append(f"{page} could not be read, so its anchors are unknown: {exc}")
+                    continue
+                for m in _SPLIT_ANCHOR.finditer(raw):
+                    anchors.setdefault(m.group(1).decode("utf-8", errors="replace"), page)
+            split_index[path] = anchors
         viewer_new, viewer_changed = None, False
         if "pdfjs-extras" in groups:
             if VIEWER in rows:
@@ -623,18 +700,30 @@ def run(cfg: dict) -> int:
         texts = [(path, stored_bytes(path)) for path in kept]
 
         def scan(item):
+            """References a kept row makes, read after its links to a one-page index being deleted are pointed at
+            the split index, so a link the rewrite misses is still caught. A templated row's JSON is not rewritten:
+            a link there to a deleted index refuses the run."""
             path, raw, error = decode(item)
             if raw is None:
-                return path, None, error
-            text = raw.decode("utf-8", errors="replace")
-            return path, refs.in_text(text, (posixpath.dirname(path),), rows[path][4] != 0), None
+                return path, None, error, None, 0, []
+            new, count, link_problems = raw, 0, []
+            if split_index and rows[path][4] == 0 and INDEX_ALL.encode() in raw:
+                new, count, link_problems = point_at_split_index(raw, posixpath.dirname(path), split_index)
+            text = new.decode("utf-8", errors="replace")
+            return (path, refs.in_text(text, (posixpath.dirname(path),), rows[path][4] != 0), None,
+                    new if count else None, count, link_problems)
 
+        rewrites, links_pointed = {}, 0  # kept row -> its decoded bytes with the index links pointed elsewhere
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
-            for path, targets, error in pool.map(scan, texts):
+            for path, targets, error, new, count, link_problems in pool.map(scan, texts):
                 if targets is None:
                     problems.append(f"{path} could not be read, so its references were not checked: {error}")
-                else:
-                    found.update((path, target, how) for target, how in targets)
+                    continue
+                found.update((path, target, how) for target, how in targets)
+                problems.extend(f"{path} {problem}" for problem in link_problems)
+                if new is not None:
+                    rewrites[path] = new
+                    links_pointed += count
         texts = None
 
         # A template renders at the paths of the rows that use it.
@@ -692,10 +781,14 @@ def run(cfg: dict) -> int:
                   + (f" and {chunks} chunk row(s)" if chunks else "") + f", {human(freed)} stored byte(s)")
         if viewer_changed:
             print(f"  {VIEWER}: enableScripting default set to false")
+        if rewrites:
+            print(f"  javadoc-index-all: {links_pointed} link(s) in {len(rewrites)} row(s) pointed at the split index")
 
         if cfg["dry_run"]:
             print("Dry run: nothing written.")
         else:
+            with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
+                recompressed = dict(pool.map(lambda p: (p, codec.compress(rewrites[p], rows[p][3])), sorted(rewrites)))
             print(f"Backing up {db_path} ...")
             print(f"Backup written to {backup_database(db_path)}")
             conn.execute("BEGIN")
@@ -704,6 +797,13 @@ def run(cfg: dict) -> int:
                     delete_media_row(conn, path, lengths[path])
                     if cfg["verbose"]:
                         print(f"  [DEL] {path}")
+                for path in sorted(recompressed):
+                    language_id, content_type_id, template_id = conn.execute(
+                        "SELECT languageID, contentTypeID, templateId FROM Content WHERE path = ?", (path,)).fetchone()
+                    replace_row(conn, path, lengths[path], recompressed[path], language_id, content_type_id,
+                                template_id, lambda m: print(m, file=sys.stderr))
+                    if cfg["verbose"]:
+                        print(f"  [LINK] {path}")
                 if viewer_changed:
                     language_id, content_type_id, template_id = conn.execute(
                         "SELECT languageID, contentTypeID, templateId FROM Content WHERE path = ?",
@@ -729,7 +829,9 @@ def run(cfg: dict) -> int:
 
     verb = "would delete" if cfg["dry_run"] else "deleted"
     print(f"\nDone. {verb} {len(deleted)} row(s), {human(freed_total)} stored byte(s)"
-          + ("; scripting turned off in the viewer." if viewer_changed else "."))
+          + ("; scripting turned off in the viewer" if viewer_changed else "")
+          + (f"; {'would point' if cfg['dry_run'] else 'pointed'} {links_pointed} index link(s) in {len(rewrites)} "
+             "row(s) at the split index" if rewrites else "") + ".")
     return 0
 
 
