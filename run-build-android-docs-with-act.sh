@@ -184,7 +184,7 @@ fi
 if [ "$SKIP_REMINT" = "true" ]; then
   echo "note: --skip-remint - the shared Brotli dictionary is left as it is. On a database" >&2
   echo "note: coming from HTML that costs about 16% on the Android pages; on one already" >&2
-  echo "note: minted for this corpus it costs nothing, and skipping saves ~22 minutes (4 passes)." >&2
+  echo "note: minted for this corpus it costs little (0.1% measured), and skipping saves ~22 minutes (4 passes)." >&2
 fi
 
 # The workflow reads SLACK_WEBHOOK_URL and tolerates it being unset, so pass it
