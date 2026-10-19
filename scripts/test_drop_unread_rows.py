@@ -1192,6 +1192,10 @@ def test_copies_ignore_rows_other_groups_delete(tmp_path: Path):
         # The module graph goes with javadoc-use; its identical doc-files copy is not a copy of it, and stays.
         "j/html/api/m/doc-files/graph.svg": ("image/svg+xml", MODULE_GRAPH),
         "j/html/api/m/doc-files/guide.html": ("text/html", b'<img src="graph.svg">'),
+        # The same for a media type duplicate-media does merge (SVGs it never merges): unlinked deletes the shorter
+        # name, so the longer one is no copy of it and stays.
+        "i/images/page-bg.webp": ("image/webp", b"RIFF page background"),
+        "i/images/page-bg-elsewhere.webp": ("image/webp", b"RIFF page background"),
         # A link from a placeholder page, which x-placeholders deletes, does not count: the shorter name is kept.
         "m/a.webp": ("image/webp", PICTURE), "m/bb.webp": ("image/webp", PICTURE),
         "x/c.html": ("text/html", _placeholder("c") + b'<img src="../m/bb.webp">'),
@@ -1199,8 +1203,8 @@ def test_copies_ignore_rows_other_groups_delete(tmp_path: Path):
     db = _database(tmp_path, rows)
     code, out, err = _run(db)
     assert code == 0, err
-    assert set(rows) - set(_stored(db)) == DELETED | {"x/c.html", "m/bb.webp"}
-    assert "javadoc-use: 3 row(s)" in out and "duplicate-media: 1 row(s)" in out
+    assert set(rows) - set(_stored(db)) == DELETED | {"x/c.html", "m/bb.webp", "i/images/page-bg.webp"}
+    assert "javadoc-use: 3 row(s)" in out and "duplicate-media: 1 row(s)" in out and "unlinked: 1 row(s)" in out
 
 
 def test_a_json_row_that_would_stop_parsing_refuses(tmp_path: Path):
