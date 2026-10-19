@@ -211,7 +211,7 @@ class CompressedTemplatesRefusalTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(HERE / "remint_dictionary.py"), str(self.db_path)],
                                 capture_output=True, text=True, cwd=self.dir, check=False)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("PR #48", result.stderr)
+        self.assertTrue(result.stderr.startswith("error: ") and "PR #48" in result.stderr, result.stderr)
         self.assertIn("nothing was changed", result.stderr)
         self.assertEqual(self.sha(), sha)
         self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["documentation.db"])
@@ -233,7 +233,8 @@ class CompressedTemplatesRefusalTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(HERE / "verify_remint_dictionary.py"), str(original),
                                  str(self.db_path)], capture_output=True, text=True, cwd=self.dir, check=False)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("declares documentation major 3", result.stderr)
+        self.assertTrue(result.stderr.startswith("error: ") and "declares documentation major 3" in result.stderr,
+                        result.stderr)
         self.assertNotIn("Byte-identical", result.stdout)
 
 
