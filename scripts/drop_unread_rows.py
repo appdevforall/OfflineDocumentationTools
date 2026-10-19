@@ -54,7 +54,11 @@ when any check fails, writing nothing:
   links. The tooltip tables are read in either documentation schema: 2
   (TooltipButtons.uri, Tooltips.summary and detail) or 3, after
   migrate_tooltip_schema.py (TooltipButtonUris, TooltipTexts); tables in
-  neither shape refuse the run before anything is read. Links are: HTML and
+  neither shape refuse the run before anything is read. From documentation
+  major version 3 (the newest DocumentationDatabaseVersion row, ordered as the
+  app orders them) every template is stored Brotli-compressed against the
+  dictionary, so templates are decoded first there and read as plain text
+  below it. Links are: HTML and
   SVG attributes, srcset, CSS url() and @import, quoted file names in scripts,
   the string values of a templated row's JSON, viewer.html?file= parameters and
   http://localhost:6174/ URLs. A link that resolves (relative to its row, or
@@ -83,7 +87,8 @@ when any check fails, writing nothing:
   the phone.
 - The viewer edit (pdfjs-extras). p/web/viewer.mjs must hold exactly one
   enableScripting default; if it holds none or more, nothing is written.
-- A kept text row that cannot be decoded cannot be checked, so it refuses too.
+- A kept text row or template that cannot be decoded cannot be checked, so it
+  refuses too.
 
 Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the checks and reports what
@@ -92,8 +97,8 @@ would change without writing. A second run finds nothing to do and exits 0.
 Pipeline position: after every step that writes page content, links or
 tooltips, so the reference check sees the final pages, and before
 rebuild_database.py. It may run before or after migrate_tooltip_schema.py,
-since it reads both tooltip shapes. Deleting rows does not call for a
-dictionary re-mint.
+since it reads both tooltip shapes and both template encodings. Deleting
+rows does not call for a dictionary re-mint.
 
     uv run scripts/drop_unread_rows.py documentation.db --dry-run
     uv run scripts/drop_unread_rows.py documentation.db [--only GROUP ...] [--workers N] [--verbose]
@@ -130,6 +135,8 @@ SCANNED_TYPES = ("text/html", "text/css", "text/javascript", "image/svg+xml", "a
                  "application/x-typescript")
 
 VIEWER = "p/web/viewer.mjs"
+# From this documentation major version on, migrate_tooltip_schema.py has stored every template compressed.
+COMPRESSED_TEMPLATES_MAJOR = 3
 PDFJS_EXTRAS = ("p/web/wasm/openjpeg_nowasm_fallback.js", "p/web/wasm/jbig2_nowasm_fallback.js",
                 "p/web/wasm/quickjs-eval.wasm", "p/web/wasm/quickjs-eval.js", "p/build/pdf.sandbox.mjs")
 PLACEHOLDER = b"Placeholder for XML layout attribute"
@@ -506,6 +513,17 @@ def cmap_needs(data: bytes, cmap_names: set) -> list:
     return sorted(needs)
 
 
+def declared_major(conn) -> int | None:
+    """The documentation major version the database declares - its newest DocumentationDatabaseVersion row, ordered
+    as Code On The Go orders them - or None if it declares none."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'DocumentationDatabaseVersion'").fetchone():
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
+
+
 def tooltip_queries(conn):
     """(buttons query, texts query) for the database's tooltip tables, schema 2 or 3, or None for any other
     shape. The buttons query yields (tooltipId, uri), the texts query (id, summary, detail)."""
@@ -624,9 +642,16 @@ def run(cfg: dict) -> int:
         for path, row in rows.items():
             if row[4]:
                 dirs_by_template[row[4]].add(posixpath.dirname(path))
+        major = declared_major(conn)
+        compressed = major is not None and major >= COMPRESSED_TEMPLATES_MAJOR
         for template_id, name, content in conn.execute("SELECT id, name, content FROM Templates"):
             dirs = ("",) + tuple(sorted(dirs_by_template[template_id]))
-            text = bytes(content).decode("utf-8", errors="replace")
+            try:
+                raw = codec.decompress(bytes(content), "brotli") if compressed else bytes(content)
+            except Exception as exc:  # noqa: BLE001 - reported, and the run refused
+                problems.append(f"template {name} could not be decoded, so its links were not checked: {exc}")
+                continue
+            text = raw.decode("utf-8", errors="replace")
             found.update((f"template {name}", target, how) for target, how in refs.in_text(text, dirs))
         for tooltip_id, uri in conn.execute(buttons_query):
             found.update((f"tooltip {tooltip_id} button", target, how) for target, how in refs.targets(uri, ("",)))

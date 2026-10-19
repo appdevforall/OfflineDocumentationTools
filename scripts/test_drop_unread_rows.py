@@ -12,13 +12,14 @@ test_drop_unread_rows.py
 
 Covers drop_unread_rows.py: that each group deletes its rows, their chunk rows
 and nothing else; that scripting is turned off in the viewer, even once the
-sandbox rows are gone; that tooltips are read in documentation schema 2 and 3;
+sandbox rows are gone; that tooltips are read in documentation schema 2 and 3,
+and templates as plain text below documentation version 3 and decoded from it;
 and that every check refuses the run, writing nothing, when a kept row,
 template, tooltip or Bookshelf entry refers to a deleted row, when a row to
 delete is not what its group expects, when a stored PDF needs a CMap or its
 fonts cannot all be read, when the viewer cannot be edited, when the tooltip
-tables are in neither shape, or when a kept row, a row to delete or a PDF
-cannot be read. A run is all or nothing, a dry run writes nothing, and a
+tables are in neither shape, or when a kept row, a template, a row to delete or
+a PDF cannot be read. A run is all or nothing, a dry run writes nothing, and a
 second run changes nothing.
 
 Run it either way - as a plain script:
@@ -29,7 +30,8 @@ or under pytest:
 
     uv run --with brotli --with Pillow --with pytest pytest scripts/test_drop_unread_rows.py
 
-The dictionary test needs the `brotli` CLI on PATH, as the tool itself does.
+The dictionary and template-version tests need the `brotli` CLI on PATH, as the
+tool itself does.
 """
 from __future__ import annotations
 
@@ -183,10 +185,11 @@ TOOLTIP_TABLES = {
 
 
 def _database(tmp_path: Path, rows: dict, dictionary: bytes = None, templates: dict = None,
-              buttons: list = None, tooltips: list = None, schema: int = 2) -> Path:
+              buttons: list = None, tooltips: list = None, schema: int = 2, versions: list = None) -> Path:
     """A miniature documentation database with the production schema's triggers and the tooltip tables of
-    documentation schema 2 or 3. `templates` maps id -> (name, body), `buttons` lists (tooltipId, uri) and
-    `tooltips` (id, summary, detail)."""
+    documentation schema 2 or 3. `templates` maps id -> (name, stored body), `buttons` lists (tooltipId, uri),
+    `tooltips` (id, summary, detail) and `versions` the DocumentationDatabaseVersion rows as (major, minor, patch,
+    changeTime); without it there is no such table."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     db_path = tmp_path / "documentation.db"
     conn = sqlite3.connect(db_path)
@@ -219,6 +222,11 @@ def _database(tmp_path: Path, rows: dict, dictionary: bytes = None, templates: d
                      (path, stored, type_id, template_id))
     for template_id, (name, body) in (templates or {}).items():
         conn.execute("INSERT INTO Templates (id, name, content) VALUES (?, ?, ?)", (template_id, name, body))
+    if versions is not None:
+        conn.execute("CREATE TABLE DocumentationDatabaseVersion (major INT NOT NULL, minor INT NOT NULL,"
+                     " patch INT NOT NULL, who TEXT NOT NULL, comment TEXT NOT NULL,"
+                     " changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        conn.executemany("INSERT INTO DocumentationDatabaseVersion VALUES (?, ?, ?, 'test', '', ?)", versions)
     for tooltip_id, summary, detail in tooltips or []:
         if schema == 2:
             conn.execute("INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, 1, ?, ?, ?)",
@@ -409,6 +417,66 @@ def test_a_template_link_refuses(tmp_path: Path):
     rows["j/html/api/m/a/T.html"] = ("text/html", b'{"title": "t"}', 1)
     _refused(tmp_path / "here", rows, "template page.peb links to j/html/api/m/a/class-use/B.html",
              templates={1: ("page.peb", b'<a href="class-use/B.html">{{ title }}</a>')})
+
+
+# A template that links to a deleted row, and a dictionary that holds it, as the real ones hold theirs.
+LINKING_TEMPLATE = b'<nav>{% for item in items %}<a href="{{ item }}">{{ item }}</a>{% endfor %}</nav>' * 3 + \
+    b'<a href="../x/a.html">{{ title }}</a>'
+TEMPLATE_DICTIONARY = VIEWER_MJS * 4 + LINKING_TEMPLATE
+
+
+def test_a_compressed_template_link_refuses_from_version_3(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    stored = _compress(LINKING_TEMPLATE, TEMPLATE_DICTIONARY)
+    assert b"x/a.html" not in stored, "the link survives compression, so this tests nothing"
+    rows = _base_rows()
+    rows["k/topic.html"] = ("text/html", b'{"title": "t"}', 1)
+    # The newest row decides, by changeTime and then rowid, whatever order the rows were written in.
+    for i, versions in enumerate([[(3, 0, 0, "2026-10-19 07:09:52")],
+                                  [(3, 0, 0, "2026-10-19 07:09:52"), (2, 1, 0, "2026-10-18 10:00:00")],
+                                  [(2, 1, 0, "2026-10-19 07:09:52"), (3, 0, 0, "2026-10-19 07:09:52")]]):
+        _refused(tmp_path / str(i), rows, "template page.peb links to x/a.html", dictionary=TEMPLATE_DICTIONARY,
+                 schema=3, versions=versions, templates={1: ("page.peb", stored)})
+
+
+def test_a_version_3_database_with_compressed_templates_deletes_the_same_rows(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    rows = _base_rows()
+    rows["k/topic.html"] = ("text/html", b'{"title": "t"}', 1)
+    kept_link = LINKING_TEMPLATE.replace(b"../x/a.html", b"../x.html")
+    db = _database(tmp_path, rows, dictionary=TEMPLATE_DICTIONARY, schema=3,
+                   versions=[(3, 0, 0, "2026-10-19 07:09:52")],
+                   templates={1: ("page.peb", _compress(kept_link, TEMPLATE_DICTIONARY))})
+    before = _stored(db)
+    code, _out, err = _run(db)
+    assert code == 0, err
+    assert set(before) - set(_stored(db)) == DELETED
+
+
+def test_a_plain_template_link_refuses_below_version_3(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    rows = _base_rows()
+    rows["k/topic.html"] = ("text/html", b'{"title": "t"}', 1)
+    # An empty version table declares no version, as a missing one does.
+    for i, versions in enumerate([[(2, 1, 0, "2026-10-18 10:00:00")], [],
+                                  [(3, 0, 0, "2026-10-17 10:00:00"), (2, 1, 0, "2026-10-18 10:00:00")],
+                                  [(3, 0, 0, "2026-10-18 10:00:00"), (2, 1, 0, "2026-10-18 10:00:00")]]):
+        _refused(tmp_path / str(i), rows, "template page.peb links to x/a.html", dictionary=TEMPLATE_DICTIONARY,
+                 versions=versions, templates={1: ("page.peb", LINKING_TEMPLATE)})
+
+
+def test_a_template_that_does_not_decode_from_version_3_refuses(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    rows = _base_rows()
+    rows["k/topic.html"] = ("text/html", b'{"title": "t"}', 1)
+    # A step run after the migration left this one plain; its link to a kept row would not refuse.
+    _refused(tmp_path, rows, "template page.peb could not be decoded, so its links were not checked",
+             dictionary=TEMPLATE_DICTIONARY, schema=3, versions=[(3, 0, 0, "2026-10-19 07:09:52")],
+             templates={1: ("page.peb", b'<a href="../x.html">{{ title }}</a>')})
 
 
 def test_a_tooltip_button_refuses_in_either_schema(tmp_path: Path):
