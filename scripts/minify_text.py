@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "brotli",
+#     "Pillow",
+# ]
+# ///
 """
 Minifies the documentation's text rows and HTML templates without changing what
 a page shows (ADFA-6627).
@@ -51,7 +58,7 @@ Pipeline position: after every step that writes page content, and before the
 dictionary re-mint and rebuild_database.py.
 
 Usage:
-    ./minify_text.py documentation.db [--dry-run] [--workers N] [--verbose]
+    uv run scripts/minify_text.py documentation.db [--dry-run] [--workers N] [--verbose]
 """
 from __future__ import annotations
 
