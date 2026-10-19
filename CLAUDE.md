@@ -204,9 +204,13 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `scripts/ingest.py` pipeline and releases the resulting `.sqlite`), `docdb-regression-test.yaml`
   (daily cron, downloads the production DB from Google Drive via WIF and runs
   `check-tools/main.py` against it), `build-kotlin-docs.yaml` and its local-filesystem counterpart
-  `build-kotlin-docs-local.yaml` (manual dispatch, the five-step Kotlin docs pipeline — these two
-  are the only ones with Slack notifications), and `python-tests.yaml` (push/PR, runs the pytest
-  suites).
+  `build-kotlin-docs-local.yaml` (manual dispatch, the five-step Kotlin docs pipeline), the
+  matching Java and Android pairs (`build-java-docs*.yaml`, `build-android-docs*.yaml`),
+  `build-all-docs.yaml` / `build-all-docs-local.yaml` (ADFA-4065: those four documentation sets
+  chained into one run that writes a *new* database, then re-mints the dictionary and verifies
+  the result with `scripts/build_all_docs/verify_all_docs_db.py` — see
+  `scripts/build_all_docs/README.md`), and `python-tests.yaml` (push/PR, runs the pytest suites).
+  Every `*-local.yaml` has a `run-build-*-with-act.sh` at the repo root that runs it under act.
 
 ## Decisions log
 
