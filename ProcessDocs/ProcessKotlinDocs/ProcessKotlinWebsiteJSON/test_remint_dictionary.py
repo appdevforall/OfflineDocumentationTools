@@ -434,6 +434,45 @@ class RemintTemplatesTest(_RemintFixture):
         self.assertEqual(stats["candidate_parts"], [(999, content[0], templates[0]), (1000, content[1], templates[1])])
         self.assertEqual(verify(before, self.db_path), [])
 
+    def remint_with_shifted_totals(self, content_shift: int, template_shift: int):
+        """One real candidate, with its reported totals moved by the given bytes against what the dictionary in
+        place stores (the rows and templates themselves stay real, so whatever is written round-trips)."""
+        real_rows, real_templates = remint_dictionary.convert_all, remint_dictionary.convert_templates
+
+        def rows(conn, base_rows, old, new, workers):
+            converted, _total, problems = real_rows(conn, base_rows, old, new, workers)
+            return converted, sum(c[2] for c in converted) + content_shift, problems
+
+        def templates(templates, old, new, workers):
+            converted, _total, problems = real_templates(templates, old, new, workers)
+            return converted, sum(len(t[2]) for t in templates) + template_shift, problems
+
+        with mock.patch.object(remint_dictionary, "convert_all", side_effect=rows), \
+                mock.patch.object(remint_dictionary, "convert_templates", side_effect=templates):
+            return self.remint(seed=999)
+
+    def test_the_dictionary_in_place_is_weighed_with_its_templates(self):
+        """A candidate that stores 10 bytes less Content and 5 more template bytes stores less in all, so it
+        replaces the dictionary in place - which only holds if the in-place total counts the templates too, as
+        each candidate's does."""
+        self.add_versions_and_templates()
+        before = self.snapshot()
+        stats = self.remint_with_shifted_totals(content_shift=-10, template_shift=5)
+        self.assertEqual(stats["kept"], "candidate", "kept the dictionary in place though a candidate stores less in all")
+        self.assertEqual(stats["after"], stats["before"] - 5)
+        self.assertNotEqual(load_dictionary(self.conn), self.first_dictionary)
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_a_candidate_better_on_content_alone_is_not_kept(self):
+        """10 bytes less Content but 15 more template bytes is 5 more in all: the dictionary in place stays."""
+        self.add_versions_and_templates()
+        templates = self.stored_templates()
+        stats = self.remint_with_shifted_totals(content_shift=-10, template_shift=15)
+        self.assertEqual(stats["kept"], "current")
+        self.assertEqual(stats["best_candidate"][1], stats["before"] + 5)
+        self.assertEqual(load_dictionary(self.conn), self.first_dictionary)
+        self.assertEqual(self.stored_templates(), templates)
+
     def test_a_template_that_does_not_round_trip_writes_nothing(self):
         """The new dictionary's decoder is made to garble the templates (and only them): the run must stop
         with nothing written, as it does for a Content row that does not round-trip."""
