@@ -11,12 +11,15 @@
 test_drop_unread_rows.py
 
 Covers drop_unread_rows.py: that each group deletes its rows, their chunk rows
-and nothing else; that scripting is turned off in the viewer; and that every
-check refuses the run, writing nothing, when a kept row, template, tooltip or
-Bookshelf entry refers to a deleted row, when a row to delete is not what its
-group expects, when a stored PDF needs a CMap, when the viewer cannot be
-edited, or when a kept row cannot be read. A run is all or nothing, a dry run
-writes nothing, and a second run changes nothing.
+and nothing else; that scripting is turned off in the viewer, even once the
+sandbox rows are gone; that tooltips are read in documentation schema 2 and 3;
+and that every check refuses the run, writing nothing, when a kept row,
+template, tooltip or Bookshelf entry refers to a deleted row, when a row to
+delete is not what its group expects, when a stored PDF needs a CMap or its
+fonts cannot all be read, when the viewer cannot be edited, when the tooltip
+tables are in neither shape, or when a kept row, a row to delete or a PDF
+cannot be read. A run is all or nothing, a dry run writes nothing, and a
+second run changes nothing.
 
 Run it either way - as a plain script:
 
@@ -398,8 +401,14 @@ def test_a_reference_the_allowlist_names_only_for_another_row_still_refuses(tmp_
 def test_a_template_link_refuses(tmp_path: Path):
     rows = _base_rows()
     rows["k/topic.html"] = ("text/html", b'{"title": "t"}', 1)
-    _refused(tmp_path, rows, "template page.peb links to x/a.html",
+    _refused(tmp_path / "up", rows, "template page.peb links to x/a.html",
              templates={1: ("page.peb", b'<a href="../x/a.html">{{ title }}</a>')})
+    # A link that resolves only from the directory of the row using the template: from the root it names no
+    # row, and its file name, B.html, is also a kept row's.
+    rows = _base_rows()
+    rows["j/html/api/m/a/T.html"] = ("text/html", b'{"title": "t"}', 1)
+    _refused(tmp_path / "here", rows, "template page.peb links to j/html/api/m/a/class-use/B.html",
+             templates={1: ("page.peb", b'<a href="class-use/B.html">{{ title }}</a>')})
 
 
 def test_a_tooltip_button_refuses_in_either_schema(tmp_path: Path):
@@ -434,6 +443,8 @@ def test_tooltip_tables_in_neither_shape_refuse_before_the_scan(tmp_path: Path):
         # Tooltips without their text anywhere.
         (2, "CREATE TABLE T2 (id INTEGER, categoryId INTEGER, tag TEXT); DROP TABLE Tooltips;"
             " ALTER TABLE T2 RENAME TO Tooltips;"),
+        # The schema-3 tables, but Tooltips still holding text.
+        (3, "ALTER TABLE Tooltips ADD COLUMN summary TEXT;"),
     ]
     for i, (schema, change) in enumerate(cases):
         db = _database(tmp_path / str(i), _base_rows(), schema=schema)
@@ -570,6 +581,32 @@ def test_an_unreadable_kept_row_refuses(tmp_path: Path):
     rows = _base_rows()
     rows["i/broken.html"] = ("text/html", b"not brotli at all", 0, True)
     _refused(tmp_path, rows, "i/broken.html could not be read, so its references were not checked")
+
+
+def test_an_unreadable_row_to_delete_refuses(tmp_path: Path):
+    # Its group's check cannot see what it holds, so it is not deleted on trust.
+    rows = _base_rows()
+    rows["x/c.html"] = ("text/html", b"not brotli at all", 0, True)
+    _refused(tmp_path, rows, "x/c.html could not be read")
+
+
+def test_an_unreadable_pdf_refuses(tmp_path: Path):
+    rows = _base_rows()
+    rows["d/broken.pdf"] = ("application/pdf", b"not brotli at all", 0, True)
+    _refused(tmp_path, rows, "d/broken.pdf could not be read")
+
+
+def test_scripting_is_turned_off_when_the_sandbox_rows_are_already_gone(tmp_path: Path):
+    rows = {path: row for path, row in _base_rows().items() if path not in tool.PDFJS_EXTRAS}
+    db = _database(tmp_path, rows)
+    before = _stored(db)
+    code, out, err = _run(db, groups=["pdfjs-extras"])
+    after = _stored(db)
+    assert code == 0, err
+    assert "enableScripting default set to false" in out and not out.startswith("Nothing to do")
+    assert set(after) == set(before) and _decompress(after[tool.VIEWER][1]) == VIEWER_MJS_OFF
+    code, out, _err = _run(db, groups=["pdfjs-extras"])
+    assert code == 0 and out.startswith("Nothing to do") and "scripting is already off" in out
 
 
 def test_a_chunked_row_goes_with_its_base_and_others_stay(tmp_path: Path):
