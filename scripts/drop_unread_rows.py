@@ -308,7 +308,9 @@ def link_paths(ref: str, base_dirs, nested: bool = False) -> list:
         rooted = candidate.startswith("/")
         for base in ("",) if rooted else base_dirs:
             path = posixpath.normpath(candidate.lstrip("/") if rooted else posixpath.join(base, candidate))
-            if path not in (".", "..") and not path.startswith("../"):
+            while path == ".." or path.startswith("../"):  # ".." stops at the root, as in a browser
+                path = path[3:]
+            if path not in ("", "."):
                 out.append(path)
     return out
 

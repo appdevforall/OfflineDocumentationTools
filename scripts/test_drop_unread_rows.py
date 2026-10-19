@@ -377,6 +377,18 @@ def test_each_kind_of_link_to_a_deleted_row_refuses(tmp_path: Path):
         _refused(tmp_path / str(i), rows, f"{path} {expected}" if not expected.startswith(path) else expected)
 
 
+def test_a_link_climbing_past_the_root_resolves_as_a_browser_resolves_it(tmp_path: Path):
+    # A browser stops ".." at the root, so both links reach x/a.html. A kept i/sub/a.html shares the file name,
+    # so only resolving the path, not the file-name rule, can catch them.
+    for i, link in enumerate((b"../../x/a.html", b"/../x/a.html")):
+        rows = _base_rows()
+        rows["i/sub/a.html"] = ("text/html", b"<p>kept</p>")
+        rows["i/clamp.html"] = ("text/html", b'<a href="%s">a</a>' % link)
+        _refused(tmp_path / str(i), rows, "i/clamp.html links to x/a.html")
+    assert tool.link_paths("../../../a/b.html", ("i",)) == ["a/b.html"]
+    assert tool.link_paths("..", ("i",)) == []
+
+
 def test_a_reference_the_allowlist_names_only_for_another_row_still_refuses(tmp_path: Path):
     rows = _base_rows()
     rows["p/web/other.mjs"] = ("text/javascript", b'import("../build/pdf.sandbox.mjs")')
