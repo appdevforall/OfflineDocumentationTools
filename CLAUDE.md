@@ -170,9 +170,13 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
   `create_empty_database.py`, `list_database_documents.py`, `trim_kotlin_json.py` (drops what
-  `layout.pebble` never shows from the Kotlin API pages' JSON; its T03 cuts member summaries to
-  their first paragraph, which changes pages, and T02 drops per-platform text no page shows; no
-  dictionary re-mint needed after it). **Deprecated/dead** (target the
+  `layout.pebble` never shows from the Kotlin API pages' JSON; its T03 cuts member summaries to their
+  first paragraph, which changes pages, and T02 drops per-platform text no page shows; no dictionary
+  re-mint needed after it), `svg_images_to_webp.py` (ADFA-3305: re-encodes the raster images SVG rows
+  embed as data: URIs as WebP, image by image, by a quality rule; run on the shipped copy before the
+  final dictionary re-mint; `compare_svg_renders.py` renders each changed SVG before and after in
+  headless Chrome, through `<img>` and `<object>`, as its visual check).
+  **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
   `load_android_data.py`.
