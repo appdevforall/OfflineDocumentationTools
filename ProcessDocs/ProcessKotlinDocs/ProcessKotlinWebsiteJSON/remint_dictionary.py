@@ -81,11 +81,13 @@ dictionary (it returned 965,307 bytes, which stored 7.7% more than 256 KiB on a
 probe of 1,500 rows). The brotli CLI's window is not the cause: an explicit -w 24
 compressed every probe row to the same bytes as the default. With the larger
 sample, 768 KiB saves 1,662,976 file and 1,919,013 .br bytes against the first
-mint's settings, its seeds spread 0.33 MB, as 256 KiB's do, and it beats 512
-KiB by more than that spread. 1 MiB stored 0.43 MB less at its best, but one
-seed in four stored 17.6 MB more, so it is not the default. On a Pixel 6 Pro
-the app showed no measurable difference in page load time or memory between a
-256 KiB and a 768 KiB dictionary.
+mint's settings. Its seeds spread 0.33 MB (256 KiB's: 0.16 MB on the small
+sample, 0.03 MB on the large), but its worst seed still stores less than 512
+KiB's best. 1 MiB stored 0.43 MB less at its best, but one seed in four stored
+17.55 MB more than 768 KiB's best, so it is not the default. On a Pixel 6 Pro
+the app showed no measurable difference in page load time or memory between the
+256 KiB database and a 768 KiB one. That one was trained on the small sample
+(the second row), so its dictionary is this default's size but not its bytes.
 
 From documentation version 3.0.0 on (ADFA-3305), every Templates row is stored
 Brotli-compressed against the same dictionary, so a re-mint carries the
