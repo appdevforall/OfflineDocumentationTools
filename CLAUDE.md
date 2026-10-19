@@ -172,7 +172,8 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   `create_empty_database.py`, `list_database_documents.py`, `svg_images_to_webp.py` (ADFA-3305:
   re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
   rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
-  renders each changed SVG before and after in headless Chrome as its visual check).
+  renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as its
+  visual check).
   **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,

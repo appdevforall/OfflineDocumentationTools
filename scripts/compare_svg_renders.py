@@ -14,9 +14,10 @@ differs between two documentation databases, before and after, in headless
 Chrome, and reports how far the two renders differ (PSNR, in dB; 99 means
 identical pixels).
 
-Each SVG is drawn the way a page draws it - through an <img> - at its viewBox
-size and a device scale factor of 2, once on a white page and once on a black
-one, and the lower PSNR of the two is reported. Chrome loads only file://
+Each SVG is drawn both ways the documentation's pages draw one - through an
+<img> (the a/devsite and k/ pages) and through an <object> (i/prefs-editor.html)
+- at its viewBox size and a device scale factor of 2, once on a white page and
+once on a black one, and the lower PSNR of the two is reported for each way. Chrome loads only file://
 pages and is given no route off the machine: every host name resolves to
 nothing except 127.0.0.1, and the proxy is a closed local port.
 
@@ -46,6 +47,11 @@ SCALE = 2
 MAX_CSS_WIDTH = 1200
 MIN_WINDOW = (800, 600)
 BACKGROUNDS = {"white": "#ffffff", "black": "#000000"}
+# The two ways a documentation page draws an SVG.
+EMBEDS = {
+    "img": '<img src="{name}" style="display:block;width:{w}px;height:{h}px">',
+    "object": '<object data="{name}" type="image/svg+xml" style="display:block;width:{w}px;height:{h}px"></object>',
+}
 # No route off the machine: names resolve nowhere but loopback, and the proxy is a dead port. No
 # --proxy-bypass-list, which would send loopback to the dead proxy as well.
 CHROME_FLAGS = ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
@@ -82,11 +88,11 @@ def css_size(svg: bytes) -> tuple:
     return max(1, round(w * k)), max(1, round(h * k))
 
 
-def render(chrome: str, svg_file: Path, size: tuple, background: str, png: Path, profile: Path) -> None:
+def render(chrome: str, svg_file: Path, size: tuple, background: str, png: Path, profile: Path,
+           embed: str = "img") -> None:
     page = svg_file.with_suffix(f".{png.stem}.html")
     page.write_text(f'<!doctype html><html><body style="margin:0;background:{background}">'
-                    f'<img src="{svg_file.name}" style="display:block;width:{size[0]}px;height:{size[1]}px">'
-                    "</body></html>")
+                    + EMBEDS[embed].format(name=svg_file.name, w=size[0], h=size[1]) + "</body></html>")
     # A window no bigger than the image clips it (a 398x69 one drew only its top rows), so the window is larger and
     # the screenshot is cropped to the image afterwards.
     window = (max(size[0], MIN_WINDOW[0]) + 20, max(size[1], MIN_WINDOW[1]) + 20)
@@ -122,17 +128,20 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as profile:
         for n, path in enumerate(changed):
             size = css_size(after[path])
-            worst = 99.0
             for side, data in (("before", before[path]), ("after", after[path])):
                 (args.out / f"{n}-{side}.svg").write_bytes(data)
-            for name, colour in BACKGROUNDS.items():
-                shots = []
-                for side in ("before", "after"):
-                    png = args.out / f"{n}-{side}-{name}.png"
-                    render(args.chrome, args.out / f"{n}-{side}.svg", size, colour, png, Path(profile))
-                    shots.append(png)
-                worst = min(worst, psnr(*shots))
-            print(f"  {path}: drawn at {size[0]}x{size[1]} CSS px x{SCALE}; rendered PSNR {worst:.1f} dB")
+            worst = {}
+            for embed in EMBEDS:
+                worst[embed] = 99.0
+                for name, colour in BACKGROUNDS.items():
+                    shots = []
+                    for side in ("before", "after"):
+                        png = args.out / f"{n}-{side}-{embed}-{name}.png"
+                        render(args.chrome, args.out / f"{n}-{side}.svg", size, colour, png, Path(profile), embed)
+                        shots.append(png)
+                    worst[embed] = min(worst[embed], psnr(*shots))
+            print(f"  {path}: drawn at {size[0]}x{size[1]} CSS px x{SCALE}; rendered PSNR "
+                  + ", ".join(f"{worst[e]:.1f} dB through <{e}>" for e in EMBEDS))
     return 0
 
 

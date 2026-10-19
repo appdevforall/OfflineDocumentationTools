@@ -89,14 +89,20 @@ the SVG stay byte for byte. An image is a data:image/png, image/jpeg or
 image/jpg URI with a base64 payload, as a quoted attribute value or inside a
 CSS url(...); its payload runs to that quote or parenthesis, so nothing after
 it is taken in. Left alone, without counting as a problem: any other type
-(image/gif, and image/webp, which is what this step writes), an upper-case
-type (data:image/PNG), a type with parameters (data:image/png;charset=...),
-a payload holding anything but base64 and whitespace (an entity such as
-&#10;), and a data: URI anywhere else, such as in text, where nothing draws
-it. A payload without its = padding is decoded as a browser decodes it; one a
-browser could not decode either stops the run. Code On The Go's WebView draws a WebP inside an SVG
-shown through <img> (checked on a Pixel 6 Pro, Chrome 155). compare_svg_renders.py
-renders each changed row before and after in headless Chrome for a visual check.
+(image/gif, and image/webp, which is what this step writes), an upper-case type
+(data:image/PNG), a type with parameters (data:image/png;charset=...), a
+payload holding anything but base64 and whitespace (an entity such as &#10;),
+and a data: URI anywhere else, such as in text, where nothing draws it. A
+payload without its = padding is decoded as a browser decodes it; one a browser
+could not decode either stops the run.
+
+Code On The Go's WebView draws a WebP inside an SVG shown through <img>
+(checked on a Pixel 6 Pro, Chrome 155), which is how the a/devsite and k/ pages
+show theirs. i/prefs-editor.html shows the three i/ SVGs through <object>
+instead; that path is checked on the desktop only. compare_svg_renders.py
+renders each changed row before and after in headless Chrome, through <img> and
+through <object>, for a visual check: in Chrome 140 the two give the same
+render PSNR on every row (the table's figures).
 
 Pipeline position: on the copy that ships, after every step that writes SVG
 rows (the media steps) and before the final dictionary re-mint, which then
