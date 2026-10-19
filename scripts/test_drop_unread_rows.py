@@ -1200,6 +1200,41 @@ def test_copies_are_found_and_rewritten_in_a_dictionary_database_at_version_3(tm
         assert _decompress(after[path][1], TEMPLATE_DICTIONARY) == text, path
 
 
+def _unlinked_rows() -> dict:
+    """Three rows UNLINKED names, and look-alikes it does not: a longer name, and the same name elsewhere."""
+    return {
+        "k/package-list": ("text", b"$dokka.format:html-v1\nkotlin"),
+        "i/js/hmEmbedHelp.js": ("text/javascript", b"function hmEmbedHelp(){}"),
+        "j/html/specs/jdwp/jdwp-protocol.html": ("text/html", b"<h1>JDWP</h1>"),
+        "k/package-list-old": ("text", b"$dokka.format:html-v1\nold"),
+        "k/kotlin-stdlib/other/package-list": ("text", b"$dokka.format:html-v1\nother"),
+        "i/index.html": ("text/html", b'<a href="topic.html">topic</a>'),
+    }
+
+
+def test_unlinked_rows_are_deleted_and_nothing_else(tmp_path: Path):
+    db = _database(tmp_path, _unlinked_rows())
+    before = _stored(db)
+    code, out, err = _run(db, groups=["unlinked"])
+    after = _stored(db)
+    assert code == 0, err
+    assert set(before) - set(after) == {"k/package-list", "i/js/hmEmbedHelp.js", "j/html/specs/jdwp/jdwp-protocol.html"}
+    assert all(after[path] == before[path] for path in after)
+    assert "unlinked: 3 row(s) of rows nothing links to" in out
+
+
+def test_a_link_to_an_unlinked_row_refuses(tmp_path: Path):
+    rows = _unlinked_rows()
+    rows["k/html/a.html"] = ("text/html", b'<a href="../package-list">packages</a>')
+    _refused(tmp_path, rows, "k/html/a.html links to k/package-list")
+
+
+def test_every_unlinked_row_is_listed_once_with_its_reason():
+    assert sum(len(paths) for paths in tool._UNLINKED.values()) == len(tool.UNLINKED)
+    assert all(why.strip() and paths for why, paths in tool._UNLINKED.items())
+    assert not [path for path in tool.UNLINKED if path != path.strip() or any(c in path for c in "*?[")]
+
+
 def test_a_missing_database_is_an_error(tmp_path: Path):
     code, _out, err = _run(tmp_path / "absent.db")
     assert code == 1 and "does not exist" in err

@@ -14,7 +14,7 @@ drop_unread_rows.py
 Deletes Content rows that nothing in the app or the documentation reads, after
 checking that no row it keeps refers to one of them.
 
-The rows, in six groups (pick some with --only; the default is all six):
+The rows, in seven groups (pick some with --only; the default is all seven):
 
 - javadoc-use: the javadoc Use pages (j/html/api/**/class-use/*.html and
   *package-use.html) and the module graphs (j/html/api/**/*module-graph.svg).
@@ -61,6 +61,17 @@ The rows, in six groups (pick some with --only; the default is all six):
   placeholder book on its own even when their bytes match, and deleting one
   fires the DeleteBook trigger. So are text rows: the only identical ones are
   licence notices, kept beside what they cover.
+- unlinked: 31 rows no page, template, script, stylesheet, tooltip, Bookshelf
+  entry or app URL reaches, each named in UNLINKED with why it is unread. The
+  list is closed, so a row is never deleted because a scan missed its link,
+  and the reference check still refuses the run if anything links to one.
+  Rows that a stricter check could not prove unread are left out on purpose:
+  the Kotlin topic pages in the sidebar tree (nav.peb and page.peb build their
+  links from page ids, with no ".html" in the data), the Help+Manual scripts
+  and images that hm_webhelp.js and its kin load by name, k/navigation.html,
+  the playground pages of WebServer's disabled playground endpoint, the PUCC
+  example data, x.html, x.pdf, the t/ placeholder book, the licence notices
+  and the index pages.
 
 A row's chunk continuations ("<path>-1", "-2", ...) go with it.
 
@@ -195,6 +206,38 @@ _INDEX_LINK = re.compile(rb"""((?<![\w:-])(?:href|src)\s*=\s*)(["'])([^"'<>]*?)i
 # The cheap test for a row _INDEX_LINK might change, in the same letter case rule, so a row's links are rewritten
 # whether or not it also names the index in lower case.
 _INDEX_ALL_NAME = re.compile(re.escape(INDEX_ALL.encode()), re.I)
+# Rows nothing reads, each with why, for the unlinked group. Checked on the 2026-10-19 item-B ship-time build: no
+# page, template, script, stylesheet, tooltip or Bookshelf entry names one - by file name, by path without the
+# extension (nav.peb and page.peb build links from those), or by file name without the extension (Help+Manual's
+# scripts load files by name) - and none is among the app's own documentation URLs. The reference check still
+# refuses the run if anything links to one.
+_UNLINKED = {
+    "a Help+Manual embedded-popup script no page, template or script loads, or a file only those scripts name": (
+        "i/js/hmEmbeddedPopups.js", "i/js/hmEmbedHelp.js", "i/_hmXpopup.htm", "i/_hmXtopic.htm",
+        "i/css/hm_popup.css"),
+    "a Help+Manual skin file nothing names (GoogleFonts.css is the 7-byte stub left by ADFA-4480)": (
+        "i/css/GoogleFonts.css", "i/images/company-logo.webp", "i/images/page-bg.webp", "i/images/social_mail.webp"),
+    "a javadoc doc-files image no page shows (GroupLayout.html shows groupLayout.1-3 and .example)": (
+        "j/html/api/java.desktop/javax/swing/doc-files/groupLayout.sequential.webp",
+        "j/html/api/java.desktop/javax/swing/doc-files/groupLayout.sequential.horizontal.webp",
+        "j/html/api/java.desktop/javax/swing/doc-files/groupLayout.sequential.vertical.webp",
+        "j/html/api/java.desktop/javax/swing/text/doc-files/OpenBookIcon.webp"),
+    "a javadoc file no page links or loads (the pages load jQuery 3.7.1, not 3.6.1)": (
+        "j/html/api/overview-summary.html", "j/html/api/script-dir/jquery-3.6.1.min.js",
+        "j/html/resources/jdk-default.css", "j/html/specs/jdwp/jdwp-protocol.html", "j/java_keywords.html"),
+    "a Dokka disambiguation page neither the navigation tree nor any page links": (
+        "k/disambiguation/kotlin.concurrent.AtomicArray.html", "k/disambiguation/kotlin.concurrent.AtomicIntArray.html",
+        "k/disambiguation/kotlin.concurrent.AtomicLongArray.html",
+        "k/disambiguation/kotlin.concurrent.atomics.AtomicArray.html",
+        "k/disambiguation/kotlin.concurrent.atomics.AtomicLongArray.html",
+        "k/disambiguation/kotlin.coroutines.cancellation.CancellationException.html"),
+    "a Kotlin topic page outside the sidebar tree (k/html/_nav.html) that no page links": (
+        "k/html/jvm-spring-boot-collections.html", "k/html/ksp-command-line.html"),
+    "a Dokka package list, which Dokka reads when another build links to these docs and no browser reads": (
+        "k/package-list", "k/kotlin-reflect/package-list", "k/kotlin-stdlib/package-list", "k/kotlin-test/package-list"),
+    "Dokka's version-switcher fallback page, which nothing links or loads": ("k/not-found-version.html",),
+}
+UNLINKED = {path: why for why, paths in _UNLINKED.items() for path in paths}
 # The types whose byte-identical copies duplicate-media merges; the docstring says why PDFs and text are not.
 DUPLICATE_MEDIA_PREFIXES = ("image/", "video/", "audio/")
 # A character a link's path can hold as written in a page; anything else (a quote, "(", "=", a space, a JSON
@@ -299,6 +342,7 @@ GROUPS = {
     "javadoc-index-all": ("javadoc one-page indexes", _javadoc_index_all, _check_index_page),
     # Chosen from the data, not by path: see run().
     "duplicate-media": ("byte-identical media copies", None, None),
+    "unlinked": ("rows nothing links to", lambda path: path in UNLINKED, None),
 }
 
 
