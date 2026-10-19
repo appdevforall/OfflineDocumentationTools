@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "brotli",
+#     "Pillow",
+# ]
+# ///
 """
 Trims the JSON of the Kotlin API pages to what their template shows.
 
@@ -66,7 +73,7 @@ workflows end with sync_kdoc_json_to_db.py, which rewrites every k/ row, so
 it is run by hand on their output.
 
 Usage:
-    ./trim_kotlin_json.py documentation.db [--changes T01,T02,T03,T04,T05] [--dry-run] [--workers N] [--verbose]
+    uv run scripts/trim_kotlin_json.py documentation.db [--changes T01,T02,T03,T04,T05] [--dry-run] [--workers N] [--verbose]
 """
 from __future__ import annotations
 
