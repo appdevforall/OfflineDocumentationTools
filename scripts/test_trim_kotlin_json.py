@@ -397,6 +397,56 @@ def test_t05_drops_unprinted_modifiers_and_the_last_crumb_url():
     assert tool.drop_unprinted(FUNCTION_PAGE)["modifier"] == FUNCTION_PAGE["modifier"]
 
 
+# What layout.pebble shows, written out here rather than taken from the tool, so a test fails when the tool's tables
+# stop matching the template: the page kinds it renders a signature for (its "if kind == ..." before the signature),
+# and the member lists it renders with renderMembers.
+SIGNED_PAGE_KINDS = ("function", "property", "typeAlias", "class", "interface", "object", "enum")
+SHOWN_MEMBER_LISTS = ("modules", "packages", "classlikes", "typeAliases", "constructors", "properties", "functions",
+                      "entries")
+# CLASS_PAGE's "plus" member after all five changes.
+PLUS_TRIMMED = {
+    "name": "plus", "kind": "function", "url": "plus.html", "sourceSets": [":kotlin-stdlib/common"],
+    "documentation": {":kotlin-stdlib/common": [{"type": "Description", "text": "<p>Adds.</p>"}]},
+    "modifier": {":kotlin-stdlib/common": "open"},
+    "extras": {"annotations": {":kotlin-stdlib/common": [{"dri": SINCE["dri"], "url": SINCE["url"]}]},
+               "isObviousMember": False},
+    "parameters": [{"name": "other", "type": INT}], "type": INT}
+
+
+def test_every_member_list_the_template_shows_is_kept_and_trimmed():
+    member = CLASS_PAGE["functions"][0]
+    for name in SHOWN_MEMBER_LISTS:
+        page = _all({"name": "p", "kind": "package", "dri": "p///", name: [copy.deepcopy(member)]})
+        assert list(page) == ["name", "kind", name], name
+        assert page[name] == [PLUS_TRIMMED], name
+
+
+def test_t01_keeps_the_signature_of_every_page_kind_the_template_signs():
+    for kind in SIGNED_PAGE_KINDS:
+        assert tool.drop_unread_keys(dict(FUNCTION_PAGE, kind=kind)) == dict(FUNCTION_PAGE_READ, kind=kind), kind
+
+
+def test_t01_keeps_what_the_types_index_reads():
+    # The "Index of All Types" table reads each entry's kind, url, name and sourceSets.
+    page = {"name": "All Types", "kind": "allTypes", "dri": "x///", "types": [
+        {"kind": "class", "url": "a.html", "name": "A", "sourceSets": [":kotlin-stdlib/common"], "dri": "a///",
+         "documentation": {":kotlin-stdlib/common": []}},
+        {"kind": "typeAlias", "name": "B", "sourceSets": [":kotlin-stdlib/jvm"], "visibility": {}}]}
+    assert tool.drop_unread_keys(page) == {"name": "All Types", "kind": "allTypes", "types": [
+        {"kind": "class", "url": "a.html", "name": "A", "sourceSets": [":kotlin-stdlib/common"]},
+        {"kind": "typeAlias", "name": "B", "sourceSets": [":kotlin-stdlib/jvm"]}]}
+
+
+def test_t05_keeps_every_modifier_the_template_prints():
+    # The template prints the first modifier's value unless it is final or public, an empty one included.
+    for value in ("open", "abstract", "sealed", ""):
+        page = {"name": "f", "kind": "function", "modifier": {":kotlin-stdlib/common": value},
+                "functions": [{"name": "g", "modifier": {":kotlin-stdlib/common": value}}]}
+        out = tool.drop_unprinted(page)
+        assert out["modifier"] == {":kotlin-stdlib/common": value}, value
+        assert out["functions"][0]["modifier"] == {":kotlin-stdlib/common": value}, value
+
+
 def test_no_change_alters_the_page_it_is_given():
     for page in (FUNCTION_PAGE, CLASS_PAGE):
         before = copy.deepcopy(page)
@@ -440,6 +490,8 @@ def test_the_template_fingerprint_ignores_markup_whitespace_and_comments():
     assert fingerprint("<p>\n  {{ a }}\n</p>{# note #}") == fingerprint("<p>{{  a\n}}</p>")
     assert fingerprint("{{ a }}") != fingerprint("{{ b }}")
     assert fingerprint("{% if a %}{% endif %}") != fingerprint("{%- if a %}{% endif %}")
+    # A string inside a tag is code: the template choosing a different tag type is a change.
+    assert fingerprint('{% if t.type == "Description" %}') != fingerprint('{% if t.type == "Param" %}')
 
 
 def test_rows_are_trimmed_and_compressed_with_the_database_dictionary(tmp_path: Path):
@@ -615,6 +667,22 @@ def test_dry_run_writes_nothing(tmp_path: Path):
     assert code == 0 and "would change 1 row(s)" in out
     assert _stored(db) == before
     assert len(list(tmp_path.iterdir())) == 1
+
+
+def test_the_run_gives_the_space_it_frees_back(tmp_path: Path):
+    _needs("brotli")
+    import random
+    rng = random.Random(11)
+    # Random text compresses poorly, so dropping it (an unread key) frees many pages.
+    noise = "".join(rng.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(400_000))
+    db = _database(tmp_path, {"k/a.html": ("text/html", _dump(dict(FUNCTION_PAGE, dri=noise)))})
+    size = db.stat().st_size
+    code, _out, err = _run(db)
+    conn = sqlite3.connect(db)
+    free = conn.execute("PRAGMA freelist_count").fetchone()[0]
+    conn.close()
+    assert code == 0, err
+    assert free == 0 and db.stat().st_size < size // 4
 
 
 def test_the_backup_holds_the_database_as_it_was(tmp_path: Path):
