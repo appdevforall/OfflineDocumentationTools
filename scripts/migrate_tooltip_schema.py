@@ -103,7 +103,10 @@ templates, all of which write them plain. On that copy the order is: the
 minify, the row drops, the Kotlin trim, the a/ pages-to-templates step, this
 step, PR #48's remint_dictionary.py --seeds 4, and rebuild_database.py, which
 then packs Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not
-Tooltips.
+Tooltips. hm_pages_to_templates.py (PR #43) writes templates too, so it also
+goes before this step, after the i/ page steps it lists. populate_db.py,
+sync_javadoc_json_to_db.py and load_android_json_db.py refuse a database
+declaring 3.0.0 or later; the steps in the open PRs do not check.
 Never run it on the master database those tools edit: they read or write the
 old shape and plain templates (check-tools, which docdb-regression-test.yaml
 runs daily, fails on the new tooltip tables), and nothing converts it back.
@@ -112,9 +115,8 @@ A database already converted, declaring major version 3 or later, and whose
 every template decodes against the dictionary, is left alone (exit 0). One
 already in the new shape that declares less, or holds a template that does not
 decode, is refused: the app refuses it too, and only a step run after the
-conversion can have rewritten its version row or a template (populate_db.py's
-declare_database_version rewrites the version), so this step does not guess
-what else that step changed. One whose tooltip tables are in
+conversion, or a hand edit, can have rewritten its version row or a template,
+so this step does not guess what else changed. One whose tooltip tables are in
 neither shape, or hold data the new keys cannot (a button with no tooltip, two
 buttons with one number, a NULL), or that does not declare major version 2, is
 refused too. A refusal writes nothing and exits 1.

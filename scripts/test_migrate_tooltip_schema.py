@@ -343,7 +343,7 @@ def _assert_converted_refused(tmp_path, phrase: str, sql: str):
 
 
 def test_refuses_a_converted_database_that_declares_version_2(tmp_path):
-    # What populate_db.py's declare_database_version leaves when it runs after the conversion.
+    # A later version row declaring 2, as a step run after the conversion or a hand edit could leave.
     _assert_converted_refused(tmp_path, "already in the new shape, but DocumentationDatabaseVersion declares major 2",
                               "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
                               "VALUES (2, 0, 0, 'populate_db', 'later', '2999-01-01')")

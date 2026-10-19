@@ -72,15 +72,18 @@ edit that database** — it contains no part of the production Android app itsel
 >
 > The same step stores **every `Templates` row Brotli-compressed** against `CompressionDictionary`,
 > with no per-row marker: in 3.0.0 all templates are compressed, and the app always decodes them.
-> The tools here that read or write Templates - `populate_db.py`, `sync_javadoc_json_to_db.py`,
-> `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` and `verify_android_json_db.py`,
-> and the steps in open PRs that do (`minify_text.py`, `hm_pages_to_templates.py`, the `a/`
-> pages-to-templates step) - only ever see plain templates, on the master. On the copy that ships the
-> order is: minify, row drops, Kotlin trim, `a/` pages-to-templates, `migrate_tooltip_schema.py`,
-> PR #48's `remint_dictionary.py --seeds 4` (which recompresses templates too in 3.0.0), then
-> `rebuild_database.py --pack Content,TooltipTexts`. PR #48 has to merge no later than this step's
-> PRs (#45, #50): the re-mint and verifier before it handle Content only, so they refuse a database
-> declaring 3.0.0.
+> Every other tool that reads or writes Templates expects them plain: `populate_db.py`,
+> `sync_javadoc_json_to_db.py`, `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py`
+> and `verify_android_json_db.py`, and in open PRs `minify_text.py` (#44), the `a/`
+> pages-to-templates step (`android_pages_to_templates.py`, #49) and `hm_pages_to_templates.py`
+> (#43). On the master the templates stay plain. Some of these run on the copy that ships as well
+> (the minify and the `a/` step do), so there every one of them runs before the migration. The order
+> on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
+> `migrate_tooltip_schema.py`, PR #48's `remint_dictionary.py --seeds 4` (which recompresses
+> templates too in 3.0.0), then `rebuild_database.py --pack Content,TooltipTexts`;
+> `hm_pages_to_templates.py` goes after the `i/` page steps it lists, before the migration like
+> every other Templates writer. PR #48 has to merge no later than this step's PRs (#45, #50): the
+> re-mint and verifier before it handle Content only, so they refuse a database declaring 3.0.0.
 >
 > `populate_db.py`, `sync_javadoc_json_to_db.py` and `load_android_json_db.py` write plain templates,
 > so each refuses a database declaring 3.0.0 or later before writing anything, backup included.
@@ -140,28 +143,25 @@ actively depends on them.** Its `/pr/bs` endpoint builds a JSON "bookshelf" payl
 and renders it with the Pebble template engine. More generally, any `Content` row with a non-zero
 `templateId` gets its stored (decompressed) content run through the matching row in `Templates` as
 a Pebble template before being served. This is a real, current feature of the shipped server, not
-a placeholder. Note this repo does now write to `Templates`: `populate_db.py` upserts `page.peb`
-and `nav.peb` there (and points every page it inserts at them via `templateId`), so the table is
-no longer read-only from this side.
+a placeholder.
 
-**Nothing that currently builds or writes to the database in this repository knows about any of
-that — and that's expected.** `Templates`/`Bookshelf`/`BookCategories` are populated by a separate
-plugin system, not by anything in this repo: App Dev For All supports plugins that write into the
-documentation database, including the bookshelf feature specifically —
-[appdevforall/bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin). So the absence
-of any `Templates`/`Bookshelf`/`BookCategories` handling here is not a gap to fill; it's out of
-scope for this repo. (A repo-wide search for `Templates`, `Bookshelf`, `BookCategories`, or `PUCC`
-turns up zero matches outside `WebServer.kt` itself, which is consistent with that division of
-responsibility. `templateId` itself is a different story - `populate_db.py` and
-`insert_optimized_media.py` both read/write it directly, since it's a plain column on `Content`
-they populate; it's only the `Templates` table and the plugin system that reference it that stay
-out of scope.) Concretely, relative to the schema above:
+**This repo writes `Templates`, but not `Bookshelf` or `BookCategories`.** `populate_db.py`
+(`page.peb`, `nav.peb`), `sync_javadoc_json_to_db.py` (`javadoc.peb`) and `load_android_json_db.py`
+(the `android-*.peb` templates) write rows there and point the pages they write at them via
+`templateId`; `verify_android_json_db.py` reads them; and `migrate_tooltip_schema.py` compresses
+every one for 3.0.0 (above). `insert_optimized_media.py` reads and writes `templateId` too.
+`Bookshelf` and `BookCategories` come from App Dev For All's plugin system, which writes into the
+documentation database - the bookshelf feature from
+[appdevforall/bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin), now archived on
+GitHub. Nothing here writes them, except that `Content`'s `AddBook` trigger adds a `Bookshelf` row
+for each `.pdf` path inserted (see `migrate_content_to_dictionary_brotli.py`). Concretely, relative
+to the schema above:
 
 | Piece | What it thinks the schema is | Consequence |
 | --- | --- | --- |
 | `scripts/DocumentationDatabase.py` (used by `scripts/ingest.py`, and hence by `.github/workflows/publish-doc-db.yaml`) | `Content` / `Languages` / `ContentTypes` only, plus an optional `ide_tooltip_table`. Its constructor explicitly **raises `ValueError`** if it opens a DB containing any table outside that whitelist. | **This will refuse to open the current production `documentation.db` at all** — it will list `Tooltips`, `TooltipCategories`, `TooltipButtons`, `TooltipButtonNumbers`, `LastChange`, `Templates`, `BookCategories`, `Bookshelf`, and every `PUCC_*` table as "unexpected." This is the single biggest blocker to reusing this script as-is. |
 | `docdb-studio/SCHEMA.md` / `AGENTS.md` (states the schema is "locked," no migrations) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, `LastChange` (with a *different* shape: `documentationSet`/`changeTime`/`who` — this part does match current), plus a legacy `ide_tooltip_table`. Missing `templateId`, `Templates`, `BookCategories`, `Bookshelf`, `PUCC_*`. | Closest of the three documented schemas to reality, but still out of date. `docdb_studio.py`'s own "never change the schema" policy is itself now stale, since the live schema has already changed underneath it. |
-| `check-tools/README.md`'s embedded schema (and by extension the mental model behind `check-tools/db_health_checker.py`) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, and a *third* variant of `LastChange` (`now`/`who`). No `Templates`/`Bookshelf`/`BookCategories`/`PUCC_*`. | The health checker's required-table check still passes (it only checks that its known tables exist, not that no others do). Since `Templates`/`Bookshelf`/`BookCategories` are out of scope for this repo (see above), this is not being treated as something to fix right now. |
+| `check-tools/README.md`'s embedded schema (and by extension the mental model behind `check-tools/db_health_checker.py`) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, and a *third* variant of `LastChange` (`now`/`who`). No `Templates`/`Bookshelf`/`BookCategories`/`PUCC_*`. | The health checker's required-table check still passes (it only checks that its known tables exist, not that no others do). Since `Bookshelf`/`BookCategories` are written outside this repo (see above) and check-tools reads no `Templates`, this is not being treated as something to fix right now. |
 
 There also appear to be **two unrelated tooltip storage formats** in this repo's history, and it's
 worth being deliberate about which one is current:
