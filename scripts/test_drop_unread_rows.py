@@ -477,11 +477,25 @@ def test_a_pdf_that_needs_a_cmap_refuses(tmp_path: Path):
          "has a CID font of the Adobe Korea1 collection"),
         (_pdf(b"<< /Type /Font /Subtype /TrueType /BaseFont /#CB#CE#CC#E5 /Encoding /WinAnsiEncoding >>"),
          "has a font pdf.js reads as Chinese"),
+        # pdf.js takes the FontDescriptor's FontName when it differs from the BaseFont.
+        (_pdf(b"<< /Type /Font /Subtype /TrueType /BaseFont /SimSunX /FontDescriptor 2 0 R"
+              b" /Encoding /WinAnsiEncoding >>", b"<< /Type /FontDescriptor /FontName /#CB#CE#CC#E5 >>"),
+         "has a font pdf.js reads as Chinese"),
+        (_pdf(b"<< /Type /FontDescriptor /FontName (\\313\\316\\314\\345) >>"), "has a font pdf.js reads as Chinese"),
+        (_pdf(b"<< /Type /FontDescriptor /FontName <CBCECCE5> >>"), "has a font pdf.js reads as Chinese"),
+        (_pdf(_flate(b"<< /Type /FontDescriptor /FontName (ABCDEF+\xcb\xce\xcc\xe5) >>")),
+         "has a font pdf.js reads as Chinese"),
     ]
     for i, (pdf, expected) in enumerate(cases):
         rows = _base_rows()
         rows["d/cjk.pdf"] = ("application/pdf", pdf)
         _refused(tmp_path / str(i), rows, f"d/cjk.pdf {expected}")
+
+
+def test_font_names_are_read_as_pdf_js_reads_them():
+    names = list(tool.font_names(b"/BaseFont /A#42C /FontName (x\\(y\\)z(n)\\101\\\nq\\\\) /FontName<4142 4>"
+                                 b" /FontName <</Nope 1>>"))
+    assert names == [b"ABC", b"x(y)z(n)Aq\\", b"AB@"]
 
 
 def test_the_pdf_check_runs_only_with_the_cmaps(tmp_path: Path):

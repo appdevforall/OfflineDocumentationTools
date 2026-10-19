@@ -70,7 +70,9 @@ when any check fails, writing nothing:
   /Encoding names a predefined CMap other than Identity-H or Identity-V; an
   embedded CMap that uses one (usecmap); a CID font of the Adobe GB1, CNS1,
   Japan1 or Korea1 collection (Adobe-<ordering>-UCS2, unless the font has its
-  own ToUnicode map); and a font with one of ten Chinese names (GBK-EUC-H).
+  own ToUnicode map); and a font with one of ten Chinese names (GBK-EUC-H),
+  read from both /BaseFont and the FontDescriptor's /FontName, which pdf.js
+  prefers when the two differ, as a name or a string.
   Every stored PDF is read, its Flate streams decompressed, and any sign of
   these refuses the run. The collection check ignores ToUnicode, so it refuses
   more than pdf.js needs, never less. It cannot see PDFs that a plugin installs
@@ -159,7 +161,10 @@ _PDF_NAME = rb"/((?:[^\s/<>\[\]()%{}#]|#[0-9A-Fa-f]{2})+)"
 _PDF_ENCODING = re.compile(rb"/(?:Encoding|UseCMap)\s*" + _PDF_NAME)
 _PDF_USECMAP = re.compile(_PDF_NAME + rb"\s+usecmap\b")
 _PDF_ORDERING = re.compile(rb"/Ordering\s*(?:\(([^)]*)\)|<([0-9A-Fa-f\s]*)>)")
-_PDF_BASEFONT = re.compile(rb"/BaseFont\s*" + _PDF_NAME)
+_PDF_FONT_NAME_KEY = re.compile(rb"/(?:BaseFont|FontName)\s*")
+_PDF_NAME_AT = re.compile(_PDF_NAME)
+_PDF_HEX_AT = re.compile(rb"<([0-9A-Fa-f\s]*)>")
+_PDF_ESCAPES = {ord("n"): b"\n", ord("r"): b"\r", ord("t"): b"\t", ord("b"): b"\b", ord("f"): b"\f"}
 _PDF_STREAM = re.compile(rb"stream(?:\r\n|\n|\r)")
 CJK_ORDERINGS = (b"GB1", b"CNS1", b"Japan1", b"Korea1")
 # pdf.js's chineseFontNames, as the bytes it compares a font name with.
@@ -331,6 +336,64 @@ def _unescape_name(name: bytes) -> bytes:
     return re.sub(rb"#([0-9A-Fa-f]{2})", lambda m: bytes([int(m.group(1), 16)]), name)
 
 
+def _literal_string(data: bytes, start: int):
+    """The bytes of the PDF literal string whose "(" is at start (escapes decoded, nested parentheses kept),
+    or None if it does not end."""
+    out, depth, i = bytearray(), 0, start + 1
+    while i < len(data):
+        c = data[i]
+        if c == 0x5C:  # backslash
+            i += 1
+            if i >= len(data):
+                return None
+            e = data[i]
+            if e in _PDF_ESCAPES:
+                out += _PDF_ESCAPES[e]
+            elif 0x30 <= e <= 0x37:
+                digits = re.match(rb"[0-7]{1,3}", data[i:i + 3]).group(0)
+                out.append(int(digits, 8) & 0xFF)
+                i += len(digits) - 1
+            elif e == 0x0D:  # a line continuation, \r or \r\n
+                if data[i + 1:i + 2] == b"\n":
+                    i += 1
+            elif e != 0x0A:
+                out.append(e)
+        elif c == 0x28:
+            depth += 1
+            out.append(c)
+        elif c == 0x29:
+            if depth == 0:
+                return bytes(out)
+            depth -= 1
+            out.append(c)
+        else:
+            out.append(c)
+        i += 1
+    return None
+
+
+def font_names(part: bytes):
+    """Each /BaseFont and /FontName value in part, as the bytes pdf.js compares: a name (#xx decoded), a
+    literal string or a hex string. pdf.js takes the FontDescriptor's FontName when it differs from the
+    BaseFont, so both are read."""
+    for m in _PDF_FONT_NAME_KEY.finditer(part):
+        i = m.end()
+        lead = part[i:i + 1]
+        if lead == b"/":
+            name = _PDF_NAME_AT.match(part, i)
+            if name:
+                yield _unescape_name(name.group(1))
+        elif lead == b"(":
+            text = _literal_string(part, i)
+            if text is not None:
+                yield text
+        elif lead == b"<" and part[i + 1:i + 2] != b"<":
+            hexed = _PDF_HEX_AT.match(part, i)
+            if hexed:
+                digits = re.sub(rb"\s", b"", hexed.group(1))
+                yield bytes.fromhex((digits + b"0" * (len(digits) % 2)).decode())
+
+
 def pdf_parts(data: bytes):
     """The PDF's bytes, then each of its streams that Flate-decodes."""
     yield data
@@ -356,8 +419,7 @@ def cmap_needs(data: bytes, cmap_names: set) -> list:
             ordering = m.group(1) if m.group(1) is not None else bytes.fromhex(m.group(2).decode().replace(" ", ""))
             if ordering.strip() in CJK_ORDERINGS:
                 needs.add(f"has a CID font of the Adobe {ordering.strip().decode()} collection")
-        for m in _PDF_BASEFONT.finditer(part):
-            name = _unescape_name(m.group(1))
+        for name in font_names(part):
             if name in CHINESE_FONT_NAMES or name.split(b"+", 1)[-1] in CHINESE_FONT_NAMES:
                 needs.add("has a font pdf.js reads as Chinese (GBK-EUC-H)")
     return sorted(needs)
