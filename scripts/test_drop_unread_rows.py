@@ -84,6 +84,17 @@ def _flate(body: bytes) -> bytes:
     return b"<< /Length %d /Filter /FlateDecode >>\nstream\n%s\nendstream" % (len(data), data)
 
 
+def _stream(data: bytes, entries: bytes = b"") -> bytes:
+    return b"<< /Length %d %s >>\nstream\n%s\nendstream" % (len(data), entries, data)
+
+
+def _run_length(data: bytes) -> bytes:
+    """RunLengthDecode data in 3-byte literal runs, so no name survives whole in the raw file."""
+    return b"".join(bytes([len(data[i:i + 3]) - 1]) + data[i:i + 3] for i in range(0, len(data), 3)) + b"\x80"
+
+
+JAPANESE_FONT = b"<< /Type /Font /Subtype /Type0 /BaseFont /MS-Gothic /Encoding /90ms-RKSJ-H >>"
+
 PLAIN_PDF = _pdf(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
                  b"<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+Noto /Encoding /Identity-H >>",
                  b"<< /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>",
@@ -490,6 +501,43 @@ def test_a_pdf_that_needs_a_cmap_refuses(tmp_path: Path):
         rows = _base_rows()
         rows["d/cjk.pdf"] = ("application/pdf", pdf)
         _refused(tmp_path / str(i), rows, f"d/cjk.pdf {expected}")
+
+
+def test_a_pdf_whose_fonts_cannot_all_be_read_refuses(tmp_path: Path):
+    import base64
+    cmap = "uses the predefined CMap 90ms-RKSJ-H"
+    cases = [
+        (_pdf(_stream(base64.a85encode(zlib.compress(JAPANESE_FONT), adobe=True),
+                      b"/Type /ObjStm /N 1 /First 0 /Filter [/ASCII85Decode /FlateDecode]")), cmap),
+        (_pdf(_stream(JAPANESE_FONT.hex().encode() + b">", b"/Filter /ASCIIHexDecode")), cmap),
+        (_pdf(_stream(_run_length(JAPANESE_FONT), b"/Filter /RunLengthDecode")), cmap),
+        (_pdf(_stream(base64.a85encode(JAPANESE_FONT), b"/Filter /A85")), cmap),
+        (PLAIN_PDF + b"trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n", "is encrypted, so its fonts cannot be read"),
+        (_pdf(_stream(b"\x80\x0b\x60\x50", b"/Filter /LZWDecode")), "cannot decode (LZWDecode)"),
+        (_pdf(_stream(b"not zlib data", b"/Filter /FlateDecode")), "cannot decode (FlateDecode: "),
+        (_pdf(_stream(zlib.compress(b"\x02\x00\x00\x00\x01"),
+                      b"/Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns 4 >>")),
+         "cannot decode (predictor 12)"),
+    ]
+    for i, (pdf, expected) in enumerate(cases):
+        rows = _base_rows()
+        rows["d/odd.pdf"] = ("application/pdf", pdf)
+        _refused(tmp_path / str(i), rows, f"d/odd.pdf {expected}" if expected == cmap else expected)
+
+
+def test_images_and_cross_reference_streams_do_not_refuse(tmp_path: Path):
+    content = zlib.compress(b"BT /F1 12 Tf (Hello) Tj ET")
+    pdf = _pdf(_stream(b"\xff\xd8\xff\xe0 not decodable", b"/Type /XObject /Subtype /Image /Filter /DCTDecode"),
+               _stream(b"\x00\x00\x00\x0cjP  ", b"/Filter /JPXDecode"),
+               _stream(b"\x80\x0b\x60\x50", b"/Subtype /Image /Filter /LZWDecode"),
+               _stream(b"\x02\x01\x00\x10\x00", b"/Type /XRef /Filter /FlateDecode /DecodeParms << /Predictor 12 >>"),
+               b"<< /Length 7 0 R /Filter /FlateDecode >>\nstream\n" + content + b"\nendstream",
+               b"%d" % len(content),
+               _stream(content, b"/Filter /FlateDecode"))
+    rows = _base_rows()
+    rows["d/images.pdf"] = ("application/pdf", pdf)
+    code, _out, err = _run(_database(tmp_path, rows))
+    assert code == 0, err
 
 
 def test_font_names_are_read_as_pdf_js_reads_them():

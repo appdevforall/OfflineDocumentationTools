@@ -73,10 +73,14 @@ when any check fails, writing nothing:
   own ToUnicode map); and a font with one of ten Chinese names (GBK-EUC-H),
   read from both /BaseFont and the FontDescriptor's /FontName, which pdf.js
   prefers when the two differ, as a name or a string.
-  Every stored PDF is read, its Flate streams decompressed, and any sign of
-  these refuses the run. The collection check ignores ToUnicode, so it refuses
-  more than pdf.js needs, never less. It cannot see PDFs that a plugin installs
-  on the phone.
+  Every stored PDF is read and each stream decoded through its filters
+  (FlateDecode, ASCII85Decode, ASCIIHexDecode and RunLengthDecode, in any
+  chain), skipping image and cross-reference streams, which cannot hold a font;
+  any sign of these refuses the run. So does an encrypted PDF, or a stream it
+  cannot decode (another filter, a predictor, corrupt data), since its fonts
+  cannot be read. The collection check ignores ToUnicode, so it refuses more
+  than pdf.js needs, never less. It cannot see PDFs that a plugin installs on
+  the phone.
 - The viewer edit (pdfjs-extras). p/web/viewer.mjs must hold exactly one
   enableScripting default; if it holds none or more, nothing is written.
 - A kept text row that cannot be decoded cannot be checked, so it refuses too.
@@ -100,6 +104,8 @@ undo.
 from __future__ import annotations
 
 import argparse
+import base64
+import bisect
 import html
 import json
 import posixpath
@@ -165,7 +171,17 @@ _PDF_FONT_NAME_KEY = re.compile(rb"/(?:BaseFont|FontName)\s*")
 _PDF_NAME_AT = re.compile(_PDF_NAME)
 _PDF_HEX_AT = re.compile(rb"<([0-9A-Fa-f\s]*)>")
 _PDF_ESCAPES = {ord("n"): b"\n", ord("r"): b"\r", ord("t"): b"\t", ord("b"): b"\b", ord("f"): b"\f"}
-_PDF_STREAM = re.compile(rb"stream(?:\r\n|\n|\r)")
+# A stream starts after its dictionary's ">>"; matching that keeps "endstream" from reading as a start.
+_PDF_STREAM = re.compile(rb">>\s*stream(?:\r\n|\n|\r)")
+_PDF_OBJ = re.compile(rb"\d+\s+\d+\s+obj\b")
+_PDF_LENGTH = re.compile(rb"/Length\s+(\d+)\b(?!\s+\d+\s+R)")
+_PDF_FILTER = re.compile(rb"/Filter\s*(\[[^\]]*\]|" + _PDF_NAME + rb")")
+_PDF_PREDICTOR = re.compile(rb"/Predictor\s+(\d+)")
+_PDF_IMAGE = re.compile(rb"/Subtype\s*/Image\b")
+_PDF_XREF = re.compile(rb"/Type\s*/XRef\b")
+_PDF_ENCRYPT = re.compile(rb"/Encrypt\s*(?:\d+\s+\d+\s+R|<<)")
+# Filters that only ever hold image data, so their streams cannot hold a font.
+IMAGE_FILTERS = {"DCTDecode", "DCT", "JPXDecode", "CCITTFaxDecode", "CCF", "JBIG2Decode"}
 CJK_ORDERINGS = (b"GB1", b"CNS1", b"Japan1", b"Korea1")
 # pdf.js's chineseFontNames, as the bytes it compares a font name with.
 CHINESE_FONT_NAMES = {name.encode("latin-1") for name in (
@@ -394,23 +410,86 @@ def font_names(part: bytes):
                 yield bytes.fromhex((digits + b"0" * (len(digits) % 2)).decode())
 
 
-def pdf_parts(data: bytes):
-    """The PDF's bytes, then each of its streams that Flate-decodes."""
-    yield data
-    for m in _PDF_STREAM.finditer(data):
-        end = data.find(b"endstream", m.end())
-        if end < 0:
+def _run_length(data: bytes) -> bytes:
+    out, i = bytearray(), 0
+    while i < len(data):
+        n = data[i]
+        if n == 128:
             break
-        try:
-            yield zlib.decompressobj().decompress(data[m.end():end])
-        except zlib.error:
+        if n < 128:
+            out += data[i + 1:i + 2 + n]
+            i += 2 + n
+        else:
+            out += data[i + 1:i + 2] * (257 - n)
+            i += 2
+    return bytes(out)
+
+
+def _ascii_hex(data: bytes) -> bytes:
+    digits = re.sub(rb"\s", b"", data.split(b">", 1)[0])
+    return bytes.fromhex((digits + b"0" * (len(digits) % 2)).decode("ascii"))
+
+
+def _ascii85(data: bytes) -> bytes:
+    text = re.sub(rb"\s", b"", data)
+    text = text[2:] if text.startswith(b"<~") else text
+    return base64.a85decode(text.split(b"~>", 1)[0])
+
+
+DECODERS = {"FlateDecode": lambda data: zlib.decompressobj().decompress(data), "ASCIIHexDecode": _ascii_hex,
+            "ASCII85Decode": _ascii85, "RunLengthDecode": _run_length}
+DECODERS.update({"Fl": DECODERS["FlateDecode"], "AHx": _ascii_hex, "A85": _ascii85, "RL": _run_length})
+
+
+def pdf_parts(data: bytes) -> tuple:
+    """([the PDF's bytes, then each stream decoded], [why each stream that could not be decoded could not]).
+    Image streams and cross-reference streams are skipped: neither can hold a font."""
+    parts, undecodable = [data], []
+    headers = [m.end() for m in _PDF_OBJ.finditer(data)]
+    pos = 0
+    while True:
+        m = _PDF_STREAM.search(data, pos)
+        if m is None:
+            break
+        start = m.end()
+        header = bisect.bisect_right(headers, m.start()) - 1
+        dictionary = data[headers[header] if header >= 0 else max(0, m.start() - 4096):m.start() + 2]
+        length = _PDF_LENGTH.search(dictionary)
+        end = start + int(length.group(1)) if length else -1
+        if not (length and data[end:end + 20].lstrip().startswith(b"endstream")):
+            end = data.find(b"endstream", start)
+            if end < 0:
+                break
+        body, pos = data[start:end], end
+        filter_value = _PDF_FILTER.search(dictionary)
+        filters = ([_unescape_name(n).decode("latin-1") for n in re.findall(_PDF_NAME, filter_value.group(1))]
+                   if filter_value else [])
+        if _PDF_IMAGE.search(dictionary) or _PDF_XREF.search(dictionary) or IMAGE_FILTERS & set(filters):
             continue
+        predictor = _PDF_PREDICTOR.search(dictionary)
+        if predictor and int(predictor.group(1)) > 1:
+            undecodable.append(f"predictor {int(predictor.group(1))}")
+            continue
+        try:
+            for name in filters:
+                if name not in DECODERS:
+                    raise ValueError(name)
+                body = DECODERS[name](body)
+        except (ValueError, zlib.error) as exc:
+            undecodable.append(f"{name}" + ("" if str(exc) == name else f": {exc}"))
+            continue
+        parts.append(body)
+    return parts, undecodable
 
 
 def cmap_needs(data: bytes, cmap_names: set) -> list:
     """Why pdf.js would fetch a CMap file for this PDF, if it would; see the docstring."""
-    needs = set()
-    for part in pdf_parts(data):
+    if _PDF_ENCRYPT.search(data):
+        return ["is encrypted, so its fonts cannot be read"]
+    parts, undecodable = pdf_parts(data)
+    needs = {f"has a stream this step cannot decode ({why}), so its fonts cannot all be checked"
+             for why in undecodable}
+    for part in parts:
         for m in list(_PDF_ENCODING.finditer(part)) + list(_PDF_USECMAP.finditer(part)):
             name = _unescape_name(m.group(1)).decode("latin-1")
             if name in cmap_names:
