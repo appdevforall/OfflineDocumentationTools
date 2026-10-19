@@ -49,8 +49,12 @@ Before deleting anything the step checks, and refuses with the list and exit 1
 when any check fails, writing nothing:
 
 - References. Every kept text row (HTML, CSS, JS, SVG, JSON, XML, Markdown and
-  plain text, decoded, chunks joined), every Templates row, every TooltipButtons
-  uri, the Tooltips text and the Bookshelf entries are read for links: HTML and
+  plain text, decoded, chunks joined), every Templates row, every tooltip
+  button's uri, every tooltip's text and the Bookshelf entries are read for
+  links. The tooltip tables are read in either documentation schema: 2
+  (TooltipButtons.uri, Tooltips.summary and detail) or 3, after
+  migrate_tooltip_schema.py (TooltipButtonUris, TooltipTexts); tables in
+  neither shape refuse the run before anything is read. Links are: HTML and
   SVG attributes, srcset, CSS url() and @import, quoted file names in scripts,
   the string values of a templated row's JSON, viewer.html?file= parameters and
   http://localhost:6174/ URLs. A link that resolves (relative to its row, or
@@ -79,9 +83,11 @@ Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run does all the checks and reports what
 would change without writing. A second run finds nothing to do and exits 0.
 
-Pipeline position: after every step that writes page content or links, so the
-reference check sees the final pages, and before rebuild_database.py. Deleting
-rows does not call for a dictionary re-mint.
+Pipeline position: after every step that writes page content, links or
+tooltips, so the reference check sees the final pages, and before
+rebuild_database.py. It may run before or after migrate_tooltip_schema.py,
+since it reads both tooltip shapes. Deleting rows does not call for a
+dictionary re-mint.
 
     uv run scripts/drop_unread_rows.py documentation.db --dry-run
     uv run scripts/drop_unread_rows.py documentation.db [--only GROUP ...] [--workers N] [--verbose]
@@ -357,6 +363,25 @@ def cmap_needs(data: bytes, cmap_names: set) -> list:
     return sorted(needs)
 
 
+def tooltip_queries(conn):
+    """(buttons query, texts query) for the database's tooltip tables, schema 2 or 3, or None for any other
+    shape. The buttons query yields (tooltipId, uri), the texts query (id, summary, detail)."""
+    def columns(table):
+        return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+    tooltips, buttons, texts, uris = (columns(t) for t in ("Tooltips", "TooltipButtons", "TooltipTexts",
+                                                           "TooltipButtonUris"))
+    if {"id", "summary", "detail"} <= tooltips and {"tooltipId", "uri"} <= buttons and not texts and not uris:
+        return ("SELECT tooltipId, uri FROM TooltipButtons WHERE uri IS NOT NULL",
+                "SELECT id, summary, detail FROM Tooltips")
+    if ({"id", "categoryId", "tag"} <= tooltips and not {"summary", "detail"} & tooltips
+            and {"tooltipId", "uriId"} <= buttons and {"id", "summary", "detail"} <= texts and {"id", "uri"} <= uris):
+        return ("SELECT B.tooltipId, U.uri FROM TooltipButtons B JOIN TooltipButtonUris U ON U.id = B.uriId "
+                "WHERE U.uri IS NOT NULL",
+                "SELECT id, summary, detail FROM TooltipTexts")
+    return None
+
+
 def run(cfg: dict) -> int:
     db_path = cfg["db_path"]
     if not db_path.is_file():
@@ -367,6 +392,13 @@ def run(cfg: dict) -> int:
     conn = sqlite3.connect(db_path)
     codec = None
     try:
+        queries = tooltip_queries(conn)
+        if queries is None:
+            print("error: the tooltip tables are in neither the schema-2 shape (Tooltips.summary and detail, "
+                  "TooltipButtons.uri) nor the schema-3 shape (TooltipTexts, TooltipButtonUris), so their links "
+                  "cannot be read; nothing was changed.", file=sys.stderr)
+            return 1
+        buttons_query, texts_query = queries
         codec = BrotliCodec(load_dictionary(conn))
         rows = {path: (row_id, length, mime, compression, template_id)
                 for row_id, path, length, mime, compression, template_id in conn.execute(
@@ -453,9 +485,9 @@ def run(cfg: dict) -> int:
             dirs = ("",) + tuple(sorted(dirs_by_template[template_id]))
             text = bytes(content).decode("utf-8", errors="replace")
             found.update((f"template {name}", target, how) for target, how in refs.in_text(text, dirs))
-        for tooltip_id, uri in conn.execute("SELECT tooltipId, uri FROM TooltipButtons WHERE uri IS NOT NULL"):
+        for tooltip_id, uri in conn.execute(buttons_query):
             found.update((f"tooltip {tooltip_id} button", target, how) for target, how in refs.targets(uri, ("",)))
-        for tooltip_id, summary, detail in conn.execute("SELECT id, summary, detail FROM Tooltips"):
+        for tooltip_id, summary, detail in conn.execute(texts_query):
             found.update((f"tooltip {tooltip_id} text", target, how)
                          for target, how in refs.in_text(f"{summary}\n{detail}", ("",)))
         by_id = {rows[path][0]: path for path in deleted}

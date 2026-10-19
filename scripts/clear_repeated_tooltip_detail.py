@@ -32,8 +32,11 @@ Runs in one transaction (rolled back on any error), backs the database up
 first, and VACUUMs afterwards. --dry-run reports what would change without
 writing. A second run finds nothing to do and exits 0.
 
-Pipeline position: after every step that writes Tooltips, before
-rebuild_database.py.
+Pipeline position: after every step that writes tooltip text, and before
+migrate_tooltip_schema.py, which moves summary and detail out of Tooltips into
+TooltipTexts (documentation schema 3). This step reads only the schema-2 shape
+and refuses a migrated database, writing nothing. rebuild_database.py comes
+after both.
 
     uv run scripts/clear_repeated_tooltip_detail.py documentation.db [--dry-run] [--verbose]
 """
@@ -57,6 +60,10 @@ def run(cfg: dict) -> int:
     conn = sqlite3.connect(db_path)
     try:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(Tooltips)")}
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'TooltipTexts'").fetchone():
+            print("error: this database's tooltip text is in TooltipTexts (documentation schema 3); run this step "
+                  "before migrate_tooltip_schema.py", file=sys.stderr)
+            return 1
         if not {"id", "categoryId", "tag", "summary", "detail"} <= columns:
             print("error: this database has no Tooltips table with id, categoryId, tag, summary and detail",
                   file=sys.stderr)

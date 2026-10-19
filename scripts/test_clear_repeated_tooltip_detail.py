@@ -167,6 +167,29 @@ def test_an_error_while_writing_rolls_everything_back(tmp_path: Path):
     assert _details(db) == before
 
 
+def test_a_migrated_database_is_refused_by_name(tmp_path: Path):
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db)
+    conn.executescript("CREATE TABLE TooltipTexts (id INTEGER PRIMARY KEY, summary TEXT, detail TEXT);"
+                       "INSERT INTO TooltipTexts SELECT id, summary, detail FROM Tooltips;"
+                       "CREATE TABLE T2 (id INTEGER, categoryId INTEGER, tag TEXT);"
+                       "INSERT INTO T2 SELECT id, categoryId, tag FROM Tooltips;"
+                       "DROP TABLE Tooltips; ALTER TABLE T2 RENAME TO Tooltips;")
+    conn.close()
+    code, out, err = _run(db)
+    assert code == 1 and "run this step before migrate_tooltip_schema.py" in err, err
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["documentation.db"]
+    # Even with the old columns still on Tooltips, a TooltipTexts means the text lives there.
+    (tmp_path / "half").mkdir()
+    db2 = _database(tmp_path / "half")
+    conn = sqlite3.connect(db2)
+    conn.execute("CREATE TABLE TooltipTexts (id INTEGER PRIMARY KEY, summary TEXT, detail TEXT)")
+    conn.close()
+    before = _details(db2)
+    code, _out, err = _run(db2)
+    assert code == 1 and "migrate_tooltip_schema.py" in err and _details(db2) == before
+
+
 def test_a_database_without_tooltips_is_an_error(tmp_path: Path):
     db = tmp_path / "documentation.db"
     sqlite3.connect(db).close()

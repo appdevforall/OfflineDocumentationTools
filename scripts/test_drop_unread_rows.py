@@ -152,10 +152,27 @@ def _decompress(blob: bytes, dictionary: bytes = None) -> bytes:
                               stdout=subprocess.PIPE, check=True).stdout
 
 
+TOOLTIP_TABLES = {
+    2: "CREATE TABLE Tooltips (id INTEGER PRIMARY KEY AUTOINCREMENT, categoryId INTEGER NOT NULL, tag TEXT NOT NULL,"
+       " summary TEXT NOT NULL, detail TEXT NOT NULL, UNIQUE (categoryId, tag));"
+       "CREATE TABLE TooltipButtons (tooltipId INTEGER, buttonNumberId INTEGER, description TEXT, uri TEXT);",
+    # What migrate_tooltip_schema.py leaves (documentation schema 3).
+    3: "CREATE TABLE TooltipTexts (id INTEGER PRIMARY KEY AUTOINCREMENT, summary TEXT NOT NULL, detail TEXT NOT NULL);"
+       "CREATE TABLE Tooltips (id INTEGER NOT NULL, categoryId INTEGER NOT NULL, tag TEXT NOT NULL,"
+       " PRIMARY KEY (categoryId, tag)) WITHOUT ROWID;"
+       "CREATE TABLE TooltipButtonDescriptions (id INTEGER PRIMARY KEY, description TEXT NOT NULL);"
+       "CREATE TABLE TooltipButtonUris (id INTEGER PRIMARY KEY, uri TEXT NOT NULL);"
+       "CREATE TABLE TooltipButtons (tooltipId INTEGER NOT NULL, buttonNumberId INTEGER NOT NULL,"
+       " descriptionId INTEGER NOT NULL, uriId INTEGER NOT NULL, PRIMARY KEY (tooltipId, buttonNumberId)) WITHOUT ROWID;"
+       "INSERT INTO TooltipButtonDescriptions VALUES (1, 'View full documentation');",
+}
+
+
 def _database(tmp_path: Path, rows: dict, dictionary: bytes = None, templates: dict = None,
-              buttons: list = None, tooltips: list = None) -> Path:
-    """A miniature documentation database with the production schema's triggers. `templates` maps
-    id -> (name, body), `buttons` lists (tooltipId, uri) and `tooltips` (id, summary, detail)."""
+              buttons: list = None, tooltips: list = None, schema: int = 2) -> Path:
+    """A miniature documentation database with the production schema's triggers and the tooltip tables of
+    documentation schema 2 or 3. `templates` maps id -> (name, body), `buttons` lists (tooltipId, uri) and
+    `tooltips` (id, summary, detail)."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     db_path = tmp_path / "documentation.db"
     conn = sqlite3.connect(db_path)
@@ -166,9 +183,7 @@ def _database(tmp_path: Path, rows: dict, dictionary: bytes = None, templates: d
         "CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL,"
         " UNIQUE(name));"
         "CREATE TABLE TooltipCategories (id INTEGER PRIMARY KEY, category TEXT NOT NULL);"
-        "CREATE TABLE Tooltips (id INTEGER PRIMARY KEY AUTOINCREMENT, categoryId INTEGER NOT NULL, tag TEXT NOT NULL,"
-        " summary TEXT NOT NULL, detail TEXT NOT NULL, UNIQUE (categoryId, tag));"
-        "CREATE TABLE TooltipButtons (tooltipId INTEGER, buttonNumberId INTEGER, description TEXT, uri TEXT);"
+        + TOOLTIP_TABLES[schema] +
         "CREATE TABLE Bookshelf (contentID INTEGER NOT NULL, title STRING DEFAULT '', description STRING DEFAULT '',"
         " bookCategoryID INTEGER, UNIQUE(title, bookCategoryId));"
         "CREATE TRIGGER AddBook AFTER INSERT ON Content WHEN NEW.path LIKE '%.pdf' BEGIN"
@@ -191,10 +206,19 @@ def _database(tmp_path: Path, rows: dict, dictionary: bytes = None, templates: d
     for template_id, (name, body) in (templates or {}).items():
         conn.execute("INSERT INTO Templates (id, name, content) VALUES (?, ?, ?)", (template_id, name, body))
     for tooltip_id, summary, detail in tooltips or []:
-        conn.execute("INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, 1, ?, ?, ?)",
-                     (tooltip_id, f"tag{tooltip_id}", summary, detail))
-    for tooltip_id, uri in buttons or []:
-        conn.execute("INSERT INTO TooltipButtons VALUES (?, 1, 'View full documentation', ?)", (tooltip_id, uri))
+        if schema == 2:
+            conn.execute("INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (?, 1, ?, ?, ?)",
+                         (tooltip_id, f"tag{tooltip_id}", summary, detail))
+        else:
+            conn.execute("INSERT INTO TooltipTexts (id, summary, detail) VALUES (?, ?, ?)", (tooltip_id, summary, detail))
+            conn.execute("INSERT INTO Tooltips (id, categoryId, tag) VALUES (?, 1, ?)", (tooltip_id, f"tag{tooltip_id}"))
+    for number, (tooltip_id, uri) in enumerate(buttons or [], start=1):
+        if schema == 2:
+            conn.execute("INSERT INTO TooltipButtons VALUES (?, ?, 'View full documentation', ?)",
+                         (tooltip_id, number, uri))
+        else:
+            conn.execute("INSERT INTO TooltipButtonUris (id, uri) VALUES (?, ?)", (number, uri))
+            conn.execute("INSERT INTO TooltipButtons VALUES (?, ?, 1, ?)", (tooltip_id, number, number))
     conn.commit()
     conn.close()
     return db_path
@@ -355,14 +379,49 @@ def test_a_template_link_refuses(tmp_path: Path):
              templates={1: ("page.peb", b'<a href="../x/a.html">{{ title }}</a>')})
 
 
-def test_a_tooltip_button_refuses(tmp_path: Path):
-    _refused(tmp_path, _base_rows(), "tooltip 3 button links to j/html/api/m/a/package-use.html",
-             tooltips=[(3, "s", "")], buttons=[(3, "i/index.html"), (3, "j/html/api/m/a/package-use.html#x")])
+def test_a_tooltip_button_refuses_in_either_schema(tmp_path: Path):
+    for schema in (2, 3):
+        _refused(tmp_path / str(schema), _base_rows(), "tooltip 3 button links to j/html/api/m/a/package-use.html",
+                 tooltips=[(3, "s", "")], buttons=[(3, "i/index.html"), (3, "j/html/api/m/a/package-use.html#x")],
+                 schema=schema)
 
 
-def test_a_link_in_tooltip_text_refuses(tmp_path: Path):
-    _refused(tmp_path, _base_rows(), "tooltip 4 text links to x/b.html",
-             tooltips=[(4, 'See <a href="http://localhost:6174/x/b.html">b</a>.', "")])
+def test_a_link_in_tooltip_text_refuses_in_either_schema(tmp_path: Path):
+    for schema in (2, 3):
+        _refused(tmp_path / f"s{schema}", _base_rows(), "tooltip 4 text links to x/b.html",
+                 tooltips=[(4, 'See <a href="http://localhost:6174/x/b.html">b</a>.', "")], schema=schema)
+        _refused(tmp_path / f"d{schema}", _base_rows(), "tooltip 5 text links to x/a.html",
+                 tooltips=[(5, "s", '<a href="http://localhost:6174/x/a.html">a</a>')], schema=schema)
+
+
+def test_a_schema_3_database_deletes_the_same_rows(tmp_path: Path):
+    db = _database(tmp_path, _base_rows(), tooltips=[(1, "s", "d")], buttons=[(1, "j/html/api/m/a/B.html")], schema=3)
+    before = _stored(db)
+    code, _out, err = _run(db)
+    assert code == 0, err
+    assert set(before) - set(_stored(db)) == DELETED
+
+
+def test_tooltip_tables_in_neither_shape_refuse_before_the_scan(tmp_path: Path):
+    cases = [
+        # Half migrated: the schema-2 tables beside a TooltipTexts.
+        (2, "CREATE TABLE TooltipTexts (id INTEGER PRIMARY KEY, summary TEXT, detail TEXT);"),
+        # Schema 3 without its uri table.
+        (3, "DROP TABLE TooltipButtonUris;"),
+        # Tooltips without their text anywhere.
+        (2, "CREATE TABLE T2 (id INTEGER, categoryId INTEGER, tag TEXT); DROP TABLE Tooltips;"
+            " ALTER TABLE T2 RENAME TO Tooltips;"),
+    ]
+    for i, (schema, change) in enumerate(cases):
+        db = _database(tmp_path / str(i), _base_rows(), schema=schema)
+        conn = sqlite3.connect(db)
+        conn.executescript(change)
+        conn.close()
+        before = _stored(db)
+        code, out, err = _run(db)
+        assert code == 1 and "in neither the schema-2 shape" in err, (i, err)
+        assert "Reading" not in out and "Checking" not in out, (i, out)
+        assert _stored(db) == before and len(list((tmp_path / str(i)).iterdir())) == 1
 
 
 def test_a_bookshelf_entry_refuses(tmp_path: Path):
