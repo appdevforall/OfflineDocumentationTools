@@ -17,8 +17,9 @@ whose pages disagree kept in the page), and whole runs on small synthetic
 databases of Doclava- and Dackka-style pages: every converted page read back
 and rendered through the stored templates equals the original; a page that
 does not render back, or is over the render limit, stays HTML and is named;
-rows the step must leave alone are left alone; a dry run, a second run, an
-unreadable row and a missing renderer write nothing; a chunked page is read
+a page whose render fails stays HTML and says why; rows the step must leave
+alone are left alone; a dry run, a second run, an unreadable row and a
+missing renderer write nothing; a chunked page is read
 whole and its JSON written in chunks; a failure while writing rolls back.
 
 Run it either way - as a plain script:
@@ -439,6 +440,19 @@ def test_a_header_whose_block_repeats_a_row_gets_no_include():
     assert apt.plan_includes(found) == {}
 
 
+def test_a_block_without_its_footer_is_not_a_block():
+    """A header and rows followed by anything but the style's own footer stay in the page, even when a whole
+    block of the same style follows."""
+    doclava, dackka = doclava_block("java/lang/Object", ["clone"]), dackka_block("pkg/Base", ["getA"])
+    for block, foot in ((doclava, "</table>\n</div>\n</td></tr>\n"),
+                        (dackka, "</tbody>\n</table>\n</div>\n</devsite-expandable> </td>\n</tr>\n")):
+        assert len(apt.find_blocks(block)) == 1
+        broken = block.replace(foot, "</table>\n</div>\n</td>\n</tr>\n")
+        assert apt.find_blocks(broken) == []
+        (start, end, _key, _rows), = apt.find_blocks(broken + block)
+        assert (start, end) == (len(broken), len(broken) + len(block))
+
+
 def test_an_include_starting_with_a_line_break_renders_it_once():
     """An include's first text follows no tag, so a leading line break must not be doubled."""
     source = apt.include_source("\n\n<head>" + apt.KEY_JOIN + "</foot>\n", {"<tr>row</tr>\n": 0})
@@ -595,6 +609,38 @@ def test_a_page_that_does_not_render_back_stays_html_and_its_include_is_not_writ
     assert conn.execute("SELECT templateId FROM Content WHERE path = 'a/pkg/C4.html'").fetchone()[0] > 0
     conn.close()
     assert not any("pkg.Only" in s for s in templates(db).values())
+
+
+class Failing:
+    """The real renderer, except that pages whose JSON holds `marker` fail with an error other than the limit."""
+
+    def __init__(self, real, marker: bytes):
+        self.real, self.marker = real, marker
+
+    def define(self, name, text):
+        self.real.define(name, text)
+
+    def render(self, name, context):
+        if self.marker in context:
+            return False, "PebbleException: boom (?:?)\n\tat Render.main", 0
+        return self.real.render(name, context)
+
+    def close(self):
+        pass
+
+
+def test_a_page_that_fails_to_render_stays_html_and_says_why(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    conn = sqlite3.connect(db)
+    c5 = conn.execute("SELECT content FROM Content WHERE path = 'a/pkg/C5.html'").fetchone()[0]
+    conn.close()
+    code, out, err = run_tool(db, renderer=Failing(_harness(), b'"/a/pkg/C5.html"'))
+    assert code == 0, err
+    assert "stays HTML: a/pkg/C5.html - does not render: PebbleException: boom (?:?)\n" in err
+    conn = sqlite3.connect(db)
+    assert conn.execute("SELECT content, templateId FROM Content WHERE path = 'a/pkg/C5.html'").fetchone() == (c5, 0)
+    assert conn.execute("SELECT templateId FROM Content WHERE path = 'a/pkg/C4.html'").fetchone()[0] > 0
+    conn.close()
 
 
 def test_a_page_over_the_render_limit_stays_html(tmp_path):
