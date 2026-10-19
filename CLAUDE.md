@@ -209,11 +209,15 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
   `create_empty_database.py`, `list_database_documents.py`, `migrate_tooltip_schema.py` (ADFA-3305:
-  converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT
-  ROWID, lookup-table tooltip shape, and every template Brotli-compressed against the dictionary;
-  run it on the copy that ships, after every step that writes tooltips or templates, since they all
-  write the old shape and plain templates, never on the master they edit; re-mint afterwards, then
-  pack `Content,TooltipTexts`, not `Tooltips`). **Deprecated/dead** (target the
+  converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
+  lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
+  copy that ships, after every step that writes tooltips or templates, since they all write the old
+  shape and plain templates, never on the master they edit; re-mint afterwards, then pack
+  `Content,TooltipTexts`, not `Tooltips`), `svg_images_to_webp.py` (ADFA-3305: re-encodes the raster
+  images SVG rows embed as data: URIs as WebP, image by image, by a quality rule; run on the shipped
+  copy before the final dictionary re-mint; `compare_svg_renders.py` renders each changed SVG before and
+  after in headless Chrome, through `<img>` and `<object>`, as its visual check).
+  **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
   `load_android_data.py`.
