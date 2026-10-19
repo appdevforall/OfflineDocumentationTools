@@ -1030,7 +1030,8 @@ def test_refuses_a_converted_database_holding_a_large_window_template(tmp_path):
                               f"UPDATE Templates SET content = x'{stream.hex()}' WHERE name = 'nav.peb'")
 
 
-def test_declares_the_version_after_the_templates_are_compressed(tmp_path):
+def test_the_version_comment_says_the_templates_are_compressed(tmp_path):
+    # Where declare_version runs inside the transaction does not matter: a rollback undoes it with the rest.
     db = _database(tmp_path)
     assert _run(db)[0] == 0
     (comment,) = _query(db, "SELECT comment FROM DocumentationDatabaseVersion")[0]
