@@ -41,8 +41,10 @@ The rows, in five groups (pick some with --only; the default is all five):
   href or src that resolves to it, its file name matched in any letter case,
   is pointed at index-files/index-1.html instead, keeping the link's own
   relative or rooted prefix (a fragment goes to the split page that holds its
-  anchor, index-1.html first when several do). On a Pixel 6 Pro the one-page
-  index took 5.0 s to load and a split page 0.5-0.8 s. A page named
+  anchor, index-1.html first when several do). On a Pixel 6 Pro, in one
+  timepage.mjs run per page with the cache disabled, the one-page index took
+  5,033 ms to its load event, and the split pages index-1.html and
+  index-19.html 537 ms and 832 ms. A page named
   index-all.html must be a javadoc index page (body class "index-page"), and
   the split index must exist, or the run refuses.
 
@@ -55,8 +57,9 @@ saved in the file and in its brotli -q 11 -w 24: javadoc-use 5,042,176 and
 x-placeholders 122,880 and 103,920. Repacking alone moves the .br by up to
 about 0.2 MB, so the last figure is within that. javadoc-index-all, measured
 on the 2026-10-19 ship-time build (every ADFA-3305 step, 90,783,744 bytes),
-packed with --pack Content,TooltipTexts: 1,241,088 and 1,252,817, with 5,224
-links in 5,222 javadoc pages pointed at the split index.
+against the same build repacked, both with --pack Content,TooltipTexts:
+1,241,088 and 1,250,482, with 5,224 links in 5,222 javadoc pages pointed at
+the split index.
 
 Before deleting anything the step checks, and refuses with the list and exit 1
 when any check fails, writing nothing:
