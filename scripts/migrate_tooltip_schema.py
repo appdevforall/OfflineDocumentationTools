@@ -36,6 +36,15 @@ Tooltips.id and TooltipButtons.tooltipId are declared FOREIGN KEYs to
 TooltipTexts(id), so rebuild_database.py --pack TooltipTexts renumbers all three
 together. Ids keep their values here.
 
+Tooltips.id must be unique and name a TooltipTexts row: whatever adds a tooltip
+takes the id its TooltipTexts insert hands out (Code On The Go's plugin writer
+does), never one of its own. Two Tooltips rows sharing an id share one text,
+so deleting either key's text deletes the other's. Nothing in the schema
+enforces it - a UNIQUE (id) index on Tooltips would cost about the 613 pages
+this conversion saves - so this step checks it: it refuses old data with a
+shared or NULL id, and its read-back finds every tooltip again with its own id
+and text.
+
 Measured on the 2026-10-18 database, packed as the pipeline packs it
 (110,895,104 bytes; .br 86,918,141 at brotli -q 11 -w 24): this step leaves
 106,254,336 bytes (.br 86,658,719), and rebuild_database.py --pack
@@ -53,11 +62,14 @@ QUERY_TOOLTIP_BUTTONS in idetooltips' TooltipQuery.kt (copied below as
 APP_TOOLTIP_QUERY and APP_BUTTONS_QUERY). Both tables are also compared row for
 row, and their row counts. Any difference rolls the whole conversion back.
 
-Pipeline position: after every step that writes tooltips, all of which write
-the old tables (TooltipManager.py, docdb-studio, sync_kdoc_json_to_db.py, the
-one-off scripts), and before rebuild_database.py, which then packs
-Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not Tooltips. Its
-order against the Content steps does not matter.
+Pipeline position: on the copy that ships, after every step that writes
+tooltips, all of which write the old tables (TooltipManager.py, docdb-studio,
+sync_kdoc_json_to_db.py, the one-off scripts), and before rebuild_database.py,
+which then packs Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so
+not Tooltips. Its order against the Content steps does not matter. Never run it
+on the master database those tools edit: they read or write the old shape
+(check-tools, which docdb-regression-test.yaml runs daily, fails on the new
+one), and nothing converts it back.
 
 A database already converted, and declaring major version 3 or later, is left
 alone (exit 0). One already in the new shape that declares less is refused: the
