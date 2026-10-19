@@ -87,9 +87,14 @@ Templates must arrive plain, as every tool that writes Templates writes them.
 One that already decodes against the dictionary is taken for one compressed
 already - all of them, or a mix that means some other step ran - and refused,
 since compressing it again would hide its text; so is one that is neither UTF-8
-text nor such a stream. Plain Pebble or HTML text is not a valid Brotli stream,
-so the two cannot be confused. A database without a CompressionDictionary is
-refused too. Compressing needs the brotli CLI on PATH.
+text nor such a stream. A plain text can be a valid stream too, if rarely: each
+of the 1-byte texts 3 5 7 9 ; = ? is a complete one that decodes to empty (? is
+what an empty template compresses to), and no 2- or 3-byte printable text is. A
+text starting with < or { never is: that byte sets a bit RFC 7932 requires to be
+0. Such a template is refused here before the conversion, as compressed
+already; after it, it would pass for compressed, and the app would show it
+empty. A database without a CompressionDictionary is refused too. Compressing
+needs the brotli CLI on PATH.
 
 Pipeline position: on the copy that ships, after every step that writes
 tooltips, all of which write the old tables (TooltipManager.py, docdb-studio,
@@ -353,7 +358,8 @@ def plain_templates(conn, codec: DictionaryCodec) -> tuple:
     tool that writes Templates writes them. A template that already decodes against the dictionary is taken
     for one compressed already - every one, or a mix that means some other step ran - and compressing it
     again would hide its text, so it is a problem; so is one that is neither UTF-8 text nor such a stream,
-    or NULL. Plain Pebble or HTML text is not a valid Brotli stream, so the two cannot be confused."""
+    or NULL. A very short text can also be a valid stream (see the module docstring); one is refused here as
+    compressed already rather than guessed at."""
     stored = stored_templates(conn)
     decoded = _parallel(lambda item: None if item[1][1] is None else codec.decompress(item[1][1]),
                         list(stored.items()))

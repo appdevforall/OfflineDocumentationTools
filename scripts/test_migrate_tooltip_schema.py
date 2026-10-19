@@ -777,6 +777,19 @@ def test_refuses_a_mix_of_plain_and_compressed_templates(tmp_path):
     assert _sha(db) == sha and _backups(db) == []
 
 
+def test_refuses_a_one_byte_template_that_is_also_a_brotli_stream(tmp_path):
+    # Each of these plain texts is a complete Brotli stream that decodes to empty, so it is taken for compressed.
+    for text in "3579;=?":
+        assert _brotli(DICTIONARY, text.encode(), "-d") == b"", text
+    assert _brotli(DICTIONARY, b"", "-w", "24") == b"?"
+    # A text starting with < or { breaks a reserved or padding bit in its first byte, whatever follows.
+    assert not any(_brotli(DICTIONARY, bytes([first, second]), "-d") is not None for first in b"<{" for second in
+                   b" <>{}%/a?")
+    _assert_refused(tmp_path, "1 of 3 template(s) already decode against the dictionary, so they look compressed "
+                              "already (nav.peb)",
+                    "UPDATE Templates SET content = CAST('?' AS BLOB) WHERE name = 'nav.peb'")
+
+
 def test_refuses_a_template_that_is_neither_text_nor_compressed(tmp_path):
     _assert_refused(tmp_path, "1 template(s) are neither UTF-8 text nor compressed against the dictionary (nav.peb)",
                     "UPDATE Templates SET content = x'ff00ff' WHERE name = 'nav.peb'")
