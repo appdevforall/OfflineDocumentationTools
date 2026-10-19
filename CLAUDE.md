@@ -200,10 +200,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   Following `drop_unread_rows.py` is an exception to that step's "after every page-writing step"
   rule, and safe: every converted page renders back byte for byte, so it links to nothing the row
   drops did not already check.
-  ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` (run on the master
-  by `build-android-docs.yaml`, by hand only, never run so far) converts the same `a/android/` and
-  `a/androidx/` pages its own way; this step leaves rows already in another template alone, so after
-  that pipeline it converts almost nothing. Which of the two ships is still open.
+  ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` converts the same
+  `a/android/` and `a/androidx/` pages its own way. This step is the one that ships: the workflows
+  that ran that pipeline on the master (`build-android-docs.yaml`, `build-android-docs-local.yaml`)
+  were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
