@@ -10,9 +10,11 @@ test_migrate_tooltip_schema.py
 
 Covers migrate_tooltip_schema.py: that every tooltip and its buttons read back
 through the new tables, with the queries Code On The Go runs, exactly as they
-did through the old ones; that those queries search by key; that a second run,
-a dry run and every refusal leave the file byte for byte as it was; and that a
-conversion its own read-back check rejects is rolled back.
+did through the old ones; that those queries search by key; that every template
+is stored compressed against the database's dictionary and decodes back to its
+text; that a second run, a dry run and every refusal leave the file byte for
+byte as it was; and that a conversion its own read-back check rejects is rolled
+back.
 
 Run it either way - as a plain script:
 
@@ -22,7 +24,8 @@ or under pytest:
 
     uv run --with pytest pytest scripts/test_migrate_tooltip_schema.py
 
-Only the standard library is needed for the first.
+The first needs only the standard library and the brotli CLI on PATH, which
+the step compresses templates with.
 """
 from __future__ import annotations
 
@@ -30,7 +33,9 @@ import contextlib
 import hashlib
 import io
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import traceback
@@ -165,6 +170,28 @@ def _run(db_path: Path, **overrides) -> tuple:
     return code, out.getvalue(), err.getvalue()
 
 
+def _plain(template) -> bytes:
+    return template.encode("utf-8") if isinstance(template, str) else template
+
+
+def _brotli(dictionary: bytes, data: bytes, *args: str):
+    """The brotli CLI against `dictionary`, as the app's and the pipeline's codecs use it, independently of the
+    tool's own codec: the output, or None if it fails (for -d: `data` is no stream against that dictionary)."""
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "dictionary.bin"
+        path.write_bytes(dictionary)
+        result = subprocess.run(["brotli", "-D", str(path), *args, "-c"], input=data, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, check=False)
+    return result.stdout if result.returncode == 0 else None
+
+
+def _templates(db_path: Path) -> dict:
+    """{name: (stored bytes, plaintext or None)}, decoded against the database's own dictionary."""
+    rows = _query(db_path, "SELECT name, content FROM Templates ORDER BY id")
+    dictionary = _query(db_path, "SELECT data FROM CompressionDictionary")[0][0]
+    return {name: (_plain(content), _brotli(dictionary, _plain(content), "-d")) for name, content in rows}
+
+
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -281,7 +308,7 @@ def test_a_second_run_changes_nothing(tmp_path):
         backup.unlink()
     sha = _sha(db)
     code, out, _err = _run(db)
-    assert code == 0 and "already in the new shape; nothing to do" in out
+    assert code == 0 and "already in the new shape and every template is compressed; nothing to do" in out
     assert _sha(db) == sha and _backups(db) == []
 
 
@@ -324,7 +351,7 @@ def test_leaves_a_converted_database_declaring_a_later_version_alone(tmp_path):
                               "VALUES (4, 0, 0, 'later', 'later', '2999-01-01')")
     sha = _sha(db)
     code, out, _err = _run(db)
-    assert code == 0 and "already in the new shape; nothing to do" in out
+    assert code == 0 and "already in the new shape and every template is compressed; nothing to do" in out
     assert _sha(db) == sha and _backups(db) == []
 
 
@@ -686,6 +713,168 @@ def test_rolls_back_a_change_to_a_tooltip_the_app_cannot_reach(tmp_path):
         code, _out, err = _run(db)
     assert code == 1 and "tooltip (9, 'orphan') reads back differently\n" in err, err
     assert "rolled back, nothing was changed" in err and "through the app's query" not in err, err
+
+
+def test_compresses_every_template_and_each_decodes_back(tmp_path):
+    db = _database(tmp_path)
+    code, out, err = _run(db)
+    assert code == 0, err
+    assert "Every template decodes back to its text (3 template(s)" in out, out
+    templates = _templates(db)
+    assert {name: text for name, (_stored, text) in templates.items()} == {n: _plain(t) for n, t in TEMPLATES}
+    assert all(stored != _plain(dict(TEMPLATES)[name]) for name, (stored, _text) in templates.items())
+    assert _query(db, "SELECT typeof(content) FROM Templates GROUP BY 1") == [("blob",)]
+
+
+def test_a_dry_run_compresses_and_checks_but_leaves_templates_plain(tmp_path):
+    db = _database(tmp_path)
+    sha = _sha(db)
+    code, out, err = _run(db, dry_run=True)
+    assert code == 0, err
+    assert "compressing 3 template(s)" in out and "Every template decodes back" in out, out
+    assert _sha(db) == sha and _backups(db) == []
+    assert all(text is None for _stored, text in _templates(db).values())
+
+
+def test_refuses_a_database_without_a_dictionary_row(tmp_path):
+    _assert_refused(tmp_path, "CompressionDictionary holds no dictionary", "DELETE FROM CompressionDictionary")
+
+
+def test_refuses_a_database_without_a_dictionary_table(tmp_path):
+    _assert_refused(tmp_path, "no CompressionDictionary table", "DROP TABLE CompressionDictionary")
+
+
+def test_refuses_templates_compressed_already(tmp_path):
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db)
+    for name, template in TEMPLATES:
+        conn.execute("UPDATE Templates SET content = ? WHERE name = ?", (_brotli(DICTIONARY, _plain(template)), name))
+    conn.commit()
+    conn.close()
+    sha = _sha(db)
+    code, _out, err = _run(db)
+    assert code == 1 and "3 of 3 template(s) already decode against the dictionary" in err, err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_refuses_a_mix_of_plain_and_compressed_templates(tmp_path):
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE Templates SET content = ? WHERE name = 'nav.peb'", (_brotli(DICTIONARY, b"<nav/>"),))
+    conn.commit()
+    conn.close()
+    sha = _sha(db)
+    code, _out, err = _run(db)
+    assert code == 1 and "1 of 3 template(s) already decode against the dictionary, so they look compressed already (nav.peb)" in err, err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_refuses_a_template_that_is_neither_text_nor_compressed(tmp_path):
+    _assert_refused(tmp_path, "1 template(s) are neither UTF-8 text nor compressed against the dictionary (nav.peb)",
+                    "UPDATE Templates SET content = x'ff00ff' WHERE name = 'nav.peb'")
+
+
+def test_refuses_a_null_template(tmp_path):
+    _assert_refused(tmp_path, "1 template(s) are neither UTF-8 text nor compressed against the dictionary (nav.peb)",
+                    "UPDATE Templates SET content = NULL WHERE name = 'nav.peb'",
+                    schema=OLD_SCHEMA.replace("content BLOB NOT NULL,\n  UNIQUE(name)", "content BLOB,\n  UNIQUE(name)"))
+
+
+def test_rolls_back_a_template_stored_with_the_wrong_text(tmp_path):
+    # Each blob decodes, but nav.peb's holds layout.pebble's text: only the read-back after writing sees it.
+    db = _database(tmp_path)
+    compress = tool.compress_templates
+
+    def swapped(conn, codec, plain):
+        total = compress(conn, codec, plain)
+        conn.execute("UPDATE Templates SET content = (SELECT content FROM Templates WHERE name = 'layout.pebble') "
+                     "WHERE name = 'nav.peb'")
+        return total
+    with _patched_attr(tool, "compress_templates", swapped):
+        code, _out, err = _run(db, dry_run=True)
+    assert code == 1 and "template nav.peb does not decode to its text" in err, err
+    assert "rolled back, nothing was changed" in err, err
+
+
+def test_refuses_when_the_brotli_cli_is_missing(tmp_path):
+    db = _database(tmp_path)
+    sha = _sha(db)
+    with _patched_attr(shutil, "which", lambda _name: None):
+        code, _out, err = _run(db)
+    assert code == 1 and "the brotli CLI is not on PATH" in err, err
+    assert _sha(db) == sha and _backups(db) == []
+
+
+def test_refuses_a_converted_database_whose_template_does_not_decode(tmp_path):
+    # What a tool that writes Templates leaves when it runs after the conversion: a plain template.
+    _assert_converted_refused(tmp_path, "1 of 3 template(s) do not decode against the dictionary (nav.peb)",
+                              "UPDATE Templates SET content = CAST('<nav/>' AS BLOB) WHERE name = 'nav.peb'")
+
+
+def test_refuses_a_converted_database_without_a_dictionary(tmp_path):
+    _assert_converted_refused(tmp_path, "CompressionDictionary holds no dictionary", "DELETE FROM CompressionDictionary")
+
+
+def test_rolls_back_a_compression_that_does_not_decode_back(tmp_path):
+    db = _database(tmp_path)
+    original = tool.DictionaryCodec.compress
+    with _patched_attr(tool.DictionaryCodec, "compress", lambda self, data: original(self, data + b"!")):
+        code, _out, err = _run(db, dry_run=True)
+    assert code == 1 and "does not decode back to its text after compression" in err, err
+    assert all(text is None for _stored, text in _templates(db).values())
+
+
+def test_rolls_back_when_the_templates_change_after_they_were_checked(tmp_path):
+    db = _database(tmp_path)
+    checked = tool.plain_templates
+
+    def stale(conn, codec):
+        plain, found = checked(conn, codec)
+        return {i: (n, d + b"stale") for i, (n, d) in plain.items()}, found
+    sha = _sha(db)
+    with _patched_attr(tool, "plain_templates", stale):
+        code, _out, err = _run(db, dry_run=True)
+    assert code == 1 and "the templates changed while this step ran; rolled back" in err, err
+    assert _sha(db) == sha
+
+
+def test_templates_read_back_compares_every_template(tmp_path):
+    # A wrong blob that still decodes - another template's - is what compress_templates' own check cannot see.
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db, isolation_level=None)
+    codec = tool.load_codec(conn)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        plain, found = tool.plain_templates(conn, codec)
+        assert found == []
+        tool.compress_templates(conn, codec, plain)
+        assert tool.templates_read_back(conn, codec, plain) == []
+        conn.execute("UPDATE Templates SET content = (SELECT content FROM Templates WHERE name = 'layout.pebble') "
+                     "WHERE name = 'nav.peb'")
+        assert tool.templates_read_back(conn, codec, plain) == ["template nav.peb does not decode to its text"]
+        conn.execute("UPDATE Templates SET name = 'renamed' WHERE name = 'nav.peb'")
+        assert "the Templates rows' ids or names changed" in tool.templates_read_back(conn, codec, plain)
+    finally:
+        conn.execute("ROLLBACK")
+        codec.close()
+        conn.close()
+
+
+def test_declares_the_version_after_the_templates_are_compressed(tmp_path):
+    db = _database(tmp_path)
+    assert _run(db)[0] == 0
+    (comment,) = _query(db, "SELECT comment FROM DocumentationDatabaseVersion")[0]
+    assert "every template Brotli-compressed against CompressionDictionary" in comment
+
+
+@contextlib.contextmanager
+def _patched_attr(owner, name: str, value):
+    original = getattr(owner, name)
+    setattr(owner, name, value)
+    try:
+        yield
+    finally:
+        setattr(owner, name, original)
 
 
 def _main() -> int:

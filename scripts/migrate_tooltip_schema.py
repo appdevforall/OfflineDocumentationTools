@@ -6,9 +6,10 @@
 """
 migrate_tooltip_schema.py
 
-Converts a documentation.db's tooltip tables to the schema Code On The Go reads
-from DocumentationDatabaseVersion 3.0.0 on, which stores the same tooltips in
-less space and finds them by key (ADFA-3305):
+Converts a documentation.db to documentation schema 3.0.0, which Code On The Go
+reads from DocumentationDatabaseVersion 3.0.0 on (ADFA-3305): keyed tooltip
+tables, which store the same tooltips in less space and find them by key, and
+every template stored Brotli-compressed.
 
 - Tooltips becomes a WITHOUT ROWID table keyed on (categoryId, tag), the key the
   app looks a tooltip up by, holding only that key and the tooltip's id. Its
@@ -29,8 +30,16 @@ less space and finds them by key (ADFA-3305):
   full documentation" was stored 43,703 times) and TooltipButtonUris (54,799
   buttons, 20,453 URIs). Descriptions are numbered most used first, so the
   common ones take the fewest bytes in TooltipButtons; URIs in text order.
+- Every Templates row is stored Brotli-compressed against the database's
+  CompressionDictionary, as Content's text rows are. There is no per-row
+  marker: in 3.0.0 every template is compressed, and the app always decodes
+  them (the CodeOnTheGo change stacked on #2163). Doing it in the same
+  transaction as the tooltip tables means a file declaring 3.0.0 always has
+  both. They are compressed with the brotli CLI exactly as populate_db.py's
+  DictionaryCompressor compresses (brotli -D <dictionary>, default quality);
+  the re-mint that follows recompresses them against its new dictionary.
 - DocumentationDatabaseVersion becomes one row, 3.0.0: the app no longer reads
-  the old tables, so this is an incompatible change.
+  the old tables or plain templates, so this is an incompatible change.
 
 Tooltips.id and TooltipButtons.tooltipId are declared FOREIGN KEYs to
 TooltipTexts(id), so rebuild_database.py --pack TooltipTexts renumbers all three
@@ -50,6 +59,9 @@ Measured on the 2026-10-18 database, packed as the pipeline packs it
 106,254,336 bytes (.br 86,658,719), and rebuild_database.py --pack
 Content,TooltipTexts --page-size 4096 then 105,697,280 (.br 86,693,653).
 Repacking alone moved that .br by 0.17 MB, so the .br change is within noise.
+On the 2026-10-18 input database (112,283,648 bytes), the 6 templates go from
+50,724 bytes of text to 7,460 stored, which leaves the file 40,960 bytes smaller
+than converting the tooltip tables alone.
 On a desktop SQLite 3.46, warm, one pinned core, 2,000 keys: a tooltip's
 buttons took 0.0033 ms instead of 1.36 ms median (a scan and sort of all
 54,799), and the tooltip itself was unchanged, 0.0056 ms against 0.0057.
@@ -60,22 +72,35 @@ key (categoryId, tag), which reaches every tooltip, and by (category name, tag)
 with the two queries Code On The Go runs, QUERY_TOOLTIP and
 QUERY_TOOLTIP_BUTTONS in idetooltips' TooltipQuery.kt (copied below as
 APP_TOOLTIP_QUERY and APP_BUTTONS_QUERY). Both tables are also compared row for
-row, and their row counts. Any difference rolls the whole conversion back.
+row, and their row counts, and every template is decoded back and compared with
+its text. Any difference rolls the whole conversion back.
+
+Templates must arrive plain, as every tool that writes Templates writes them.
+One that already decodes against the dictionary is taken for one compressed
+already - all of them, or a mix that means some other step ran - and refused,
+since compressing it again would hide its text; so is one that is neither UTF-8
+text nor such a stream. Plain Pebble or HTML text is not a valid Brotli stream,
+so the two cannot be confused. A database without a CompressionDictionary is
+refused too. Compressing needs the brotli CLI on PATH.
 
 Pipeline position: on the copy that ships, after every step that writes
 tooltips, all of which write the old tables (TooltipManager.py, docdb-studio,
-sync_kdoc_json_to_db.py, the one-off scripts), and before rebuild_database.py,
-which then packs Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so
-not Tooltips. Its order against the Content steps does not matter. Never run it
-on the master database those tools edit: they read or write the old shape
-(check-tools, which docdb-regression-test.yaml runs daily, fails on the new
-one), and nothing converts it back.
+sync_kdoc_json_to_db.py, the one-off scripts), and after every step that writes
+templates, all of which write them plain. On that copy the order is: the
+minify, the row drops, the Kotlin trim, the a/ pages-to-templates step, this
+step, remint_dictionary.py --seeds 4, and rebuild_database.py, which then packs
+Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not Tooltips.
+Never run it on the master database those tools edit: they read or write the
+old shape and plain templates (check-tools, which docdb-regression-test.yaml
+runs daily, fails on the new tooltip tables), and nothing converts it back.
 
-A database already converted, and declaring major version 3 or later, is left
-alone (exit 0). One already in the new shape that declares less is refused: the
-app refuses it too, and only a step run after the conversion can have rewritten
-its version row (populate_db.py's declare_database_version does), so this step
-does not guess what else that step changed. One whose tooltip tables are in
+A database already converted, declaring major version 3 or later, and whose
+every template decodes against the dictionary, is left alone (exit 0). One
+already in the new shape that declares less, or holds a template that does not
+decode, is refused: the app refuses it too, and only a step run after the
+conversion can have rewritten its version row or a template (populate_db.py's
+declare_database_version rewrites the version), so this step does not guess
+what else that step changed. One whose tooltip tables are in
 neither shape, or hold data the new keys cannot (a button with no tooltip, two
 buttons with one number, a NULL), or that does not declare major version 2, is
 refused too. A refusal writes nothing and exits 1.
@@ -87,16 +112,22 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 FROM_MAJOR, TO_MAJOR = 2, 3
 WHO = "ADFA-3305"
 COMMENT = ("Key Tooltips by (categoryId, tag) and TooltipButtons by (tooltipId, buttonNumberId), both WITHOUT ROWID; "
-           "tooltip text moved to TooltipTexts, button text to TooltipButtonDescriptions and TooltipButtonUris")
+           "tooltip text moved to TooltipTexts, button text to TooltipButtonDescriptions and TooltipButtonUris; "
+           "every template Brotli-compressed against CompressionDictionary")
 
 # PR #39 (ADFA-6597) adds this index for the old buttons query; the new primary key is the same index.
 REPLACED_INDEX = "TooltipButtonsByTooltip"
@@ -214,10 +245,136 @@ def human(n: int) -> str:
     return f"{n:,}"
 
 
+class DictionaryCodec:
+    """Brotli against the database's shared dictionary, through the brotli CLI and invoked exactly as
+    populate_db.py's DictionaryCompressor invokes it (`brotli -D <dictionary> -c`, default quality), since the
+    Python brotli package takes no dictionary. Not imported from there: populate_db.py needs markdown-it, and
+    this step needs nothing outside the standard library but the CLI. The dictionary is written once to a
+    private temporary file."""
+
+    def __init__(self, dictionary: bytes):
+        self._brotli = shutil.which("brotli")
+        if self._brotli is None:
+            raise Refused("the brotli CLI is not on PATH; 3.0.0 stores every template compressed with it")
+        self._dir = tempfile.TemporaryDirectory(prefix="migrate-schema-dictionary-")
+        self._dictionary = Path(self._dir.name) / "dictionary.bin"
+        self._dictionary.write_bytes(dictionary)
+
+    def _run(self, *args: str, data: bytes):
+        result = subprocess.run([self._brotli, "-D", str(self._dictionary), *args, "-c"], input=data,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        return result.stdout if result.returncode == 0 else None
+
+    def compress(self, data: bytes) -> bytes:
+        out = self._run(data=data)
+        if out is None:
+            raise RuntimeError("brotli could not compress a template")
+        return out
+
+    def decompress(self, data: bytes):
+        """The plaintext, or None if `data` is not a Brotli stream against this dictionary."""
+        return self._run("-d", data=data)
+
+    def close(self) -> None:
+        self._dir.cleanup()
+
+
+def load_codec(conn) -> DictionaryCodec:
+    """A codec for the database's CompressionDictionary; raises Refused if it has none."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
+                        ).fetchone():
+        raise Refused("no CompressionDictionary table; 3.0.0 stores every template compressed against it")
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    if row is None or not row[0]:
+        raise Refused("CompressionDictionary holds no dictionary; 3.0.0 stores every template compressed against it")
+    return DictionaryCodec(bytes(row[0]))
+
+
+def stored_templates(conn) -> dict:
+    """Every Templates row as {id: (name, stored bytes)}; empty if there is no Templates table."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Templates'").fetchone():
+        return {}
+    out = {}
+    for template_id, name, content in conn.execute("SELECT id, name, content FROM Templates ORDER BY id"):
+        out[template_id] = (name, None if content is None
+                            else content.encode("utf-8") if isinstance(content, str) else bytes(content))
+    return out
+
+
+def _parallel(function, items: list) -> list:
+    with ThreadPoolExecutor(max_workers=min(32, os.cpu_count() or 4)) as pool:
+        return list(pool.map(function, items))
+
+
+def plain_templates(conn, codec: DictionaryCodec) -> tuple:
+    """({id: (name, plaintext)}, problems) for a database whose templates are still plain text, as every
+    tool that writes Templates writes them. A template that already decodes against the dictionary is taken
+    for one compressed already - every one, or a mix that means some other step ran - and compressing it
+    again would hide its text, so it is a problem; so is one that is neither UTF-8 text nor such a stream,
+    or NULL. Plain Pebble or HTML text is not a valid Brotli stream, so the two cannot be confused."""
+    stored = stored_templates(conn)
+    decoded = _parallel(lambda item: None if item[1][1] is None else codec.decompress(item[1][1]),
+                        list(stored.items()))
+    plain, compressed, unreadable = {}, [], []
+    for (template_id, (name, data)), as_brotli in zip(stored.items(), decoded):
+        if data is None:
+            unreadable.append(name)
+        elif as_brotli is not None:
+            compressed.append(name)
+        else:
+            try:
+                data.decode("utf-8")
+            except UnicodeDecodeError:
+                unreadable.append(name)
+                continue
+            plain[template_id] = (name, data)
+    found = []
+    if compressed:
+        found.append(f"{human(len(compressed))} of {human(len(stored))} template(s) already decode against the "
+                     f"dictionary, so they look compressed already ({', '.join(compressed[:5])}"
+                     f"{', ...' if len(compressed) > 5 else ''}); this step compresses plain templates only")
+    if unreadable:
+        found.append(f"{human(len(unreadable))} template(s) are neither UTF-8 text nor compressed against the "
+                     f"dictionary ({', '.join(unreadable[:5])}{', ...' if len(unreadable) > 5 else ''})")
+    return plain, found
+
+
+def compress_templates(conn, codec: DictionaryCodec, plain: dict) -> int:
+    """Stores every template compressed, inside the caller's transaction; returns the stored bytes. Each one
+    is proved to decode back to its exact text before it is written."""
+    def one(item):
+        template_id, (name, data) = item
+        blob = codec.compress(data)
+        if codec.decompress(blob) != data:
+            raise RuntimeError(f"template {name} does not decode back to its text after compression")
+        return template_id, blob
+    total = 0
+    for template_id, blob in _parallel(one, list(plain.items())):
+        conn.execute("UPDATE Templates SET content = ? WHERE id = ?", (blob, template_id))
+        total += len(blob)
+    return total
+
+
+def templates_read_back(conn, codec: DictionaryCodec, plain: dict) -> list:
+    """Differences between the plain templates and what Templates now holds, decoded the way the app decodes
+    them; empty if none."""
+    differences = []
+    stored = stored_templates(conn)
+    if {i: n for i, (n, _) in stored.items()} != {i: n for i, (n, _) in plain.items()}:
+        differences.append("the Templates rows' ids or names changed")
+    decoded = _parallel(lambda item: codec.decompress(item[1][1]) if item[1][1] is not None else None,
+                        list(stored.items()))
+    for (template_id, (name, _data)), text in zip(stored.items(), decoded):
+        if template_id in plain and text != plain[template_id][1]:
+            differences.append(f"template {name} does not decode to its text")
+    return differences
+
+
 def backup_database(db_path: Path) -> Path:
     """VACUUM INTO a timestamped sibling, the next free suffix if that exists. The
     same as optimize_db_media.backup_database, which this step does not import
-    because that module needs Pillow and brotli and this one touches neither."""
+    because that module needs Pillow and the brotli package, and this one needs
+    neither."""
     stamp = time.strftime("%Y%m%d-%H%M%S")
     backup_path = db_path.with_name(f"{db_path.name}.backup-{stamp}")
     attempt = 1
@@ -377,7 +534,8 @@ def read_back(conn, before: dict) -> list:
 
 
 def convert(conn) -> list:
-    """Rewrites the tooltip tables inside the caller's transaction; returns what it dropped besides them."""
+    """Rewrites the tooltip tables inside the caller's transaction; returns what it dropped besides them. The
+    version row is declare_version's, once the templates are compressed too."""
     dropped = [name for (name,) in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ? COLLATE NOCASE "
         "AND tbl_name = 'TooltipButtons' COLLATE NOCASE", (REPLACED_INDEX,))]
@@ -392,10 +550,13 @@ def convert(conn) -> list:
     # Dropping Tooltips_old also drops its sqlite_sequence row: nothing hands out its ids any more.
     conn.execute("DROP TABLE TooltipButtons_old")
     conn.execute("DROP TABLE Tooltips_old")
+    return dropped
+
+
+def declare_version(conn) -> None:
     conn.execute("DELETE FROM DocumentationDatabaseVersion")
     conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
                  (TO_MAJOR, WHO, COMMENT))
-    return dropped
 
 
 def run(cfg: dict) -> int:
@@ -405,6 +566,7 @@ def run(cfg: dict) -> int:
         return 1
 
     conn = sqlite3.connect(db_path, isolation_level=None)
+    codec = None
     try:
         try:
             if schema_state(conn) == "new":
@@ -414,9 +576,26 @@ def run(cfg: dict) -> int:
                                   f"declares major {major}, so the app refuses this file; a step run after the "
                                   f"conversion rewrote the version row. Declare {TO_MAJOR}.0.0 by hand once you know "
                                   "it changed nothing else")
-                print(f"{db_path}: the tooltip tables are already in the new shape; nothing to do.")
+                codec = load_codec(conn)
+                stored = stored_templates(conn)
+                decoded = _parallel(lambda item: None if item[1] is None else codec.decompress(item[1]),
+                                    list(stored.values()))
+                plain = [name for (name, _data), text in zip(stored.values(), decoded) if text is None]
+                if plain:
+                    raise Refused(f"the tooltip tables are already in the new shape, but {human(len(plain))} of "
+                                  f"{human(len(stored))} template(s) do not decode against the dictionary "
+                                  f"({', '.join(plain[:5])}{', ...' if len(plain) > 5 else ''}), and {TO_MAJOR}.0.0 "
+                                  "stores every template compressed; a step run after the conversion wrote them")
+                print(f"{db_path}: the tooltip tables are already in the new shape and every template is "
+                      "compressed; nothing to do.")
                 return 0
             found = problems(conn)
+            try:
+                codec = load_codec(conn)
+                plain, template_problems = plain_templates(conn, codec)
+                found += template_problems
+            except Refused as exc:
+                found.append(str(exc))
         except Refused as exc:
             print(f"error: {exc}; nothing was changed", file=sys.stderr)
             return 1
@@ -429,8 +608,10 @@ def run(cfg: dict) -> int:
         counts = {name: conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
                   for name in ("Tooltips", "TooltipButtons")}
         distinct = conn.execute("SELECT COUNT(DISTINCT description), COUNT(DISTINCT uri) FROM TooltipButtons").fetchone()
+        text_bytes = sum(len(data) for _name, data in plain.values())
         print(f"Converting {human(counts['Tooltips'])} tooltip(s) and {human(counts['TooltipButtons'])} button(s); "
-              f"{human(distinct[0])} distinct description(s), {human(distinct[1])} distinct URI(s).")
+              f"{human(distinct[0])} distinct description(s), {human(distinct[1])} distinct URI(s); "
+              f"compressing {human(len(plain))} template(s), {human(text_bytes)} bytes of text.")
 
         if not cfg["dry_run"]:
             print(f"Backing up {db_path} ...")
@@ -439,8 +620,17 @@ def run(cfg: dict) -> int:
         conn.execute("BEGIN IMMEDIATE")
         try:
             before = snapshot(conn)
+            # The templates checked above are the ones compressed: none may have changed since.
+            if {i: d for i, (_n, d) in stored_templates(conn).items()} != {i: d for i, (_n, d) in plain.items()}:
+                raise Refused("the templates changed while this step ran")
             dropped = convert(conn)
-            differences = read_back(conn, before)
+            stored_bytes = compress_templates(conn, codec, plain)
+            declare_version(conn)
+            differences = read_back(conn, before) + templates_read_back(conn, codec, plain)
+        except Refused as exc:
+            conn.execute("ROLLBACK")
+            print(f"error: {exc}; rolled back, nothing was changed", file=sys.stderr)
+            return 1
         except BaseException:
             conn.execute("ROLLBACK")
             raise
@@ -448,10 +638,12 @@ def run(cfg: dict) -> int:
             conn.execute("ROLLBACK")
             for difference in differences[:20]:
                 print(f"error: {difference}", file=sys.stderr)
-            print(f"error: {human(len(differences))} difference(s) reading the tooltips back; rolled back, nothing "
-                  "was changed", file=sys.stderr)
+            print(f"error: {human(len(differences))} difference(s) reading the tooltips or templates back; rolled "
+                  "back, nothing was changed", file=sys.stderr)
             return 1
         print(f"Every tooltip and its buttons read back identically ({human(len(before['shown']))} tooltip(s)).")
+        print(f"Every template decodes back to its text ({human(len(plain))} template(s), {human(text_bytes)} -> "
+              f"{human(stored_bytes)} bytes).")
         for name in dropped:
             print(f"  dropped index {name}: TooltipButtons' new primary key is the same index")
         if cfg["dry_run"]:
@@ -459,10 +651,12 @@ def run(cfg: dict) -> int:
             print("Dry run: nothing written.")
             return 0
         conn.execute("COMMIT")
-    except sqlite3.Error as exc:
+    except (sqlite3.Error, RuntimeError) as exc:
         print(f"error: {exc}; nothing was changed", file=sys.stderr)
         return 1
     finally:
+        if codec is not None:
+            codec.close()
         conn.close()
 
     print("Vacuuming database...")
@@ -473,7 +667,9 @@ def run(cfg: dict) -> int:
         vac.close()
     print(f"\nDone. DocumentationDatabaseVersion {FROM_MAJOR}.x -> {TO_MAJOR}.0.0; "
           f"{human(size_before)} -> {human(db_path.stat().st_size)} bytes.")
-    print("Next: rebuild_database.py with --pack Content,TooltipTexts; it cannot pack the WITHOUT ROWID Tooltips.")
+    print("Next: re-mint the dictionary (remint_dictionary.py --seeds 4, which recompresses the templates too in "
+          f"{TO_MAJOR}.0.0), then rebuild_database.py with --pack Content,TooltipTexts; it cannot pack the "
+          "WITHOUT ROWID Tooltips.")
     return 0
 
 
@@ -481,7 +677,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database to convert in place, e.g. documentation.db")
     p.add_argument("--dry-run", action="store_true",
-                   help="Convert and check inside a transaction, then roll it back: nothing written or backed up")
+                   help="Convert, compress and check inside a transaction, then roll it back: nothing written or "
+                        "backed up")
     return p
 
 
