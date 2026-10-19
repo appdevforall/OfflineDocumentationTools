@@ -80,7 +80,16 @@ nothing.
 
 Only the data: URI of each re-encoded image changes (data:image/png;base64,...
 becomes data:image/webp;base64,...); the vector parts, attributes and text of
-the SVG stay byte for byte. Code On The Go's WebView draws a WebP inside an SVG
+the SVG stay byte for byte. An image is a data:image/png, image/jpeg or
+image/jpg URI with a base64 payload, as a quoted attribute value or inside a
+CSS url(...); its payload runs to that quote or parenthesis, so nothing after
+it is taken in. Left alone, without counting as a problem: any other type
+(image/gif, and image/webp, which is what this step writes), an upper-case
+type (data:image/PNG), a type with parameters (data:image/png;charset=...),
+a payload holding anything but base64 and whitespace (an entity such as
+&#10;), and a data: URI anywhere else, such as in text, where nothing draws
+it. A payload without its = padding is decoded as a browser decodes it; one a
+browser could not decode either stops the run. Code On The Go's WebView draws a WebP inside an SVG
 shown through <img> (checked on a Pixel 6 Pro, Chrome 155). compare_svg_renders.py
 renders each changed row before and after in headless Chrome for a visual check.
 
@@ -100,6 +109,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import io
 import math
@@ -115,9 +125,15 @@ from optimize_db_media import BrotliCodec, backup_database, human, is_continuati
 from update_media_references import replace_row
 
 SVG_TYPE = "image/svg+xml"
-# A raster image embedded as a data: URI. Base64 may be wrapped across lines; the payload ends at the last base64
-# character, so whitespace after it (inside the attribute) is not part of the match and stays as it was.
-RASTER_URI = re.compile(rb"data:image/(png|jpeg|jpg);base64,([A-Za-z0-9+/=]+(?:\s+[A-Za-z0-9+/=]+)*)")
+# A raster image embedded as a data: URI, as a quoted attribute value or a CSS url(...). Base64 may be wrapped across
+# lines; the payload must run to that delimiter (the opening quote again, or the closing parenthesis), and whitespace
+# before it is not part of the match and stays as it was. So nothing after a payload is ever taken in with it, and a
+# data: URI anywhere else - in text, where nothing draws it - is left alone.
+_PAYLOAD = rb"[A-Za-z0-9+/=]+(?:\s+[A-Za-z0-9+/=]+)*"
+_RASTER = rb"data:image/(?:png|jpeg|jpg);base64,"
+RASTER_URI = re.compile(rb'(?<=")' + _RASTER + rb"(?P<dq>" + _PAYLOAD + rb')(?=\s*")'
+                        rb"|(?<=')" + _RASTER + rb"(?P<sq>" + _PAYLOAD + rb")(?=\s*')"
+                        rb"|(?<=\()" + _RASTER + rb"(?P<pa>" + _PAYLOAD + rb")(?=\s*\))")
 WEBP_PREFIX = b"data:image/webp;base64,"
 LOSSY_QUALITY = 80
 PALETTE_COLOURS = 256
@@ -136,6 +152,24 @@ LEFT = "left: "
 
 class Refused(Exception):
     """Something this step cannot change safely; the run stops with nothing written."""
+
+
+def payload_of(match: re.Match) -> bytes:
+    return match.group("dq") or match.group("sq") or match.group("pa")
+
+
+def decode_payload(payload: bytes) -> bytes:
+    """The bytes a browser decodes from a data: URI's base64: whitespace dropped and padding optional, as forgiving
+    base64 has it. Refused for base64 a browser could not decode either."""
+    data = re.sub(rb"\s", b"", payload)
+    if len(data) % 4 == 0:
+        data = data[:-2] if data.endswith(b"==") else data[:-1] if data.endswith(b"=") else data
+    if len(data) % 4 == 1 or b"=" in data:
+        raise Refused("an embedded image's base64 is malformed")
+    try:
+        return base64.b64decode(data + b"=" * (-len(data) % 4), validate=True)
+    except binascii.Error as exc:
+        raise Refused(f"an embedded image's base64 is malformed ({exc})") from exc
 
 
 def visible_psnr(original: Image.Image, candidate: Image.Image) -> float:
@@ -238,7 +272,7 @@ def rewrite(svg: bytes, cache: dict) -> tuple:
     result, so identical images get identical bytes."""
     images, pieces, last = [], [], 0
     for m in RASTER_URI.finditer(svg):
-        raw = base64.b64decode(re.sub(rb"\s", b"", m.group(2)), validate=False)
+        raw = decode_payload(payload_of(m))
         key = hashlib.sha256(raw).hexdigest()
         if key not in cache:
             cache[key] = reencode(raw)
@@ -282,10 +316,15 @@ def run(cfg: dict) -> int:
         print(f"{len(decoded)} SVG row(s); {len(with_images)} embed raster images.")
 
         # Every distinct image is re-encoded once, in parallel; each row is then rewritten from the shared results.
-        cache, distinct = {}, {}
-        for _path, _blob, svg, *_ in with_images:
+        # Its own list, so an unreadable row can never reach the end of the run reported as an image problem.
+        cache, distinct, image_problems = {}, {}, []
+        for path, _blob, svg, *_ in with_images:
             for m in RASTER_URI.finditer(svg):
-                raw = base64.b64decode(re.sub(rb"\s", b"", m.group(2)), validate=False)
+                try:
+                    raw = decode_payload(payload_of(m))
+                except Refused as exc:
+                    image_problems.append(f"{path}: {exc}")
+                    continue
                 distinct.setdefault(hashlib.sha256(raw).hexdigest(), raw)
 
         def one(item):
@@ -295,8 +334,6 @@ def run(cfg: dict) -> int:
             except Refused as exc:
                 return key, None, str(exc)
 
-        # Its own list, so an unreadable row can never reach the end of the run reported as an image problem.
-        image_problems = []
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             for key, result, error in pool.map(one, distinct.items()):
                 if error:

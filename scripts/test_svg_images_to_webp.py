@@ -305,6 +305,34 @@ def test_an_image_in_a_pixel_format_webp_cannot_hold_is_left_as_it_is():
     assert _left_alone(jpeg(screenshot().convert("CMYK"))) == "pixel format CMYK"
 
 
+def test_a_data_uri_in_text_is_left_alone_and_takes_no_text_with_it():
+    raw = png(code_text())
+    raw += b"\0" * (-len(raw) % 3)  # trailing bytes after IEND, which decoders ignore: base64 with no padding
+    text = b"<desc>data:image/png;base64," + base64.b64encode(raw) + b" Fig1</desc>"
+    quoted = b'<desc>data:image/png;base64,' + base64.b64encode(raw) + b' "Fig 2"</desc>'  # a quote, but not its own
+    old = svg(uri(png(screenshot()))).replace(b"<defs>", text + quoted + b"<defs>", 1)
+    new, images = tool.rewrite(old, {})
+    assert text in new and quoted in new and len(images) == 1 and new.count(b"data:image/webp") == 1
+
+
+def test_an_image_in_css_or_single_quotes_is_rewritten_up_to_its_delimiter():
+    old = (b"<svg><style>.a{background:url(" + uri(png(screenshot())) + b")} .b{background:url("
+           + uri(png(brand())) + b"\n  )}</style><image href='" + uri(png(code_text()), wrap=60) + b"  '/></svg>")
+    new, images = tool.rewrite(old, {})
+    assert len(images) == 3 and new.count(b"data:image/webp") == 3
+    assert outside_uris(new) == outside_uris(old)
+
+
+def test_other_types_and_forms_are_left_alone():
+    raw = png(code_text())
+    payload = base64.b64encode(raw)
+    forms = [uri(raw, mime=b"gif"), uri(raw, mime=b"PNG"), uri(raw).replace(b"png;", b"png;charset=utf-8;", 1),
+             b"data:image/png;base64," + payload[:40] + b"&#10;" + payload[40:]]
+    old = svg(*forms)
+    new, images = tool.rewrite(old, {})
+    assert new == old and images == []
+
+
 def test_a_kept_image_keeps_its_text_exactly():
     tiny = Image.new("RGB", (1, 1), (5, 6, 7))
     raw = png(tiny, level=9)
@@ -436,6 +464,32 @@ def test_an_undecodable_image_stops_the_run(tmp_path: Path):
     db_path = _database(tmp_path, rows)
     before = db_path.read_bytes()
     assert tool.run(_cfg(db_path)) == 1
+    assert db_path.read_bytes() == before and not list(tmp_path.glob("*.backup-*"))
+
+
+def test_base64_without_padding_is_decoded_as_a_browser_decodes_it(tmp_path: Path):
+    raw = png(code_text())
+    raw += b"\0" * (1 if len(raw) % 3 == 0 else 0)  # so its base64 ends in padding, which is then dropped
+    unpadded = uri(raw).rstrip(b"=")
+    assert not unpadded.endswith(b"=") and len(unpadded) != len(uri(raw))
+    db_path = _database(tmp_path, {"i/unpadded.svg": svg(unpadded)})
+    assert tool.run(_cfg(db_path)) == 0
+    new = _read(db_path, "i/unpadded.svg")
+    assert b"data:image/png" not in new and [img.size for img in webp_images(new)] == [(370, 78)]
+
+
+def test_malformed_base64_stops_the_run_with_an_error_line(tmp_path: Path):
+    rows = _three_rows()
+    rows["a/bad.svg"] = svg(b"data:image/png;base64,QUJDR")  # 5 characters: no browser decodes it
+    rows["a/bad2.svg"] = svg(b"data:image/png;base64,QUJDRA=")  # padding on 7 characters: nor this
+    db_path = _database(tmp_path, rows)
+    before = db_path.read_bytes()
+    err = io.StringIO()
+    with redirect_stderr(err):
+        assert tool.run(_cfg(db_path)) == 1
+    assert "error: a/bad.svg: an embedded image's base64 is malformed" in err.getvalue()
+    assert "error: a/bad2.svg: an embedded image's base64 is malformed" in err.getvalue()
+    assert "Traceback" not in err.getvalue()
     assert db_path.read_bytes() == before and not list(tmp_path.glob("*.backup-*"))
 
 
