@@ -169,11 +169,15 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content
-  rows nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
+  `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content rows
+  nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
   placeholders - after checking that nothing kept refers to them, before or after the schema-3
-  migration, whose templates it decodes), `clear_repeated_tooltip_detail.py`
-  (empties a tooltip detail that repeats its summary). **Deprecated/dead** (target the
+  migration, whose templates it decodes), `clear_repeated_tooltip_detail.py` (empties a tooltip detail
+  that repeats its summary), `svg_images_to_webp.py` (ADFA-3305: re-encodes the raster images SVG rows
+  embed as data: URIs as WebP, image by image, by a quality rule; run on the shipped copy before the
+  final dictionary re-mint; `compare_svg_renders.py` renders each changed SVG before and after in
+  headless Chrome, through `<img>` and `<object>`, as its visual check).
+  **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
   `load_android_data.py`.
