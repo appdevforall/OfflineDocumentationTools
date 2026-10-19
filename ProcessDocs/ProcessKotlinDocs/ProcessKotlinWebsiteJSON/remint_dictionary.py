@@ -43,6 +43,13 @@ and keeps the one that stores smallest. Each candidate costs a full
 recompression pass (about 3.4 minutes each with 16 workers there); the winner's
 rows are kept from its pass, so writing costs none.
 
+The winner is written only if it stores less than the dictionary already in
+place, measured in the same pass (every row's size as read). Otherwise nothing
+is written and the current dictionary stays: a re-mint is not always smaller -
+one after a step that changed little stored 110,803 bytes more than the
+dictionary it replaced - and a second re-mint with the same seeds retrains the
+stored dictionary exactly, which is no gain either.
+
 Every row is proved to round-trip against the new dictionary before it is
 written. Afterwards, run verify_remint_dictionary.py against a copy of the
 original database: it re-reads every row through both dictionaries and requires
@@ -138,8 +145,10 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
            training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
            max_workers: int | None = None, seeds: int = 1) -> dict:
     """Re-mints in one transaction, with the best of `seeds` candidate
-    dictionaries (sample seeds seed, seed + 1, ...). Raises RuntimeError, having
-    written nothing, if any row fails to convert."""
+    dictionaries (sample seeds seed, seed + 1, ...), unless none of them stores
+    less than the current dictionary: then nothing is written, and the stats say
+    kept = "current". Raises RuntimeError, having written nothing, if any row
+    fails to convert."""
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     if row is None or not row[0]:
         raise RuntimeError("this database has no CompressionDictionary to re-mint; "
@@ -169,13 +178,22 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
             best = (candidate_seed, new_dictionary, total, converted)
 
     chosen_seed, new_dictionary, total, converted = best
+    # What the outgoing dictionary stores, from the same pass: every row's size as read.
+    current = sum(c[2] for c in converted)
+    stats = {"items": len(base_rows), "before": current, "candidates": candidates,
+             "best_candidate": (chosen_seed, total)}
+    if total >= current:
+        # No candidate beats the dictionary in place, so keep it and write nothing: a re-mint after a small
+        # content change once stored 110,803 bytes more than the dictionary it replaced.
+        return {**stats, "kept": "current", "after": current, "dictionary_bytes": len(old_dictionary),
+                "seed": None}
     conn.execute("BEGIN")
     for r, data, _before in converted:
         write_item(conn, r[0], r[1], r[2], r[3], data)
     conn.execute("UPDATE CompressionDictionary SET data = ? WHERE id = 1", (new_dictionary,))
     conn.commit()
-    return {"items": len(base_rows), "before": sum(c[2] for c in converted), "after": total,
-            "dictionary_bytes": len(new_dictionary), "seed": chosen_seed, "candidates": candidates}
+    return {**stats, "kept": "candidate", "after": total, "dictionary_bytes": len(new_dictionary),
+            "seed": chosen_seed}
 
 
 def main() -> None:
@@ -214,6 +232,13 @@ def main() -> None:
     finally:
         conn.close()
 
+    before, after = stats["before"], stats["after"]
+    if stats["kept"] == "current":
+        best_seed, best_total = stats["best_candidate"]
+        print(f"Kept the current dictionary: no candidate stores less than its {before:,} bytes (the best, "
+              f"sample seed {best_seed}, stores {best_total:,}). Nothing was written.")
+        return
+
     print("Vacuuming database to reclaim freed space...", file=sys.stderr)
     vacuum_conn = sqlite3.connect(args.db_path)
     try:
@@ -221,13 +246,9 @@ def main() -> None:
     finally:
         vacuum_conn.close()
 
-    before, after = stats["before"], stats["after"]
-    # A re-mint can store more than the dictionary it replaces (one after a small content change did), so say
-    # which way it went rather than printing a negative "smaller".
-    change = (f"{100 * (before - after) / before:.1f}% smaller" if after <= before
-              else f"{100 * (after - before) / before:.1f}% larger")
     print(f"Re-minted {stats['items']:,} item(s) against a {stats['dictionary_bytes']:,}-byte dictionary "
-          f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes ({change})")
+          f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes "
+          f"({100 * (before - after) / before:.1f}% smaller)")
     print("Now run verify_remint_dictionary.py <original> <this file> before putting it in place.")
 
 

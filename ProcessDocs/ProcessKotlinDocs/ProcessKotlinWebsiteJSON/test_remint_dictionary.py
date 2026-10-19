@@ -3,9 +3,12 @@
 
 Run directly: python3 test_remint_dictionary.py
 """
+import contextlib
+import io
 import random
 import shutil
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -146,6 +149,60 @@ class RemintDictionaryTest(unittest.TestCase):
         for path, plain in self.originals.items():
             self.assertEqual(self.plaintext(path), plain, f"{path} lost its content")
         self.assertEqual(verify(before, self.db_path), [])
+
+    def contents(self) -> dict:
+        return {path: content for path, content in self.conn.execute("SELECT path, content FROM Content")}
+
+    def test_keeps_the_current_dictionary_when_no_candidate_stores_less(self):
+        """Every candidate is noise, so each stores more than the dictionary in place: nothing may be written."""
+        before, rows = self.snapshot(), self.contents()
+        noise = random.Random(11)
+        with mock.patch.object(remint_dictionary, "train_dictionary",
+                               side_effect=lambda samples, size: noise.randbytes(size)):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
+
+        self.assertEqual(load_dictionary(self.conn), self.first_dictionary,
+                         "replaced by a candidate that stores more")
+        self.assertEqual(self.contents(), rows, "rows were rewritten")
+        self.assertEqual(verify(before, self.db_path), [])
+        self.assertEqual(stats["kept"], "current")
+        self.assertGreater(stats["best_candidate"][1], stats["before"])
+        self.assertEqual(stats["after"], stats["before"])
+
+    def test_a_second_remint_with_the_same_seeds_writes_nothing(self):
+        """The winning seed retrains the stored dictionary exactly, so it ties, and a tie is no gain."""
+        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+        dictionary, rows, changes = load_dictionary(self.conn), self.contents(), self.conn.total_changes
+        stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        # Rewriting identical bytes leaves the contents equal, so count the writes.
+        self.assertEqual(self.conn.total_changes, changes, "rows were rewritten for no gain")
+        self.assertEqual(load_dictionary(self.conn), dictionary)
+        self.assertEqual(self.contents(), rows)
+        self.assertEqual(stats["kept"], "current")
+        self.assertEqual(stats["best_candidate"][1], stats["before"])
+
+    def run_main(self, *args: str) -> str:
+        """main() on the fixture's file, with --no-backup; returns what it printed."""
+        self.conn.close()
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["remint_dictionary.py", str(self.db_path), "--no-backup",
+                                             "--sample-size", "30", "--dict-size", "16384",
+                                             "--training-bytes", str(1 << 20), *args]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            remint_dictionary.main()
+        self.conn = sqlite3.connect(self.db_path)
+        return out.getvalue()
+
+    def test_main_says_it_kept_the_dictionary_and_leaves_the_file_alone(self):
+        data = self.db_path.read_bytes()
+        noise = random.Random(12)
+        with mock.patch.object(remint_dictionary, "train_dictionary",
+                               side_effect=lambda samples, size: noise.randbytes(size)):
+            printed = self.run_main("--sample-seed", "999", "--seeds", "2")
+        self.assertIn("Kept the current dictionary", printed)
+        self.assertNotIn("Re-minted", printed)
+        self.assertEqual(self.db_path.read_bytes(), data, "the file changed although nothing was to be written")
 
     def test_verifier_catches_a_corrupted_remint(self):
         """Guards against a vacuous verifier: hand it a database whose content
