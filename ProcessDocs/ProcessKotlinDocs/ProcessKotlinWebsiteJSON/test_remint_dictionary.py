@@ -8,8 +8,10 @@ import gc
 import io
 import random
 import shutil
+import hashlib
 import string
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -37,6 +39,7 @@ TEMPLATES_SQL = """
 CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL, UNIQUE(name));
 """
 TEMPLATE_NAMES = ("layout.pebble", "page.peb", "nav.peb")
+HERE = Path(__file__).resolve().parent
 
 # The dictionary the fixture is first minted with. Small on purpose, so a 16 KiB re-mint beats it by hundreds of
 # bytes rather than a handful, whatever zstd and brotli version runs the tests.
@@ -92,6 +95,23 @@ class _RemintFixture(unittest.TestCase):
         with DictionaryCompressor(load_dictionary(self.conn)) as compressor:
             row = self.conn.execute("SELECT content FROM Content WHERE path = ?", (path,)).fetchone()
             return compressor.decompress(row[0])
+
+    def add_versions_and_templates(self, majors=(3,), compressed=True, version_table=True):
+        """Version rows oldest first, each with a later changeTime than the last, then TEMPLATE_NAMES'
+        templates, compressed against the current dictionary or stored as plain text."""
+        self.conn.executescript((VERSION_SQL if version_table else "") + TEMPLATES_SQL)
+        for month, major in enumerate(majors, start=1):
+            self.conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                              "VALUES (?, 0, 0, 'test', 'test', ?)", (major, f"2026-{month:02}-01 00:00:00"))
+        self.templates = {name: make_template(i) for i, name in enumerate(TEMPLATE_NAMES)}
+        with DictionaryCompressor(self.first_dictionary) as compressor:
+            for name, text in self.templates.items():
+                self.conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)",
+                                  (name, compressor.compress(text) if compressed else text))
+        self.conn.commit()
+
+    def stored_templates(self) -> dict:
+        return {name: bytes(content) for name, content in self.conn.execute("SELECT name, content FROM Templates")}
 
 
 class RemintDictionaryTest(_RemintFixture):
@@ -339,23 +359,6 @@ class RemintTemplatesTest(_RemintFixture):
     """From documentation version 3.0.0 on every Templates row is compressed against the shared dictionary,
     so a re-mint has to carry the templates across with the Content rows."""
 
-    def add_versions_and_templates(self, majors=(3,), compressed=True, version_table=True):
-        """Version rows oldest first, each with a later changeTime than the last, then TEMPLATE_NAMES'
-        templates, compressed against the current dictionary or stored as plain text."""
-        self.conn.executescript((VERSION_SQL if version_table else "") + TEMPLATES_SQL)
-        for month, major in enumerate(majors, start=1):
-            self.conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
-                              "VALUES (?, 0, 0, 'test', 'test', ?)", (major, f"2026-{month:02}-01 00:00:00"))
-        self.templates = {name: make_template(i) for i, name in enumerate(TEMPLATE_NAMES)}
-        with DictionaryCompressor(self.first_dictionary) as compressor:
-            for name, text in self.templates.items():
-                self.conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)",
-                                  (name, compressor.compress(text) if compressed else text))
-        self.conn.commit()
-
-    def stored_templates(self) -> dict:
-        return {name: bytes(content) for name, content in self.conn.execute("SELECT name, content FROM Templates")}
-
     def remint(self, **kwargs):
         return remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, **kwargs)
 
@@ -547,6 +550,110 @@ class RemintTemplatesTest(_RemintFixture):
         problems = dict(verify(before, self.db_path))
         self.assertEqual(sorted(problems), ["template extra.peb", "template layout.pebble", "template nav.peb",
                                             "template page.peb"])
+
+
+class CommandLineRefusalTest(_RemintFixture):
+    """A run that refuses writes nothing at all, the backup included, and says why on one "error:" line rather
+    than in a traceback."""
+
+    def setUp(self):
+        super().setUp()
+        # Its own directory, so a backup written beside the database would show.
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.conn.close()
+        moved = self.dir / "documentation.db"
+        shutil.move(self.db_path, moved)
+        self.db_path = moved
+        self.conn = sqlite3.connect(self.db_path)
+
+    def sha(self) -> str:
+        return hashlib.sha256(self.db_path.read_bytes()).hexdigest()
+
+    def run_script(self, script: str, *args: str) -> subprocess.CompletedProcess:
+        self.conn.commit()
+        return subprocess.run([sys.executable, str(HERE / script), *args], capture_output=True, text=True,
+                              cwd=HERE, check=False)
+
+    def run_remint(self) -> subprocess.CompletedProcess:
+        """The re-mint as a user runs it, backup on, at the fixture's sizes."""
+        return self.run_script("remint_dictionary.py", str(self.db_path), "--sample-size", "30", "--dict-size",
+                               "16384", "--training-bytes", str(1 << 20), "--seeds", "1")
+
+    def assertRefusedWithNothingWritten(self, result, sha: str, says: str):
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        last = result.stderr.rstrip("\n").splitlines()[-1]
+        self.assertTrue(last.startswith("error: ") and says in last, result.stderr)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["documentation.db"], "a backup was written")
+        self.assertEqual(self.sha(), sha)
+
+    def test_a_template_that_does_not_decode_refuses_with_no_backup(self):
+        self.add_versions_and_templates()
+        self.conn.execute("UPDATE Templates SET content = ? WHERE name = 'page.peb'", (b"plain text, not brotli",))
+        self.conn.commit()
+        sha = self.sha()
+        self.assertRefusedWithNothingWritten(self.run_remint(), sha, "page.peb")
+
+    def test_a_content_path_in_the_templates_doc_set_refuses_with_no_backup(self):
+        self.add_versions_and_templates()
+        with DictionaryCompressor(self.first_dictionary) as compressor:
+            self.conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                              "VALUES (?, 1, ?, ?, 0)",
+                              ("(templates)/page.peb", compressor.compress(b"a page"), self.html_type_id))
+        self.conn.commit()
+        sha = self.sha()
+        self.assertRefusedWithNothingWritten(self.run_remint(), sha, "(templates)/page.peb")
+
+    def test_no_dictionary_refuses_with_no_backup(self):
+        self.conn.execute("DELETE FROM CompressionDictionary")
+        self.conn.commit()
+        sha = self.sha()
+        self.assertRefusedWithNothingWritten(self.run_remint(), sha, "no CompressionDictionary")
+
+    def test_a_row_that_fails_to_convert_refuses_with_no_backup(self):
+        """Found only by a full recompression pass, after training: the backup still waits for the write."""
+        self.conn.execute(
+            "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, 1, ?, ?, 0)",
+            ("a/broken.html", b"not brotli at all", self.html_type_id))
+        self.conn.commit()
+        sha = self.sha()
+        result = self.run_remint()
+        self.assertRefusedWithNothingWritten(result, sha, "failed to convert")
+        self.assertIn("error: a/broken.html:", result.stderr)
+
+    def test_keeping_the_dictionary_in_place_writes_no_backup(self):
+        """The migration's own sample and size retrain the stored dictionary, a tie: nothing is written."""
+        sha = self.sha()
+        result = self.run_script("remint_dictionary.py", str(self.db_path), "--sample-size", "30", "--dict-size",
+                                 str(MIGRATE_DICT_SIZE), "--training-bytes", str(1 << 20), "--seeds", "1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Kept the current dictionary", result.stdout)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["documentation.db"], "a backup was written")
+        self.assertEqual(self.sha(), sha)
+
+    def test_a_remint_that_writes_backs_up_first(self):
+        """The other side of the rule: a run that writes leaves a backup holding the database as it was."""
+        sha = self.sha()
+        result = self.run_script("remint_dictionary.py", str(self.db_path), "--sample-size", "30", "--dict-size",
+                                 "16384", "--training-bytes", str(1 << 20), "--seeds", "1", "--sample-seed", "999")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        backups = [p for p in self.dir.iterdir() if p.name.startswith("documentation.db.backup-")]
+        self.assertEqual(len(backups), 1, result.stderr)
+        self.assertNotEqual(self.sha(), sha)
+        self.assertEqual(verify(backups[0], self.db_path), [])
+
+    def test_the_verifier_reports_a_database_with_no_dictionary_on_an_error_line(self):
+        original = self.dir / "original.db"
+        shutil.copy2(self.db_path, original)
+        self.conn.execute("DELETE FROM CompressionDictionary")
+        self.conn.commit()
+        result = self.run_script("verify_remint_dictionary.py", str(original), str(self.db_path))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertTrue(result.stderr.startswith("error: ") and "no CompressionDictionary row" in result.stderr,
+                        result.stderr)
+        self.assertNotIn("Byte-identical", result.stdout)
 
 
 if __name__ == "__main__":

@@ -77,7 +77,10 @@ four seeds stored the templates in 811,168 to 821,710 bytes, beside 47.8 to
 48.2 MB of Content.
 
 Every row is proved to round-trip against the new dictionary before it is
-written. Afterwards, run verify_remint_dictionary.py against a copy of the
+written. The backup (VACUUM INTO, unless --no-backup) is taken only then, just
+before the write: a run that refuses, or keeps the dictionary in place, writes
+nothing at all, backup included, and says why on an "error:" line. Afterwards,
+run verify_remint_dictionary.py against a copy of the
 original database: it re-reads every row through both dictionaries and requires
 the plaintexts to match. That check is not paranoia -- a row recompressed
 against a mismatched dictionary decodes without error into *different* bytes
@@ -252,7 +255,7 @@ def convert_all(conn, base_rows: list, old_dictionary: bytes, new_dictionary: by
 
 def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAULT_DICT_SIZE,
            training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
-           max_workers: int | None = None, seeds: int = 1) -> dict:
+           max_workers: int | None = None, seeds: int = 1, before_write=None) -> dict:
     """Re-mints in one transaction, with the best of `seeds` candidate
     dictionaries (sample seeds seed, seed + 1, ...), unless none of them stores
     less than the current dictionary: then nothing is written, and the stats say
@@ -260,7 +263,9 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
     template fails to convert. In a database whose templates are compressed (see
     TEMPLATES_COMPRESSED_FROM_MAJOR) they are sampled, recompressed and counted
     with the Content rows, in each candidate's total and the current dictionary's
-    alike."""
+    alike. `before_write` is called once every check has passed, just before the
+    write, and not at all when nothing is to be written: main() takes its backup
+    there."""
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     if row is None or not row[0]:
         raise RuntimeError("this database has no CompressionDictionary to re-mint; "
@@ -324,6 +329,8 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
         # content change once stored 110,803 bytes more than the dictionary it replaced.
         return {**stats, "kept": "current", "after": current, "dictionary_bytes": len(old_dictionary),
                 "seed": None}
+    if before_write is not None:
+        before_write()
     conn.execute("BEGIN")
     for r, data, _before in converted:
         write_item(conn, r[0], r[1], r[2], r[3], data)
@@ -354,20 +361,25 @@ def main() -> None:
                         help=f"new dictionary size in bytes (default: {DEFAULT_DICT_SIZE})")
     parser.add_argument("--max-workers", type=int, default=None, help="worker threads for recompression")
     parser.add_argument("--no-backup", action="store_true",
-                        help="skip the VACUUM INTO backup (for a copy you already treat as disposable)")
+                        help="skip the VACUUM INTO backup, otherwise taken just before the write (for a copy you "
+                             "already treat as disposable)")
     args = parser.parse_args()
 
     if not args.db_path.is_file():
         sys.exit(f"error: {args.db_path} does not exist")
 
-    if not args.no_backup:
+    def backup():
         print(f"Backing up {args.db_path}...", file=sys.stderr)
         print(f"Backup written to {backup_database(args.db_path)}", file=sys.stderr)
 
     conn = sqlite3.connect(args.db_path)
     try:
         stats = remint(conn, args.sample_size, args.dict_size, args.training_bytes,
-                       args.sample_seed, args.max_workers, args.seeds)
+                       args.sample_seed, args.max_workers, args.seeds,
+                       before_write=None if args.no_backup else backup)
+    except RuntimeError as exc:
+        # Every refusal is raised before the write, so before the backup too: one line, not a traceback.
+        sys.exit(f"error: {exc}")
     finally:
         conn.close()
 

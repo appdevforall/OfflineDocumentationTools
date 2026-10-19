@@ -29,7 +29,8 @@ the time (50% raises, 12% is identical because the perturbed region was never
 referenced). Nothing at runtime detects that, so it has to be caught here,
 against the original, before the file is put in place.
 
-Reads only: neither database is modified.
+Reads only: neither database is modified. A database it cannot check (no
+CompressionDictionary row) is reported on an "error:" line, exit 1.
 """
 import argparse
 import sys
@@ -124,12 +125,25 @@ def verify_templates(old_conn, new_conn, old_dictionary: bytes, new_dictionary: 
     return bad
 
 
+def dictionary_of(conn, path: Path) -> bytes:
+    """The CompressionDictionary row a database's rows are compressed against. Raises RuntimeError without one."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'"
+                    ).fetchone() is None:
+        raise RuntimeError(f"{path} has no CompressionDictionary table, so there is nothing to verify against")
+    row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+    if row is None or not row[0]:
+        raise RuntimeError(f"{path} has no CompressionDictionary row, so there is nothing to verify against")
+    return row[0]
+
+
 def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
+    """Every item and template that differs, as (label, problem). Raises RuntimeError for a database it cannot
+    check."""
     import sqlite3
     old_conn = sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)
     new_conn = sqlite3.connect(f"file:{new_db}?mode=ro", uri=True)
-    old_dictionary = old_conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()[0]
-    new_dictionary = new_conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()[0]
+    old_dictionary = dictionary_of(old_conn, old_db)
+    new_dictionary = dictionary_of(new_conn, new_db)
     if old_dictionary == new_dictionary:
         print("warning: both databases carry the same dictionary; nothing was re-minted", file=sys.stderr)
 
@@ -161,7 +175,10 @@ def main() -> None:
         if not path.is_file():
             sys.exit(f"error: {path} does not exist")
 
-    bad = verify(args.original_db, args.reminted_db, args.max_workers)
+    try:
+        bad = verify(args.original_db, args.reminted_db, args.max_workers)
+    except RuntimeError as exc:
+        sys.exit(f"error: {exc}")
     for path, problem in bad[:20]:
         print(f"MISMATCH {path}: {problem}", file=sys.stderr)
     if len(bad) > 20:
