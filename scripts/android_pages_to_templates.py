@@ -77,11 +77,16 @@ version 3 or later, a missing renderer, an a/ row that cannot be read, or
 templates already present.
 
 Pipeline position: on the ship-time copy, never on the master database the
-other tools edit. After the steps that write a/ pages (minify_text.py,
-drop_unread_rows.py) and trim_kotlin_json.py; before the 3.0.0 migration
+other tools edit. After minify_text.py (which writes a/ pages),
+drop_unread_rows.py and trim_kotlin_json.py; before the 3.0.0 migration
 (migrate_tooltip_schema.py, which compresses the templates) and the final
 dictionary re-mint (remint_dictionary.py, which re-mints templates too), then
-packing (PR #38's rebuild_database.py).
+packing (PR #38's rebuild_database.py). Coming after drop_unread_rows.py is an
+exception to that step's rule (PR #46) that it runs after every step writing
+page content. It is safe because this step adds no link: every page it
+converts renders back byte for byte, so it links to exactly what
+drop_unread_rows.py already checked in it as HTML. (drop_unread_rows.py reads
+templates and templated rows' JSON too, so it could also run after this step.)
 
 Measured on the 2026-10-18 schema-3 test database (98,201,600 bytes), against
 the same database with only its templates compressed; both re-minted with 4

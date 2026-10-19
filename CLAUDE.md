@@ -191,11 +191,15 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   inherited-member block header (`android-inherited-<n>.peb`), after rendering every page back
   byte for byte with the app's engine (`scripts/hm_render_check/`, as above); a page that does not
   render back, or is over the app's render limit, stays HTML (ADFA-3305). Run it on the ship-time
-  copy only, never on the master: after the steps that write `a/` pages and the Kotlin trim,
-  before the 3.0.0 migration (which compresses every template; the app reads compressed templates
-  from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final dictionary re-mint.
+  copy only, never on the master: after the steps that write `a/` pages, `drop_unread_rows.py` and
+  the Kotlin trim, before the 3.0.0 migration (which compresses every template; the app reads
+  compressed templates from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final
+  dictionary re-mint.
   It refuses a database that already holds its templates, or that declares documentation version 3
   or later (whose templates are compressed, so its plain ones would not render).
+  Following `drop_unread_rows.py` is an exception to that step's "after every page-writing step"
+  rule, and safe: every converted page renders back byte for byte, so it links to nothing the row
+  drops did not already check.
   ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` (run on the master
   by `build-android-docs.yaml`, by hand only, never run so far) converts the same `a/android/` and
   `a/androidx/` pages its own way; this step leaves rows already in another template alone, so after
