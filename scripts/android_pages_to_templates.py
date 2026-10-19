@@ -53,13 +53,18 @@ Templates are written as plain UTF-8. On the ship-time copy the 3.0.0
 migration then compresses every template against the shared dictionary,
 which the app reads in documentation schema 3.0.0 (CodeOnTheGo, stacked on
 #2163); today's app reads templates as plain text, so a database from this
-step needs that app.
+step needs that app. For the same reason the step refuses a database that
+already declares documentation version 3 or later (its newest
+DocumentationDatabaseVersion row, ordered as the app orders them: changeTime,
+then rowid): its plain templates would sit among compressed ones, and the app
+would fail every converted page.
 
 Runs in one transaction, backs the database up first and VACUUMs afterwards.
 --dry-run does everything, the render check included, and writes nothing.
 The step does not run twice: on a database that already holds its templates
-it refuses. Exit 1 always means nothing was written: a missing renderer, an
-a/ row that cannot be read, or templates already present.
+it refuses. Exit 1 always means nothing was written: a database declaring
+version 3 or later, a missing renderer, an a/ row that cannot be read, or
+templates already present.
 
 Pipeline position: on the ship-time copy, never on the master database the
 other tools edit. After the steps that write a/ pages (minify_text.py,
@@ -112,6 +117,10 @@ INCLUDE_SUFFIX = ".peb"
 
 # A head or footer variant becomes a template shape only when this many pages share it exactly.
 MIN_SHARED_PAGES = 5
+
+# From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
+# against the dictionary, and the app decodes every one: the plain templates this step writes would not render.
+COMPRESSED_TEMPLATES_MAJOR = 3
 
 # Hole marker inside SHAPES text: H + name + H. Pages holding a NUL are not converted, so it never collides.
 H = "\x00"
@@ -469,6 +478,11 @@ def run(cfg: dict) -> int:
     harness = cfg.get("renderer")
     own_harness = False
     try:
+        # First, so a refusal needs no renderer and writes nothing, in a dry run too.
+        refusal = compressed_templates_refusal(conn)
+        if refusal:
+            print(f"error: {refusal}. Nothing written.", file=sys.stderr)
+            return 1
         taken = [name for (name,) in conn.execute("SELECT name FROM Templates")
                  if name == MAIN_TEMPLATE or name.startswith(INCLUDE_PREFIX)]
         if taken:
@@ -630,6 +644,26 @@ def run(cfg: dict) -> int:
         vac.close()
     print("Next: the 3.0.0 migration (compresses the templates), the dictionary re-mint, then packing.")
     return 0
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major the database declares - its newest DocumentationDatabaseVersion row, ordered as
+    Code On The Go orders them (changeTime, then rowid) - or None if it declares none."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'DocumentationDatabaseVersion'").fetchone():
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
+
+
+def compressed_templates_refusal(conn) -> str | None:
+    """Why this step may not write its plain templates into the database, or None."""
+    major = declared_major(conn)
+    if major is None or major < COMPRESSED_TEMPLATES_MAJOR:
+        return None
+    return (f"the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 every "
+            "template is stored compressed, and this step writes plain ones. Run it before migrate_tooltip_schema.py")
 
 
 def build_parser() -> argparse.ArgumentParser:

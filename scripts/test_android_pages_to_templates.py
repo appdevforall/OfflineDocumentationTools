@@ -680,6 +680,60 @@ def test_a_missing_database_refuses(tmp_path):
     assert not (tmp_path / "absent.db").exists()
 
 
+def add_versions(db: Path, versions: list) -> None:
+    """DocumentationDatabaseVersion rows, inserted in the order given: (major, changeTime) each."""
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (major INT NOT NULL, minor INT NOT NULL, "
+                 "patch INT NOT NULL, who TEXT NOT NULL, comment TEXT NOT NULL, "
+                 "changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    conn.executemany("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                     "VALUES (?, 0, 0, 'test', 'test', ?)", versions)
+    conn.commit()
+    conn.close()
+
+
+def test_a_database_declaring_version_3_refuses_and_writes_nothing(tmp_path):
+    """Its templates are compressed, and this step writes plain ones the app could not decode."""
+    db = make_db(tmp_path / "doc.db")
+    add_versions(db, [(2, "2026-08-20 22:52:54"), (3, "2026-10-19 07:09:52")])
+    digest = sha(db)
+    for dry_run in (False, True):
+        code, out, err = run_tool(db, dry_run=dry_run, renderer=None)
+        assert code == 1, (dry_run, out, err)
+        assert "error: the database declares documentation version 3" in err and "Nothing written." in err
+        assert "Found" not in out
+        assert sha(db) == digest and [p.name for p in tmp_path.iterdir()] == ["doc.db"]
+
+
+def test_the_newest_version_row_is_read_by_change_time_then_rowid(tmp_path):
+    """Ordered as the app orders them: a later changeTime wins over a later rowid, and a tie goes to the
+    later rowid. Rowid alone, changeTime alone, or a tie broken by the earlier rowid each reads another row."""
+    cases = [
+        ([(3, "2026-10-19 07:00:00"), (2, "2026-08-20 00:00:00")], 1),  # the older row is the newer change
+        ([(2, "2026-10-19 07:00:00"), (3, "2026-08-20 00:00:00")], 0),
+        ([(2, "2026-10-19 07:00:00"), (3, "2026-10-19 07:00:00")], 1),  # a tie: the later rowid
+        ([(3, "2026-10-19 07:00:00"), (2, "2026-10-19 07:00:00")], 0),
+    ]
+    for i, (versions, expected) in enumerate(cases):
+        db = make_db(tmp_path / f"doc{i}.db")
+        add_versions(db, versions)
+        code, out, err = run_tool(db, dry_run=True)
+        assert code == expected, (versions, out, err)
+        assert ("Would convert 12 of 12" in out) == (expected == 0), (versions, out, err)
+
+
+def test_a_database_declaring_version_2_or_none_still_converts(tmp_path):
+    """No version table, an empty one, and version 2 all hold plain templates."""
+    for name, versions in (("none", None), ("empty", []), ("two", [(2, "2026-08-20 22:52:54")])):
+        db = make_db(tmp_path / f"{name}.db")
+        if versions is not None:
+            add_versions(db, versions)
+        code, out, err = run_tool(db)
+        assert code == 0, (name, err)
+        assert "Converting 12 of 12" in out, (name, out)
+        assert apt.MAIN_TEMPLATE in templates(db), name
+
+
 def test_a_chunked_page_is_read_whole_and_its_json_written_in_chunks(tmp_path):
     saved = optimize_db_media.CHUNK_SIZE, update_media_references.CHUNK_SIZE
     optimize_db_media.CHUNK_SIZE = update_media_references.CHUNK_SIZE = 64

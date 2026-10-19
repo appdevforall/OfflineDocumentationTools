@@ -194,7 +194,8 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   copy only, never on the master: after the steps that write `a/` pages and the Kotlin trim,
   before the 3.0.0 migration (which compresses every template; the app reads compressed templates
   from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final dictionary re-mint.
-  It refuses a database that already holds its templates.
+  It refuses a database that already holds its templates, or that declares documentation version 3
+  or later (whose templates are compressed, so its plain ones would not render).
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
