@@ -107,6 +107,13 @@ a placeholder. Note this repo does now write to `Templates`: `populate_db.py` up
 and `nav.peb` there (and points every page it inserts at them via `templateId`), so the table is
 no longer read-only from this side.
 
+In a database whose newest `DocumentationDatabaseVersion` row declares major 3 or later, every
+`Templates` row is stored Brotli-compressed against the shared dictionary, with no per-row marker
+(ADFA-3305). Only the ship-time copy is converted; the master database the tools here edit keeps
+plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
+the app does: from major 3 on they sample, recompress and verify the templates together with the
+`Content` rows, and below it they leave the templates exactly as stored.
+
 **Nothing that currently builds or writes to the database in this repository knows about any of
 that — and that's expected.** `Templates`/`Bookshelf`/`BookCategories` are populated by a separate
 plugin system, not by anything in this repo: App Dev For All supports plugins that write into the
