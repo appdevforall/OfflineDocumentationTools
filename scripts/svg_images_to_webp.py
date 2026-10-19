@@ -295,16 +295,18 @@ def run(cfg: dict) -> int:
             except Refused as exc:
                 return key, None, str(exc)
 
+        # Its own list, so an unreadable row can never reach the end of the run reported as an image problem.
+        image_problems = []
         with ThreadPoolExecutor(max_workers=cfg["workers"]) as pool:
             for key, result, error in pool.map(one, distinct.items()):
                 if error:
-                    problems.append(error)
+                    image_problems.append(error)
                 else:
                     cache[key] = result
-        if problems:
-            for p in sorted(set(problems)):
+        if image_problems:
+            for p in sorted(set(image_problems)):
                 print(f"  error: {p}", file=sys.stderr)
-            print(f"error: {len(problems)} embedded image(s) cannot be re-encoded safely; nothing was written",
+            print(f"error: {len(image_problems)} embedded image(s) cannot be re-encoded safely; nothing was written",
                   file=sys.stderr)
             return 1
 

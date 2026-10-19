@@ -33,7 +33,7 @@ import sys
 import tempfile
 import traceback
 import zlib
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import brotli
@@ -105,11 +105,11 @@ def gamma(value: int) -> bytes:
     return struct.pack(">I", value)
 
 
-def uri(raw: bytes, wrap: int = 0) -> bytes:
+def uri(raw: bytes, wrap: int = 0, mime: bytes = b"png") -> bytes:
     data = base64.b64encode(raw)
     if wrap:
         data = b"\n".join(data[i:i + wrap] for i in range(0, len(data), wrap))
-    return b"data:image/png;base64," + data
+    return b"data:image/" + mime + b";base64," + data
 
 
 def svg(*uris: bytes) -> bytes:
@@ -171,6 +171,39 @@ def test_quality_is_judged_on_a_dark_page_too():
     original = Image.new("RGBA", (8, 8), (255, 255, 255, 200))
     candidate = Image.new("RGBA", (8, 8), (255, 255, 255, 100))
     assert tool.visible_psnr(original, candidate) < 20
+
+
+def test_quality_is_judged_on_a_light_page_too():
+    # Black pixels at two different opacities look the same on a black page and differ on a white one.
+    original = Image.new("RGBA", (8, 8), (0, 0, 0, 200))
+    candidate = Image.new("RGBA", (8, 8), (0, 0, 0, 100))
+    assert tool.visible_psnr(original, candidate) < 20
+
+
+def test_visible_psnr_on_known_errors():
+    grey = Image.new("RGB", (8, 8), (100, 100, 100))
+    # An error of 1 in every channel is an MSE of 1: 10 log10(255^2) = 48.13 dB.
+    assert abs(tool.visible_psnr(grey, Image.new("RGB", (8, 8), (101, 101, 101))) - 48.13) < 0.01
+    # In one channel of three, an MSE of 1/3: 4.77 dB more.
+    assert abs(tool.visible_psnr(grey, Image.new("RGB", (8, 8), (101, 100, 100))) - 52.90) < 0.01
+
+
+def test_the_candidates_use_the_settings_the_docstring_gives():
+    # Pinned byte for byte: the 35 dB rule alone would let a lower quality or fewer colours through for as long as the
+    # images stayed above it, and this rule was measured at these settings. (The dither argument needs no pin: Pillow's
+    # quantize() ignores it unless it is given a palette.)
+    img = screenshot()
+
+    def encoded(image: Image.Image, **params) -> bytes:
+        buf = io.BytesIO()
+        image.save(buf, "WEBP", method=6, **params)
+        return buf.getvalue()
+
+    got = {kind: data for kind, data, _quality in tool.candidates(img)}
+    assert got["lossy"] == encoded(img, quality=80)
+    assert got["lossless"] == encoded(img, lossless=True, exact=True, quality=100)
+    palette = img.quantize(256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
+    assert got["palette"] == encoded(palette, lossless=True, exact=True, quality=100)
 
 
 def test_a_lossless_candidate_that_changes_pixels_is_refused():
@@ -413,8 +446,35 @@ def test_an_unreadable_row_stops_the_run(tmp_path: Path):
     conn.commit()
     conn.close()
     before = db_path.read_bytes()
-    assert tool.run(_cfg(db_path)) == 1
+    err = io.StringIO()
+    with redirect_stderr(err):
+        assert tool.run(_cfg(db_path)) == 1
+    assert "error: a/vector.svg: cannot be read" in err.getvalue()
+    assert "error: 1 SVG row(s) cannot be read; nothing was written" in err.getvalue()
+    assert "embedded image" not in err.getvalue()
     assert db_path.read_bytes() == before and not list(tmp_path.glob("*.backup-*"))
+
+
+def test_a_run_whose_images_are_all_kept_writes_nothing(tmp_path: Path):
+    db_path = _database(tmp_path, _three_rows())
+    before = db_path.read_bytes()
+    real = tool.choose
+    tool.choose = lambda stored, options: None
+    try:
+        assert tool.run(_cfg(db_path)) == 0
+    finally:
+        tool.choose = real
+    assert db_path.read_bytes() == before and not list(tmp_path.glob("*.backup-*"))
+
+
+def test_jpeg_images_are_re_encoded_too(tmp_path: Path):
+    photo = jpeg(screenshot())
+    rows = {"a/photo.svg": svg(uri(photo, mime=b"jpeg"), uri(photo, mime=b"jpg"))}
+    db_path = _database(tmp_path, rows)
+    assert tool.run(_cfg(db_path)) == 0
+    new = _read(db_path, "a/photo.svg")
+    assert b"data:image/jp" not in new and [img.size for img in webp_images(new)] == [(480, 360)] * 2
+    assert outside_uris(new) == outside_uris(rows["a/photo.svg"])
 
 
 def test_a_chunked_row_is_rewritten_into_one_row(tmp_path: Path):
@@ -431,6 +491,25 @@ def test_a_chunked_row_is_rewritten_into_one_row(tmp_path: Path):
     conn.close()
     new = _read(db_path, "a/big.svg")
     assert outside_uris(new) == outside_uris(data) and webp_images(new)[0].size == (1100, 900)
+
+
+def test_a_chunked_dictionary_compressed_row_is_read_as_one_svg(tmp_path: Path):
+    # Its continuation rows are fragments of one Brotli stream: read as SVGs of their own they do not decode, so the
+    # run must take them only through their base row. (An uncompressed fragment, as above, decodes either way.)
+    if shutil.which("brotli") is None:
+        print("  (skipped: no brotli CLI)")
+        return
+    dictionary = (b'<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" xlink:href="data:image/') * 40
+    random.seed(11)
+    filler = base64.b64encode(random.randbytes(1_300_000))  # about 1.3 MB however it is compressed
+    data = svg(uri(png(screenshot()))).replace(b"<defs>", b"<!-- " + filler + b" --><defs>", 1)
+    db_path = _database(tmp_path, {"a/big.svg": data}, dictionary=dictionary)
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("SELECT count(*) FROM Content WHERE path LIKE 'a/big.svg-%'").fetchone()[0] >= 1
+    conn.close()
+    assert tool.run(_cfg(db_path)) == 0
+    new = _read(db_path, "a/big.svg", dictionary)
+    assert outside_uris(new) == outside_uris(data) and [img.size for img in webp_images(new)] == [(480, 360)]
 
 
 def test_rows_are_compressed_with_the_databases_dictionary(tmp_path: Path):
