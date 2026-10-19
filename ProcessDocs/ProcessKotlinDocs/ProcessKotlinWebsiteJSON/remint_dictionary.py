@@ -222,9 +222,12 @@ def main() -> None:
         vacuum_conn.close()
 
     before, after = stats["before"], stats["after"]
+    # A re-mint can store more than the dictionary it replaces (one after a small content change did), so say
+    # which way it went rather than printing a negative "smaller".
+    change = (f"{100 * (before - after) / before:.1f}% smaller" if after <= before
+              else f"{100 * (after - before) / before:.1f}% larger")
     print(f"Re-minted {stats['items']:,} item(s) against a {stats['dictionary_bytes']:,}-byte dictionary "
-          f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes "
-          f"({100 * (before - after) / before:.1f}% smaller)")
+          f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes ({change})")
     print("Now run verify_remint_dictionary.py <original> <this file> before putting it in place.")
 
 
