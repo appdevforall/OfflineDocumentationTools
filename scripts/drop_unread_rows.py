@@ -84,7 +84,11 @@ about 0.2 MB, so the last figure is within that. javadoc-index-all, measured
 on the 2026-10-19 ship-time build (every ADFA-3305 step, 90,783,744 bytes),
 against the same build repacked, both with --pack Content,TooltipTexts:
 1,241,088 and 1,250,482, with 5,224 links in 5,222 javadoc pages pointed at
-the split index.
+the split index. duplicate-media and unlinked, measured the same way on the
+2026-10-19 item-B build (85,708,800 bytes): 892,928 and 165,045 (53 copies,
+98 links in 13 rows pointed at the kept ones), and 94,208 and 86,465 (31
+rows); both together 983,040 and 259,386. The download compressor already
+finds most of a copy's bytes, which is why its file saving is the larger.
 
 Before deleting anything the step checks, and refuses with the list and exit 1
 when any check fails, writing nothing:
