@@ -862,6 +862,23 @@ def test_refuses_a_converted_database_when_the_brotli_cli_fails(tmp_path):
     assert _sha(db) == sha and _backups(db) == []
 
 
+def test_refuses_a_brotli_cli_that_decodes_to_other_bytes(tmp_path):
+    # It exits 0 but decodes everything to the same bytes, so every template would look compressed already.
+    db = _database(tmp_path)
+    sha = _sha(db)
+    stub = _failing_brotli(tmp_path, "data = sys.stdin.buffer.read()\n"
+                                     "if '-d' in sys.argv:\n"
+                                     "    sys.stdout.buffer.write(b'<p>other</p>')\n"
+                                     "    sys.exit(0)\n"
+                                     "sys.stdout.buffer.write(subprocess.run([REAL, *sys.argv[1:]], input=data, "
+                                     "stdout=subprocess.PIPE, check=True).stdout)\n")
+    with _patched_attr(shutil, "which", lambda _name: stub):
+        code, _out, err = _run(db)
+    assert code == 1 and "could not compress and decode a test text against the dictionary: it decoded to other " \
+                         "bytes" in err, err
+    assert "already decode" not in err and _sha(db) == sha and _backups(db) == []
+
+
 def test_reports_the_cli_error_when_a_template_fails_to_compress(tmp_path):
     # The CLI passes its probe, then fails on one template, as an out-of-memory CLI would.
     db = _database(tmp_path)
@@ -993,6 +1010,15 @@ def test_compresses_with_a_24_bit_window(tmp_path):
     assert _run(db)[0] == 0
     # RFC 7932 9.1, least significant bit first: 1, then 111 (17 + 7 = 24 bits).
     assert all(stored[0] & 0x0F == 0x0F for stored, _text in _templates(db).values())
+
+
+def test_compresses_as_the_pipeline_does(tmp_path):
+    # Byte for byte what DictionaryCompressor's `brotli -D <dictionary> -c` writes: default quality, and on stdin the
+    # CLI's default window is the explicit -w 24.
+    db = _database(tmp_path)
+    assert _run(db)[0] == 0
+    for name, (stored, _text) in _templates(db).items():
+        assert stored == _brotli(DICTIONARY, _plain(dict(TEMPLATES)[name])), name
 
 
 def test_rolls_back_a_compression_to_a_large_window(tmp_path):
