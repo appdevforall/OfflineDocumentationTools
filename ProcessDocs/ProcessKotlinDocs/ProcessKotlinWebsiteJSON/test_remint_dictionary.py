@@ -4,6 +4,7 @@
 Run directly: python3 test_remint_dictionary.py
 """
 import contextlib
+import gc
 import io
 import random
 import shutil
@@ -11,6 +12,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+import weakref
 from pathlib import Path
 from unittest import mock
 
@@ -197,6 +199,47 @@ class RemintDictionaryTest(unittest.TestCase):
         self.assertLess(stored_after, stored_before)
         self.assertIn(f"{stored_before:,} -> {stored_after:,} bytes "
                       f"({100 * (stored_before - stored_after) / stored_before:.1f}% smaller)", printed)
+
+    def test_each_pass_removes_its_temporary_dictionaries(self):
+        """Every worker's compressors write their dictionary to a temp directory; a pass must remove them when it
+        ends, not leave them to the process's exit."""
+        private = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, private, True)
+        with mock.patch.object(tempfile, "tempdir", str(private)):
+            remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3,
+                   max_workers=2)
+            left = sorted(p.name for p in private.iterdir())
+        self.assertEqual(left, [], "temp dictionaries left behind")
+
+    def test_a_losing_candidates_rows_are_freed_before_the_next_pass(self):
+        """A trained dictionary, then noise twice: entering the third pass, only the best so far (the first pass's
+        rows) may still be alive, not the second pass's losing rows as well."""
+        real_convert, real_train = remint_dictionary.convert_all, remint_dictionary.train_dictionary
+        noise = random.Random(13)
+
+        class Rows(list):
+            """A list that can be weakly referenced."""
+
+        returned, alive_at_entry, trained = [], [], []
+
+        def convert_all(*args):
+            gc.collect()
+            alive_at_entry.append(sum(ref() is not None for ref in returned))
+            converted, total, problems = real_convert(*args)
+            rows = Rows(converted)
+            returned.append(weakref.ref(rows))
+            return rows, total, problems
+
+        def train(samples, dict_size):
+            trained.append(real_train(samples, dict_size) if not trained else noise.randbytes(dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "convert_all", side_effect=convert_all), \
+                mock.patch.object(remint_dictionary, "train_dictionary", side_effect=train):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(stats["seed"], 999)
+        self.assertEqual(alive_at_entry, [0, 1, 1])
 
     def contents(self) -> dict:
         return {path: content for path, content in self.conn.execute("SELECT path, content FROM Content")}

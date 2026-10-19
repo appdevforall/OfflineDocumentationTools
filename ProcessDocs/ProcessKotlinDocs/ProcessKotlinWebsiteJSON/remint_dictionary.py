@@ -63,6 +63,7 @@ Usage:
     ./verify_remint_dictionary.py documentation.db remint.db && mv remint.db documentation.db
 """
 import argparse
+import atexit
 import sqlite3
 import sys
 import threading
@@ -78,6 +79,11 @@ from migrate_content_to_dictionary_brotli import (
 from populate_db import DEFAULT_DICT_SIZE, DictionaryCompressor, backup_database, train_dictionary
 
 _thread_local = threading.local()
+# Every DictionaryCompressor the current pass's workers made. Each holds a temp directory, and atexit keeps it alive
+# until the process ends, so the pass closes them itself: at 24 workers and 4 seeds they were about 192 directories,
+# 48 MiB, in /tmp, which can be RAM.
+_pass_compressors = []
+_pass_lock = threading.Lock()
 
 
 def _compressors(old_dictionary: bytes, new_dictionary: bytes) -> tuple:
@@ -87,7 +93,18 @@ def _compressors(old_dictionary: bytes, new_dictionary: bytes) -> tuple:
     if pair is None:
         pair = (DictionaryCompressor(old_dictionary), DictionaryCompressor(new_dictionary))
         _thread_local.pair = pair
+        with _pass_lock:
+            _pass_compressors.extend(pair)
     return pair
+
+
+def _close_pass_compressors() -> None:
+    with _pass_lock:
+        opened = list(_pass_compressors)
+        _pass_compressors.clear()
+    for compressor in opened:
+        compressor.close()
+        atexit.unregister(compressor.close)
 
 
 def decode_outgoing(old: DictionaryCompressor, stored: bytes) -> bytes | None:
@@ -125,19 +142,22 @@ def convert_all(conn, base_rows: list, old_dictionary: bytes, new_dictionary: by
     converted, problems, total = [], [], 0
     # A pool per pass: its threads are new, so the compressors each one caches
     # (_compressors) hold this pass's candidate dictionary, not an earlier one's.
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for start in range(0, len(base_rows), BATCH_ROWS):
-            batch = base_rows[start:start + BATCH_ROWS]
-            payloads = [(r[0], read_item(conn, r[0])) for r in batch]
-            results = executor.map(
-                lambda item: convert(old_dictionary, new_dictionary, item[0], item[1]), payloads
-            )
-            for r, result in zip(batch, results):
-                if "error" in result:
-                    problems.append((result["path"], result["error"]))
-                    continue
-                total += result["after"]
-                converted.append((r, result["data"], result["before"]))
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for start in range(0, len(base_rows), BATCH_ROWS):
+                batch = base_rows[start:start + BATCH_ROWS]
+                payloads = [(r[0], read_item(conn, r[0])) for r in batch]
+                results = executor.map(
+                    lambda item: convert(old_dictionary, new_dictionary, item[0], item[1]), payloads
+                )
+                for r, result in zip(batch, results):
+                    if "error" in result:
+                        problems.append((result["path"], result["error"]))
+                        continue
+                    total += result["after"]
+                    converted.append((r, result["data"], result["before"]))
+    finally:
+        _close_pass_compressors()
     return converted, total, problems
 
 
@@ -176,6 +196,9 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
             print(f"Sample seed {candidate_seed}: {total:,} stored bytes", file=sys.stderr)
         if best is None or total < best[2]:
             best = (candidate_seed, new_dictionary, total, converted)
+        # Only the best candidate's rows are kept: holding this pass's too would keep three passes' rows in memory
+        # while the next pass builds its own.
+        del converted
 
     chosen_seed, new_dictionary, total, converted = best
     # What the outgoing dictionary stores, from the same pass: every row's size as read.
