@@ -18,6 +18,12 @@ the time (50% raises, 12% is identical because the perturbed region was never
 referenced). Nothing at runtime detects that, so it has to be caught here,
 against the original, before the file is put in place.
 
+It refuses a pair where either database declares documentation major 3 or later
+(read as remint_dictionary.templates_compressed reads it): from 3.0.0 every
+template is compressed against the dictionary too, and this check compares
+Content only, so it would pass a re-mint that left no template decodable. The
+verifier in OfflineDocumentationTools PR #48 compares the templates as well.
+
 Reads only: neither database is modified.
 """
 import argparse
@@ -30,6 +36,7 @@ import brotli
 
 from populate_db import DictionaryCompressor
 from migrate_content_to_dictionary_brotli import load_base_rows, read_item
+from remint_dictionary import declared_major, templates_compressed
 
 _thread_local = threading.local()
 
@@ -79,6 +86,13 @@ def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
     import sqlite3
     old_conn = sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)
     new_conn = sqlite3.connect(f"file:{new_db}?mode=ro", uri=True)
+    for path, conn in ((old_db, old_conn), (new_db, new_conn)):
+        if templates_compressed(conn):
+            raise RuntimeError(f"{path} declares documentation major {declared_major(conn)}, and from 3.0.0 every "
+                               "template is compressed against the dictionary. This check compares Content only, so "
+                               "it would pass a re-mint that left no template decodable. Verify with "
+                               "OfflineDocumentationTools PR #48's verify_remint_dictionary.py, which compares the "
+                               "templates too")
     old_dictionary = old_conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()[0]
     new_dictionary = new_conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()[0]
     if old_dictionary == new_dictionary:
@@ -112,7 +126,10 @@ def main() -> None:
         if not path.is_file():
             sys.exit(f"error: {path} does not exist")
 
-    bad = verify(args.original_db, args.reminted_db, args.max_workers)
+    try:
+        bad = verify(args.original_db, args.reminted_db, args.max_workers)
+    except RuntimeError as exc:
+        sys.exit(f"error: {exc}")
     for path, problem in bad[:20]:
         print(f"MISMATCH {path}: {problem}", file=sys.stderr)
     if len(bad) > 20:

@@ -38,6 +38,9 @@ every template stored Brotli-compressed.
   both. They are compressed with the brotli CLI exactly as populate_db.py's
   DictionaryCompressor compresses (brotli -D <dictionary>, default quality);
   the re-mint that follows recompresses them against its new dictionary.
+  That re-mint is OfflineDocumentationTools PR #48's remint_dictionary.py,
+  which has to merge no later than this step does: the one before it
+  recompresses Content only, so it refuses a database declaring 3.0.0.
 - DocumentationDatabaseVersion becomes one row, 3.0.0: the app no longer reads
   the old tables or plain templates, so this is an incompatible change.
 
@@ -88,8 +91,9 @@ tooltips, all of which write the old tables (TooltipManager.py, docdb-studio,
 sync_kdoc_json_to_db.py, the one-off scripts), and after every step that writes
 templates, all of which write them plain. On that copy the order is: the
 minify, the row drops, the Kotlin trim, the a/ pages-to-templates step, this
-step, remint_dictionary.py --seeds 4, and rebuild_database.py, which then packs
-Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not Tooltips.
+step, PR #48's remint_dictionary.py --seeds 4, and rebuild_database.py, which
+then packs Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not
+Tooltips.
 Never run it on the master database those tools edit: they read or write the
 old shape and plain templates (check-tools, which docdb-regression-test.yaml
 runs daily, fails on the new tooltip tables), and nothing converts it back.
@@ -667,9 +671,9 @@ def run(cfg: dict) -> int:
         vac.close()
     print(f"\nDone. DocumentationDatabaseVersion {FROM_MAJOR}.x -> {TO_MAJOR}.0.0; "
           f"{human(size_before)} -> {human(db_path.stat().st_size)} bytes.")
-    print("Next: re-mint the dictionary (remint_dictionary.py --seeds 4, which recompresses the templates too in "
-          f"{TO_MAJOR}.0.0), then rebuild_database.py with --pack Content,TooltipTexts; it cannot pack the "
-          "WITHOUT ROWID Tooltips.")
+    print("Next: re-mint the dictionary with OfflineDocumentationTools PR #48's remint_dictionary.py --seeds 4, "
+          f"which recompresses the templates too in {TO_MAJOR}.0.0 (one without it refuses this file), then "
+          "rebuild_database.py with --pack Content,TooltipTexts; it cannot pack the WITHOUT ROWID Tooltips.")
     return 0
 
 

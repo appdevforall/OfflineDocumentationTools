@@ -41,6 +41,13 @@ the plaintexts to match. That check is not paranoia -- a row recompressed
 against a mismatched dictionary decodes without error into *different* bytes
 (measured: 38% of the time), so nothing at runtime would catch it.
 
+From documentation version 3.0.0 on (ADFA-3305), migrate_tooltip_schema.py has
+stored every Templates row compressed against the dictionary too. This re-mint
+recompresses Content only, so it would leave no template decodable; it refuses
+a database whose newest DocumentationDatabaseVersion row (read as the app reads
+it) declares major 3 or later, writing nothing, and so does the verifier. The
+re-mint in OfflineDocumentationTools PR #48 recompresses the templates as well.
+
 Usage:
     cp documentation.db remint.db
     ./remint_dictionary.py remint.db
@@ -62,6 +69,37 @@ from migrate_content_to_dictionary_brotli import (
 from populate_db import DEFAULT_DICT_SIZE, DictionaryCompressor, backup_database, train_dictionary
 
 _thread_local = threading.local()
+
+# From this documentation major on, every Templates row is Brotli-compressed against the shared dictionary.
+TEMPLATES_COMPRESSED_FROM_MAJOR = 3
+
+
+def declared_major(conn) -> int | None:
+    """The major the newest DocumentationDatabaseVersion row declares, read the way the app's
+    DatabaseVersionResolver reads it (newest changeTime, then newest rowid); None without one."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'DocumentationDatabaseVersion'"
+                    ).fetchone() is None:
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
+                       ).fetchone()
+    return row[0] if row else None
+
+
+def templates_compressed(conn) -> bool:
+    major = declared_major(conn)
+    return major is not None and major >= TEMPLATES_COMPRESSED_FROM_MAJOR
+
+
+def compressed_templates_refusal(conn) -> str | None:
+    """Why this re-mint must not touch the database, or None: it recompresses Content only, and from
+    TEMPLATES_COMPRESSED_FROM_MAJOR on the templates are compressed against the same dictionary."""
+    if not templates_compressed(conn):
+        return None
+    return (f"the database declares documentation major {declared_major(conn)}, and from "
+            f"{TEMPLATES_COMPRESSED_FROM_MAJOR}.0.0 every template is compressed against the dictionary. This "
+            "re-mint recompresses Content only, so no template would decode afterwards. Re-mint with "
+            "OfflineDocumentationTools PR #48's remint_dictionary.py (--seeds 4), which recompresses the "
+            "templates too; nothing was changed")
 
 
 def _compressors(old_dictionary: bytes, new_dictionary: bytes) -> tuple:
@@ -106,7 +144,10 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
            training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
            max_workers: int | None = None) -> dict:
     """Re-mints in one transaction. Raises RuntimeError, having written nothing,
-    if any row fails to convert."""
+    if any row fails to convert or the database's templates are compressed."""
+    refusal = compressed_templates_refusal(conn)
+    if refusal:
+        raise RuntimeError(refusal)
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     if row is None or not row[0]:
         raise RuntimeError("this database has no CompressionDictionary to re-mint; "
@@ -173,6 +214,14 @@ def main() -> None:
 
     if not args.db_path.is_file():
         sys.exit(f"error: {args.db_path} does not exist")
+    # Before the backup, so a refusal writes nothing at all.
+    conn = sqlite3.connect(f"file:{args.db_path}?mode=ro", uri=True)
+    try:
+        refusal = compressed_templates_refusal(conn)
+    finally:
+        conn.close()
+    if refusal:
+        sys.exit(f"error: {refusal}")
 
     if not args.no_backup:
         print(f"Backing up {args.db_path}...", file=sys.stderr)

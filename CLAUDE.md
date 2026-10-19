@@ -77,8 +77,10 @@ edit that database** — it contains no part of the production Android app itsel
 > and the steps in open PRs that do (`minify_text.py`, `hm_pages_to_templates.py`, the `a/`
 > pages-to-templates step) - only ever see plain templates, on the master. On the copy that ships the
 > order is: minify, row drops, Kotlin trim, `a/` pages-to-templates, `migrate_tooltip_schema.py`,
-> `remint_dictionary.py --seeds 4` (which recompresses templates too in 3.0.0), then
-> `rebuild_database.py --pack Content,TooltipTexts`.
+> PR #48's `remint_dictionary.py --seeds 4` (which recompresses templates too in 3.0.0), then
+> `rebuild_database.py --pack Content,TooltipTexts`. PR #48 has to merge no later than this step's
+> PRs (#45, #50): the re-mint and verifier before it handle Content only, so they refuse a database
+> declaring 3.0.0.
 >
 > **Every tool in this repo still reads and writes the 2.x shape**: `check-tools` (whose daily
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
