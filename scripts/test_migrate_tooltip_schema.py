@@ -175,8 +175,9 @@ def _plain(template) -> bytes:
 
 
 def _brotli(dictionary: bytes, data: bytes, *args: str):
-    """The brotli CLI against `dictionary`, as the app's and the pipeline's codecs use it, independently of the
-    tool's own codec: the output, or None if it fails (for -d: `data` is no stream against that dictionary)."""
+    """The brotli CLI against `dictionary`, as the pipeline's codec uses it, independently of the tool's own codec:
+    the output, or None if it fails (for -d: `data` is no stream against that dictionary). Its decoder also takes
+    large-window streams, which the app's does not; _templates refuses those."""
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "dictionary.bin"
         path.write_bytes(dictionary)
@@ -185,11 +186,18 @@ def _brotli(dictionary: bytes, data: bytes, *args: str):
     return result.stdout if result.returncode == 0 else None
 
 
+def _large_window(stream: bytes) -> bool:
+    """A large-window header (RFC 7932 leaves its first seven bits, 1 000 001, invalid), which brotli4j refuses."""
+    return bool(stream) and stream[0] & 0x7F == 0x11
+
+
 def _templates(db_path: Path) -> dict:
-    """{name: (stored bytes, plaintext or None)}, decoded against the database's own dictionary."""
+    """{name: (stored bytes, plaintext or None)}, decoded against the database's own dictionary as the app decodes
+    them: None for a large-window stream, which the CLI would decode."""
     rows = _query(db_path, "SELECT name, content FROM Templates ORDER BY id")
     dictionary = _query(db_path, "SELECT data FROM CompressionDictionary")[0][0]
-    return {name: (_plain(content), _brotli(dictionary, _plain(content), "-d")) for name, content in rows}
+    return {name: (_plain(content), None if _large_window(_plain(content))
+                   else _brotli(dictionary, _plain(content), "-d")) for name, content in rows}
 
 
 def _sha(path: Path) -> str:
@@ -807,7 +815,8 @@ def test_refuses_when_the_brotli_cli_is_missing(tmp_path):
 
 def test_refuses_a_converted_database_whose_template_does_not_decode(tmp_path):
     # What a tool that writes Templates leaves when it runs after the conversion: a plain template.
-    _assert_converted_refused(tmp_path, "1 of 3 template(s) do not decode against the dictionary (nav.peb)",
+    _assert_converted_refused(tmp_path, "1 of 3 template(s) do not decode against the dictionary as the app decodes "
+                                        "them (nav.peb)",
                               "UPDATE Templates SET content = CAST('<nav/>' AS BLOB) WHERE name = 'nav.peb'")
 
 
@@ -858,6 +867,65 @@ def test_templates_read_back_compares_every_template(tmp_path):
         conn.execute("ROLLBACK")
         codec.close()
         conn.close()
+
+
+def _large_window_compress(self, data: bytes) -> bytes:
+    """What the codec's compress would store if it asked for a large window: a stream the CLI decodes and the app
+    cannot."""
+    return self._run("--large_window=26", data=data)
+
+
+def test_large_window_reads_the_stream_header():
+    # The CLI writes the extension's header only for a window over 24 bits; --large_window=24 is an RFC 7932 stream.
+    for args in ((), ("-w", "24"), ("-w", "10"), ("-w", "16"), ("-w", "17"), ("-w", "18"), ("-q", "0"),
+                 ("--large_window=24",)):
+        assert not tool.large_window(_brotli(DICTIONARY, TEMPLATES[0][1], *args)), args
+    for bits in ("25", "26", "30"):
+        stream = _brotli(DICTIONARY, TEMPLATES[0][1], f"--large_window={bits}")
+        assert tool.large_window(stream) and _brotli(DICTIONARY, stream, "-d") == TEMPLATES[0][1], bits
+    assert not tool.large_window(b"") and not tool.large_window(b"?")
+
+
+def test_compresses_with_a_24_bit_window(tmp_path):
+    db = _database(tmp_path)
+    assert _run(db)[0] == 0
+    # RFC 7932 9.1, least significant bit first: 1, then 111 (17 + 7 = 24 bits).
+    assert all(stored[0] & 0x0F == 0x0F for stored, _text in _templates(db).values())
+
+
+def test_rolls_back_a_compression_to_a_large_window(tmp_path):
+    db = _database(tmp_path)
+    with _patched_attr(tool.DictionaryCodec, "compress", _large_window_compress):
+        code, _out, err = _run(db)
+    assert code == 1 and "compressed to a large-window stream, which the app cannot decode" in err, err
+    assert all(text is None for _stored, text in _templates(db).values())
+    assert _query(db, "SELECT major FROM DocumentationDatabaseVersion") == [(2,)]
+
+
+def test_templates_read_back_refuses_a_large_window_stream(tmp_path):
+    # It decodes to the right text through the CLI; only its header says the app cannot read it.
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db, isolation_level=None)
+    codec = tool.load_codec(conn)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        plain, _found = tool.plain_templates(conn, codec)
+        tool.compress_templates(conn, codec, plain)
+        conn.execute("UPDATE Templates SET content = ? WHERE name = 'nav.peb'",
+                     (_brotli(DICTIONARY, _plain(TEMPLATES[1][1]), "--large_window=26"),))
+        assert tool.templates_read_back(conn, codec, plain) == [
+            "template nav.peb is a large-window stream, which the app cannot decode"]
+    finally:
+        conn.execute("ROLLBACK")
+        codec.close()
+        conn.close()
+
+
+def test_refuses_a_converted_database_holding_a_large_window_template(tmp_path):
+    stream = _brotli(DICTIONARY, _plain(TEMPLATES[1][1]), "--large_window=26")
+    _assert_converted_refused(tmp_path, "1 of 3 template(s) do not decode against the dictionary as the app decodes "
+                                        "them (nav.peb)",
+                              f"UPDATE Templates SET content = x'{stream.hex()}' WHERE name = 'nav.peb'")
 
 
 def test_declares_the_version_after_the_templates_are_compressed(tmp_path):

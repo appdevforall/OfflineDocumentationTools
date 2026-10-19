@@ -35,9 +35,10 @@ every template stored Brotli-compressed.
   marker: in 3.0.0 every template is compressed, and the app always decodes
   them (the CodeOnTheGo change stacked on #2163). Doing it in the same
   transaction as the tooltip tables means a file declaring 3.0.0 always has
-  both. They are compressed with the brotli CLI exactly as populate_db.py's
-  DictionaryCompressor compresses (brotli -D <dictionary>, default quality);
-  the re-mint that follows recompresses them against its new dictionary.
+  both. They are compressed with the brotli CLI as populate_db.py's
+  DictionaryCompressor compresses (brotli -D <dictionary>, default quality),
+  with the CLI's default 24-bit window made explicit (-w 24); the re-mint that
+  follows recompresses them against its new dictionary.
   That re-mint is OfflineDocumentationTools PR #48's remint_dictionary.py,
   which has to merge no later than this step does: the one before it
   recompresses Content only, so it refuses a database declaring 3.0.0.
@@ -76,7 +77,10 @@ with the two queries Code On The Go runs, QUERY_TOOLTIP and
 QUERY_TOOLTIP_BUTTONS in idetooltips' TooltipQuery.kt (copied below as
 APP_TOOLTIP_QUERY and APP_BUTTONS_QUERY). Both tables are also compared row for
 row, and their row counts, and every template is decoded back and compared with
-its text. Any difference rolls the whole conversion back.
+its text. Any difference rolls the whole conversion back. The CLI's decoder
+also accepts large-window streams (brotli --large_window, a window over 24
+bits), which the app's decoder, brotli4j, refuses; so a template stored as one
+counts as one that does not decode, wherever this step checks.
 
 Templates must arrive plain, as every tool that writes Templates writes them.
 One that already decodes against the dictionary is taken for one compressed
@@ -249,12 +253,24 @@ def human(n: int) -> str:
     return f"{n:,}"
 
 
+# Brotli's largest RFC 7932 window. It is the CLI's default for input on stdin (the same bytes with or without
+# -w 24); given a file, the CLI picks its own. compress() asks for it explicitly.
+WINDOW_BITS = 24
+
+
+def large_window(stream: bytes) -> bool:
+    """Whether a Brotli stream uses the large-window extension, the only way its window can exceed 24 bits: its
+    first seven bits, least significant first, are 1, 000, 001, which RFC 7932's window header leaves invalid. The
+    CLI's decoder accepts such a stream; brotli4j's, which the app decodes templates with, refuses it."""
+    return bool(stream) and stream[0] & 0x7F == 0x11
+
+
 class DictionaryCodec:
-    """Brotli against the database's shared dictionary, through the brotli CLI and invoked exactly as
-    populate_db.py's DictionaryCompressor invokes it (`brotli -D <dictionary> -c`, default quality), since the
-    Python brotli package takes no dictionary. Not imported from there: populate_db.py needs markdown-it, and
-    this step needs nothing outside the standard library but the CLI. The dictionary is written once to a
-    private temporary file."""
+    """Brotli against the database's shared dictionary, through the brotli CLI and invoked as populate_db.py's
+    DictionaryCompressor invokes it (`brotli -D <dictionary> -c`, default quality, here with its default window
+    made explicit), since the Python brotli package takes no dictionary. Not imported from there: populate_db.py
+    needs markdown-it, and this step needs nothing outside the standard library but the CLI. The dictionary is
+    written once to a private temporary file."""
 
     def __init__(self, dictionary: bytes):
         self._brotli = shutil.which("brotli")
@@ -270,13 +286,14 @@ class DictionaryCodec:
         return result.stdout if result.returncode == 0 else None
 
     def compress(self, data: bytes) -> bytes:
-        out = self._run(data=data)
+        out = self._run("-w", str(WINDOW_BITS), data=data)
         if out is None:
             raise RuntimeError("brotli could not compress a template")
         return out
 
     def decompress(self, data: bytes):
-        """The plaintext, or None if `data` is not a Brotli stream against this dictionary."""
+        """The plaintext, or None if `data` is not a Brotli stream against this dictionary. A large-window stream
+        decodes here, though not in the app: see large_window."""
         return self._run("-d", data=data)
 
     def close(self) -> None:
@@ -345,10 +362,12 @@ def plain_templates(conn, codec: DictionaryCodec) -> tuple:
 
 def compress_templates(conn, codec: DictionaryCodec, plain: dict) -> int:
     """Stores every template compressed, inside the caller's transaction; returns the stored bytes. Each one
-    is proved to decode back to its exact text before it is written."""
+    is proved to decode back to its exact text, and to be a stream the app can decode, before it is written."""
     def one(item):
         template_id, (name, data) = item
         blob = codec.compress(data)
+        if large_window(blob):
+            raise RuntimeError(f"template {name} was compressed to a large-window stream, which the app cannot decode")
         if codec.decompress(blob) != data:
             raise RuntimeError(f"template {name} does not decode back to its text after compression")
         return template_id, blob
@@ -368,9 +387,11 @@ def templates_read_back(conn, codec: DictionaryCodec, plain: dict) -> list:
         differences.append("the Templates rows' ids or names changed")
     decoded = _parallel(lambda item: codec.decompress(item[1][1]) if item[1][1] is not None else None,
                         list(stored.items()))
-    for (template_id, (name, _data)), text in zip(stored.items(), decoded):
+    for (template_id, (name, data)), text in zip(stored.items(), decoded):
         if template_id in plain and text != plain[template_id][1]:
             differences.append(f"template {name} does not decode to its text")
+        elif large_window(data):
+            differences.append(f"template {name} is a large-window stream, which the app cannot decode")
     return differences
 
 
@@ -584,12 +605,14 @@ def run(cfg: dict) -> int:
                 stored = stored_templates(conn)
                 decoded = _parallel(lambda item: None if item[1] is None else codec.decompress(item[1]),
                                     list(stored.values()))
-                plain = [name for (name, _data), text in zip(stored.values(), decoded) if text is None]
+                plain = [name for (name, data), text in zip(stored.values(), decoded)
+                         if text is None or large_window(data)]
                 if plain:
                     raise Refused(f"the tooltip tables are already in the new shape, but {human(len(plain))} of "
-                                  f"{human(len(stored))} template(s) do not decode against the dictionary "
-                                  f"({', '.join(plain[:5])}{', ...' if len(plain) > 5 else ''}), and {TO_MAJOR}.0.0 "
-                                  "stores every template compressed; a step run after the conversion wrote them")
+                                  f"{human(len(stored))} template(s) do not decode against the dictionary as the app "
+                                  f"decodes them ({', '.join(plain[:5])}{', ...' if len(plain) > 5 else ''}), and "
+                                  f"{TO_MAJOR}.0.0 stores every template compressed; a step run after the conversion "
+                                  "wrote them")
                 print(f"{db_path}: the tooltip tables are already in the new shape and every template is "
                       "compressed; nothing to do.")
                 return 0
