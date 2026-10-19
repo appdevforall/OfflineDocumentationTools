@@ -77,10 +77,11 @@ with the two queries Code On The Go runs, QUERY_TOOLTIP and
 QUERY_TOOLTIP_BUTTONS in idetooltips' TooltipQuery.kt (copied below as
 APP_TOOLTIP_QUERY and APP_BUTTONS_QUERY). Both tables are also compared row for
 row, and their row counts, and every template is decoded back and compared with
-its text. Any difference rolls the whole conversion back. The CLI's decoder
-also accepts large-window streams (brotli --large_window, a window over 24
-bits), which the app's decoder, brotli4j, refuses; so a template stored as one
-counts as one that does not decode, wherever this step checks.
+its text. Any difference rolls the whole conversion back, as does a change to
+the templates or the dictionary since this step first read them. The CLI's
+decoder also accepts large-window streams (brotli --large_window, a window over
+24 bits), which the app's decoder, brotli4j, refuses; so a template stored as
+one counts as one that does not decode, wherever this step checks.
 
 Templates must arrive plain, as every tool that writes Templates writes them.
 One that already decodes against the dictionary is taken for one compressed
@@ -279,6 +280,7 @@ class DictionaryCodec:
         self._dir = tempfile.TemporaryDirectory(prefix="migrate-schema-dictionary-")
         self._dictionary = Path(self._dir.name) / "dictionary.bin"
         self._dictionary.write_bytes(dictionary)
+        self.dictionary = dictionary
 
     def _run(self, *args: str, data: bytes):
         result = subprocess.run([self._brotli, "-D", str(self._dictionary), *args, "-c"], input=data,
@@ -647,9 +649,13 @@ def run(cfg: dict) -> int:
         conn.execute("BEGIN IMMEDIATE")
         try:
             before = snapshot(conn)
-            # The templates checked above are the ones compressed: none may have changed since.
+            # The templates checked above are the ones compressed: none may have changed since, nor the dictionary
+            # the codec read before this transaction, which they are compressed against.
             if {i: d for i, (_n, d) in stored_templates(conn).items()} != {i: d for i, (_n, d) in plain.items()}:
                 raise Refused("the templates changed while this step ran")
+            row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+            if row is None or row[0] != codec.dictionary:
+                raise Refused("the dictionary changed while this step ran")
             dropped = convert(conn)
             stored_bytes = compress_templates(conn, codec, plain)
             declare_version(conn)

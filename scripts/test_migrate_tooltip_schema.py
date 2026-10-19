@@ -847,6 +847,43 @@ def test_rolls_back_when_the_templates_change_after_they_were_checked(tmp_path):
     assert _sha(db) == sha
 
 
+def test_rolls_back_when_the_dictionary_changes_after_it_was_read(tmp_path):
+    # Replaced between the checks and the transaction, here while the backup is written: the templates would be
+    # compressed against a dictionary the database no longer holds.
+    db = _database(tmp_path)
+    backup = tool.backup_database
+
+    def and_replace_the_dictionary(db_path):
+        written = backup(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE CompressionDictionary SET data = ? WHERE id = 1", (DICTIONARY[::-1],))
+        conn.commit()
+        conn.close()
+        return written
+    with _patched_attr(tool, "backup_database", and_replace_the_dictionary):
+        code, _out, err = _run(db)
+    assert code == 1 and "the dictionary changed while this step ran; rolled back" in err, err
+    assert all(text is None for _stored, text in _templates(db).values())
+    assert _query(db, "SELECT major FROM DocumentationDatabaseVersion") == [(2,)]
+
+
+def test_rolls_back_when_the_dictionary_is_deleted_after_it_was_read(tmp_path):
+    db = _database(tmp_path)
+    backup = tool.backup_database
+
+    def and_delete_the_dictionary(db_path):
+        written = backup(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM CompressionDictionary")
+        conn.commit()
+        conn.close()
+        return written
+    with _patched_attr(tool, "backup_database", and_delete_the_dictionary):
+        code, _out, err = _run(db)
+    assert code == 1 and "the dictionary changed while this step ran; rolled back" in err, err
+    assert _query(db, "SELECT major FROM DocumentationDatabaseVersion") == [(2,)]
+
+
 def test_templates_read_back_compares_every_template(tmp_path):
     # A wrong blob that still decodes - another template's - is what compress_templates' own check cannot see.
     db = _database(tmp_path)
