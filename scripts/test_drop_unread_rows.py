@@ -848,6 +848,21 @@ def test_a_link_the_rewrite_does_not_reach_refuses(tmp_path: Path):
         _refused(tmp_path / str(i), rows, f"{path} {how} j/html/api/index-all.html")
 
 
+def test_a_template_link_to_the_one_page_index_refuses_in_either_encoding(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    # The rewrite reaches Content rows only, so a template's link must refuse, compressed (version 3) or plain.
+    template = LINKING_TEMPLATE.replace(b"../x/a.html", b"../../index-all.html")
+    stored = _compress(template, TEMPLATE_DICTIONARY)
+    assert b"index-all.html" not in stored, "the link survives compression, so this tests nothing"
+    for i, (body, versions) in enumerate([(stored, [(3, 0, 0, "2026-10-19 07:09:52")]),
+                                          (template, [(2, 1, 0, "2026-10-18 10:00:00")])]):
+        rows, _expected = _index_rows()
+        rows["j/html/api/m/a/T.html"] = ("text/html", b'{"title": "t"}', 1)
+        _refused(tmp_path / str(i), rows, "template page.peb links to j/html/api/index-all.html",
+                 dictionary=TEMPLATE_DICTIONARY, schema=3, versions=versions, templates={1: ("page.peb", body)})
+
+
 def test_a_one_page_index_without_its_split_index_refuses(tmp_path: Path):
     rows, _expected = _index_rows()
     del rows["j/html/api/index-files/index-1.html"]
