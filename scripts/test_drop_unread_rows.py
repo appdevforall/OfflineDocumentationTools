@@ -1101,6 +1101,25 @@ def test_only_identical_media_of_one_type_and_language_are_copies(tmp_path: Path
     assert set(rows) - set(_stored(db)) == {"v/third.webm", "v/third.webm-1"}
 
 
+def test_byte_identical_svgs_are_not_merged(tmp_path: Path):
+    # An SVG is a document: its relative references resolve against its own URL. Merged, the Android page's
+    # logo would load the Kotlin picture beside the kept copy.
+    svg = (b'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+           b'<image xlink:href="pic.webp" width="10" height="10"/></svg>')
+    rows = {
+        "a/media/logo.svg": ("image/svg+xml", svg), "k/art/logo.svg": ("image/svg+xml", svg),
+        "a/media/pic.webp": ("image/webp", b"RIFF\x10\x00\x00\x00WEBPVP8 android-picture"),
+        "k/art/pic.webp": ("image/webp", b"RIFF\x10\x00\x00\x00WEBPVP8 kotlin-picture!!"),
+        "a/page.html": ("text/html", b'<img src="media/logo.svg">'),
+        "k/page.html": ("text/html", b'<img src="art/logo.svg">'),
+    }
+    db = _database(tmp_path, rows)
+    before = _stored(db)
+    code, out, err = _run(db, groups=["duplicate-media"])
+    assert code == 0, err
+    assert _stored(db) == before, "an SVG copy was merged"
+
+
 def test_a_link_to_a_dropped_copy_the_rewrite_does_not_reach_refuses(tmp_path: Path):
     cases = [
         # A template is not rewritten; it links to the copy fewer rows link to.

@@ -60,7 +60,9 @@ The rows, in seven groups (pick some with --only; the default is all seven):
   swaps one file for itself. PDFs are left alone: the Bookshelf lists each
   placeholder book on its own even when their bytes match, and deleting one
   fires the DeleteBook trigger. So are text rows: the only identical ones are
-  licence notices, kept beside what they cover.
+  licence notices, kept beside what they cover. So are SVG images: an SVG is a
+  document whose relative references resolve against its own URL, so a copy
+  kept in another directory could load other files in its place.
 - unlinked: 31 rows no page, template, script, stylesheet, tooltip, Bookshelf
   entry or app URL reaches, each named in UNLINKED with why it is unread. The
   list is closed, so a row is never deleted because a scan missed its link,
@@ -242,8 +244,9 @@ _UNLINKED = {
     "Dokka's version-switcher fallback page, which nothing links or loads": ("k/not-found-version.html",),
 }
 UNLINKED = {path: why for why, paths in _UNLINKED.items() for path in paths}
-# The types whose byte-identical copies duplicate-media merges; the docstring says why PDFs and text are not.
+# The types whose byte-identical copies duplicate-media merges; the docstring says why PDFs, text and SVG are not.
 DUPLICATE_MEDIA_PREFIXES = ("image/", "video/", "audio/")
+DUPLICATE_MEDIA_EXCLUDED = ("image/svg+xml",)
 # A character a link's path can hold as written in a page; anything else (a quote, "(", "=", a space, a JSON
 # escape's backslash) ends the path.
 _PATH_CHARS = rb"A-Za-z0-9._~%:@+\-"
@@ -775,13 +778,15 @@ def run(cfg: dict) -> int:
             templates.append((name, dirs, raw.decode("utf-8", errors="replace"), None))
 
         def kept_copies() -> dict:
-            """duplicate-media: {each dropped copy: the copy kept in its place}. Copies are rows of a media type with
-            the same type, language and stored bytes (chunks joined) that no other group deletes. The copy kept is
-            the one the most rows link to (kept text rows, templates, tooltip buttons, Bookshelf entries), then the
-            one with the shortest path, then the one with the lowest id."""
+            """duplicate-media: {each dropped copy: the copy kept in its place}. Copies are rows of a media type other
+            than SVG with the same type, language and stored bytes (chunks joined) that no other group deletes. The
+            copy kept is the one the most rows link to (kept text rows, templates, tooltip buttons, Bookshelf
+            entries), then the one with the shortest path, then the one with the lowest id."""
             by_shape = defaultdict(list)
             for path in bases:
-                if path not in doomed and rows[path][2].startswith(DUPLICATE_MEDIA_PREFIXES):
+                content_type = rows[path][2]
+                if (path not in doomed and content_type.startswith(DUPLICATE_MEDIA_PREFIXES)
+                        and content_type not in DUPLICATE_MEDIA_EXCLUDED):
                     by_shape[(rows[path][2], rows[path][5], lengths[path])].append(path)
             sets = defaultdict(list)
             for shape, paths in by_shape.items():
