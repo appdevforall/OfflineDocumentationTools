@@ -54,8 +54,10 @@ The winner is written only if it stores less than the dictionary already in
 place, measured in the same pass (every row's size as read). Otherwise nothing
 is written and the current dictionary stays: a re-mint is not always smaller -
 one after a step that changed little stored 110,803 bytes more than the
-dictionary it replaced - and a second re-mint with the same seeds retrains the
-stored dictionary exactly, which is no gain either.
+dictionary it replaced - and a tie is no gain either. The same seeds do not
+redraw the same samples once a re-mint has changed the stored sizes, because
+the sampler weights each doc set by its stored bytes: re-minting a re-minted
+database at the same 2 seeds drew different samples and stored 0.1% less.
 
 Every row is proved to round-trip against the new dictionary before it is
 written. Afterwards, run verify_remint_dictionary.py against a copy of the

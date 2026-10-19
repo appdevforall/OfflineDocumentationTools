@@ -260,11 +260,12 @@ class RemintDictionaryTest(unittest.TestCase):
         self.assertGreater(stats["best_candidate"][1], stats["before"])
         self.assertEqual(stats["after"], stats["before"])
 
-    def test_a_second_remint_with_the_same_seeds_writes_nothing(self):
-        """The winning seed retrains the stored dictionary exactly, so it ties, and a tie is no gain."""
-        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+    def test_a_candidate_that_only_ties_writes_nothing(self):
+        """Every candidate is the stored dictionary itself, so it stores exactly as much, and a tie is no gain."""
+        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999)
         dictionary, rows, changes = load_dictionary(self.conn), self.contents(), self.conn.total_changes
-        stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=lambda samples, size: dictionary):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
 
         # Rewriting identical bytes leaves the contents equal, so count the writes.
         self.assertEqual(self.conn.total_changes, changes, "rows were rewritten for no gain")
