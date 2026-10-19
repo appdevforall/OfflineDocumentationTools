@@ -46,9 +46,12 @@ instead of 2.5-3.7 ms (a scan and sort of all 54,799), and the tooltip itself
 0.009-0.014 ms instead of 0.011-0.016 ms.
 
 Before anything is committed, every tooltip and its buttons are read back
-through the new tables - with the queries the app runs - and compared with what
-the old tables held, and both tables are compared row for row. Any difference
-rolls the whole conversion back.
+through the new tables twice and compared with what the old tables held: by its
+key (categoryId, tag), which reaches every tooltip, and by (category name, tag)
+with the two queries Code On The Go runs, QUERY_TOOLTIP and
+QUERY_TOOLTIP_BUTTONS in idetooltips' TooltipQuery.kt (copied below as
+APP_TOOLTIP_QUERY and APP_BUTTONS_QUERY). Both tables are also compared row for
+row, and their row counts. Any difference rolls the whole conversion back.
 
 Pipeline position: after every step that writes tooltips, all of which write
 the old tables (TooltipManager.py, docdb-studio, sync_kdoc_json_to_db.py, the
@@ -146,18 +149,23 @@ FILL = (
     "JOIN TooltipButtonUris AS u ON u.uri = b.uri ORDER BY b.tooltipId, b.buttonNumberId",
 )
 
-# What Code On The Go runs (idetooltips/.../TooltipQuery.kt): the tooltip by its key, then its buttons.
+# What Code On The Go runs, QUERY_TOOLTIP and QUERY_TOOLTIP_BUTTONS in idetooltips/.../TooltipQuery.kt (CodeOnTheGo
+# #2163 at 5cc8d2bc9): the tooltip by its category's name and its tag, then its buttons.
 APP_TOOLTIP_QUERY = ("SELECT T.id, X.summary, X.detail FROM Tooltips AS T JOIN TooltipTexts AS X ON X.id = T.id "
                      "WHERE T.categoryId IN (SELECT id FROM TooltipCategories WHERE category = ?) AND T.tag = ?")
 APP_BUTTONS_QUERY = ("SELECT D.description, U.uri FROM TooltipButtons AS B "
                      "JOIN TooltipButtonDescriptions AS D ON D.id = B.descriptionId "
                      "JOIN TooltipButtonUris AS U ON U.id = B.uriId "
                      "WHERE B.tooltipId = ? ORDER BY B.buttonNumberId")
-# The same lookup by categoryId, so a category name shared by two categories cannot make a match ambiguous.
+# The same lookup by categoryId: one row per key even where two categories share a name, and it reaches a tooltip
+# whose categoryId names no category, which the app's query cannot.
 KEY_QUERY = ("SELECT T.id, X.summary, X.detail FROM Tooltips AS T JOIN TooltipTexts AS X ON X.id = T.id "
              "WHERE T.categoryId = ? AND T.tag = ?")
 
 OLD_TOOLTIP_ROWS = "SELECT id, categoryId, tag, summary, detail FROM Tooltips ORDER BY categoryId, tag"
+# What the app's query found in the old tables, by (category name, tag).
+OLD_APP_ROWS = ("SELECT C.category, T.tag, T.id, T.summary, T.detail FROM Tooltips AS T "
+                "JOIN TooltipCategories AS C ON C.id = T.categoryId")
 NEW_TOOLTIP_ROWS = ("SELECT T.id, T.categoryId, T.tag, X.summary, X.detail FROM Tooltips AS T "
                     "JOIN TooltipTexts AS X ON X.id = T.id ORDER BY T.categoryId, T.tag")
 OLD_BUTTON_ROWS = "SELECT tooltipId, buttonNumberId, description, uri FROM TooltipButtons ORDER BY tooltipId, buttonNumberId"
@@ -304,17 +312,28 @@ def _rows_digest(cursor) -> tuple:
 
 
 def snapshot(conn) -> dict:
-    """What the old tables hold: each tooltip as the app shows it, keyed by (categoryId, tag), and both
-    tables row for row."""
+    """What the old tables hold: each tooltip as the app shows it, keyed by (categoryId, tag) and, as the app's
+    query finds them, by (category name, tag); and both tables row for row."""
     by_tooltip = {}
     for tooltip_id, _number, description, uri in conn.execute(OLD_BUTTON_ROWS):
         by_tooltip.setdefault(tooltip_id, []).append((description, uri))
     shown = {}
     for tooltip_id, category_id, tag, summary, detail in conn.execute(OLD_TOOLTIP_ROWS):
         shown[(category_id, tag)] = _digest((tooltip_id, summary, detail, by_tooltip.get(tooltip_id, [])))
-    return {"shown": shown,
+    app = {}
+    for category, tag, tooltip_id, summary, detail in conn.execute(OLD_APP_ROWS):
+        app.setdefault((category, tag), []).append(
+            _digest((tooltip_id, summary, detail, by_tooltip.get(tooltip_id, []))))
+    return {"shown": shown, "app": {key: sorted(found) for key, found in app.items()},
             "tooltips": _rows_digest(conn.execute(OLD_TOOLTIP_ROWS)),
             "buttons": _rows_digest(conn.execute(OLD_BUTTON_ROWS))}
+
+
+def _app_view(conn, category: str, tag: str) -> list:
+    """What the app shows for (category, tag) through the new tables, with its own two queries."""
+    return sorted(_digest((tooltip_id, summary, detail,
+                           [tuple(b) for b in conn.execute(APP_BUTTONS_QUERY, (tooltip_id,))]))
+                  for tooltip_id, summary, detail in conn.execute(APP_TOOLTIP_QUERY, (category, tag)).fetchall())
 
 
 def read_back(conn, before: dict) -> list:
@@ -329,6 +348,11 @@ def read_back(conn, before: dict) -> list:
         buttons = [tuple(b) for b in conn.execute(APP_BUTTONS_QUERY, (tooltip_id,))]
         if _digest((tooltip_id, summary, detail, buttons)) != expected:
             differences.append(f"tooltip ({category_id}, {tag!r}) reads back differently")
+    for (category, tag), expected in before["app"].items():
+        found = _app_view(conn, category, tag)
+        if found != expected:
+            differences.append(f"tooltip ({category!r}, {tag!r}) reads back differently through the app's query "
+                               f"({len(found)} row(s), {len(expected)} expected)")
     for table in ("Tooltips", "TooltipTexts"):
         total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         if total != len(before["shown"]):

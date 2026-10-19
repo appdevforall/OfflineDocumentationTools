@@ -40,7 +40,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import migrate_tooltip_schema as tool  # noqa: E402
 
-# What idetooltips/.../TooltipQuery.kt runs, before (PR #2160) and after this conversion.
+# What idetooltips/.../TooltipQuery.kt runs, before (CodeOnTheGo #2160) and after this conversion (QUERY_TOOLTIP and
+# QUERY_TOOLTIP_BUTTONS at CodeOnTheGo #2163's 5cc8d2bc9).
 OLD_APP_TOOLTIP_QUERY = ("SELECT T.id, T.summary, T.detail FROM Tooltips AS T "
                          "WHERE T.categoryId IN (SELECT id FROM TooltipCategories WHERE category = ?) AND T.tag = ?")
 OLD_APP_BUTTONS_QUERY = "SELECT description, uri FROM TooltipButtons WHERE tooltipId = ? ORDER BY buttonNumberId"
@@ -517,6 +518,47 @@ def test_rolls_back_a_conversion_that_reorders_buttons(tmp_path):
     _assert_rolled_back(tmp_path, _with_fill(6, "SELECT b.tooltipId, b.buttonNumberId,",
                                              "SELECT b.tooltipId, 4 - b.buttonNumberId,"),
                         "reads back differently")
+
+
+@contextlib.contextmanager
+def _patched(name: str, value):
+    """A context in which the tool's `name` is `value`, standing in for the app's query and the new tables
+    disagreeing."""
+    original = getattr(tool, name)
+    setattr(tool, name, value)
+    try:
+        yield
+    finally:
+        setattr(tool, name, original)
+
+
+def test_rolls_back_when_the_apps_query_cannot_read_the_new_tables(tmp_path):
+    db = _database(tmp_path)
+    before = _old_shown(db)
+    with _patched("APP_TOOLTIP_QUERY", OLD_APP_TOOLTIP_QUERY):
+        code, _out, err = _run(db)
+    assert code == 1 and "no such column: T.summary" in err and "nothing was changed" in err, err
+    assert _old_shown(db) == before
+    assert _query(db, "SELECT name FROM sqlite_master WHERE name IN ('TooltipTexts', 'TooltipButtonUris')") == []
+
+
+def test_rolls_back_when_the_apps_query_finds_something_else(tmp_path):
+    _assert_rolled_back(tmp_path, _patched("APP_TOOLTIP_QUERY", tool.APP_TOOLTIP_QUERY.replace("T.tag = ?", "T.tag >= ?")),
+                        "reads back differently through the app's query")
+
+
+def test_converts_tooltips_whose_category_name_is_shared(tmp_path):
+    # Two categories named "kotlin" both hold tag0: the app's query finds both, before and after.
+    db = _database(tmp_path)
+    conn = sqlite3.connect(db)
+    conn.executescript("INSERT INTO TooltipCategories VALUES (5, 'kotlin');"
+                       "INSERT INTO Tooltips (id, categoryId, tag, summary, detail) VALUES (5000, 5, 'tag0', 'S', 'D');"
+                       "INSERT INTO TooltipButtons VALUES (5000, 1, 'Examples', 'a/x.html');")
+    conn.close()
+    before = sorted(_query(db, OLD_APP_TOOLTIP_QUERY, ("kotlin", "tag0")))
+    code, _out, err = _run(db)
+    assert code == 0, err
+    assert len(before) == 2 and sorted(_query(db, APP_TOOLTIP_QUERY, ("kotlin", "tag0"))) == before
 
 
 def _main() -> int:
