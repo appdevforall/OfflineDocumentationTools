@@ -71,10 +71,11 @@ winner is the candidate that stores the two together smallest; the dictionary in
 place is measured the same way, Content and templates as stored, so the
 keep-current comparison weighs like with like. They are written in the same
 transaction. Below major 3, templates are plain text and are left
-exactly as they are. On the ADFA-3305 test database with the a/ class pages
-stored as JSON and 999 shared includes (1,006 templates, 11.6 MB as text), the
-four seeds stored the templates in 811,168 to 821,710 bytes, beside 47.8 to
-48.2 MB of Content.
+exactly as they are. On the 2026-10-19 ship-time build (1,126 templates, the
+a/ pages' among them), the four default seeds stored the templates in 860,808
+to 908,471 bytes, beside 46.96 to 47.10 MB of Content, and the templates
+decided the outcome: seed 20821, the only one to beat the dictionary in place,
+stored 73 bytes more Content than it and 51,657 bytes less in templates.
 
 Every row is proved to round-trip against the new dictionary before it is
 written. The backup (VACUUM INTO, unless --no-backup) is taken only then, just
