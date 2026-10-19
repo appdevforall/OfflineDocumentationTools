@@ -39,26 +39,31 @@ used for an image with any transparency, because quantising alpha bands soft
 edges and shadows against whatever background the page has. So the brand art,
 which has alpha, stays pixel-identical in lossless WebP.
 
-Measured on the 2026-10-19 ship-time database: stored bytes against its own
-dictionary; image PSNR is the lowest of the row's lossy images; render PSNR is
+Measured on the 2026-10-19 ship-time database with Pillow 12.1.1 and libwebp
+1.5.0 (the sizes depend a little on the encoder's version: a first measurement
+stored the 8 rows in 320,194 bytes): stored bytes against its own dictionary;
+image PSNR is the lowest of the row's lossy images; render PSNR is
 compare_svg_renders.py's, the SVG drawn in Chrome before and after:
 
     SVG row                                             before    after  images                 image  render
-    a/devsite/...notification-permission-...-flow.svg  1,604,946   94,721  lossy x5, lossless x1  36.7   42.6
-    k/html/images/kotlin-night-cover.svg                 203,101   63,326  lossless               -      73.7
-    a/devsite/...app-links_add-domains.svg               159,957   38,742  lossy x2, lossless x1  46.0   48.8
-    a/devsite/...app-links_choose-domains.svg            157,719   42,226  lossy, lossless        45.7   48.3
-    k/html/images/kotlin-night-fb.svg                    112,659   36,372  lossless               -      99
-    i/images/boundaries-enabled.svg, not-enabled.svg,    112,685   44,807  palette x3             36.8   40.0
+    a/devsite/...notification-permission-...-flow.svg  1,604,946   94,591  lossy x5, lossless x1  36.7   42.6
+    k/html/images/kotlin-night-cover.svg                 203,101   63,245  lossless               -      73.7
+    a/devsite/...app-links_add-domains.svg               159,957   38,734  lossy x2, lossless x1  46.0   48.8
+    a/devsite/...app-links_choose-domains.svg            157,719   42,227  lossy, lossless        45.7   48.3
+    k/html/images/kotlin-night-fb.svg                    112,659   36,365  lossless               -      99
+    i/images/boundaries-enabled.svg, not-enabled.svg,    112,685   44,860  palette x3             36.8   40.0
       not-enabled2.svg
 
-All 8 rows: 2,351,067 -> 320,194 stored bytes. Packed as the pipeline packs
-(rebuild_database.py --pack Content,TooltipTexts --page-size 4096): the file
--2,035,712 bytes, its .br (brotli -q 11 -w 24) -1,889,138. The cover art's
-pixels are identical (the lossless check below proves it), yet it renders at
-73.7 dB, not 99: Chrome draws that PNG and its WebP slightly differently, most
-likely in how it premultiplies alpha (not verified). The i/ rows are
-ADFA-6645's item 3.
+All 8 rows: 2,351,067 -> 320,022 stored bytes. Packed as the pipeline packs
+(rebuild_database.py --pack Content,TooltipTexts --page-size 4096) and set
+against the same database packed the same way without this step, the file goes
+from 90,783,744 to 88,752,128 bytes (-2,031,616) and its .br (brotli -q 11
+-w 24) from 72,685,042 to 70,648,466 (-2,036,576). Packing alone moves the
+unchanged database's .br from 72,546,065 to 72,685,042, so the baseline has to
+be packed too. The cover art's pixels are identical (the lossless check below
+proves it), yet it renders at 73.7 dB, not 99: Chrome draws that PNG and its
+WebP slightly differently, most likely in how it premultiplies alpha (not
+verified). The i/ rows are ADFA-6645's item 3.
 
 Before anything is written, each new image is decoded and must have the same
 pixel size as the old one, and a lossless one must give back exactly the same
