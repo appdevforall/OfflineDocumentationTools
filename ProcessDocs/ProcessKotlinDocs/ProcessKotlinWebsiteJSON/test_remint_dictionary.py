@@ -506,6 +506,18 @@ class RemintTemplatesTest(_RemintFixture):
         self.assertEqual(dict(self.conn.execute("SELECT path, content FROM Content")), content)
         self.assertEqual(self.stored_templates(), templates)
 
+    def test_each_pass_removes_its_temporary_dictionaries_templates_included(self):
+        """#44's check, on a database whose templates are compressed: the template pass's workers make compressors
+        of their own, and they must be gone when the pass ends too."""
+        self.add_versions_and_templates()
+        private = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, private, True)
+        with mock.patch.object(tempfile, "tempdir", str(private)):
+            stats = self.remint(seed=999, seeds=3, max_workers=2)
+            left = sorted(p.name for p in private.iterdir())
+        self.assertEqual(stats["templates"], len(TEMPLATE_NAMES))
+        self.assertEqual(left, [], "temp dictionaries left behind")
+
     def test_templates_are_in_the_training_sample(self):
         self.add_versions_and_templates()
         real = remint_dictionary.train_dictionary

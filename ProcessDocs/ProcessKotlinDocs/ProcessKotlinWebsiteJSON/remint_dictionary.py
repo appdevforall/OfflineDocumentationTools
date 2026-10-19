@@ -170,9 +170,13 @@ def convert_templates(templates: list, old_dictionary: bytes, new_dictionary: by
             return template_id, name, None, f"recompressed bytes failed to decode: {exc}"
         return template_id, name, data, None
 
-    # A pool per pass, as in convert_all, so each thread's cached compressors hold this candidate.
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(one, templates))
+    # A pool per pass, as in convert_all, so each thread's cached compressors hold this candidate; closed when the
+    # pass ends, as convert_all closes its own, or their temp dictionaries would outlive it.
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(one, templates))
+    finally:
+        _close_pass_compressors()
     converted = [(template_id, data) for template_id, _name, data, problem in results if problem is None]
     problems = [(f"template {name}", problem) for _id, name, _data, problem in results if problem]
     return converted, sum(len(data) for _id, data in converted), problems
