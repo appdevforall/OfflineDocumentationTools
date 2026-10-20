@@ -36,23 +36,26 @@ moves them into templates:
     members its class overrides. A key whose pages disagree on the order of
     their rows, or repeat a row, keeps its blocks in the pages.
   - Shared texts. A text of INTERN_MIN_CHARS or more that INTERN_MIN_PAGES or
-    more pages hold - a raw segment, or a hole other than a link - is stored
+    more pages hold - a raw segment, or a hole other than a link hole - is stored
     once, in a bundle template android-text-<n>.peb of at most
     INTERN_MAX_TEMPLATE bytes of source, as one branch of
     {% if j == 0 %}...{% elseif j == 1 %}...{% endif %}. A page stores
     [<n>, <j>] under "<hole>@" ("r@" for a raw segment) in place of the text.
     Only the holes that hold one get that alternative in the main template.
-    Links stay in the pages: a same-page link's fragment often equals a
-    member's id, but it is written relative to the page. A text too long for a
+    Link holes stay in the pages: a same-page link's fragment often equals a
+    member's id, but it is written relative to the page. (A shared text may
+    still hold a link in its markup; every such link in the a/ pages is
+    rooted.) A text too long for a
     bundle stays in its pages. A page compiles every bundle it uses, so texts go
     in bundles by the pages that use them (INTERN_BUNDLE_COST): the same pages'
     texts together, other groups merged only when the pages that use both gain
     more than the rest lose. In the 2026-10-19 ship-time build this interned
     6,441 texts (repeated paragraphs, inherited descriptions, annotations,
-    parameters, types) into 541 bundles, the largest 7,995 bytes, and saved
-    954,368 file and 961,649 .br bytes (84,754,432 and 66,172,076) against the
+    parameters, types) into 524 bundles, the largest 7,998 bytes, and saved
+    905,216 file and 928,748 .br bytes (84,803,584 and 66,204,977) against the
     same build without it. The median page compiles 2,653 bytes of bundle
-    source, the largest 145,235 (TextView 116,987, in 31 bundles).
+    source, the 95th percentile 14,411, the largest 144,127 (TextView 121,032,
+    in 32 bundles).
   - The main template android-reference.peb loops over a page's segments.
 
 Pages: every text/html row under a/ with templateId 0, except a/devsite/
@@ -105,7 +108,8 @@ converts renders back byte for byte, so it links to exactly what
 drop_unread_rows.py already checked in it as HTML. (drop_unread_rows.py reads
 templates and templated rows' JSON too, so it could also run after this step.)
 
-Measured on the 2026-10-18 schema-3 test database (98,201,600 bytes), against
+Measured for the shapes and inherited-member includes, before the shared
+texts, on the 2026-10-18 schema-3 test database (98,201,600 bytes), against
 the same database with only its templates compressed; both re-minted with 4
 seeds (templates sampled and recompressed with the rows), packed with
 rebuild_database.py --pack Content,TooltipTexts --page-size 4096, .br with
@@ -152,21 +156,23 @@ INCLUDE_SUFFIX = ".peb"
 MIN_SHARED_PAGES = 5
 
 TEXT_PREFIX = "android-text-"
-# A text is interned when this many pages hold it. Measured on the 2026-10-19 ship-time build (4-seed re-mint,
-# packed, .br): 5 pages saved 839,680 file and 850,755 .br bytes; 2 pages saved less (614,400 and 799,100, in
-# 1,047 bundles where a page pulls in more of them), and so did 20 pages (643,072 and 588,189).
+# A text is interned when this many pages hold it. Measured with the first prototype, which filled bundles in
+# first-use order, on the 2026-10-19 ship-time build (4-seed re-mint, packed, .br): 5 pages saved 839,680 file
+# and 850,755 .br bytes; 2 pages saved less (614,400 and 799,100, in 1,047 bundles where a page pulls in more of
+# them), and so did 20 pages (643,072 and 588,189).
 INTERN_MIN_PAGES = 5
 # A shorter text costs about as much as the reference that would replace it.
 INTERN_MIN_CHARS = 32
-# Most source a bundle template holds. A page compiles every bundle it uses: against 8,000, bundles of 16,000 or
-# 32,000 stored 11 or 14 KB less in all but doubled or quadrupled the source the median page compiles (13 KB).
+# Most source a bundle template holds. A page compiles every bundle it uses. With the packing below, offline on the
+# 2026-10-19 ship-time build: bundles of 16,000 put TextView's texts in 28 bundles instead of 32 for about the
+# same source (122,038 bytes against 121,032), and bundles of 32,000 made TextView compile 174,317.
 INTERN_MAX_TEMPLATE = 8000
 # Texts go in bundles by the pages that use them: two groups share a bundle when the pages using both, each saved
 # one bundle, outweigh the bytes the other pages then compile for nothing, a bundle counting as this many bytes.
-# Against first-use order, on the 2026-10-19 ship-time build this cut the bundle source the median page compiles
-# from 15,419 to 2,653 bytes, the 95th percentile from 61,211 to 14,672 and TextView from 290,523 to 116,987 (31
-# bundles, not 38). A bundle cost of 2,000 compiled less per page in more, smaller bundles that stored worse; 32,000
-# compiled more.
+# Against first-use order, offline on the 2026-10-19 ship-time build, this cut the bundle source the median page
+# compiles from 15,419 to 2,653 bytes, the 95th percentile from 61,211 to 14,411 and TextView from 290,523 to
+# 121,032 (32 bundles, not 38). A bundle cost of 2,000 compiled less per page (median 958) in 938 bundles that
+# stored about 22 KB more; 32,000 compiled more (median 7,973).
 INTERN_BUNDLE_COST = 8000
 
 # From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
