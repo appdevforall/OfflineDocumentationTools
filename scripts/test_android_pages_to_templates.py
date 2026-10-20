@@ -928,20 +928,26 @@ def contexts_sharing(texts: list, pages: int = 5) -> list:
     return [{"u": f"/a/p{i}.html", "b": [{"r": text} for text in texts]} for i in range(pages)]
 
 
-def with_bundle_size(size: int, function):
-    saved = apt.INTERN_MAX_TEMPLATE
-    apt.INTERN_MAX_TEMPLATE = size
+def with_setting(name: str, value: int, function):
+    saved = getattr(apt, name)
+    setattr(apt, name, value)
     try:
         return function()
     finally:
-        apt.INTERN_MAX_TEMPLATE = saved
+        setattr(apt, name, saved)
+
+
+def with_bundle_size(size: int, function):
+    return with_setting("INTERN_MAX_TEMPLATE", size, function)
 
 
 def test_bundles_fill_up_to_the_bundle_size_and_no_further():
     # Lengths vary, so some text lands right at a bundle's limit.
     texts = [f"<p>Shared text number {i:03d}{'x' * (i % 13)}, long enough to intern.</p>\n" for i in range(40)]
     contexts = contexts_sharing(texts)
-    sources, interned = with_bundle_size(400, lambda: apt.intern_texts(contexts))
+    # No merging here, only the split: one page set's texts, which gain nothing from a merge when a bundle costs 0.
+    sources, interned = with_setting("INTERN_BUNDLE_COST", 0,
+                                     lambda: with_bundle_size(400, lambda: apt.intern_texts(contexts)))
     assert interned == {"r"}
     names = [apt.text_name(b) for b in range(len(sources))]
     assert sorted(sources) == sorted(names) and len(names) > 3
@@ -961,7 +967,9 @@ def test_bundles_fill_up_to_the_bundle_size_and_no_further():
 def test_a_bundle_may_reach_the_bundle_size_exactly():
     # 15 bytes of "{% if j == 0 %}", 19 of "{% elseif j == 1 %}" and 11 of "{% endif %}": 355 bytes of text make 400.
     texts = ["<p>" + "a" * 193 + "</p>", "<p>" + "b" * 148 + "</p>"]
-    sources, _interned = with_bundle_size(400, lambda: apt.intern_texts(contexts_sharing(texts)))
+    # The split alone: with no merging (a bundle costing 0), a split that left a second bundle would show.
+    sources, _interned = with_setting("INTERN_BUNDLE_COST", 0, lambda: with_bundle_size(
+        400, lambda: apt.intern_texts(contexts_sharing(texts))))
     assert list(sources) == [apt.text_name(0)] and len(sources[apt.text_name(0)].encode()) == 400
 
 
@@ -1072,6 +1080,15 @@ def test_a_merged_group_can_still_merge_with_a_lower_numbered_one():
     contexts = contexts_using([([x], range(12)), ([a], list(range(10)) + [12]), ([b], list(range(10)) + [13])], 14)
     sources, _ = apt.intern_texts(contexts)
     assert len(sources) == 1, sorted(sources)
+
+
+def test_a_merge_that_fills_a_bundle_exactly_is_taken():
+    # Merged: "{% if j == 0 %}" + A + "{% elseif j == 1 %}" + B + "{% endif %}", 45 bytes of tags.
+    a, b = "<p>" + "a" * (150 - 8) + "</p>\n", "<p>" + "b" * (155 - 8) + "</p>\n"
+    cap = 45 + len(a) + len(b)
+    contexts = contexts_using([([a], range(5)), ([b], range(6))], 6)
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert [len(s.encode()) for s in sources.values()] == [cap]
 
 
 def test_several_bundles_serve_the_same_bytes(tmp_path):

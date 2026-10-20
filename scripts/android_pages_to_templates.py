@@ -589,9 +589,13 @@ def pack_texts(order: list, pages: dict, sources: dict) -> list:
         both = len(pa & pb)
         return INTERN_BUNDLE_COST * both - sb * (len(pa) - both) - sa * (len(pb) - both)
 
+    # A merge drops one "{% endif %}" and one "{% if j == 0 %}" and adds at least one "{% elseif j == n %}", so a
+    # merged bundle is at least this much smaller than its two parts: never refuse here one that would fit.
+    least_saved = len("{% endif %}") + len("{% if j == 0 %}") - len("{% elseif j == 1 %}")
+
     def offer(a: int) -> None:
         for b in {b for p in groups[a][1] for b in using[p]} - {a}:
-            if groups[a][2] + groups[b][2] <= INTERN_MAX_TEMPLATE and (g := gain(a, b)) > 0:
+            if groups[a][2] + groups[b][2] - least_saved <= INTERN_MAX_TEMPLATE and (g := gain(a, b)) > 0:
                 lo, hi = min(a, b), max(a, b)
                 heapq.heappush(heap, (-g, lo, hi, version[lo], version[hi]))
 
