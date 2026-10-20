@@ -49,9 +49,10 @@ moves them into templates:
     texts together, other groups merged only when the pages that use both gain
     more than the rest lose. In the 2026-10-19 ship-time build this interned
     6,441 texts (repeated paragraphs, inherited descriptions, annotations,
-    parameters, types) into 164 bundles, the largest 7,999 bytes, and saved
-    856,064 file and 867,547 .br bytes (84,852,736 and 66,266,178) against the
-    same build without it.
+    parameters, types) into 541 bundles, the largest 7,995 bytes, and saved
+    954,368 file and 961,649 .br bytes (84,754,432 and 66,172,076) against the
+    same build without it. The median page compiles 2,653 bytes of bundle
+    source, the largest 145,235 (TextView 116,987, in 31 bundles).
   - The main template android-reference.peb loops over a page's segments.
 
 Pages: every text/html row under a/ with templateId 0, except a/devsite/
