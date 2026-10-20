@@ -1137,10 +1137,32 @@ PEBBLE_LIKE = [
     "<p>Whitespace control {%- like this -%} on five pages, word for word.</p>\n",
     "<p>Ends with an opening brace on five pages, word for word {</p>\n",
     "<p>A Windows line end on five pages,\r\nword for word.</p>\n",
-    "<p>Line separator and paragraph separator on five pages.</p>\n",
+    "<p>Line separator\u2028and paragraph separator\u2029on five pages.</p>\n",
     "<p>Next line\u0085on five pages, word for word, shared.</p>\n",
     "<p>Non-ASCII: café, naïve, Ελληνικά, 中文, on five pages.</p>\n",
 ]
+
+
+def test_texts_holding_pebble_syntax_and_line_breaks_are_shared_and_serve_the_same_bytes(tmp_path):
+    """A text that Pebble would read as syntax, or whose line breaks it would trim, goes in a bundle as literal text.
+    If it did not, the render check would keep its pages as HTML, so this asserts that they convert."""
+    extra = "".join(notes() + text for text in PEBBLE_LIKE) + notes()
+    pages = standard_pages()
+    for i in range(5):
+        pages[f"a/pkg/C{i}.html"] = doclava_page(f"C{i}", extra=extra)
+    db = make_db(tmp_path / "doc.db", pages)
+    before = served(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = served(db)
+    for path, (data, _tid) in before.items():
+        assert after[path][0] == data, path
+    assert all(after[f"a/pkg/C{i}.html"][1] for i in range(5)), err
+    shared = {seg["r@"][0] for seg in stored_context(db, "a/pkg/C0.html")["b"] if "r@" in seg}
+    held = "".join(t for n, t in templates(db).items() if n.startswith(apt.TEXT_PREFIX))
+    assert shared and "{% verbatim %}" in held
+    raws = [seg.get("r", "") for seg in stored_context(db, "a/pkg/C0.html")["b"]]
+    assert not any(text in raw for text in PEBBLE_LIKE for raw in raws), "a text stayed in the page"
 
 
 def test_several_bundles_serve_the_same_bytes(tmp_path):
