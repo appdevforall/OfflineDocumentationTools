@@ -38,7 +38,8 @@ hand it, and links every reference to the ids handed out - what a fresh
 build does when it records each row's new id. A reference is a declared
 foreign key or a column listed in UNDECLARED_REFERENCES: Bookshelf.contentID
 names a Content row with no FOREIGN KEY, kept in step only by Content's
-AddBook and DeleteBook triggers. Ids continue after the old sequence or the
+AddBook and DeleteBook triggers, and Content.templateId names a Templates
+row, 0 meaning none. Ids continue after the old sequence or the
 largest id, whichever is higher, as AUTOINCREMENT's do, so an id can stop
 naming a row (one quoted in an old tooltip feedback email, say) but never
 come to name a different one. On the 2026-10-13 database Content
@@ -86,15 +87,25 @@ import sys
 from pathlib import Path
 
 # Columns holding another table's rowid with no FOREIGN KEY declaring it, so
-# PRAGMA foreign_key_list cannot find them: (table, column, parent table).
-# --pack follows these exactly like a declared key.
+# PRAGMA foreign_key_list cannot find them: (table, column, parent table, the
+# value that means "none", or None if only NULL does). --pack follows these
+# exactly like a declared key, and leaves the "none" value as it is.
 UNDECLARED_REFERENCES = (
     # Kept in step with Content.id only by Content's AddBook and DeleteBook triggers.
-    ("Bookshelf", "contentID", "Content"),
-    # WebServer.kt renders a row through the template it names. 0 means none
-    # and names no row, so --pack Templates is refused while any row has it.
-    ("Content", "templateId", "Templates"),
+    ("Bookshelf", "contentID", "Content", None),
+    # WebServer.kt renders a row through the template it names; 0 means the row
+    # is served as it is stored (7,156 rows of the 2026-10-20 build).
+    ("Content", "templateId", "Templates", 0),
 )
+
+
+def none_value(child: str, column: str):
+    """The value of child.column that names no row, other than NULL: its
+    UNDECLARED_REFERENCES sentinel, or None."""
+    for table, name, _parent, none in UNDECLARED_REFERENCES:
+        if table.lower() == child.lower() and name.lower() == column.lower():
+            return none
+    return None
 
 
 def read_only_uri(path: Path) -> str:
@@ -219,7 +230,7 @@ def references_to(conn, tables: list, parent: str) -> list:
         for fk in conn.execute(f'PRAGMA foreign_key_list("{child}")'):
             if fk[2] == parent and (fk[4] is None or fk[4] == key):
                 found.append((child, fk[3]))
-        for table, column, target in UNDECLARED_REFERENCES:
+        for table, column, target, _none in UNDECLARED_REFERENCES:
             if table.lower() == child.lower() and target.lower() == parent.lower():
                 found += [(child, name) for _cid, name, *_rest in conn.execute(f'PRAGMA table_info("{child}")')
                           if name.lower() == column.lower() and (child, name) not in found]
@@ -287,8 +298,9 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
     For a copy made with --pack, `renumbered` ({table: {new rowid: old}}) and
     `followed` ({table: {column: parent}}) map every renumbered id back, so the
     copy must still match the source exactly. A followed column holding
-    anything but NULL or a new id - an old id the pack left behind - maps to a
-    marker no source row holds, so it differs. Rows are compared through a
+    anything but NULL, its "none" value (none_value) or a new id - an old id
+    the pack left behind - maps to a marker no source row holds, so it differs.
+    Rows are compared through a
     digest per row, sorted by (original) rowid."""
     renumbered, followed = renumbered or {}, followed or {}
     conn = sqlite3.connect(read_only_uri(path), uri=True)
@@ -296,9 +308,9 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
         def unmap(table, rowid):
             return renumbered.get(table, {}).get(rowid, rowid)
 
-        def follow(parent, value):
-            if value is None:
-                return None
+        def follow(parent, value, none):
+            if value is None or (none is not None and value == none):
+                return value
             ids = renumbered.get(parent, {})
             return ids[value] if value in ids else ("not renumbered", value)
 
@@ -315,7 +327,8 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
         for name, _sql, without_rowid in user_tables(conn):
             columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{name}")')]
             alias = alias_column(conn, name)
-            remap = {columns.index(column): parent for column, parent in followed.get(name, {}).items()}
+            remap = {columns.index(column): (parent, none_value(name, column))
+                     for column, parent in followed.get(name, {}).items()}
             keyed = []
             query = f'SELECT * FROM "{name}"' if without_rowid else f'SELECT rowid, * FROM "{name}"'
             for row in conn.execute(query):
@@ -327,8 +340,8 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
                     offset = 1
                 else:
                     row, offset = list(row), 0
-                for index, parent in remap.items():
-                    row[index + offset] = follow(parent, row[index + offset])
+                for index, (parent, none) in remap.items():
+                    row[index + offset] = follow(parent, row[index + offset], none)
                 digest = hashlib.sha256()
                 for value in row:
                     if isinstance(value, bytes):
@@ -367,7 +380,12 @@ def rebuild(source: Path, output: Path, pack=(), page_size: int = None) -> tuple
             references = references_to(src, tables, table)
             check_triggers(src, table, references)
             for child, column in references:
-                orphans = src.execute(f'SELECT COUNT(*) FROM "{child}" WHERE "{column}" IS NOT NULL AND '
+                none = none_value(child, column)
+                if none is not None and src.execute(f'SELECT 1 FROM "{table}" WHERE rowid = ?', (none,)).fetchone():
+                    raise RuntimeError(f"--pack {table}: {child}.{column} = {none} means no {table} row, but one "
+                                       f"has rowid {none}")
+                skip = "" if none is None else f'"{column}" != {int(none)} AND '
+                orphans = src.execute(f'SELECT COUNT(*) FROM "{child}" WHERE "{column}" IS NOT NULL AND {skip}'
                                       f'"{column}" NOT IN (SELECT rowid FROM "{table}")').fetchone()[0]
                 if orphans:
                     raise RuntimeError(f"--pack {table}: {orphans} row(s) of {child}.{column} name no {table} "

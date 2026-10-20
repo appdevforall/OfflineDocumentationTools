@@ -418,10 +418,72 @@ def test_pack_templates_relinks_content_templateid(tmp_path):
     with sqlite3.connect(packed) as conn:
         assert sorted(conn.execute(query)) == pages
         assert conn.execute("SELECT MIN(id) FROM Templates").fetchone() == (3,), "the ids did change"
-    # 0, "no template", names no row: refused like any other orphan.
+
+
+def _with_untemplated_rows(tmp_path: Path) -> Path:
+    """_bookshelf with every third Content row on templateId 0, which the app
+    serves as stored: documentation.db has 7,156 such rows."""
+    source = _bookshelf(tmp_path)
     with sqlite3.connect(source) as conn:
-        conn.execute("UPDATE Content SET templateId = 0 WHERE path = 'p1.html'")
-    assert rebuild.run({"source": source, "output": tmp_path / "again.db", "pack": ["Templates"]}) == 1
+        conn.execute("UPDATE Content SET templateId = 0 WHERE id % 3 = 0")
+    return source
+
+
+def _untemplated(path: Path) -> list:
+    with sqlite3.connect(path) as conn:
+        return sorted(conn.execute("SELECT path FROM Content WHERE templateId = 0"))
+
+
+def test_templateid_zero_is_not_an_orphan(tmp_path):
+    """0 names no Templates row by design; counting it as an orphan refused
+    --pack Templates on every documentation.db."""
+    source = _with_untemplated_rows(tmp_path)
+    rebuild.rebuild(source, tmp_path / "packed.db", ["Templates"])  # raises on an orphan
+    assert _untemplated(tmp_path / "packed.db") == _untemplated(source) != []
+
+
+def test_the_identity_check_takes_templateid_zero_as_none(tmp_path):
+    """0 is not a renumbered id, so it must compare as itself, not as an old id
+    the pack left behind."""
+    source, packed = _with_untemplated_rows(tmp_path), tmp_path / "packed.db"
+    renumbered, followed, _advanced = rebuild.rebuild(source, packed, ["Templates"])
+    assert followed == {"Content": {"templateId": "Templates"}}
+    assert (rebuild.fingerprint(packed, renumbered, followed)["table Content"]
+            == rebuild.fingerprint(source)["table Content"])
+
+
+def test_pack_templates_keeps_the_zeros_and_relinks_the_rest(tmp_path):
+    source, packed = _with_untemplated_rows(tmp_path), tmp_path / "packed.db"
+    query = "SELECT c.path, t.name FROM Content c JOIN Templates t ON t.id = c.templateId"
+    with sqlite3.connect(source) as conn:
+        pages = sorted(conn.execute(query))
+    assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 0
+    assert _untemplated(packed) == _untemplated(source)
+    with sqlite3.connect(packed) as conn:
+        assert sorted(conn.execute(query)) == pages
+        assert conn.execute("SELECT MIN(id) FROM Templates").fetchone() == (3,), "the ids did change"
+
+
+def test_a_templateid_naming_no_template_is_still_an_orphan(tmp_path):
+    """Only 0 means none: any other id with no row could come to name a new one."""
+    source, packed = _with_untemplated_rows(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("UPDATE Content SET templateId = 99 WHERE path = 'p1.html'")
+    with contextlib.redirect_stderr(io.StringIO()) as err:
+        assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 1
+    assert "1 row(s) of Content.templateId name no Templates row" in err.getvalue(), err.getvalue()
+    assert not packed.exists()
+
+
+def test_a_template_with_id_zero_is_refused(tmp_path):
+    """Then 0 would both mean none and name that template."""
+    source, packed = _with_untemplated_rows(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("INSERT INTO Templates (id, name, content) VALUES (0, 'zero.peb', x'00')")
+    with contextlib.redirect_stderr(io.StringIO()) as err:
+        assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 1
+    assert "Content.templateId = 0 means no Templates row, but one has rowid 0" in err.getvalue(), err.getvalue()
+    assert not packed.exists()
 
 
 def test_pack_refuses_a_table_whose_trigger_links_its_id_elsewhere(tmp_path):
