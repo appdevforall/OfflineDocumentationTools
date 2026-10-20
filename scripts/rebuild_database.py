@@ -39,22 +39,26 @@ build does when it records each row's new id. A reference is a declared
 foreign key or a column listed in UNDECLARED_REFERENCES: Bookshelf.contentID
 names a Content row with no FOREIGN KEY, kept in step only by Content's
 AddBook and DeleteBook triggers, and Content.templateId names a Templates
-row, 0 meaning none. A table whose rows reference another table packed in the
-same run is planned for the new ids it will hold, so Templates and Content pack
-together in one run. Ids continue after the old sequence or the
-largest id, whichever is higher, as AUTOINCREMENT's do, so an id can stop
-naming a row (one quoted in an old tooltip feedback email, say) but never
-come to name a different one. On the 2026-10-13 database Content
-goes from 19,158 leaf pages to 14,524 and Tooltips from 16,069 to 12,402.
-Packing Templates as well takes 114,688 bytes off the 2026-10-20 ship-time
-build (Templates 260 -> 227 leaf pages; Content 6,573 -> 6,578, its templateId
-values a byte larger), and 90,112 off the 2026-10-19 one. A
-table some row references without a match is refused, since that orphan's
-id could otherwise name a new row; so is a table with a trigger that ties
-its id to a column that is neither kind of reference (check_triggers),
-since that link would keep the old ids. The gain lasts only until rows are
-added, which append in arrival order, so packing belongs in every release's
-rebuild.
+row, 0 meaning none. Ids continue after the old sequence or the largest id,
+whichever is higher, as AUTOINCREMENT's do, so an id can stop naming a row
+(one quoted in an old tooltip feedback email, say) but never come to name a
+different one. On the 2026-10-13 database Content goes from 19,158 leaf
+pages to 14,524 and Tooltips from 16,069 to 12,402. A table some row
+references without a match is refused, since that orphan's id could
+otherwise name a new row; so is a table with a trigger that ties its id to a
+column that is neither kind of reference (check_triggers), since that link
+would keep the old ids. The gain lasts only until rows are added, which
+append in arrival order, so packing belongs in every release's rebuild.
+
+A new id can take a byte or two more than the old one. A table packed in the
+same run as a table it references is planned for the new ids it will hold; a
+table left out is copied in rowid order with no plan, and the run warns when
+that costs it leaf pages (unplanned_growth). So pack Templates together with
+Content, never alone or after it: --pack Templates alone took the 2026-10-20
+ship-time build's Content from 6,573 leaf pages to 8,787 (+8,953,856 bytes).
+Together they take 114,688 bytes off that build (Templates 260 -> 227 leaf
+pages; Content 6,573 -> 6,578, its templateId values a byte or two larger),
+and 90,112 off the 2026-10-19 one.
 
 Page size (--page-size N): the 2026-10-13 database has 1 KB pages, which no
 tool in this repository chose - SQLite's default was 1 KB until 3.12.0, and a
@@ -186,6 +190,44 @@ def leaf_cell_size(rowid: int, stored: list, usable: int) -> int:
     return _varint_len(payload) + _varint_len(rowid) + local + overflow + 2
 
 
+def _cells(conn, table: str, page_size: int, largest: int = None, widen: dict = None) -> list:
+    """[(leaf cell size, rowid)] for each row of `table`, in rowid order, on
+    pages of page_size: its rowid sized as `largest`, or as itself when that is
+    None, and each `widen` column as packing_order says."""
+    columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')]
+    alias = alias_column(conn, table)
+    widen = {columns.index(name): bound for name, bound in (widen or {}).items()}
+    probes = ", ".join(f'typeof("{c}"), CASE typeof("{c}") WHEN \'integer\' THEN "{c}" '
+                       f'WHEN \'text\' THEN length(CAST("{c}" AS BLOB)) '
+                       f'WHEN \'blob\' THEN length("{c}") END' for c in columns)
+    rows = conn.execute(f'SELECT rowid, {probes} FROM "{table}" ORDER BY rowid').fetchall()
+    cells = []
+    for row in rows:
+        stored = []
+        for index in range(len(columns)):
+            kind, value = row[1 + 2 * index], row[2 + 2 * index]
+            if index == alias:
+                stored.append((0, 0))
+            elif index in widen and kind == "integer" and value != widen[index][1]:
+                stored.append(_stored("integer", widen[index][0]))
+            else:
+                stored.append(_stored(kind, value))
+        cells.append((leaf_cell_size(row[0] if largest is None else largest, stored, page_size), row[0]))
+    return cells
+
+
+def rowid_order_pages(conn, table: str, page_size: int) -> int:
+    """Leaf pages `table` fills on pages of page_size when its rows go in by
+    rowid as they are stored, each new page started when the next row does not
+    fit: what the copy gives a table it does not pack, with no value changed."""
+    pages, left = 1, page_size - 8
+    for size, _rowid in _cells(conn, table, page_size):
+        if size > left:
+            pages, left = pages + 1, page_size - 8
+        left -= size
+    return pages
+
+
 def packing_order(conn, table: str, page_size: int, largest: int, widen: dict = None) -> list:
     """The table's rowids in an order that fills its leaf pages well.
 
@@ -206,28 +248,9 @@ def packing_order(conn, table: str, page_size: int, largest: int, widen: dict = 
     Content's pages overflowed (+11.5 MB on the 2026-10-19 item-B build)."""
     import bisect
 
-    columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')]
-    alias = alias_column(conn, table)
-    widen = {columns.index(name): bound for name, bound in (widen or {}).items()}
-    probes = ", ".join(f'typeof("{c}"), CASE typeof("{c}") WHEN \'integer\' THEN "{c}" '
-                       f'WHEN \'text\' THEN length(CAST("{c}" AS BLOB)) '
-                       f'WHEN \'blob\' THEN length("{c}") END' for c in columns)
-    rows = conn.execute(f'SELECT rowid, {probes} FROM "{table}"').fetchall()
-    cells = []
-    for row in rows:
-        stored = []
-        for index in range(len(columns)):
-            kind, value = row[1 + 2 * index], row[2 + 2 * index]
-            if index == alias:
-                stored.append((0, 0))
-            elif index in widen and kind == "integer" and value != widen[index][1]:
-                stored.append(_stored("integer", widen[index][0]))
-            else:
-                stored.append(_stored(kind, value))
-        cells.append((leaf_cell_size(largest, stored, page_size), row[0]))
     room = page_size - 8
     pages, free = [], []  # free: sorted [(bytes left, page index)]
-    for size, rowid in sorted(cells, reverse=True):
+    for size, rowid in sorted(_cells(conn, table, page_size, largest, widen), reverse=True):
         slot = bisect.bisect_left(free, (size, -1))
         if slot < len(free):
             left, index = free.pop(slot)
@@ -504,6 +527,30 @@ def page_size_of(path: Path) -> int:
         conn.close()
 
 
+def unplanned_growth(source: Path, output: Path, pack, followed: dict) -> list:
+    """[(table, its followed columns, leaf pages its stored rows fill, leaf
+    pages in the copy)] for each table that holds a packed table's new ids but
+    is not packed itself, and came out larger. Such a table is copied in rowid
+    order with no plan, and a new id can take a byte or two more than the old
+    one. Compared against rowid_order_pages, not the source's own pages, since
+    the copy's page size can differ. A WITHOUT ROWID table (Tooltips in schema
+    3.0.0) cannot be packed, so nothing would help it, and it is not checked."""
+    conn = sqlite3.connect(read_only_uri(source), uri=True)
+    try:
+        without = {name: without_rowid for name, _sql, without_rowid in user_tables(conn)}
+        size = page_size_of(output)
+        grown = []
+        for table, columns in followed.items():
+            if table in pack or without[table]:
+                continue
+            stored, copied = rowid_order_pages(conn, table, size), leaf_pages(output, table)
+            if copied > stored:
+                grown.append((table, sorted(columns), stored, copied))
+        return grown
+    finally:
+        conn.close()
+
+
 def page_size_arg(value: str) -> int:
     """A page size SQLite accepts: a power of two from 512 to 65536. It ignores
     any other without a word, which would leave the copy at the default."""
@@ -548,6 +595,10 @@ def run(cfg: dict) -> int:
                           for column, parent in columns.items() if parent == table)
         print(f"  {table} renumbered for packing: {leaf_pages(source, table):,} -> {leaf_pages(output, table):,} "
               f"leaf pages{f'; followed by {moved}' if moved else ''}.")
+    for table, columns, stored, copied in unplanned_growth(source, output, pack, followed):
+        print(f"warning: {table} is not in --pack, so its pages were not planned for the new ids in "
+              f"{', '.join(f'{table}.{column}' for column in columns)}: {copied:,} leaf pages, against {stored:,} "
+              f"with the old ones; pack {table} in the same run", file=sys.stderr)
     return 0
 
 
@@ -560,7 +611,7 @@ def main() -> None:
                    help="Insert these tables' rows in an order that fills their leaf pages, each taking the next "
                         "AUTOINCREMENT id, with declared foreign keys and UNDECLARED_REFERENCES following "
                         "(e.g. Templates,Content,Tooltips; Templates,Content,TooltipTexts on a schema 3.0.0 "
-                        "database)")
+                        "database). Pack Templates together with Content, never alone or after it")
     p.add_argument("--page-size", type=page_size_arg, default=None, metavar="BYTES",
                    help="Page size for the copy, a power of two from 512 to 65536 (default: the source's; "
                         "use 4096 for documentation.db)")

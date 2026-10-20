@@ -611,6 +611,91 @@ def test_content_is_planned_for_the_largest_new_template_id(tmp_path):
         rebuild.leaf_pages(one, "Content"), rebuild.leaf_pages(two, "Content"))
 
 
+def test_rowid_order_pages_is_what_the_copy_gives_a_table_it_does_not_pack(tmp_path):
+    """The warning below compares a copy with this, so it must be exact, at any
+    page size the copy gets."""
+    for make in (_templated, _bookshelf, _straddling):
+        work = tmp_path / make.__name__
+        work.mkdir()
+        source = make(work)
+        for size in (1024, 4096):
+            copy = work / f"copy-{size}.db"
+            with contextlib.redirect_stdout(io.StringIO()):
+                assert rebuild.run({"source": source, "output": copy, "page_size": size}) == 0
+            with sqlite3.connect(source) as conn:
+                predicted = rebuild.rowid_order_pages(conn, "Content", size)
+            assert predicted == rebuild.leaf_pages(copy, "Content") > 1, (make.__name__, size, predicted)
+    # Cells of 8 bytes (rowid 2, a record of one empty blob 3, its length 1, the
+    # cell pointer 2), 127 to a 1 KB page's 1,016 bytes of room with none over,
+    # and of 9 bytes for a 1-byte blob. So a byte wrong in a page's room, first
+    # or later, or at an exact fit changes a count.
+    tables = {"Full": ([b""] * 381, 3), "Spill": ([b""] * 382, 4),
+              "FirstOver": ([b""] * 126 + [b"x"], 2), "NextOver": ([b""] * 253 + [b"x"], 3)}
+    source, copy = tmp_path / "even.db", tmp_path / "even-copy.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("PRAGMA page_size = 1024")
+        for table, (blobs, _pages) in tables.items():
+            conn.execute(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, b BLOB NOT NULL)")
+            conn.executemany(f"INSERT INTO {table} VALUES (?, ?)", [(1000 + i, b) for i, b in enumerate(blobs)])
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert rebuild.run({"source": source, "output": copy, "page_size": 1024}) == 0
+    with sqlite3.connect(source) as conn:
+        for table, (_blobs, pages) in tables.items():
+            assert rebuild.rowid_order_pages(conn, table, 1024) == rebuild.leaf_pages(copy, table) == pages, table
+
+
+def _warnings(source: Path, output: Path, pack: list, page_size: int = None) -> str:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+        assert rebuild.run({"source": source, "output": output, "pack": pack, "page_size": page_size}) == 0
+    return err.getvalue()
+
+
+def test_a_table_left_out_of_pack_is_warned_about_when_the_new_ids_grow_it(tmp_path):
+    """--pack Templates alone took the 2026-10-20 build's Content from 6,573
+    leaf pages to 8,787 and exited 0 with nothing said. At 4 KB the copy's
+    pages are not the 1 KB source's, so the check cannot use the source's."""
+    source = _templated(tmp_path)
+    for size in (1024, 4096):
+        packed = tmp_path / f"packed-{size}.db"
+        err = _warnings(source, packed, ["Templates"], size)
+        with sqlite3.connect(source) as conn:
+            stored = rebuild.rowid_order_pages(conn, "Content", size)
+        copied = rebuild.leaf_pages(packed, "Content")
+        assert copied > stored, (size, copied, stored)
+        assert err == (f"warning: Content is not in --pack, so its pages were not planned for the new ids in "
+                       f"Content.templateId: {copied:,} leaf pages, against {stored:,} with the old ones; pack "
+                       f"Content in the same run\n"), err
+
+
+def test_no_warning_when_a_table_holding_new_ids_is_packed_or_did_not_grow(tmp_path):
+    source = _templated(tmp_path)
+    assert _warnings(source, tmp_path / "both.db", ["Templates", "Content"]) == ""
+    # Packed again, Content takes a page more for the wider ids than its stored
+    # rows fill; it was planned for them, so that is no cause to warn.
+    assert _warnings(source, tmp_path / "content.db", ["Content"]) == ""
+    assert _warnings(tmp_path / "content.db", tmp_path / "again.db", ["Templates", "Content"]) == ""
+    # Bookshelf follows Content's new ids unpacked, and they take no more bytes.
+    assert _warnings(_bookshelf(tmp_path), tmp_path / "shelf.db", ["Content"]) == ""
+
+
+def test_a_without_rowid_table_holding_new_ids_is_not_checked(tmp_path):
+    """It cannot be packed, so no warning could help it, and it has no rowid to
+    plan by (Tooltips in schema 3.0.0)."""
+    path = tmp_path / "without.db"
+    with sqlite3.connect(path) as conn:
+        conn.executescript("""
+            PRAGMA page_size = 1024;
+            CREATE TABLE Texts (id INTEGER PRIMARY KEY AUTOINCREMENT, body BLOB NOT NULL);
+            CREATE TABLE Notes (id INTEGER PRIMARY KEY REFERENCES Texts(id), note TEXT) WITHOUT ROWID;
+        """)
+        conn.executemany("INSERT INTO Texts (id, body) VALUES (?, ?)",
+                         [(i, b"t" * (i % 7 * 40)) for i in range(1, 400)])
+        conn.executemany("INSERT INTO Notes VALUES (?, ?)", [(i, "n" * 30) for i in range(1, 400)])
+    assert _warnings(path, tmp_path / "packed.db", ["Texts"]) == ""
+    with sqlite3.connect(tmp_path / "packed.db") as conn:
+        assert conn.execute("SELECT MIN(id) FROM Notes").fetchone() == (400,), "the ids did change"
+
+
 def test_pack_refuses_a_table_whose_trigger_links_its_id_elsewhere(tmp_path):
     """A trigger that stores or matches the id in a column no followed
     reference covers is a link the pack would leave on the old ids."""
