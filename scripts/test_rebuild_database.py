@@ -486,6 +486,43 @@ def test_a_template_with_id_zero_is_refused(tmp_path):
     assert not packed.exists()
 
 
+def test_a_negative_templateid_is_an_orphan(tmp_path):
+    """Only 0 is skipped, not every value below 1: the orphan check must say
+    which row is wrong, not leave it to the identity check's "differs in"."""
+    source, packed = _with_untemplated_rows(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("UPDATE Content SET templateId = -1 WHERE path = 'p1.html'")
+    with contextlib.redirect_stderr(io.StringIO()) as err:
+        assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 1
+    assert "1 row(s) of Content.templateId name no Templates row" in err.getvalue(), err.getvalue()
+    assert not packed.exists()
+
+
+def test_a_bookshelf_contentid_of_zero_is_still_an_orphan(tmp_path):
+    """Only Content.templateId has a "none" value: a Bookshelf row on
+    contentID 0 names no Content row."""
+    source, packed = _bookshelf(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("UPDATE Bookshelf SET contentID = 0 WHERE rowid = (SELECT MIN(rowid) FROM Bookshelf)")
+    with contextlib.redirect_stderr(io.StringIO()) as err:
+        assert rebuild.run({"source": source, "output": packed, "pack": ["Content"]}) == 1
+    assert "1 row(s) of Bookshelf.contentID name no Content row" in err.getvalue(), err.getvalue()
+    assert not packed.exists()
+
+
+def test_a_bookshelf_row_left_on_old_id_zero_fails_the_run(tmp_path):
+    """Content may hold a row with id 0 (only a template is refused one), so a
+    Bookshelf reference the pack left on 0 is an old id, not "none"."""
+    source, packed = _bookshelf(tmp_path), tmp_path / "packed.db"
+    with sqlite3.connect(source) as conn:
+        conn.execute("INSERT INTO Content (id, path, content, templateId) VALUES (0, 'zero.html', x'00', 1)")
+        conn.execute("INSERT INTO Bookshelf (contentID, title, bookCategoryID) VALUES (0, 'Zero', 1)")
+    code, err = _run_spoiled(source, packed, "UPDATE Bookshelf SET contentID = 0 WHERE title = 'Zero'",
+                             pack=["Content"])
+    assert code == 1 and "table Bookshelf" in err, err
+    assert not packed.exists()
+
+
 def _templated(tmp_path: Path) -> Path:
     """150 templates and 800 Content rows of 30-90 bytes, three in four on
     templateId 1. Packed with Templates, id 1 (stored in no bytes) becomes 151 or
@@ -528,6 +565,50 @@ def test_templates_and_content_pack_in_one_run_as_well_as_in_two(tmp_path):
             order, rebuild.leaf_pages(one, "Content"), rebuild.leaf_pages(two, "Content"))
         with sqlite3.connect(one) as conn:
             assert conn.execute("SELECT MIN(templateId) FROM Content WHERE templateId > 0").fetchone()[0] > 150
+
+
+def _straddling(tmp_path: Path) -> Path:
+    """_templated's Content, three rows in four on template 32601, with 100
+    templates on ids 32601-32700. Packed, they take 32701-32800, across the
+    2-to-3-byte boundary at 32768, and 32601 becomes 32800. Templates' old
+    largest id (32700), its row count (100) and Content's own largest new id
+    (1600) all take fewer bytes than 32800, so a bound on any of them plans
+    Content's pages too full."""
+    import random
+
+    path = tmp_path / "straddling.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        PRAGMA page_size = 1024;
+        CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL,
+                                UNIQUE(name));
+        CREATE TABLE Content (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, content BLOB NOT NULL,
+                              templateId INTEGER NOT NULL DEFAULT 0, UNIQUE(path));
+    """)
+    conn.executemany("INSERT INTO Templates (id, name, content) VALUES (?, ?, ?)",
+                     [(32601 + i, f"t{i:03d}.peb", b"x") for i in range(100)])
+    sizes = random.Random(3)
+    conn.executemany("INSERT INTO Content (path, content, templateId) VALUES (?, ?, ?)",
+                     [(f"p{i:03d}.html", bytes([i % 251]) * sizes.randint(30, 90), 32601 if i % 4 else 0)
+                      for i in range(800)])
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_content_is_planned_for_the_largest_new_template_id(tmp_path):
+    """Sized for any smaller bound, Content's one-run plan overflows pages that
+    the two-pass rebuild, which sizes the ids it reads, does not."""
+    source, first, two, one = (_straddling(tmp_path), tmp_path / "templates.db", tmp_path / "two.db",
+                               tmp_path / "one.db")
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert rebuild.run({"source": source, "output": first, "pack": ["Templates"]}) == 0
+        assert rebuild.run({"source": first, "output": two, "pack": ["Content"]}) == 0
+        assert rebuild.run({"source": source, "output": one, "pack": ["Content", "Templates"]}) == 0
+    with sqlite3.connect(one) as conn:
+        assert conn.execute("SELECT MAX(templateId) FROM Content").fetchone() == (32800,)
+    assert rebuild.leaf_pages(one, "Content") <= rebuild.leaf_pages(two, "Content"), (
+        rebuild.leaf_pages(one, "Content"), rebuild.leaf_pages(two, "Content"))
 
 
 def test_pack_refuses_a_table_whose_trigger_links_its_id_elsewhere(tmp_path):
