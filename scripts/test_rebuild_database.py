@@ -270,9 +270,9 @@ def test_pack_plans_pages_for_the_copys_page_size(tmp_path, monkeypatch):
     seen = []
     plan = rebuild.packing_order
 
-    def spy(conn, table, page_size, largest):
+    def spy(conn, table, page_size, largest, widen=None):
         seen.append(page_size)
-        return plan(conn, table, page_size, largest)
+        return plan(conn, table, page_size, largest, widen)
 
     monkeypatch.setattr(rebuild, "packing_order", spy)
     source, copy = _packable(tmp_path), tmp_path / "copy.db"
@@ -484,6 +484,50 @@ def test_a_template_with_id_zero_is_refused(tmp_path):
         assert rebuild.run({"source": source, "output": packed, "pack": ["Templates"]}) == 1
     assert "Content.templateId = 0 means no Templates row, but one has rowid 0" in err.getvalue(), err.getvalue()
     assert not packed.exists()
+
+
+def _templated(tmp_path: Path) -> Path:
+    """150 templates and 800 Content rows of 30-90 bytes, three in four on
+    templateId 1. Packed with Templates, id 1 (stored in no bytes) becomes 151 or
+    more (two bytes), so a Content plan sized on the old ids overflows pages."""
+    import random
+
+    path = tmp_path / "templated.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        PRAGMA page_size = 1024;
+        CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL,
+                                UNIQUE(name));
+        CREATE TABLE Content (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, content BLOB NOT NULL,
+                              templateId INTEGER NOT NULL DEFAULT 0, UNIQUE(path));
+    """)
+    conn.executemany("INSERT INTO Templates (name, content) VALUES (?, ?)", [(f"t{i}.peb", b"x") for i in range(150)])
+    sizes = random.Random(3)
+    conn.executemany("INSERT INTO Content (path, content, templateId) VALUES (?, ?, ?)",
+                     [(f"p{i}.html", bytes([i % 251]) * sizes.randint(30, 90), 1 if i % 4 else 0)
+                      for i in range(800)])
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_templates_and_content_pack_in_one_run_as_well_as_in_two(tmp_path):
+    """Content's plan must size templateId for the new Templates ids the same
+    run writes; sized on the old ones, its pages overflowed (+11.5 MB on the
+    2026-10-19 item-B build, 65 -> 68 leaf pages here)."""
+    source, first, two = _templated(tmp_path), tmp_path / "templates.db", tmp_path / "two.db"
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert rebuild.run({"source": source, "output": first, "pack": ["Templates"]}) == 0
+        assert rebuild.run({"source": first, "output": two, "pack": ["Content"]}) == 0
+    # In either order: Content's plan may not depend on Templates being listed first.
+    for order in (["Templates", "Content"], ["Content", "Templates"]):
+        one = tmp_path / f"one-{order[0]}.db"
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert rebuild.run({"source": source, "output": one, "pack": order}) == 0
+        assert rebuild.leaf_pages(one, "Content") <= rebuild.leaf_pages(two, "Content"), (
+            order, rebuild.leaf_pages(one, "Content"), rebuild.leaf_pages(two, "Content"))
+        with sqlite3.connect(one) as conn:
+            assert conn.execute("SELECT MIN(templateId) FROM Content WHERE templateId > 0").fetchone()[0] > 150
 
 
 def test_pack_refuses_a_table_whose_trigger_links_its_id_elsewhere(tmp_path):
