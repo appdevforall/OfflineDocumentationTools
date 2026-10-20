@@ -27,10 +27,13 @@ The rewrite, per PDF:
   (Flate, LZW, ASCII85, ASCIIHex, RunLength) is stored plain: content streams,
   fonts, ICC profiles, forms.
 - A Flate image of 8-bit gray, 8-bit RGB or 1-bit samples is re-encoded as
-  PNG-predicted Flate (Pillow's optimized PNG encoder) when that is smaller.
-  Image data stays compressed, so the plain PDF stays reasonably small.
+  PNG-predicted Flate (Pillow's optimized PNG encoder) when that is smaller,
+  and only when Pillow gives back exactly the same sample bytes (it zeroes the
+  pad bits at the end of a 1-bit row, which a reader may not). Image data
+  stays compressed, so the plain PDF stays reasonably small.
 - A JPEG wrapped in Flate ([/FlateDecode /DCTDecode]) is stored as the bare
-  JPEG, its DCT decode parameters kept; the outer Brotli compresses these
+  JPEG, its DCT decode parameters kept, when its Flate data is whole: the
+  checksum right and nothing after the end. The outer Brotli compresses these
   JPEGs better than Flate does.
 - Other images (bare JPEG, JPEG 2000, JBIG2, CCITT) are left as they are.
 - Saved with object streams, no stream recompressed, and a deterministic /ID,
@@ -75,15 +78,26 @@ left as it is and the report says why:
 - every stream's decoded data is identical: fully decoded for generalized
   filters (so a re-encoded image gives back the same samples), and for a JPEG,
   JPEG 2000, JBIG2 or CCITT stream the payload that filter reads, with its
-  decode parameters;
-- pikepdf's syntax check (qpdf's, which also decodes every stream, JPEGs
-  included) finds nothing;
+  decode parameters (a stream among them, such as a JBIG2Globals, compared by
+  its data the same way);
+- pikepdf's syntax check (qpdf's, which also decodes every stream, JPEGs and
+  JBIG2 included) finds nothing;
 - the page count, the named destinations (the catalog's /Dests and the
-  /Names /Dests tree) and the outline, nested items included, are unchanged.
-A rewrite that is not smaller once compressed is left alone too, as is an
-encrypted PDF, and a stream qpdf cannot decode without a warning is not
-rewritten (so its PDF then fails the syntax check and stays as it is: storing
-the part qpdf could read would quietly change what a reader gets).
+  /Names /Dests tree) and the outline, nested items, actions and levels
+  included, are unchanged; a stream in any of them is compared by its data.
+A rewrite that is not smaller once compressed is left alone too. A stream qpdf
+cannot decode without a warning is not rewritten, an image included: storing
+the part qpdf could read would quietly change what a reader gets. Such a
+stream, left as it is, usually fails the syntax check, and its PDF then stays
+as it is.
+
+Left alone by policy, which is not a failure: an encrypted PDF, and a signed
+one (its /AcroForm sets SigFlags bit 1, or it has a /Perms entry), because a
+signature covers the file's bytes and every check would pass while it broke.
+
+pikepdf decodes JBIG2 through the jbig2dec program; where it is missing, the
+syntax check cannot run on a PDF with a JBIG2 image, which then stays as it is
+(refused, "it cannot be rewritten").
 
 The qpdf command line's --check is stricter about name trees than the syntax
 check: on the rewritten Beej and JavaJavaJava books it reports "skipping over
@@ -103,8 +117,11 @@ DeleteBook triggers would replace its curated Bookshelf entry. Continuation
 rows are trimmed or added as the new size needs. A PDF row that is not
 Brotli-compressed is skipped and named. Runs in one transaction (rolled back on
 any error), backs the database up first, and VACUUMs afterwards. --dry-run does
-all the work, the checks included, and writes nothing. Exit 1 means nothing
-was written.
+all the work, the checks included, and writes nothing. The report ends with a
+summary: how many PDFs were rewritten, and how many were left as they are
+because they were not smaller, refused by a check (by check) or skipped by
+policy (by reason). Exit 1 means nothing was written: a row could not be read,
+or a check refused every PDF that policy did not skip.
 
 Pipeline position: on the copy that ships, after svg_images_to_webp.py and
 before the final dictionary re-mint and rebuild_database.py --pack. It touches
@@ -112,8 +129,10 @@ only PDF rows.
 
 File mode: a .pdf, or a .pdf.br holding plain Brotli, to a .pdf.br of plain
 Brotli at q11 w24 (no dictionary: the Bookshelf plugin inserts its asset bytes
-as they are). When the rewrite is refused or not smaller, the output holds the
-input PDF unchanged.
+as they are). When the rewrite is not smaller or policy skips the PDF, the
+output holds the input PDF unchanged; when a check refuses it, nothing is
+written and the exit is 1. The target keeps its mode; a new one gets
+0666 less the umask, as open() would give it.
 
     uv run scripts/optimize_pdfs.py documentation.db --dry-run
     uv run scripts/optimize_pdfs.py documentation.db [--workers N] [--verbose]
@@ -126,10 +145,12 @@ import io
 import os
 import re
 import sqlite3
+import stat
 import struct
 import sys
 import tempfile
 import zlib
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -152,8 +173,27 @@ PNG_OPTIMUM = 15
 FILE_QUALITY, FILE_LGWIN = 11, 24
 
 
-class Refused(Exception):
-    """A rewritten PDF failed a check; the PDF is left as it is."""
+class LeftAsIs(Exception):
+    """Why a PDF is left as it is. `kind` names the check or the policy, for the summary. Both go in args, so the
+    exception survives the process pool's pickling."""
+
+    def __init__(self, message: str, kind: str):
+        super().__init__(message, kind)
+
+    @property
+    def kind(self) -> str:
+        return self.args[1]
+
+    def __str__(self) -> str:
+        return self.args[0]
+
+
+class Refused(LeftAsIs):
+    """A rewritten PDF failed a check: a failure, which the summary and the exit code report."""
+
+
+class Skipped(LeftAsIs):
+    """A PDF this step does not rewrite by policy (encrypted, signed, not Brotli): not a failure."""
 
 
 def filters(stream: pikepdf.Object) -> list:
@@ -178,6 +218,17 @@ def has_predictor(parms) -> bool:
 def inflate(raw: bytes) -> bytes:
     """Flate data decoded as a tolerant reader decodes it (a missing end of stream is not an error)."""
     return zlib.decompressobj().decompress(raw)
+
+
+def inflate_whole(raw: bytes) -> bytes | None:
+    """Flate data decoded only when it is whole: its checksum right and nothing after its end. Otherwise None, and
+    the stream is not rewritten."""
+    d = zlib.decompressobj()
+    try:
+        data = d.decompress(raw) + d.flush()
+    except zlib.error:
+        return None
+    return data if d.eof and not d.unused_data else None
 
 
 def components(colour_space) -> int | None:
@@ -205,8 +256,11 @@ def png_flate(stream: pikepdf.Object, samples: bytes) -> tuple | None:
     width, height = int(stream.Width), int(stream.Height)
     if len(samples) != height * ((width * n * bpc + 7) // 8):
         return None
+    img = Image.frombytes(mode, (width, height), samples)
+    if img.tobytes() != samples:
+        return None  # Pillow zeroes the pad bits at the end of a 1-bit row; set ones must stay as they are
     buf = io.BytesIO()
-    Image.frombytes(mode, (width, height), samples).save(buf, "PNG", optimize=True)
+    img.save(buf, "PNG", optimize=True)
     png, pos, idat = buf.getvalue(), 8, []
     while pos < len(png):
         size, kind = struct.unpack(">I4s", png[pos:pos + 8])
@@ -229,7 +283,11 @@ def rewrite_objects(pdf: pikepdf.Pdf) -> dict:
         if obj.get("/Subtype") == "/Image":
             raw = obj.read_raw_bytes()
             if fs == ["/FlateDecode"]:
-                got = png_flate(obj, obj.read_bytes())  # a stream qpdf cannot fully decode fails its length check
+                warnings_before = len(pdf.get_warnings())
+                samples = obj.read_bytes()
+                if len(pdf.get_warnings()) > warnings_before:
+                    continue  # qpdf could not decode it cleanly; keep the stream as the reader gets it today
+                got = png_flate(obj, samples)
                 if got is not None and len(got[0]) < len(raw):
                     obj.write(got[0], filter=pikepdf.Name.FlateDecode, decode_parms=got[1])
                     counts["images"] += 1
@@ -240,10 +298,9 @@ def rewrite_objects(pdf: pikepdf.Pdf) -> dict:
                 flate_parms, dct_parms = decode_parms(obj, 2)
                 if has_predictor(flate_parms):
                     continue
-                try:
-                    jpeg = inflate(raw)
-                except zlib.error:
-                    continue
+                jpeg = inflate_whole(raw)
+                if jpeg is None:
+                    continue  # a bad checksum, a cut end or bytes after it: keep it as the reader gets it today
                 obj.write(jpeg, filter=pikepdf.Name.DCTDecode, decode_parms=dct_parms)
                 counts["jpegs"] += 1
             continue
@@ -295,7 +352,9 @@ def canonical(obj, pages: dict = None, depth: int = 0):
     if isinstance(obj, pikepdf.Object) and obj.is_indirect and pages is not None and obj.objgen in pages:
         return ("page", pages[obj.objgen])
     if isinstance(obj, pikepdf.Stream):
-        return ("stream", canonical(obj.stream_dict, pages, depth + 1))
+        # By what a reader gets, as compare_graphs compares one: the rewrite may change how it is stored.
+        return ("stream", {str(k): canonical(obj[k], pages, depth + 1) for k in sorted(obj.keys())
+                           if k not in REWRITABLE_KEYS}, payload(obj))
     if isinstance(obj, pikepdf.Dictionary):
         return {str(k): canonical(obj[k], pages, depth + 1) for k in sorted(obj.keys())}
     if isinstance(obj, pikepdf.Array):
@@ -400,30 +459,38 @@ def verify(old_data: bytes, new_data: bytes) -> None:
         # below read both), and the comparison has to see each file as it is written.
         difference = compare_graphs(old, new)
         if difference:
-            raise Refused(difference)
+            raise Refused(difference, "graph")
         problems = new.check_pdf_syntax()
         if problems:
             # qpdf names an in-memory file by its Python repr; say "the PDF" instead.
             problem = re.sub(r"stream <_io\.BytesIO object at 0x[0-9a-f]+>", "the PDF", problems[0])
-            raise Refused(f"the syntax check reports {problem}")
+            raise Refused(f"the syntax check reports {problem}", "syntax")
         old_pages, new_pages = page_index(old), page_index(new)
         if len(old_pages) != len(new_pages):
-            raise Refused(f"{len(old_pages)} pages became {len(new_pages)}")
+            raise Refused(f"{len(old_pages)} pages became {len(new_pages)}", "pages")
         if named_destinations(old, old_pages) != named_destinations(new, new_pages):
-            raise Refused("the named destinations changed")
+            raise Refused("the named destinations changed", "destinations")
         if outline(old, old_pages) != outline(new, new_pages):
-            raise Refused("the outline changed")
+            raise Refused("the outline changed", "outline")
 
 
 def rewrite_pdf(data: bytes) -> tuple:
-    """(new PDF bytes, counts) for a PDF's bytes, checked; raises Refused when it cannot be rewritten safely."""
+    """(new PDF bytes, counts) for a PDF's bytes, checked; raises Refused when it cannot be rewritten safely, and
+    Skipped for a PDF this step leaves alone by policy."""
     try:
         pdf = pikepdf.open(io.BytesIO(data))
     except pikepdf.PdfError as exc:
-        raise Refused(f"it cannot be opened ({exc})") from exc
+        raise Refused(f"it cannot be opened ({exc})", "unreadable") from exc
     with pdf:
         if pdf.is_encrypted:
-            raise Refused("it is encrypted")
+            raise Skipped("it is encrypted", "encrypted")
+        # A signature covers the file's bytes, which any rewrite changes: the checks would pass and the signature
+        # would break. SigFlags bit 1 says the form holds a signature; /Perms holds DocMDP or usage-rights ones.
+        form = pdf.Root.get("/AcroForm")
+        if isinstance(form, pikepdf.Dictionary) and int(form.get("/SigFlags", 0)) & 1:
+            raise Skipped("it is signed (its /AcroForm sets SigFlags)", "signed")
+        if "/Perms" in pdf.Root:
+            raise Skipped("it is signed (it has a /Perms entry)", "signed")
         counts = rewrite_objects(pdf)
         new = save(pdf)
     verify(data, new)
@@ -436,15 +503,32 @@ def keep_rewrite(old_size: int, new_size: int) -> bool:
 
 
 def rewrite_job(item: tuple) -> tuple:
-    """(path, new PDF bytes or None, counts or the reason it was refused), for the process pool."""
+    """(path, new PDF bytes, counts), or (path, None, the LeftAsIs saying why), for the process pool."""
     path, data = item
     try:
         new, counts = rewrite_pdf(data)
-    except Refused as exc:
-        return path, None, str(exc)
+    except LeftAsIs as exc:
+        return path, None, exc
     except Exception as exc:  # noqa: BLE001 - anything else about one PDF leaves that PDF as it is
-        return path, None, f"it cannot be rewritten ({type(exc).__name__}: {exc})"
+        return path, None, Refused(f"it cannot be rewritten ({type(exc).__name__}: {exc})", "error")
     return path, new, counts
+
+
+def summary(rewritten: int, not_smaller: int, refused: Counter, skipped: Counter) -> str:
+    """One line: how many PDFs were rewritten, and why each of the others was left as it is."""
+    def by_kind(counter):
+        return ", ".join(f"{kind} {n}" for kind, n in sorted(counter.items()))
+    parts = [f"{not_smaller} not smaller"]
+    if refused:
+        parts.append(f"{sum(refused.values())} refused by a check ({by_kind(refused)})")
+    if skipped:
+        parts.append(f"{sum(skipped.values())} skipped by policy ({by_kind(skipped)})")
+    return f"{rewritten} rewritten; left as they are: " + "; ".join(parts) + "."
+
+
+def all_refused(refused: Counter, candidates: int) -> bool:
+    """Whether a check refused every PDF that policy did not skip: nothing is written, and the run fails."""
+    return candidates > 0 and sum(refused.values()) == candidates
 
 
 def describe(counts: dict) -> str:
@@ -466,10 +550,11 @@ def run(cfg: dict) -> int:
             "FROM Content c JOIN ContentTypes ct ON ct.id = c.contentTypeID WHERE ct.value = ? ORDER BY c.path",
             (PDF_TYPE,)) if not is_continuation_path(lengths, r[0])]
         codec = BrotliCodec(load_dictionary(conn))
-        work, problems = [], []
+        work, problems, refused, skipped, not_smaller = [], [], Counter(), Counter(), 0
         for path, content, lang, ctid, tid, comp in rows:
             if comp != "brotli":
                 print(f"  {path}: skipped: stored with compression {comp!r}, not brotli")
+                skipped["not brotli"] += 1
                 continue
             blob = reassemble(conn, path, content)
             try:
@@ -495,9 +580,11 @@ def run(cfg: dict) -> int:
             new, info = results[path]
             if new is None:
                 print(f"  {path}: left as it is: {info}")
+                (skipped if isinstance(info, Skipped) else refused)[info.kind] += 1
                 continue
             stored = codec.compress(new, "brotli")
             if not keep_rewrite(len(blob), len(stored)):
+                not_smaller += 1
                 if cfg["verbose"]:
                     print(f"  {path}: left as it is: {human(len(stored))} stored is not smaller than "
                           f"{human(len(blob))}")
@@ -505,6 +592,11 @@ def run(cfg: dict) -> int:
             print(f"  {path}: {human(len(blob))} -> {human(len(stored))} stored; plain PDF {human(len(plain))} -> "
                   f"{human(len(new))}" + (f"; {describe(info)}" if cfg["verbose"] else ""))
             changes.append((path, lengths[path], len(blob), stored, lang, ctid, tid))
+        print(summary(len(changes), not_smaller, refused, skipped))
+        candidates = len(work) - sum(1 for new, info in results.values() if isinstance(info, Skipped))
+        if all_refused(refused, candidates):
+            print("error: a check refused every PDF it tried; nothing was written", file=sys.stderr)
+            return 1
         if not changes:
             print("Nothing to do: no PDF gets smaller.")
             return 0
@@ -559,26 +651,40 @@ def run_file(cfg: dict) -> int:
         plain = raw
         before = brotli.compress(plain, quality=FILE_QUALITY, lgwin=FILE_LGWIN)
     _path, new, info = rewrite_job((str(source), plain))
-    out = before
+    out, rewritten, refused, skipped, not_smaller = before, 0, Counter(), Counter(), 0
     if new is None:
         print(f"{source}: left as it is: {info}")
+        (skipped if isinstance(info, Skipped) else refused)[info.kind] += 1
     else:
         after = brotli.compress(new, quality=FILE_QUALITY, lgwin=FILE_LGWIN)
         if keep_rewrite(len(before), len(after)):
-            out = after
+            out, rewritten = after, 1
             print(f"{source}: {human(len(before))} -> {human(len(after))} bytes; plain PDF {human(len(plain))} -> "
                   f"{human(len(new))}; {describe(info)}")
         else:
+            not_smaller = 1
             print(f"{source}: left as it is: {human(len(after))} is not smaller than {human(len(before))}")
+    print(summary(rewritten, not_smaller, refused, skipped))
+    if all_refused(refused, 1 - sum(skipped.values())):
+        print(f"error: a check refused {source}; nothing was written", file=sys.stderr)
+        return 1
     if cfg["dry_run"]:
         print("Dry run: nothing written.")
         return 0
     target.parent.mkdir(parents=True, exist_ok=True)
+    # The target keeps its mode; a new one gets what open() would give it. mkstemp's 0600 would otherwise stay.
+    if target.exists():
+        mode = stat.S_IMODE(target.stat().st_mode)
+    else:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
     # Through a temporary file in the same directory, so the target is never half written and may be the source.
     fd, tmp = tempfile.mkstemp(prefix=target.name + ".", dir=target.parent)
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(out)
+        os.chmod(tmp, mode)
         os.replace(tmp, target)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)

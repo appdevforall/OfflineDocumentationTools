@@ -23,20 +23,24 @@ Run it either way:
 """
 from __future__ import annotations
 
+import base64
 import io
+import os
 import random
 import shutil
 import sqlite3
+import stat
 import sys
 import tempfile
 import time
 import traceback
 import zlib
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import brotli
 import pikepdf
+import pikepdf.jbig2
 from pikepdf import Array, Dictionary, Name
 from PIL import Image
 
@@ -131,6 +135,8 @@ def sample_pdf(pages: int = 2, extra_content: bytes = b"") -> bytes:
     tree["chapter.1"] = Array([pdf.pages[-1].obj, Name.XYZ, 0, 700, None])
     tree["chapter.2"] = Array([first, Name.FitH, 500])
     pdf.Root.Names = Dictionary(Dests=tree.obj)
+    pdf.docinfo["/Title"] = pikepdf.String("A sample")
+    pdf.Root.Lang = pikepdf.String("en")
     with pdf.open_outline() as o:
         one = pikepdf.OutlineItem("One", 0)
         one.children.append(pikepdf.OutlineItem("One.1", pages - 1))
@@ -138,12 +144,35 @@ def sample_pdf(pages: int = 2, extra_content: bytes = b"") -> bytes:
         o.root.append(pikepdf.OutlineItem("Two", action=Dictionary(S=Name.GoTo, D=Array([first, Name.Fit]))))
     buf = io.BytesIO()
     pdf.save(buf, compress_streams=False, object_stream_mode=pikepdf.ObjectStreamMode.disable,
-             stream_decode_level=pikepdf.StreamDecodeLevel.none)  # keep each stream exactly as built
+             stream_decode_level=pikepdf.StreamDecodeLevel.none,  # keep each stream exactly as built
+             fix_metadata_version=False)
     return buf.getvalue()
+
+
+def _skip(reason: str) -> None:
+    """Skips the test: through pytest when it is running (so a skip is not reported as a pass), else by saying so."""
+    if "pytest" in sys.modules:
+        import pytest
+        pytest.skip(reason)
+    print(f"  (skipped: {reason})")
 
 
 def open_pdf(data: bytes) -> pikepdf.Pdf:
     return pikepdf.open(io.BytesIO(data))
+
+
+def rebuild(modify, base: bytes = None) -> bytes:
+    """sample_pdf() (or `base`) after `modify(pdf)`, every stream kept exactly as built."""
+    pdf = open_pdf(base or sample_pdf())
+    modify(pdf)
+    buf = io.BytesIO()
+    pdf.save(buf, compress_streams=False, stream_decode_level=pikepdf.StreamDecodeLevel.none,
+             fix_metadata_version=False)
+    return buf.getvalue()
+
+
+def flate_stream(pdf: pikepdf.Pdf, data: bytes, **keys) -> pikepdf.Stream:
+    return pdf.make_indirect(pikepdf.Stream(pdf, zlib.compress(data, 9), Filter=Name.FlateDecode, **keys))
 
 
 def xobject(pdf: pikepdf.Pdf, name: str) -> pikepdf.Stream:
@@ -248,7 +277,30 @@ def test_an_encrypted_pdf_is_left_as_it_is():
     buf = io.BytesIO()
     pdf.save(buf, encryption=pikepdf.Encryption(owner="owner", user="", allow=pikepdf.Permissions(extract=False)))
     _path, new, reason = tool.rewrite_job(("x.pdf", buf.getvalue()))
-    assert new is None and reason == "it is encrypted"
+    assert new is None and isinstance(reason, tool.Skipped) and str(reason) == "it is encrypted"
+
+
+def test_a_signed_pdf_is_left_as_it_is():
+    # A signature covers the file's bytes: every check would pass and the signature would break.
+    def modify(pdf):
+        pdf.Root.AcroForm = Dictionary(Fields=Array([]), SigFlags=3)
+    _path, new, reason = tool.rewrite_job(("x.pdf", rebuild(modify)))
+    assert new is None and isinstance(reason, tool.Skipped) and reason.kind == "signed"
+    assert str(reason) == "it is signed (its /AcroForm sets SigFlags)"
+
+
+def test_a_pdf_with_signature_permissions_is_left_as_it_is():
+    def modify(pdf):
+        pdf.Root.Perms = Dictionary(DocMDP=Dictionary(Type=Name.Sig))
+    _path, new, reason = tool.rewrite_job(("x.pdf", rebuild(modify)))
+    assert new is None and isinstance(reason, tool.Skipped) and str(reason) == "it is signed (it has a /Perms entry)"
+
+
+def test_a_form_without_a_signature_is_rewritten():
+    def modify(pdf):
+        pdf.Root.AcroForm = Dictionary(Fields=Array([]), SigFlags=2)  # append-only, no signature
+    _path, new, counts = tool.rewrite_job(("x.pdf", rebuild(modify)))
+    assert new is not None, counts
 
 
 def test_an_image_the_predictor_does_not_shrink_is_left_as_it_is():
@@ -298,7 +350,121 @@ def test_a_pdf_with_a_stream_qpdf_cannot_decode_cleanly_is_left_as_it_is():
     buf = io.BytesIO()
     pdf.save(buf, compress_streams=False, stream_decode_level=pikepdf.StreamDecodeLevel.none)
     path, new, reason = tool.rewrite_job(("x.pdf", buf.getvalue()))
-    assert new is None and reason.startswith("the syntax check reports WARNING: the PDF")
+    assert new is None and reason.kind == "syntax"
+    assert str(reason).startswith("the syntax check reports WARNING: the PDF")
+
+
+def _cut_checksum(data: bytes) -> bytes:
+    """Flate data without its adler32: complete, but qpdf warns that it ended early."""
+    return zlib.compress(data, 6)[:-4]
+
+
+def test_a_flate_image_qpdf_warns_on_is_not_rewritten():
+    def modify(pdf):
+        image = pdf.pages[0].obj.Resources.XObject.Rgb
+        image.write(_cut_checksum(image.read_bytes()), filter=Name.FlateDecode)
+    _path, new, reason = tool.rewrite_job(("x.pdf", rebuild(modify)))
+    # Left encoded, the image fails the syntax check, so the whole PDF stays as it is.
+    assert new is None and reason.kind == "syntax", reason
+
+
+def test_a_wrapped_jpeg_with_a_cut_checksum_is_not_unwrapped():
+    def modify(pdf):
+        pdf.pages[0].obj.Resources.XObject.Wrapped.write(_cut_checksum(jpeg_bytes()),
+                                                         filter=Array([Name.FlateDecode, Name.DCTDecode]),
+                                                         decode_parms=Array([None, Dictionary(ColorTransform=1)]))
+    old = rebuild(modify)
+    _path, new, info = tool.rewrite_job(("x.pdf", old))
+    # qpdf's syntax check does not mind a cut checksum before a JPEG filter, so the PDF is rewritten, this JPEG not.
+    assert new is not None and info["jpegs"] == 0, info
+    with open_pdf(old) as a, open_pdf(new) as b:
+        assert tool.filters(xobject(b, "/Wrapped")) == ["/FlateDecode", "/DCTDecode"]
+        assert xobject(b, "/Wrapped").read_raw_bytes() == xobject(a, "/Wrapped").read_raw_bytes()
+
+
+def test_a_wrapped_jpeg_with_bytes_after_its_flate_end_is_not_unwrapped():
+    def modify(pdf):
+        pdf.pages[0].obj.Resources.XObject.Wrapped.write(zlib.compress(jpeg_bytes(), 9) + b"trailing",
+                                                         filter=Array([Name.FlateDecode, Name.DCTDecode]),
+                                                         decode_parms=Array([None, Dictionary(ColorTransform=1)]))
+    old = rebuild(modify)
+    _path, new, info = tool.rewrite_job(("x.pdf", old))
+    assert new is not None, info
+    with open_pdf(old) as a, open_pdf(new) as b:
+        assert tool.filters(xobject(b, "/Wrapped")) == ["/FlateDecode", "/DCTDecode"]
+        assert xobject(b, "/Wrapped").read_raw_bytes() == xobject(a, "/Wrapped").read_raw_bytes()
+    assert info["jpegs"] == 0
+
+
+def test_inflate_whole_wants_the_whole_stream():
+    data = jpeg_bytes()
+    assert tool.inflate_whole(zlib.compress(data)) == data
+    assert tool.inflate_whole(zlib.compress(data)[:-4]) is None  # no checksum
+    assert tool.inflate_whole(zlib.compress(data)[:-1] + b"\x00") is None  # a wrong checksum
+    assert tool.inflate_whole(zlib.compress(data) + b"x") is None  # bytes after the end
+
+
+def test_a_one_bit_image_with_its_pad_bits_set_is_left_as_it_is():
+    # 509 pixels make 64 bytes a row, 3 of its bits padding. Pillow would zero them; a reader may not.
+    random.seed(13)
+    row, rows = bytearray(random.randrange(256) for _ in range(64)), []
+    for _ in range(64):
+        row = bytearray(row)
+        row[random.randrange(63)] ^= 1 << random.randrange(8)
+        row[63] |= 0b111
+        rows.append(bytes(row))
+    samples = b"".join(rows)
+
+    def modify(pdf):
+        s = pdf.make_indirect(pikepdf.Stream(pdf, zlib.compress(samples, 1), Type=Name.XObject, Subtype=Name.Image,
+                                             Width=509, Height=64, ImageMask=True, BitsPerComponent=1,
+                                             Filter=Name.FlateDecode))
+        pdf.pages[0].obj.Resources.XObject.Odd = s
+    old = rebuild(modify)
+    _path, new, info = tool.rewrite_job(("x.pdf", old))
+    assert new is not None, info
+    with open_pdf(old) as a, open_pdf(new) as b:
+        assert xobject(b, "/Odd").read_raw_bytes() == xobject(a, "/Odd").read_raw_bytes()
+
+
+def test_png_flate_declines_samples_of_the_wrong_length():
+    pdf = pikepdf.new()
+    image = image_stream(pdf, gradient("RGB"), Name.DeviceRGB, 8)
+    samples = image.read_bytes()
+    assert tool.png_flate(image, samples) is not None
+    assert tool.png_flate(image, samples[:-1]) is None and tool.png_flate(image, samples + b"\x00") is None
+
+
+def test_an_iccbased_rgb_image_gets_a_png_predictor():
+    def modify(pdf):
+        icc = flate_stream(pdf, b"\x00" * 3000 + b"an ICC profile", N=3)
+        pdf.pages[0].obj.Resources.XObject.Icc = image_stream(pdf, gradient("RGB"), Array([Name.ICCBased, icc]), 8)
+    old = rebuild(modify)
+    new, _counts = tool.rewrite_pdf(old)
+    with open_pdf(old) as a, open_pdf(new) as b:
+        after = xobject(b, "/Icc")
+        assert after.DecodeParms.Predictor == tool.PNG_OPTIMUM and after.DecodeParms.Colors == 3
+        assert after.read_bytes() == xobject(a, "/Icc").read_bytes()
+
+
+def test_the_rewrite_writes_object_streams():
+    new, _counts = tool.rewrite_pdf(sample_pdf())
+    assert b"/Type /ObjStm" in new
+
+
+def test_xmp_metadata_is_kept_byte_for_byte():
+    # pikepdf's fix_metadata_version would rewrite pdf:PDFVersion to the new file version (object streams need
+    # 1.5), changing the stream.
+    xmp = (b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+           b'<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" '
+           b'xmlns:pdf="http://ns.adobe.com/pdf/1.3/"><pdf:PDFVersion>1.3</pdf:PDFVersion></rdf:Description>'
+           b'</rdf:RDF></x:xmpmeta><?xpacket end="w"?>')
+
+    def modify(pdf):
+        pdf.Root.Metadata = pdf.make_indirect(pikepdf.Stream(pdf, xmp, Type=Name.Metadata, Subtype=Name.XML))
+    new, _counts = tool.rewrite_pdf(rebuild(modify))
+    with open_pdf(new) as b:
+        assert b.Root.Metadata.read_bytes() == xmp
 
 
 def test_keep_rewrite_wants_strictly_smaller():
@@ -307,9 +473,10 @@ def test_keep_rewrite_wants_strictly_smaller():
 
 # --- the checks: each one refuses the fault it exists for ------------------------------------
 
-def _with_fault(fault, *switch_off):
-    """Runs rewrite_pdf with `fault(pdf)` applied after the rewrite, and the named checks replaced by no-ops, so the
-    check under test is the only one that can see the fault. Returns the Refused message, or None."""
+def _with_fault(fault, *switch_off, source: bytes = None):
+    """Runs rewrite_pdf on `source` (sample_pdf() by default) with `fault(pdf)` applied after the rewrite, and the
+    named checks replaced by no-ops, so the check under test is the only one that can see the fault. Returns the
+    Refused message, or None."""
     real_objects = tool.rewrite_objects
     saved = {name: getattr(tool, name) for name in switch_off}
 
@@ -324,7 +491,7 @@ def _with_fault(fault, *switch_off):
                              "named_destinations": lambda pdf, pages: {},
                              "outline": lambda pdf, pages: []}[name])
     try:
-        tool.rewrite_pdf(sample_pdf())
+        tool.rewrite_pdf(source or sample_pdf())
     except tool.Refused as exc:
         return str(exc)
     finally:
@@ -341,11 +508,82 @@ def test_the_graph_check_refuses_a_changed_dictionary_value():
     assert refusal is not None and "/BaseFont" in refusal, refusal
 
 
-def test_the_graph_check_refuses_a_changed_stream_key():
+def test_the_graph_check_refuses_a_changed_stream_value():
     def fault(pdf):
         pdf.pages[0].obj.Resources.Font.F1.FontDescriptor.FontFile2.Length1 = 1
     refusal = _with_fault(fault)
     assert refusal is not None and "/Length1" in refusal, refusal
+
+
+def test_the_graph_check_refuses_an_added_stream_key():
+    def fault(pdf):
+        pdf.pages[0].obj.Resources.Font.F1.FontDescriptor.FontFile2.Length2 = 5
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("stream keys differ (['/Length2'])"), refusal
+
+
+def test_the_graph_check_refuses_an_added_dictionary_key():
+    def fault(pdf):
+        pdf.pages[0].obj.Resources.Font.F1.Encoding = Name.WinAnsiEncoding
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("/Font/F1: keys differ (['/Encoding'])"), refusal
+
+
+def test_the_graph_check_refuses_an_appended_array_element():
+    def fault(pdf):
+        pdf.Root.Dests.old.append(0)
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("/Root/Dests/old: arrays differ"), refusal
+
+
+def test_the_graph_check_walks_the_document_information():
+    def fault(pdf):
+        pdf.docinfo["/Title"] = pikepdf.String("Another title")
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.startswith("/Info/Title: "), refusal
+
+
+def test_the_graph_check_compares_strings():
+    def fault(pdf):
+        pdf.Root.Lang = pikepdf.String("fr")
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.startswith("/Root/Lang: "), refusal
+
+
+def test_the_graph_check_refuses_an_object_written_as_two():
+    def fault(pdf):
+        font = pdf.pages[1].obj.Resources.Font.F1
+        font.FontDescriptor = pdf.make_indirect(Dictionary({k: v for k, v in font.FontDescriptor.items()}))
+    refusal = _with_fault(fault)
+    assert refusal is not None and "written as two objects" in refusal, refusal
+
+
+def test_the_graph_check_refuses_two_objects_written_as_one():
+    def fault(pdf):
+        pdf.pages[1].obj.Contents = pdf.pages[0].obj.Contents  # the same content, but one object instead of two
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("two objects written as one"), refusal
+
+
+def test_the_graph_check_refuses_a_stream_that_became_a_dictionary():
+    def fault(pdf):
+        pdf.pages[0].obj.Contents = pdf.make_indirect(Dictionary(Length=0))
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("/Contents: a stream on one side only"), refusal
+
+
+def test_the_graph_check_refuses_a_dictionary_that_became_an_array():
+    def fault(pdf):
+        pdf.pages[0].obj.Resources.Font.F1 = Array([Name.Demo])
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("/Font/F1: a dictionary on one side only"), refusal
+
+
+def test_the_graph_check_refuses_a_direct_object_made_indirect():
+    def fault(pdf):
+        pdf.pages[0].obj.MediaBox = pdf.make_indirect(Array([0, 0, 612, 792]))
+    refusal = _with_fault(fault)
+    assert refusal is not None and refusal.endswith("/MediaBox: indirect on one side only"), refusal
 
 
 def test_the_graph_check_refuses_changed_stream_data():
@@ -401,6 +639,87 @@ def test_the_outline_check_reads_nested_items():
     def fault(pdf):
         pdf.Root.Outlines.First.First.Title = pikepdf.String("Changed")
     assert _with_fault(fault, "compare_graphs", "named_destinations") == "the outline changed"
+
+
+def test_the_outline_check_compares_actions():
+    def fault(pdf):
+        pdf.Root.Outlines.First.Next.A.D = Array([pdf.pages[1].obj, Name.Fit])
+    assert _with_fault(fault, "compare_graphs", "named_destinations") == "the outline changed"
+
+
+def test_the_outline_check_compares_depth():
+    def fault(pdf):
+        # One.1 moves from under One to between One and Two: the same items in the same order, one level up.
+        outlines = pdf.Root.Outlines
+        one = outlines.First
+        child, two = one.First, one.Next
+        for key in ("/First", "/Last", "/Count"):
+            if key in one:
+                del one[key]
+        one.Next, child.Prev, child.Next, child.Parent, two.Prev = child, one, two, outlines, child
+    assert _with_fault(fault, "compare_graphs", "named_destinations") == "the outline changed"
+
+
+# A 64x16 JBIG2 image of four glyphs and its symbol dictionary, made by jbig2enc 0.31 (jbig2 -s -p): qpdf's
+# syntax check decodes JBIG2, so the data has to be real.
+JBIG2_GLOBALS = base64.b64decode("AAAAAAABAAAAACIAAAP//f8C/v7+AAAAAQAAAAFFD1Fw8qE5t2+8wnX/f/+s")
+JBIG2_PAGE = base64.b64decode("AAAAATAAAQAAABMAAABAAAAAEAAAAAAAAAAAAAAAAAAAAgYiAAEAAAAdAAAAQAAAABAAAAAAAAAAAAAAAAAAAASf"
+                              "AtfY/6w=")
+
+
+def _with_jbig2_globals(pdf):
+    globals_ = flate_stream(pdf, JBIG2_GLOBALS)
+    pdf.pages[0].obj.Resources.XObject.Jb = pdf.make_indirect(pikepdf.Stream(
+        pdf, JBIG2_PAGE, Type=Name.XObject, Subtype=Name.Image, Width=64, Height=16, BitsPerComponent=1,
+        ColorSpace=Name.DeviceGray, Filter=Name.JBIG2Decode, DecodeParms=Dictionary(JBIG2Globals=globals_)))
+
+
+def _with_script_action(pdf):
+    with pdf.open_outline() as o:
+        o.root.append(pikepdf.OutlineItem("Three", action=Dictionary(
+            S=Name.JavaScript, JS=flate_stream(pdf, b"app.alert('offline');" * 20))))
+
+
+def _with_stream_in_destination(pdf):
+    tree = pikepdf.NameTree(pdf.Root.Names.Dests)
+    tree["chapter.3"] = Dictionary(D=Array([pdf.pages[0].obj, Name.Fit]), Note=flate_stream(pdf, b"a note " * 50))
+
+
+def test_a_flate_jbig2_globals_stream_is_compared_by_its_data():
+    try:
+        pikepdf.jbig2.get_decoder().check_available()
+    except Exception as exc:  # noqa: BLE001 - DependencyError, or an OSError from looking for jbig2dec
+        return _skip(f"pikepdf cannot decode JBIG2 here ({exc}); the syntax check would refuse the fixture")
+    old = rebuild(_with_jbig2_globals)
+    new, _counts = tool.rewrite_pdf(old)  # the globals stream is stored plain, and accepted
+    with open_pdf(new) as b:
+        assert tool.filters(xobject(b, "/Jb").DecodeParms.JBIG2Globals) == []
+
+    def fault(pdf):
+        g = pdf.pages[0].obj.Resources.XObject.Jb.DecodeParms.JBIG2Globals
+        g.write(g.read_bytes() + b"\x01")
+    refusal = _with_fault(fault, source=old)
+    assert refusal is not None and "decodes differently" in refusal, refusal
+
+
+def test_an_outline_script_stream_is_compared_by_its_data():
+    old = rebuild(_with_script_action)
+    tool.rewrite_pdf(old)
+
+    def fault(pdf):
+        js = pdf.Root.Outlines.Last.A.JS
+        js.write(js.read_bytes() + b";")
+    assert _with_fault(fault, "compare_graphs", "named_destinations", source=old) == "the outline changed"
+
+
+def test_a_stream_in_a_named_destination_is_compared_by_its_data():
+    old = rebuild(_with_stream_in_destination)
+    tool.rewrite_pdf(old)
+
+    def fault(pdf):
+        note = pikepdf.NameTree(pdf.Root.Names.Dests)["chapter.3"].Note
+        note.write(note.read_bytes() + b".")
+    assert _with_fault(fault, "compare_graphs", "outline", source=old) == "the named destinations changed"
 
 
 def test_the_syntax_check_refuses_a_damaged_file():
@@ -604,26 +923,67 @@ def test_a_rewrite_that_is_not_smaller_is_left_alone(tmp_path: Path):
     assert db_path.read_bytes() == before
 
 
-def test_a_refused_pdf_is_left_as_it_is_and_named(tmp_path: Path):
-    rows = _two_rows()
-    db_path = _database(tmp_path, rows)
+def _run_with_fault(db_path: Path, when) -> tuple:
+    """(exit code, stdout, stderr) of a run whose rewrite changes /BaseFont in the PDFs `when(pdf)` picks."""
     real = tool.rewrite_objects
 
     def faulty(pdf):
         counts = real(pdf)
-        pdf.pages[0].obj.Resources.Font.F1.BaseFont = Name.Other
+        if when(pdf):
+            pdf.pages[0].obj.Resources.Font.F1.BaseFont = Name.Other
         return counts
 
     tool.rewrite_objects = faulty
-    out = io.StringIO()
+    out, err = io.StringIO(), io.StringIO()
     try:
-        with redirect_stdout(out):
-            assert tool.run(_cfg(db_path)) == 0
+        with redirect_stdout(out), redirect_stderr(err):
+            code = tool.run(_cfg(db_path))
     finally:
         tool.rewrite_objects = real
-    assert f"{BOOK_PATH}: left as it is: /Root/Pages/Kids[0]/Resources/Font/F1/BaseFont" in out.getvalue()
-    for path in (BOOK_PATH, "d/Guide.pdf"):
-        assert _read(db_path, path) == rows[path]
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_a_run_where_a_check_refuses_every_pdf_fails_with_nothing_written(tmp_path: Path):
+    rows = _two_rows()
+    db_path = _database(tmp_path, rows)
+    before = db_path.read_bytes()
+    code, out, err = _run_with_fault(db_path, lambda pdf: True)
+    assert code == 1
+    assert f"{BOOK_PATH}: left as it is: /Root/Pages/Kids[0]/Resources/Font/F1/BaseFont" in out
+    assert "0 rewritten; left as they are: 0 not smaller; 2 refused by a check (graph 2)." in out
+    assert "a check refused every PDF it tried; nothing was written" in err
+    assert db_path.read_bytes() == before and not list(tmp_path.glob("*.backup-*"))
+
+
+def test_a_run_where_a_check_refuses_some_pdfs_reports_them(tmp_path: Path):
+    rows = _two_rows()
+    db_path = _database(tmp_path, rows)
+    code, out, _err = _run_with_fault(db_path, lambda pdf: len(pdf.pages) == 3)  # only d/Guide.pdf
+    assert code == 0
+    assert "1 rewritten; left as they are: 0 not smaller; 1 refused by a check (graph 1)." in out
+    assert _read(db_path, "d/Guide.pdf") == rows["d/Guide.pdf"] and _read(db_path, BOOK_PATH) != rows[BOOK_PATH]
+
+
+def test_a_run_fails_when_a_check_refuses_every_pdf_policy_did_not_skip(tmp_path: Path):
+    signed = rebuild(lambda pdf: setattr(pdf.Root, "AcroForm", Dictionary(Fields=Array([]), SigFlags=1)))
+    db_path = _database(tmp_path, {BOOK_PATH: signed, "d/Guide.pdf": sample_pdf(pages=3)})
+    before = db_path.read_bytes()
+    code, out, _err = _run_with_fault(db_path, lambda pdf: True)
+    assert code == 1
+    assert "0 rewritten; left as they are: 0 not smaller; 1 refused by a check (graph 1); " \
+           "1 skipped by policy (signed 1)." in out
+    assert db_path.read_bytes() == before
+
+
+def test_a_run_where_policy_skips_every_pdf_is_not_a_failure(tmp_path: Path):
+    signed = rebuild(lambda pdf: setattr(pdf.Root, "AcroForm", Dictionary(Fields=Array([]), SigFlags=1)))
+    db_path = _database(tmp_path, {BOOK_PATH: signed})
+    before = db_path.read_bytes()
+    out = io.StringIO()
+    with redirect_stdout(out):
+        assert tool.run(_cfg(db_path)) == 0
+    assert "0 rewritten; left as they are: 0 not smaller; 1 skipped by policy (signed 1)." in out.getvalue()
+    assert db_path.read_bytes() == before
 
 
 def test_a_pdf_row_that_is_not_brotli_is_skipped_and_named(tmp_path: Path):
@@ -638,6 +998,7 @@ def test_a_pdf_row_that_is_not_brotli_is_skipped_and_named(tmp_path: Path):
         finally:
             tool.PDF_TYPE = real_type
     assert "x/raw.pdf: skipped: stored with compression 'none', not brotli" in out.getvalue()
+    assert "0 rewritten; left as they are: 0 not smaller; 1 skipped by policy (not brotli 1)." in out.getvalue()
     assert db_path.read_bytes() == before
 
 
@@ -665,8 +1026,7 @@ def test_the_process_pool_gives_the_same_result(tmp_path: Path):
 
 def test_rows_stay_in_the_database_dictionary(tmp_path: Path):
     if shutil.which("brotli") is None:
-        print("  (skipped: no brotli CLI)")
-        return
+        return _skip("no brotli CLI")
     dictionary = b"/Type /XObject /Subtype /Image /Filter /FlateDecode /DecodeParms BT ET Tj Tf " * 60
     rows = {BOOK_PATH: sample_pdf()}
     db_path = _database(tmp_path, rows, dictionary=dictionary)
@@ -716,24 +1076,77 @@ def test_file_mode_takes_a_plain_brotli_pdf_and_may_write_over_it(tmp_path: Path
     assert brotli.decompress(source.read_bytes()) == new  # a second run changes nothing
 
 
-def test_file_mode_keeps_the_input_when_the_rewrite_is_refused(tmp_path: Path):
-    source = tmp_path / "Book.pdf.br"
-    source.write_bytes(brotli.compress(sample_pdf(), quality=11, lgwin=24))
-    target = tmp_path / "Out.pdf.br"
+def _run_file_with(rewrite, source: Path, target: Path) -> tuple:
+    """(exit code, stdout, stderr) of a file-mode run with rewrite_pdf replaced by `rewrite`."""
     real = tool.rewrite_pdf
-
-    def refuse(data):
-        raise tool.Refused("a test refusal")
-
-    tool.rewrite_pdf = refuse
-    out = io.StringIO()
+    tool.rewrite_pdf = rewrite
+    out, err = io.StringIO(), io.StringIO()
     try:
-        with redirect_stdout(out):
-            assert tool.run_file(_file_cfg(source, target)) == 0
+        with redirect_stdout(out), redirect_stderr(err):
+            code = tool.run_file(_file_cfg(source, target))
     finally:
         tool.rewrite_pdf = real
-    assert "left as it is: a test refusal" in out.getvalue()
-    assert target.read_bytes() == source.read_bytes()
+    return code, out.getvalue(), err.getvalue()
+
+
+def _book(tmp_path: Path) -> Path:
+    source = tmp_path / "Book.pdf.br"
+    source.write_bytes(brotli.compress(sample_pdf(), quality=11, lgwin=24))
+    return source
+
+
+def test_file_mode_writes_nothing_when_a_check_refuses(tmp_path: Path):
+    source, target = _book(tmp_path), tmp_path / "Out.pdf.br"
+
+    def refuse(data):
+        raise tool.Refused("a test refusal", "graph")
+
+    code, out, err = _run_file_with(refuse, source, target)
+    assert code == 1 and not target.exists()
+    assert "left as it is: a test refusal" in out
+    assert "0 rewritten; left as they are: 0 not smaller; 1 refused by a check (graph 1)." in out
+    assert "a check refused" in err
+
+
+def test_file_mode_copies_the_input_when_policy_skips_it(tmp_path: Path):
+    source, target = _book(tmp_path), tmp_path / "Out.pdf.br"
+
+    def skip(data):
+        raise tool.Skipped("it is signed (it has a /Perms entry)", "signed")
+
+    code, out, _err = _run_file_with(skip, source, target)
+    assert code == 0 and target.read_bytes() == source.read_bytes()
+    assert "1 skipped by policy (signed 1)" in out
+
+
+def test_file_mode_keeps_the_input_when_the_rewrite_is_not_smaller(tmp_path: Path):
+    source, target = _book(tmp_path), tmp_path / "Out.pdf.br"
+    real = tool.rewrite_pdf
+
+    def padded(data):
+        new, counts = real(data)
+        return new + random.randbytes(len(data)), counts  # ignored after %%EOF, but larger once compressed
+
+    code, out, _err = _run_file_with(padded, source, target)
+    assert code == 0 and target.read_bytes() == source.read_bytes()
+    assert "0 rewritten; left as they are: 1 not smaller." in out
+
+
+def test_file_mode_gives_a_new_file_the_mode_open_would(tmp_path: Path):
+    source, target = _book(tmp_path), tmp_path / "Out.pdf.br"
+    old_umask = os.umask(0o027)
+    try:
+        assert tool.run_file(_file_cfg(source, target)) == 0
+    finally:
+        os.umask(old_umask)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
+
+
+def test_file_mode_keeps_the_mode_of_the_file_it_replaces(tmp_path: Path):
+    source = _book(tmp_path)
+    source.chmod(0o604)
+    assert tool.run_file(_file_cfg(source, source)) == 0
+    assert stat.S_IMODE(source.stat().st_mode) == 0o604
 
 
 def test_file_mode_dry_run_writes_nothing(tmp_path: Path):
