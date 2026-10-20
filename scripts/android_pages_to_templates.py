@@ -44,10 +44,11 @@ moves them into templates:
     Only the holes that hold one get that alternative in the main template.
     Links stay in the pages: a same-page link's fragment often equals a
     member's id, but it is written relative to the page. A text too long for a
-    bundle stays in its pages. On the 2026-10-19 ship-time build this interned
+    bundle stays in its pages. In the 2026-10-19 ship-time build this interned
     6,441 texts (repeated paragraphs, inherited descriptions, annotations,
-    parameters, types) into 165 bundles and saved 839,680 file and 850,755 .br
-    bytes against the same build without it.
+    parameters, types) into 164 bundles, the largest 7,999 bytes, and saved
+    856,064 file and 867,547 .br bytes (84,852,736 and 66,266,178) against the
+    same build without it.
   - The main template android-reference.peb loops over a page's segments.
 
 Pages: every text/html row under a/ with templateId 0, except a/devsite/
