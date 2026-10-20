@@ -19,9 +19,16 @@ Why: each Content row is compressed on its own, so what neighbouring pages
 share - the same member tables, inherited-method lists and markup - is paid
 for again in every row, and the shared CompressionDictionary only covers what
 all pages share. Compressed together, N pages in path order share the rest.
-The 2026-10-20 size analysis put the release .br saving at 7,865,965 bytes for
-N = 16 and 10,062,166 for N = 64. The cost is at read time: serving one page
-decodes its whole block, so the app caches decoded blocks.
+On the 2026-10-20 G02 ship-time build, packed afterwards (below), the release
+.br (brotli -q 11 -w 24) came out 7,904,471 bytes smaller for N = 16 and
+10,236,536 for N = 64, of 66,283,003.
+
+The cost is at read time: serving one page decodes its whole block, so the
+app caches decoded blocks, up to 8 MiB of them. Most blocks are far smaller
+(on G02 the median a/ block decodes to 259,426 bytes for N = 16), but j/'s
+Javadoc index pages decode to as much as 5,065,005 bytes each, so two j/
+blocks decode to more than 8 MiB for N = 16 (the larger 14,169,872 bytes) and
+one for N = 64 (28,055,018).
 
 The format (ADFA-6683-block-format.md, which the app reader follows too):
 
@@ -35,7 +42,8 @@ The format (ADFA-6683-block-format.md, which the app reader follows too):
 
 Which rows: three sets, each cut in ORDER BY path into blocks of N
 consecutive items, the last block of a set maybe shorter; a block never mixes
-sets. Block ids follow the sets in this order:
+sets. Blocks are numbered in this order as written; rebuild_database.py
+--pack ContentBlocks renumbers them, and nothing reads the order:
 
     1. a/ templated JSON: path LIKE 'a/%' AND path NOT LIKE 'a/devsite/%' AND templateId > 0
     2. j/ HTML:           path LIKE 'j/%' AND content type text/html
@@ -56,8 +64,11 @@ A database that already has ContentBlockItems is refused: its blocked rows
 are empty, so a second run would store empty pages over the blocked ones.
 
 Runs in one transaction and VACUUMs afterwards. Takes no backup: run it on a
-copy, then pack that with rebuild_database.py --pack Templates,Content,TooltipTexts.
---dry-run does all the work, writes included, and rolls it back.
+copy, then pack that with rebuild_database.py --pack
+Templates,Content,TooltipTexts,ContentBlocks. On G02, adding ContentBlocks to
+--pack took the file 823,296 bytes smaller for N = 16 and 200,704 for N = 64,
+and its .br 34,947 bytes larger and 101,421 smaller. --dry-run does all the
+work, writes included, and rolls it back.
 """
 from __future__ import annotations
 
