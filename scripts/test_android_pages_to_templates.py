@@ -1082,6 +1082,32 @@ def test_a_merged_group_can_still_merge_with_a_lower_numbered_one():
     assert len(sources) == 1, sorted(sources)
 
 
+def test_a_text_that_fills_a_bundle_exactly_is_shared_and_one_byte_more_is_not():
+    # A bundle of one text is "{% if j == 0 %}" (15 bytes), the text and "{% endif %}" (11).
+    fits, over = "<p>" + "f" * (300 - 26 - 8) + "</p>\n", "<p>" + "o" * (300 - 26 - 7) + "</p>\n"
+    assert len(fits) == 274 and len(over) == 275
+    contexts = contexts_sharing([fits, over])
+    sources, _ = with_bundle_size(300, lambda: apt.intern_texts(contexts))
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": over}]
+    assert [len(s.encode()) for s in sources.values()] == [300]
+
+
+def test_a_bundle_holds_at_most_8000_bytes_of_source():
+    fits, over = "<p>" + "f" * (8000 - 26 - 8) + "</p>\n", "<p>" + "o" * (8000 - 26 - 7) + "</p>\n"
+    contexts = contexts_sharing([fits, over])
+    sources, _ = apt.intern_texts(contexts)
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": over}]
+    assert [len(s.encode()) for s in sources.values()] == [8000]
+
+
+def test_a_text_of_32_characters_is_shared_and_one_of_31_is_not():
+    t32, t31 = "<p>" + "a" * 25 + "</p>", "<p>" + "b" * 24 + "</p>"
+    assert (len(t32), len(t31)) == (32, 31)
+    contexts = contexts_sharing([t32, t31])
+    apt.intern_texts(contexts)
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": t31}]
+
+
 def test_a_merge_that_fills_a_bundle_exactly_is_taken():
     # Merged: "{% if j == 0 %}" + A + "{% elseif j == 1 %}" + B + "{% endif %}", 45 bytes of tags.
     a, b = "<p>" + "a" * (150 - 8) + "</p>\n", "<p>" + "b" * (155 - 8) + "</p>\n"
@@ -1089,6 +1115,32 @@ def test_a_merge_that_fills_a_bundle_exactly_is_taken():
     contexts = contexts_using([([a], range(5)), ([b], range(6))], 6)
     sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
     assert [len(s.encode()) for s in sources.values()] == [cap]
+
+
+def test_a_merge_that_gains_nothing_is_not_taken():
+    """A (pages 0-5) and B (500 bytes as a bundle, pages 0-4): merged, five pages would save a bundle each, worth 5 x
+    100 here, and page 5 would compile B's 500 bytes for nothing."""
+    a, b = tiny("A"), "<p>" + "b" * (500 - 26 - 8) + "</p>\n"
+    assert len(apt.bundle_source([b]).encode()) == 500
+    contexts = contexts_using([([a], range(6)), ([b], range(5))], 6)
+    sources, _ = with_setting("INTERN_BUNDLE_COST", 100, lambda: apt.intern_texts(contexts))
+    assert len(sources) == 2
+    more, _ = with_setting("INTERN_BUNDLE_COST", 101, lambda: apt.intern_texts(contexts_using([([a], range(6)), ([b], range(5))], 6)))
+    assert len(more) == 1
+
+
+PEBBLE_LIKE = [
+    "<p>Prints {{ like a variable }} and is shared by five pages.</p>\n",
+    "<p>Opens {% like a tag %} and is shared by five pages too.</p>\n",
+    "<p>Opens {# like a comment and is shared by five pages.</p>\n",
+    "<p>An unclosed {{ and an unclosed {% on five pages, word for word.</p>\n",
+    "<p>Whitespace control {%- like this -%} on five pages, word for word.</p>\n",
+    "<p>Ends with an opening brace on five pages, word for word {</p>\n",
+    "<p>A Windows line end on five pages,\r\nword for word.</p>\n",
+    "<p>Line separator and paragraph separator on five pages.</p>\n",
+    "<p>Next line\u0085on five pages, word for word, shared.</p>\n",
+    "<p>Non-ASCII: café, naïve, Ελληνικά, 中文, on five pages.</p>\n",
+]
 
 
 def test_several_bundles_serve_the_same_bytes(tmp_path):
