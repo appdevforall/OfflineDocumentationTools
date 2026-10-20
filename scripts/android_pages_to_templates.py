@@ -44,7 +44,10 @@ moves them into templates:
     Only the holes that hold one get that alternative in the main template.
     Links stay in the pages: a same-page link's fragment often equals a
     member's id, but it is written relative to the page. A text too long for a
-    bundle stays in its pages. In the 2026-10-19 ship-time build this interned
+    bundle stays in its pages. A page compiles every bundle it uses, so texts go
+    in bundles by the pages that use them (INTERN_BUNDLE_COST): the same pages'
+    texts together, other groups merged only when the pages that use both gain
+    more than the rest lose. In the 2026-10-19 ship-time build this interned
     6,441 texts (repeated paragraphs, inherited descriptions, annotations,
     parameters, types) into 164 bundles, the largest 7,999 bytes, and saved
     856,064 file and 867,547 .br bytes (84,852,736 and 66,266,178) against the
@@ -123,6 +126,7 @@ from __future__ import annotations
 
 import argparse
 import graphlib
+import heapq
 import json
 import os
 import re
@@ -156,6 +160,13 @@ INTERN_MIN_CHARS = 32
 # Most source a bundle template holds. A page compiles every bundle it uses: against 8,000, bundles of 16,000 or
 # 32,000 stored 11 or 14 KB less in all but doubled or quadrupled the source the median page compiles (13 KB).
 INTERN_MAX_TEMPLATE = 8000
+# Texts go in bundles by the pages that use them: two groups share a bundle when the pages using both, each saved
+# one bundle, outweigh the bytes the other pages then compile for nothing, a bundle counting as this many bytes.
+# Against first-use order, on the 2026-10-19 ship-time build this cut the bundle source the median page compiles
+# from 15,419 to 2,653 bytes, the 95th percentile from 61,211 to 14,672 and TextView from 290,523 to 116,987 (31
+# bundles, not 38). A bundle cost of 2,000 compiled less per page in more, smaller bundles that stored worse; 32,000
+# compiled more.
+INTERN_BUNDLE_COST = 8000
 
 # From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
 # against the dictionary, and the app decodes every one: the plain templates this step writes would not render.
@@ -506,46 +517,100 @@ def internable(name: str, value) -> bool:
 
 
 def intern_texts(contexts: list) -> tuple:
-    """Moves every text that INTERN_MIN_PAGES or more pages hold into bundle templates, in order of first use, and
-    points each page at it as [bundle, index] under "<hole>@" ("r@" for a raw segment). A bundle holds at most
-    INTERN_MAX_TEMPLATE bytes of source; a text too long for one stays in its pages. Returns the bundles' sources
-    by name and the holes that now hold a reference."""
-    pages_of = defaultdict(set)
+    """Moves every text that INTERN_MIN_PAGES or more pages hold into bundle templates of at most
+    INTERN_MAX_TEMPLATE bytes of source, grouped by the pages that use them (see pack_texts), and points each page
+    at it as [bundle, index] under "<hole>@" ("r@" for a raw segment). A text too long for a bundle stays in its
+    pages. Returns the bundles' sources by name and the holes that now hold a reference."""
+    pages_of, order, sources_of = defaultdict(set), [], {}
     for number, context in enumerate(contexts):
         for seg in context["b"]:
             for name, value in seg.items():
                 if internable(name, value):
                     pages_of[value].add(number)
     end = "{% endif %}"
-    refs, bundles, size, interned = {}, [[]], 0, set()
     for context in contexts:
         for seg in context["b"]:
-            for name in [n for n, v in seg.items() if internable(n, v) and len(pages_of[v]) >= INTERN_MIN_PAGES]:
-                value = seg[name]
-                if value not in refs:
-                    try:
-                        source = static_text(value)
-                    except Unrepresentable:
-                        pages_of[value] = set()
-                        continue
-                    first = len("{% if j == 0 %}".encode()) + len(source.encode()) + len(end)
-                    if first > INTERN_MAX_TEMPLATE:
-                        pages_of[value] = set()
-                        continue
-                    branch = f"{{% elseif j == {len(bundles[-1])} %}}" + source
-                    if bundles[-1] and size + len(branch.encode()) + len(end) > INTERN_MAX_TEMPLATE:
-                        bundles.append([])
-                        size = 0
-                    if not bundles[-1]:
-                        branch = "{% if j == 0 %}" + source
-                    refs[value] = [len(bundles) - 1, len(bundles[-1])]
-                    bundles[-1].append(branch)
-                    size += len(branch.encode())
-                del seg[name]
-                seg[name + "@"] = list(refs[value])
+            for name, value in seg.items():
+                if not internable(name, value) or len(pages_of[value]) < INTERN_MIN_PAGES or value in sources_of:
+                    continue
+                try:
+                    source = static_text(value)
+                except Unrepresentable:
+                    continue
+                if len("{% if j == 0 %}".encode()) + len(source.encode()) + len(end) <= INTERN_MAX_TEMPLATE:
+                    sources_of[value] = source
+                    order.append(value)
+    bundles = pack_texts(order, {v: frozenset(pages_of[v]) for v in order}, sources_of)
+    refs = {v: [b, j] for b, texts in enumerate(bundles) for j, v in enumerate(texts)}
+    interned = set()
+    for context in contexts:
+        for seg in context["b"]:
+            for name in [n for n, v in seg.items() if internable(n, v) and v in refs]:
+                seg[name + "@"] = list(refs[seg.pop(name)])
                 interned.add(name)
-    sources = {text_name(b): "".join(branches) + end for b, branches in enumerate(bundles) if branches}
+    sources = {text_name(b): bundle_source([sources_of[v] for v in texts]) for b, texts in enumerate(bundles)}
     return sources, frozenset(interned)
+
+
+def bundle_source(texts: list) -> str:
+    """A bundle's source: one branch per text, chosen by j."""
+    return "".join(("{% if j == 0 %}" if j == 0 else f"{{% elseif j == {j} %}}") + t for j, t in enumerate(texts)) + \
+        "{% endif %}"
+
+
+def pack_texts(order: list, pages: dict, sources: dict) -> list:
+    """Bundles of texts, each a list in first-use order (`order`), the bundles numbered by their first text's use.
+    Texts that the same pages use start in one group, split to fit; then the two groups whose merge most lowers
+    the sum over pages of compiled bundle source plus INTERN_BUNDLE_COST per bundle merge, while the result fits a
+    bundle, until no merge lowers it."""
+    rank = {v: i for i, v in enumerate(order)}
+    by_pages = defaultdict(list)
+    for v in order:
+        by_pages[pages[v]].append(v)
+    groups = {}  # id -> [texts, pages, source bytes]
+    for page_set, texts in by_pages.items():
+        chunk = []
+        for v in texts:
+            if chunk and len(bundle_source([sources[t] for t in chunk + [v]]).encode()) > INTERN_MAX_TEMPLATE:
+                groups[len(groups)] = [chunk, page_set, len(bundle_source([sources[t] for t in chunk]).encode())]
+                chunk = []
+            chunk.append(v)
+        groups[len(groups)] = [chunk, page_set, len(bundle_source([sources[t] for t in chunk]).encode())]
+    using = defaultdict(set)
+    for gid, (_texts, page_set, _size) in groups.items():
+        for p in page_set:
+            using[p].add(gid)
+    heap, version = [], defaultdict(int)
+
+    def gain(a: int, b: int) -> int:
+        _ta, pa, sa = groups[a]
+        _tb, pb, sb = groups[b]
+        both = len(pa & pb)
+        return INTERN_BUNDLE_COST * both - sb * (len(pa) - both) - sa * (len(pb) - both)
+
+    def offer(a: int) -> None:
+        for b in {b for p in groups[a][1] for b in using[p]} - {a}:
+            if groups[a][2] + groups[b][2] <= INTERN_MAX_TEMPLATE and (g := gain(a, b)) > 0:
+                heapq.heappush(heap, (-g, min(a, b), max(a, b), version[a], version[b]))
+
+    for a in list(groups):
+        offer(a)
+    while heap:
+        _g, a, b, va, vb = heapq.heappop(heap)
+        if a not in groups or b not in groups or (version[a], version[b]) != (va, vb):
+            continue
+        texts = sorted(groups[a][0] + groups[b][0], key=rank.get)
+        size = len(bundle_source([sources[t] for t in texts]).encode())
+        if size > INTERN_MAX_TEMPLATE:
+            continue
+        for p in groups[b][1]:
+            using[p].discard(b)
+            using[p].add(a)
+        groups[a] = [texts, groups[a][1] | groups[b][1], size]
+        del groups[b]
+        version[a] += 1
+        offer(a)
+    return sorted((g[0] for g in groups.values()), key=lambda texts: rank[texts[0]])
 
 
 def text_name(number: int) -> str:

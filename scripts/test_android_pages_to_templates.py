@@ -973,6 +973,98 @@ def test_only_the_holes_that_hold_a_shared_text_read_one():
     assert 's["r@"]' in converter.template(frozenset({"r"}))
 
 
+def contexts_using(texts_by_pages: list, pages: int) -> list:
+    """`pages` contexts; each (texts, page numbers) pair puts those texts, as raw segments, on those pages."""
+    out = [{"u": f"/a/p{i}.html", "b": []} for i in range(pages)]
+    for texts, numbers in texts_by_pages:
+        for i in numbers:
+            out[i]["b"] += [{"r": t} for t in texts]
+    return out
+
+
+def bundle_of(contexts: list, page: int) -> set:
+    return {seg["r@"][0] for seg in contexts[page]["b"] if "r@" in seg}
+
+
+def test_texts_the_same_pages_use_share_a_bundle_and_others_get_their_own():
+    a = [f"<p>Text {i} that the first five pages share.</p>\n" for i in range(3)]
+    b = [f"<p>Text {i} that the next five pages share.</p>\n" for i in range(3)]
+    contexts = contexts_using([(a, range(5)), (b, range(5, 10))], 10)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 2
+    assert all(bundle_of(contexts, i) == {0} for i in range(5)) and all(bundle_of(contexts, i) == {1} for i in range(5, 10))
+    assert [seg["r@"] for seg in contexts[0]["b"]] == [[0, 0], [0, 1], [0, 2]]  # in order of first use
+
+
+def big(name: str, size: int) -> str:
+    return f"<p>{name} " + "x" * (size - len(name) - 9) + "</p>\n"
+
+
+def test_groups_merge_when_the_pages_both_serve_outweigh_the_bytes_wasted():
+    """A (5,000 bytes, pages 0-4) and B (pages 0-5): merged, five pages save a bundle (5 x 8,000) and page 5 compiles
+    A for nothing (5,000). With a bundle worth a tenth as much, they would stay apart."""
+    a, b = big("A", 5000), "<p>B, on one page more than A.</p>\n"
+    contexts = contexts_using([([a], range(5)), ([b], range(6))], 6)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1 and bundle_of(contexts, 0) == {0}
+
+
+def test_groups_stay_apart_when_the_bytes_wasted_outweigh_the_pages_both_serve():
+    """A (5,000 bytes, pages 0-4) and B (pages 0-14): merged, five pages would save a bundle (40,000) and ten would
+    compile A for nothing (50,000)."""
+    a, b = big("A", 5000), "<p>B, on ten pages more than A.</p>\n"
+    contexts = contexts_using([([a], range(5)), ([b], range(15))], 15)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 2 and bundle_of(contexts, 0) == {0, 1} and bundle_of(contexts, 10) == {1}
+
+
+def tiny(name: str) -> str:
+    return f"<p>{name}, a short text long enough to share.</p>\n"
+
+
+def test_a_merge_that_would_overflow_a_bundle_is_refused():
+    """Merged, B's ten texts move to indexes 10-19, one digit longer each: the bundle outgrows the two parts it was
+    made of, so a cap of exactly their sum must refuse it."""
+    a = [tiny(f"A{i}") for i in range(10)]
+    b = [tiny(f"B{i}") for i in range(10)]
+    size = lambda texts: len(apt.bundle_source(texts).encode())  # noqa: E731
+    cap = size(a) + size(b)
+    assert size(a + b) > cap
+    contexts = contexts_using([(a, range(5)), (b, range(6))], 6)
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert len(sources) == 2 and all(len(s.encode()) <= cap for s in sources.values())
+
+
+def test_a_merged_bundle_keeps_its_texts_in_order_of_first_use():
+    a1, b1, a2 = tiny("A1"), tiny("B1"), tiny("A2")
+    contexts = [{"u": f"/a/p{i}.html", "b": [{"r": a1}, {"r": b1}, {"r": a2}] if i < 5 else [{"r": b1}]}
+                for i in range(6)]
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1
+    assert [seg["r@"] for seg in contexts[0]["b"]] == [[0, 0], [0, 1], [0, 2]]
+
+
+def test_bundles_are_numbered_by_their_first_texts_use():
+    """P's texts are first used at 0, 1, 3 and 4, Q's at 2; with room for two texts a bundle, P splits in two and Q's
+    bundle comes between them."""
+    p = [tiny(f"P{i}") for i in range(4)]
+    q = [tiny("Q0")]
+    contexts = [{"u": f"/a/p{i}.html", "b": [{"r": t} for t in (p[:2] + q + p[2:] if i < 5 else q)]} for i in range(6)]
+    cap = len(apt.bundle_source(p[:2]).encode())
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert [seg["r@"][0] for seg in contexts[0]["b"]] == [0, 0, 1, 2, 2]
+
+
+def test_a_merge_offered_before_its_group_grew_is_not_taken():
+    """A (pages 0-9) merges with B (pages 0-17) first. A and C (6,000 bytes, pages 0-4 and 18) were worth merging
+    while A was alone; merged with A and B, C would cost thirteen pages 6,000 bytes each, so it stays apart."""
+    a, b, c = tiny("A"), tiny("B"), big("C", 6000)
+    contexts = contexts_using([([a], range(10)), ([b], range(18)), ([c], list(range(5)) + [18])], 19)
+    sources, _ = apt.intern_texts(contexts)
+    holding = lambda text: {name for name, source in sources.items() if text in source}  # noqa: E731
+    assert len(sources) == 2 and holding(a) == holding(b) != holding(c)
+
+
 def test_several_bundles_serve_the_same_bytes(tmp_path):
     extra = "".join(notes() + f"<p>Shared paragraph number {i:03d}, repeated on five pages.</p>\n" for i in range(30))
     pages = standard_pages()
