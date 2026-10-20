@@ -1065,6 +1065,15 @@ def test_a_merge_offered_before_its_group_grew_is_not_taken():
     assert len(sources) == 2 and holding(a) == holding(b) != holding(c)
 
 
+def test_a_merged_group_can_still_merge_with_a_lower_numbered_one():
+    """X (pages 0-11) comes first, so it has the lowest number. A (pages 0-9 and 12) and B (pages 0-9 and 13) merge
+    first; the merged AB must still be able to merge with X, whose number is lower than its own (R56-01)."""
+    x, a, b = tiny("X"), tiny("A"), tiny("B")
+    contexts = contexts_using([([x], range(12)), ([a], list(range(10)) + [12]), ([b], list(range(10)) + [13])], 14)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1, sorted(sources)
+
+
 def test_several_bundles_serve_the_same_bytes(tmp_path):
     extra = "".join(notes() + f"<p>Shared paragraph number {i:03d}, repeated on five pages.</p>\n" for i in range(30))
     pages = standard_pages()

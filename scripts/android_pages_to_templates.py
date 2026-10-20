@@ -592,7 +592,8 @@ def pack_texts(order: list, pages: dict, sources: dict) -> list:
     def offer(a: int) -> None:
         for b in {b for p in groups[a][1] for b in using[p]} - {a}:
             if groups[a][2] + groups[b][2] <= INTERN_MAX_TEMPLATE and (g := gain(a, b)) > 0:
-                heapq.heappush(heap, (-g, min(a, b), max(a, b), version[a], version[b]))
+                lo, hi = min(a, b), max(a, b)
+                heapq.heappush(heap, (-g, lo, hi, version[lo], version[hi]))
 
     for a in list(groups):
         offer(a)
