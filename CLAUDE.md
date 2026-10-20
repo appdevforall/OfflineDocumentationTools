@@ -173,7 +173,11 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
   rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
   renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as its
-  visual check).
+  visual check), `optimize_pdfs.py` (ADFA-6629: rewrites the PDF rows - and, with `--file`, the Bookshelf
+  plugin's `.pdf.br` books - losslessly so the Brotli around them compresses them better: streams other
+  than images stored plain, Flate-wrapped JPEGs stored bare, Flate images PNG-predicted; every rewrite
+  checked object by object against the original; run on the shipped copy after `svg_images_to_webp.py`,
+  before the final dictionary re-mint).
   **Deprecated/dead** (target the
   removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
   `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
