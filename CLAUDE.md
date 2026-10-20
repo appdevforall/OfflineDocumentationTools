@@ -188,7 +188,10 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   bundle, and run this step again afterwards.
 - **`scripts/android_pages_to_templates.py`** - stores the Android reference pages under `a/`
   (except `a/devsite/`) as JSON plus `android-reference.peb` and one shared include per
-  inherited-member block header (`android-inherited-<n>.peb`), after rendering every page back
+  inherited-member block header (`android-inherited-<n>.peb`), with every text of 32 or more
+  characters that 5 or more pages hold (link holes excepted) stored once in a shared-text bundle
+  (`android-text-<n>.peb`, at most 8,000 bytes of source each, texts grouped by the pages that use
+  them), after rendering every page back
   byte for byte with the app's engine (`scripts/hm_render_check/`, as above); a page that does not
   render back, or is over the app's render limit, stays HTML (ADFA-3305). Run it on the ship-time
   copy only, never on the master: after the steps that write `a/` pages, `drop_unread_rows.py` and

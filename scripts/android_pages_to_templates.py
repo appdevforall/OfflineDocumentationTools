@@ -35,6 +35,27 @@ moves them into templates:
     {"k": ..., "i": <n>, "x": [rows it leaves out]} in place of the block: the
     members its class overrides. A key whose pages disagree on the order of
     their rows, or repeat a row, keeps its blocks in the pages.
+  - Shared texts. A text of INTERN_MIN_CHARS or more that INTERN_MIN_PAGES or
+    more pages hold - a raw segment, or a hole other than a link hole - is stored
+    once, in a bundle template android-text-<n>.peb of at most
+    INTERN_MAX_TEMPLATE bytes of source, as one branch of
+    {% if j == 0 %}...{% elseif j == 1 %}...{% endif %}. A page stores
+    [<n>, <j>] under "<hole>@" ("r@" for a raw segment) in place of the text.
+    Only the holes that hold one get that alternative in the main template.
+    Link holes stay in the pages: a same-page link's fragment often equals a
+    member's id, but it is written relative to the page. (A shared text may
+    still hold a link in its markup; every such link in the a/ pages is
+    rooted.) A text too long for a
+    bundle stays in its pages. A page compiles every bundle it uses, so texts go
+    in bundles by the pages that use them (INTERN_BUNDLE_COST): the same pages'
+    texts together, other groups merged only when the pages that use both gain
+    more than the rest lose. In the 2026-10-19 ship-time build this interned
+    6,441 texts (repeated paragraphs, inherited descriptions, annotations,
+    parameters, types) into 524 bundles, the largest 7,998 bytes, and saved
+    905,216 file and 928,748 .br bytes (84,803,584 and 66,204,977) against the
+    same build without it. The median page compiles 2,653 bytes of bundle
+    source, the 95th percentile 14,411, the largest 144,127 (TextView 121,032,
+    in 32 bundles).
   - The main template android-reference.peb loops over a page's segments.
 
 Pages: every text/html row under a/ with templateId 0, except a/devsite/
@@ -87,7 +108,8 @@ converts renders back byte for byte, so it links to exactly what
 drop_unread_rows.py already checked in it as HTML. (drop_unread_rows.py reads
 templates and templated rows' JSON too, so it could also run after this step.)
 
-Measured on the 2026-10-18 schema-3 test database (98,201,600 bytes), against
+Measured for the shapes and inherited-member includes, before the shared
+texts, on the 2026-10-18 schema-3 test database (98,201,600 bytes), against
 the same database with only its templates compressed; both re-minted with 4
 seeds (templates sampled and recompressed with the rows), packed with
 rebuild_database.py --pack Content,TooltipTexts --page-size 4096, .br with
@@ -109,6 +131,7 @@ from __future__ import annotations
 
 import argparse
 import graphlib
+import heapq
 import json
 import os
 import re
@@ -131,6 +154,26 @@ INCLUDE_SUFFIX = ".peb"
 
 # A head or footer variant becomes a template shape only when this many pages share it exactly.
 MIN_SHARED_PAGES = 5
+
+TEXT_PREFIX = "android-text-"
+# A text is interned when this many pages hold it. Measured with the first prototype, which filled bundles in
+# first-use order, on the 2026-10-19 ship-time build (4-seed re-mint, packed, .br): 5 pages saved 839,680 file
+# and 850,755 .br bytes; 2 pages saved less (614,400 and 799,100, in 1,047 bundles where a page pulls in more of
+# them), and so did 20 pages (643,072 and 588,189).
+INTERN_MIN_PAGES = 5
+# A shorter text costs about as much as the reference that would replace it.
+INTERN_MIN_CHARS = 32
+# Most source a bundle template holds. A page compiles every bundle it uses. With the packing below, offline on the
+# 2026-10-19 ship-time build: bundles of 16,000 put TextView's texts in 28 bundles instead of 32 for about the
+# same source (122,038 bytes against 121,032), and bundles of 32,000 made TextView compile 174,317.
+INTERN_MAX_TEMPLATE = 8000
+# Texts go in bundles by the pages that use them: two groups share a bundle when the pages using both, each saved
+# one bundle, outweigh the bytes the other pages then compile for nothing, a bundle counting as this many bytes.
+# Against first-use order, offline on the 2026-10-19 ship-time build, this cut the bundle source the median page
+# compiles from 15,419 to 2,653 bytes, the 95th percentile from 61,211 to 14,411 and TextView from 290,523 to
+# 121,032 (32 bundles, not 38). A bundle cost of 2,000 compiled less per page (median 958) in 938 bundles that
+# stored about 22 KB more; 32,000 compiled more (median 7,973).
+INTERN_BUNDLE_COST = 8000
 
 # From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
 # against the dictionary, and the app decodes every one: the plain templates this step writes would not render.
@@ -273,19 +316,27 @@ def compile_shape(text: str):
     return re.compile("".join(pattern))
 
 
-def hole_source(name: str) -> str:
+def text_include(ref: str) -> str:
+    """Pebble source writing the shared text `ref` ([bundle, index]) points at."""
+    return f'{{% include ("{TEXT_PREFIX}" ~ {ref}[0] ~ "{INCLUDE_SUFFIX}") with {{"j": {ref}[1]}} %}}'
+
+
+def hole_source(name: str, interned: frozenset = frozenset()) -> str:
+    if name in interned:
+        ref = f's["{name}@"]'
+        return f"{{% if {ref} is not null %}}{text_include(ref)}{{% else %}}{{{{ s.{name} | raw }}}}{{% endif %}}"
     if name in LINK_HOLES:
         return (f'{{% if s["{name}#"] is not null %}}{{{{ u | raw }}}}#{{{{ s["{name}#"] | raw }}}}'
                 f'{{% else %}}{{{{ s.{name} | raw }}}}{{% endif %}}')
     return f"{{{{ s.{name} | raw }}}}"
 
 
-def branch_source(shape: str) -> str:
+def branch_source(shape: str, interned: frozenset = frozenset()) -> str:
     """The template source writing one record of `shape`. Every literal part follows a tag: the elseif, or
-    a hole's print or endif."""
+    a hole's print or endif. A hole in `interned` may hold a shared text instead of its own."""
     out, parts = [], shape.split(H)
     for i, part in enumerate(parts):
-        out.append(hole_source(part) if i % 2 else static_text(part))
+        out.append(hole_source(part, interned) if i % 2 else static_text(part))
     return "".join(out)
 
 
@@ -320,10 +371,15 @@ class Converter:
         self.firsts = [s.split(H, 1)[0][:12] for s in shapes]
         self.include_kind = len(shapes) if include_kind is None else include_kind
 
-    def template(self) -> str:
-        out = ["{% for s in b %}{% if s.k is null %}{{ s.r | raw }}"]
+    def template(self, interned: frozenset = frozenset()) -> str:
+        """The main template. Only the holes in `interned` ("r" for raw segments) get the shared-text branch."""
+        raw = "{{ s.r | raw }}"
+        if "r" in interned:
+            ref = 's["r@"]'
+            raw = f"{{% if {ref} is not null %}}{text_include(ref)}{{% else %}}{raw}{{% endif %}}"
+        out = ["{% for s in b %}{% if s.k is null %}" + raw]
         for k, shape in enumerate(self.shapes):
-            out.append(f"{{% elseif s.k == {k} %}}" + branch_source(shape))
+            out.append(f"{{% elseif s.k == {k} %}}" + branch_source(shape, interned))
         out.append(f'{{% elseif s.k == {self.include_kind} %}}'
                    f'{{% include ("{INCLUDE_PREFIX}" ~ s.i ~ "{INCLUDE_SUFFIX}") with {{"x": s.x}} %}}')
         out.append("{% endif %}{% endfor %}")
@@ -461,6 +517,118 @@ def _convert(item: tuple) -> dict:
     return {"u": url, "b": segs}
 
 
+def internable(name: str, value) -> bool:
+    """Whether a segment's field may hold a shared text instead: text long enough, and never a link."""
+    return (isinstance(value, str) and len(value) >= INTERN_MIN_CHARS and name not in LINK_HOLES
+            and not name.endswith("#"))
+
+
+def intern_texts(contexts: list) -> tuple:
+    """Moves every text that INTERN_MIN_PAGES or more pages hold into bundle templates of at most
+    INTERN_MAX_TEMPLATE bytes of source, grouped by the pages that use them (see pack_texts), and points each page
+    at it as [bundle, index] under "<hole>@" ("r@" for a raw segment). A text too long for a bundle stays in its
+    pages. Returns the bundles' sources by name and the holes that now hold a reference."""
+    pages_of, order, sources_of = defaultdict(set), [], {}
+    for number, context in enumerate(contexts):
+        for seg in context["b"]:
+            for name, value in seg.items():
+                if internable(name, value):
+                    pages_of[value].add(number)
+    end = "{% endif %}"
+    for context in contexts:
+        for seg in context["b"]:
+            for name, value in seg.items():
+                if not internable(name, value) or len(pages_of[value]) < INTERN_MIN_PAGES or value in sources_of:
+                    continue
+                try:
+                    source = static_text(value)
+                except Unrepresentable:
+                    continue
+                if len("{% if j == 0 %}".encode()) + len(source.encode()) + len(end) <= INTERN_MAX_TEMPLATE:
+                    sources_of[value] = source
+                    order.append(value)
+    bundles = pack_texts(order, {v: frozenset(pages_of[v]) for v in order}, sources_of)
+    refs = {v: [b, j] for b, texts in enumerate(bundles) for j, v in enumerate(texts)}
+    interned = set()
+    for context in contexts:
+        for seg in context["b"]:
+            for name in [n for n, v in seg.items() if internable(n, v) and v in refs]:
+                seg[name + "@"] = list(refs[seg.pop(name)])
+                interned.add(name)
+    sources = {text_name(b): bundle_source([sources_of[v] for v in texts]) for b, texts in enumerate(bundles)}
+    return sources, frozenset(interned)
+
+
+def bundle_source(texts: list) -> str:
+    """A bundle's source: one branch per text, chosen by j."""
+    return "".join(("{% if j == 0 %}" if j == 0 else f"{{% elseif j == {j} %}}") + t for j, t in enumerate(texts)) + \
+        "{% endif %}"
+
+
+def pack_texts(order: list, pages: dict, sources: dict) -> list:
+    """Bundles of texts, each a list in first-use order (`order`), the bundles numbered by their first text's use.
+    Texts that the same pages use start in one group, split to fit; then the two groups whose merge most lowers
+    the sum over pages of compiled bundle source plus INTERN_BUNDLE_COST per bundle merge, while the result fits a
+    bundle, until no merge lowers it."""
+    rank = {v: i for i, v in enumerate(order)}
+    by_pages = defaultdict(list)
+    for v in order:
+        by_pages[pages[v]].append(v)
+    groups = {}  # id -> [texts, pages, source bytes]
+    for page_set, texts in by_pages.items():
+        chunk = []
+        for v in texts:
+            if chunk and len(bundle_source([sources[t] for t in chunk + [v]]).encode()) > INTERN_MAX_TEMPLATE:
+                groups[len(groups)] = [chunk, page_set, len(bundle_source([sources[t] for t in chunk]).encode())]
+                chunk = []
+            chunk.append(v)
+        groups[len(groups)] = [chunk, page_set, len(bundle_source([sources[t] for t in chunk]).encode())]
+    using = defaultdict(set)
+    for gid, (_texts, page_set, _size) in groups.items():
+        for p in page_set:
+            using[p].add(gid)
+    heap, version = [], defaultdict(int)
+
+    def gain(a: int, b: int) -> int:
+        _ta, pa, sa = groups[a]
+        _tb, pb, sb = groups[b]
+        both = len(pa & pb)
+        return INTERN_BUNDLE_COST * both - sb * (len(pa) - both) - sa * (len(pb) - both)
+
+    # A merge drops one "{% endif %}" and one "{% if j == 0 %}" and adds at least one "{% elseif j == n %}", so a
+    # merged bundle is at least this much smaller than its two parts: never refuse here one that would fit.
+    least_saved = len("{% endif %}") + len("{% if j == 0 %}") - len("{% elseif j == 1 %}")
+
+    def offer(a: int) -> None:
+        for b in {b for p in groups[a][1] for b in using[p]} - {a}:
+            if groups[a][2] + groups[b][2] - least_saved <= INTERN_MAX_TEMPLATE and (g := gain(a, b)) > 0:
+                lo, hi = min(a, b), max(a, b)
+                heapq.heappush(heap, (-g, lo, hi, version[lo], version[hi]))
+
+    for a in list(groups):
+        offer(a)
+    while heap:
+        _g, a, b, va, vb = heapq.heappop(heap)
+        if a not in groups or b not in groups or (version[a], version[b]) != (va, vb):
+            continue
+        texts = sorted(groups[a][0] + groups[b][0], key=rank.get)
+        size = len(bundle_source([sources[t] for t in texts]).encode())
+        if size > INTERN_MAX_TEMPLATE:
+            continue
+        for p in groups[b][1]:
+            using[p].discard(b)
+            using[p].add(a)
+        groups[a] = [texts, groups[a][1] | groups[b][1], size]
+        del groups[b]
+        version[a] += 1
+        offer(a)
+    return sorted((g[0] for g in groups.values()), key=lambda texts: rank[texts[0]])
+
+
+def text_name(number: int) -> str:
+    return f"{TEXT_PREFIX}{number}{INCLUDE_SUFFIX}"
+
+
 def context_json(context: dict) -> bytes:
     return json.dumps(context, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -498,7 +666,7 @@ def run(cfg: dict) -> int:
             print(f"error: {refusal}. Nothing written.", file=sys.stderr)
             return 1
         taken = [name for (name,) in conn.execute("SELECT name FROM Templates")
-                 if name == MAIN_TEMPLATE or name.startswith(INCLUDE_PREFIX)]
+                 if name == MAIN_TEMPLATE or name.startswith((INCLUDE_PREFIX, TEXT_PREFIX))]
         if taken:
             print(f"error: this database already holds this step's templates ({', '.join(sorted(taken)[:3])}"
                   f"{', ...' if len(taken) > 3 else ''}); run it on a database it has not converted. "
@@ -571,16 +739,17 @@ def run(cfg: dict) -> int:
         includes = {key: (order, n) for n, (key, order) in enumerate(keys.items())}
         include_sources = {include_name(n): include_source(key, order) for key, (order, n) in includes.items()}
         shapes = head_and_tail_shapes([p for _, p in pages]) + SHAPES
-        template = Converter(shapes).template()
         contexts = _pool_map(_convert, [(path, page, blocks) for (path, page), blocks in zip(pages, found)],
                              workers, (shapes, includes))
+        text_sources, interned = intern_texts(contexts)
+        template = Converter(shapes).template(interned)
         blocks_total = sum(len(b) for b in found)
         print(f"{human(blocks_total)} inherited-member block(s) under {human(len({b[2] for bl in found for b in bl}))} "
               f"header(s); {human(len(includes))} include(s) cover "
               f"{human(sum(1 for bl in found for b in bl if b[2] in includes))} of them.")
 
         harness.define(MAIN_TEMPLATE, template)
-        for name, source in include_sources.items():
+        for name, source in {**include_sources, **text_sources}.items():
             harness.define(name, source)
         converted, stay = [], []
         for (path, page), context in zip(pages, contexts):
@@ -598,6 +767,9 @@ def run(cfg: dict) -> int:
         used = {include_name(seg["i"]) for _p, _d, context in converted for seg in context["b"]
                 if seg.get("k") == len(shapes)}
         include_sources = {name: source for name, source in include_sources.items() if name in used}
+        used_texts = {text_name(seg[f][0]) for _p, _d, context in converted for seg in context["b"]
+                      for f in seg if f.endswith("@")}
+        text_sources = {name: source for name, source in text_sources.items() if name in used_texts}
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
             stored = list(pool.map(lambda t: codec.compress(t[1], meta[t[0]][5]), converted))
@@ -606,14 +778,17 @@ def run(cfg: dict) -> int:
         after = sum(map(len, stored))
         decoded_before = sum(len(page_of[p].encode("utf-8")) for p, _d, _c in converted)
         decoded_after = sum(len(d) for _p, d, _c in converted)
-        template_bytes = len(template.encode("utf-8")) + sum(len(s.encode("utf-8")) for s in include_sources.values())
+        template_bytes = len(template.encode("utf-8")) + sum(
+            len(s.encode("utf-8")) for s in {**include_sources, **text_sources}.values())
 
         for path, why in left:
             print(f"  left as it is: {path} - {why}", file=sys.stderr)
         for path, why in stay:
             print(f"  stays HTML: {path} - {why}", file=sys.stderr)
         print(f"{'Would convert' if cfg['dry_run'] else 'Converting'} {human(len(converted))} of {human(len(pages))} "
-              f"page(s) to JSON through {MAIN_TEMPLATE} and {human(len(include_sources))} include(s): "
+              f"page(s) to JSON through {MAIN_TEMPLATE}, {human(len(include_sources))} include(s) and "
+              f"{human(len(text_sources))} shared-text bundle(s) (largest "
+              f"{human(max((len(v.encode('utf-8')) for v in text_sources.values()), default=0))} bytes): "
               f"{human(before)} -> {human(after)} stored byte(s) against the current dictionary, "
               f"{human(decoded_before)} -> {human(decoded_after)} decoded, plus {human(template_bytes)} bytes of "
               f"templates as text.")
@@ -631,7 +806,7 @@ def run(cfg: dict) -> int:
             conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)",
                          (MAIN_TEMPLATE, template.encode("utf-8")))
             main_id = conn.execute("SELECT id FROM Templates WHERE name = ?", (MAIN_TEMPLATE,)).fetchone()[0]
-            for name, source in sorted(include_sources.items()):
+            for name, source in sorted({**include_sources, **text_sources}.items()):
                 conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (name, source.encode("utf-8")))
             for (path, _data, _context), blob in zip(converted, stored):
                 _p, _full, base_len, language_id, type_id, _compression = meta[path]

@@ -43,6 +43,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -845,6 +846,408 @@ def test_worker_processes_give_the_same_result(tmp_path):
     contexts = lambda db: {p: stored_context(db, p) for p in standard_pages()}  # noqa: E731
     assert contexts(one) == contexts(two)
     assert templates(one) == templates(two)
+
+
+# --- shared texts --------------------------------------------------------------------
+
+SHARED = "<p>Every one of these pages repeats this paragraph, word for word.</p>\n"
+DESCRIPTION = "Returns the same long description on every one of these pages."
+
+
+def notes(title: str = "Notes") -> str:
+    """A section heading, which is a record: the text around it becomes raw segments of their own."""
+    return f'<h2 class="api-section" data-text="{title}" id="{title.lower()}" tabindex="-1">{title}</h2>\n'
+
+
+def shared_extra() -> str:
+    """SHARED as a raw segment of its own, and DESCRIPTION in a returns row's description hole."""
+    return (notes() + SHARED + notes() + '<table class="responsive">\n<tr><th colspan="2">Returns</th></tr>\n<tr>\n'
+            f'<td><code dir="ltr" translate="no">int</code></td>\n<td width="100%">{DESCRIPTION}</td>\n</tr>\n'
+            '</table>\n')
+
+
+def shared_pages(holders: int, others: bool = True) -> dict:
+    """The first `holders` Doclava pages carry shared_extra(); `others` adds the rest of standard_pages()."""
+    pages = standard_pages() if others else {}
+    for i in range(holders):
+        pages[f"a/pkg/C{i}.html"] = doclava_page(f"C{i}", extra=shared_extra())
+    return pages
+
+
+def bundle_texts(db: Path) -> dict:
+    """(bundle, index) -> text, read back out of the stored bundles (their texts hold no Pebble syntax)."""
+    out = {}
+    for name, source in templates(db).items():
+        if not name.startswith(apt.TEXT_PREFIX):
+            continue
+        number = int(name[len(apt.TEXT_PREFIX):-len(apt.INCLUDE_SUFFIX)])
+        assert source.endswith("{% endif %}")
+        for part in source[:-len("{% endif %}")].split("{% ")[1:]:
+            head, text = part.split(" %}", 1)
+            out[(number, int(head.rsplit("==", 1)[1]))] = text
+    return out
+
+
+def refs(db: Path, path: str) -> dict:
+    """The shared-text references a stored page holds: (bundle, index) -> field."""
+    return {tuple(v): f[:-1] for seg in stored_context(db, path)["b"] for f, v in seg.items() if f.endswith("@")}
+
+
+def test_texts_on_five_pages_are_interned_and_serve_the_same_bytes(tmp_path):
+    db = make_db(tmp_path / "doc.db", shared_pages(5))
+    before = served(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = served(db)
+    for path, (data, _tid) in before.items():
+        assert after[path][0] == data, path
+    assert all(after[path][1] for path in standard_pages()), "a page stayed HTML"
+    texts = bundle_texts(db)
+    (shared,) = [k for k, v in texts.items() if v == SHARED]
+    (description,) = [k for k, v in texts.items() if v == DESCRIPTION]
+    for i in range(5):
+        held = refs(db, f"a/pkg/C{i}.html")
+        assert held[shared] == "r" and held[description] == "d", held
+    assert shared not in refs(db, "a/pkg/C5.html") and description not in refs(db, "a/pkg/C5.html")
+    # Only the holes that hold a shared text somewhere read one.
+    fields = {f for path in standard_pages() for f in refs(db, path).values()}
+    assert set(re.findall(r's\["(\w+)@"\]', templates(db)[apt.MAIN_TEMPLATE])) == fields
+    assert {"r", "d"} <= fields and "ty" not in fields
+
+
+def test_a_text_on_four_pages_stays_in_the_pages(tmp_path):
+    db = make_db(tmp_path / "doc.db", shared_pages(4))
+    assert run_tool(db)[0] == 0
+    assert SHARED not in bundle_texts(db).values() and DESCRIPTION not in bundle_texts(db).values()
+    segs = stored_context(db, "a/pkg/C0.html")["b"]
+    assert {"r": SHARED} in segs and any(seg.get("d") == DESCRIPTION for seg in segs)
+
+
+def contexts_sharing(texts: list, pages: int = 5) -> list:
+    """`pages` contexts, each holding every one of `texts` as a raw segment."""
+    return [{"u": f"/a/p{i}.html", "b": [{"r": text} for text in texts]} for i in range(pages)]
+
+
+def with_setting(name: str, value: int, function):
+    saved = getattr(apt, name)
+    setattr(apt, name, value)
+    try:
+        return function()
+    finally:
+        setattr(apt, name, saved)
+
+
+def with_bundle_size(size: int, function):
+    return with_setting("INTERN_MAX_TEMPLATE", size, function)
+
+
+def test_bundles_fill_up_to_the_bundle_size_and_no_further():
+    # Lengths vary, so some text lands right at a bundle's limit.
+    texts = [f"<p>Shared text number {i:03d}{'x' * (i % 13)}, long enough to intern.</p>\n" for i in range(40)]
+    contexts = contexts_sharing(texts)
+    # No merging here, only the split: one page set's texts, which gain nothing from a merge when a bundle costs 0.
+    sources, interned = with_setting("INTERN_BUNDLE_COST", 0,
+                                     lambda: with_bundle_size(400, lambda: apt.intern_texts(contexts)))
+    assert interned == {"r"}
+    names = [apt.text_name(b) for b in range(len(sources))]
+    assert sorted(sources) == sorted(names) and len(names) > 3
+    for b, name in enumerate(names):
+        size = len(sources[name].encode())
+        assert size <= 400, (name, size)
+        if b + 1 < len(names):  # the next bundle's first text would not have fitted in this one
+            first = sources[names[b + 1]].removeprefix("{% if j == 0 %}").split("{% ", 1)[0]
+            grown = size + len(f"{{% elseif j == {sources[name].count('{% elseif') + 1} %}}{first}".encode())
+            assert grown > 400, (name, grown)
+    # Each text has its own place, numbered in order of first use.
+    places = [tuple(seg["r@"]) for seg in contexts[0]["b"]]
+    assert places == sorted(places) and len(set(places)) == len(texts)
+    assert all(c["b"] == contexts[0]["b"] for c in contexts)
+
+
+def test_a_bundle_may_reach_the_bundle_size_exactly():
+    # 15 bytes of "{% if j == 0 %}", 19 of "{% elseif j == 1 %}" and 11 of "{% endif %}": 355 bytes of text make 400.
+    texts = ["<p>" + "a" * 193 + "</p>", "<p>" + "b" * 148 + "</p>"]
+    # The split alone: with no merging (a bundle costing 0), a split that left a second bundle would show.
+    sources, _interned = with_setting("INTERN_BUNDLE_COST", 0, lambda: with_bundle_size(
+        400, lambda: apt.intern_texts(contexts_sharing(texts))))
+    assert list(sources) == [apt.text_name(0)] and len(sources[apt.text_name(0)].encode()) == 400
+
+
+def test_only_the_holes_that_hold_a_shared_text_read_one():
+    converter = apt.Converter(apt.SHAPES)
+    assert "@" not in converter.template()
+    some = converter.template(frozenset({"d"}))
+    assert 's["d@"]' in some and 's["r@"]' not in some and 's["ty@"]' not in some
+    assert 's["r@"]' in converter.template(frozenset({"r"}))
+
+
+def contexts_using(texts_by_pages: list, pages: int) -> list:
+    """`pages` contexts; each (texts, page numbers) pair puts those texts, as raw segments, on those pages."""
+    out = [{"u": f"/a/p{i}.html", "b": []} for i in range(pages)]
+    for texts, numbers in texts_by_pages:
+        for i in numbers:
+            out[i]["b"] += [{"r": t} for t in texts]
+    return out
+
+
+def bundle_of(contexts: list, page: int) -> set:
+    return {seg["r@"][0] for seg in contexts[page]["b"] if "r@" in seg}
+
+
+def test_texts_the_same_pages_use_share_a_bundle_and_others_get_their_own():
+    a = [f"<p>Text {i} that the first five pages share.</p>\n" for i in range(3)]
+    b = [f"<p>Text {i} that the next five pages share.</p>\n" for i in range(3)]
+    contexts = contexts_using([(a, range(5)), (b, range(5, 10))], 10)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 2
+    assert all(bundle_of(contexts, i) == {0} for i in range(5)) and all(bundle_of(contexts, i) == {1} for i in range(5, 10))
+    assert [seg["r@"] for seg in contexts[0]["b"]] == [[0, 0], [0, 1], [0, 2]]  # in order of first use
+
+
+def big(name: str, size: int) -> str:
+    return f"<p>{name} " + "x" * (size - len(name) - 9) + "</p>\n"
+
+
+def test_groups_merge_when_the_pages_both_serve_outweigh_the_bytes_wasted():
+    """A (5,000 bytes, pages 0-4) and B (pages 0-5): merged, five pages save a bundle (5 x 8,000) and page 5 compiles
+    A for nothing (5,000). With a bundle worth a tenth as much, they would stay apart."""
+    a, b = big("A", 5000), "<p>B, on one page more than A.</p>\n"
+    contexts = contexts_using([([a], range(5)), ([b], range(6))], 6)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1 and bundle_of(contexts, 0) == {0}
+
+
+def test_groups_stay_apart_when_the_bytes_wasted_outweigh_the_pages_both_serve():
+    """A (5,000 bytes, pages 0-4) and B (pages 0-14): merged, five pages would save a bundle (40,000) and ten would
+    compile A for nothing (50,000)."""
+    a, b = big("A", 5000), "<p>B, on ten pages more than A.</p>\n"
+    contexts = contexts_using([([a], range(5)), ([b], range(15))], 15)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 2 and bundle_of(contexts, 0) == {0, 1} and bundle_of(contexts, 10) == {1}
+
+
+def tiny(name: str) -> str:
+    return f"<p>{name}, a short text long enough to share.</p>\n"
+
+
+def test_a_merge_that_would_overflow_a_bundle_is_refused():
+    """Merged, B's ten texts move to indexes 10-19, one digit longer each: the bundle outgrows the two parts it was
+    made of, so a cap of exactly their sum must refuse it."""
+    a = [tiny(f"A{i}") for i in range(10)]
+    b = [tiny(f"B{i}") for i in range(10)]
+    size = lambda texts: len(apt.bundle_source(texts).encode())  # noqa: E731
+    cap = size(a) + size(b)
+    assert size(a + b) > cap
+    contexts = contexts_using([(a, range(5)), (b, range(6))], 6)
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert len(sources) == 2 and all(len(s.encode()) <= cap for s in sources.values())
+
+
+def test_a_merged_bundle_keeps_its_texts_in_order_of_first_use():
+    a1, b1, a2 = tiny("A1"), tiny("B1"), tiny("A2")
+    contexts = [{"u": f"/a/p{i}.html", "b": [{"r": a1}, {"r": b1}, {"r": a2}] if i < 5 else [{"r": b1}]}
+                for i in range(6)]
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1
+    assert [seg["r@"] for seg in contexts[0]["b"]] == [[0, 0], [0, 1], [0, 2]]
+
+
+def test_bundles_are_numbered_by_their_first_texts_use():
+    """P's texts are first used at 0, 1, 3 and 4, Q's at 2; with room for two texts a bundle, P splits in two and Q's
+    bundle comes between them."""
+    p = [tiny(f"P{i}") for i in range(4)]
+    q = [tiny("Q0")]
+    contexts = [{"u": f"/a/p{i}.html", "b": [{"r": t} for t in (p[:2] + q + p[2:] if i < 5 else q)]} for i in range(6)]
+    cap = len(apt.bundle_source(p[:2]).encode())
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert [seg["r@"][0] for seg in contexts[0]["b"]] == [0, 0, 1, 2, 2]
+
+
+def test_a_merge_offered_before_its_group_grew_is_not_taken():
+    """A (pages 0-9) merges with B (pages 0-17) first. A and C (6,000 bytes, pages 0-4 and 18) were worth merging
+    while A was alone; merged with A and B, C would cost thirteen pages 6,000 bytes each, so it stays apart."""
+    a, b, c = tiny("A"), tiny("B"), big("C", 6000)
+    contexts = contexts_using([([a], range(10)), ([b], range(18)), ([c], list(range(5)) + [18])], 19)
+    sources, _ = apt.intern_texts(contexts)
+    holding = lambda text: {name for name, source in sources.items() if text in source}  # noqa: E731
+    assert len(sources) == 2 and holding(a) == holding(b) != holding(c)
+
+
+def test_a_merged_group_can_still_merge_with_a_lower_numbered_one():
+    """X (pages 0-11) comes first, so it has the lowest number. A (pages 0-9 and 12) and B (pages 0-9 and 13) merge
+    first; the merged AB must still be able to merge with X, whose number is lower than its own (R56-01)."""
+    x, a, b = tiny("X"), tiny("A"), tiny("B")
+    contexts = contexts_using([([x], range(12)), ([a], list(range(10)) + [12]), ([b], list(range(10)) + [13])], 14)
+    sources, _ = apt.intern_texts(contexts)
+    assert len(sources) == 1, sorted(sources)
+
+
+def test_a_text_that_fills_a_bundle_exactly_is_shared_and_one_byte_more_is_not():
+    # A bundle of one text is "{% if j == 0 %}" (15 bytes), the text and "{% endif %}" (11).
+    fits, over = "<p>" + "f" * (300 - 26 - 8) + "</p>\n", "<p>" + "o" * (300 - 26 - 7) + "</p>\n"
+    assert len(fits) == 274 and len(over) == 275
+    contexts = contexts_sharing([fits, over])
+    sources, _ = with_bundle_size(300, lambda: apt.intern_texts(contexts))
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": over}]
+    assert [len(s.encode()) for s in sources.values()] == [300]
+
+
+def test_a_bundle_holds_at_most_8000_bytes_of_source():
+    fits, over = "<p>" + "f" * (8000 - 26 - 8) + "</p>\n", "<p>" + "o" * (8000 - 26 - 7) + "</p>\n"
+    contexts = contexts_sharing([fits, over])
+    sources, _ = apt.intern_texts(contexts)
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": over}]
+    assert [len(s.encode()) for s in sources.values()] == [8000]
+
+
+def test_a_text_of_32_characters_is_shared_and_one_of_31_is_not():
+    t32, t31 = "<p>" + "a" * 25 + "</p>", "<p>" + "b" * 24 + "</p>"
+    assert (len(t32), len(t31)) == (32, 31)
+    contexts = contexts_sharing([t32, t31])
+    apt.intern_texts(contexts)
+    assert contexts[0]["b"] == [{"r@": [0, 0]}, {"r": t31}]
+
+
+def test_a_merge_that_fills_a_bundle_exactly_is_taken():
+    # Merged: "{% if j == 0 %}" + A + "{% elseif j == 1 %}" + B + "{% endif %}", 45 bytes of tags.
+    a, b = "<p>" + "a" * (150 - 8) + "</p>\n", "<p>" + "b" * (155 - 8) + "</p>\n"
+    cap = 45 + len(a) + len(b)
+    contexts = contexts_using([([a], range(5)), ([b], range(6))], 6)
+    sources, _ = with_bundle_size(cap, lambda: apt.intern_texts(contexts))
+    assert [len(s.encode()) for s in sources.values()] == [cap]
+
+
+def test_a_merge_that_gains_nothing_is_not_taken():
+    """A (pages 0-5) and B (500 bytes as a bundle, pages 0-4): merged, five pages would save a bundle each, worth 5 x
+    100 here, and page 5 would compile B's 500 bytes for nothing."""
+    a, b = tiny("A"), "<p>" + "b" * (500 - 26 - 8) + "</p>\n"
+    assert len(apt.bundle_source([b]).encode()) == 500
+    contexts = contexts_using([([a], range(6)), ([b], range(5))], 6)
+    sources, _ = with_setting("INTERN_BUNDLE_COST", 100, lambda: apt.intern_texts(contexts))
+    assert len(sources) == 2
+    more, _ = with_setting("INTERN_BUNDLE_COST", 101, lambda: apt.intern_texts(contexts_using([([a], range(6)), ([b], range(5))], 6)))
+    assert len(more) == 1
+
+
+PEBBLE_LIKE = [
+    "<p>Prints {{ like a variable }} and is shared by five pages.</p>\n",
+    "<p>Opens {% like a tag %} and is shared by five pages too.</p>\n",
+    "<p>Opens {# like a comment and is shared by five pages.</p>\n",
+    "<p>An unclosed {{ and an unclosed {% on five pages, word for word.</p>\n",
+    "<p>Whitespace control {%- like this -%} on five pages, word for word.</p>\n",
+    "<p>Ends with an opening brace on five pages, word for word {</p>\n",
+    "<p>A Windows line end on five pages,\r\nword for word.</p>\n",
+    "<p>Line separator\u2028and paragraph separator\u2029on five pages.</p>\n",
+    "<p>Next line\u0085on five pages, word for word, shared.</p>\n",
+    "<p>Non-ASCII: café, naïve, Ελληνικά, 中文, on five pages.</p>\n",
+]
+
+
+def test_texts_holding_pebble_syntax_and_line_breaks_are_shared_and_serve_the_same_bytes(tmp_path):
+    """A text that Pebble would read as syntax, or whose line breaks it would trim, goes in a bundle as literal text.
+    If it did not, the render check would keep its pages as HTML, so this asserts that they convert."""
+    extra = "".join(notes() + text for text in PEBBLE_LIKE) + notes()
+    pages = standard_pages()
+    for i in range(5):
+        pages[f"a/pkg/C{i}.html"] = doclava_page(f"C{i}", extra=extra)
+    db = make_db(tmp_path / "doc.db", pages)
+    before = served(db)
+    code, out, err = run_tool(db)
+    assert code == 0, err
+    after = served(db)
+    for path, (data, _tid) in before.items():
+        assert after[path][0] == data, path
+    assert all(after[f"a/pkg/C{i}.html"][1] for i in range(5)), err
+    shared = {seg["r@"][0] for seg in stored_context(db, "a/pkg/C0.html")["b"] if "r@" in seg}
+    held = "".join(t for n, t in templates(db).items() if n.startswith(apt.TEXT_PREFIX))
+    assert shared and "{% verbatim %}" in held
+    raws = [seg.get("r", "") for seg in stored_context(db, "a/pkg/C0.html")["b"]]
+    assert not any(text in raw for text in PEBBLE_LIKE for raw in raws), "a text stayed in the page"
+
+
+def test_several_bundles_serve_the_same_bytes(tmp_path):
+    extra = "".join(notes() + f"<p>Shared paragraph number {i:03d}, repeated on five pages.</p>\n" for i in range(30))
+    pages = standard_pages()
+    for i in range(5):
+        pages[f"a/pkg/C{i}.html"] = doclava_page(f"C{i}", extra=extra + notes())
+    db = make_db(tmp_path / "doc.db", pages)
+    before = served(db)
+    code, out, err = with_bundle_size(400, lambda: run_tool(db))
+    assert code == 0, err
+    assert sum(n.startswith(apt.TEXT_PREFIX) for n in templates(db)) > 3
+    after = served(db)
+    for path, (data, _tid) in before.items():
+        assert after[path][0] == data, path
+    assert all(after[path][1] for path in pages), "a page stayed HTML"
+    assert all(refs(db, f"a/pkg/C{i}.html") for i in range(5))
+
+
+def test_a_text_longer_than_a_bundle_stays_in_its_pages():
+    long_text = "<p>" + "a long shared paragraph " * (apt.INTERN_MAX_TEMPLATE // 20) + "</p>\n"
+    short_text = "<p>A short shared paragraph, long enough to intern.</p>\n"
+    contexts = contexts_sharing([long_text, short_text])
+    sources, _interned = apt.intern_texts(contexts)
+    assert contexts[0]["b"] == [{"r": long_text}, {"r@": [0, 0]}]
+    assert list(sources) == [apt.text_name(0)] and long_text not in sources[apt.text_name(0)]
+
+
+def test_links_are_never_interned():
+    """A same-page link is stored as its fragment, which often equals a member's id: the id may be shared, the
+    link may not, or the page would lose its own URL."""
+    fragment = "aVeryLongMemberName(android.content.Context,%20int)"
+    link = "/a/android/view/SomeVeryLongClassName.html#member(int)"
+    contexts = [{"u": f"/a/p{i}.html", "b": [{"k": 3, "id": fragment, "h#": fragment, "h": link}]} for i in range(5)]
+    sources, interned = apt.intern_texts(contexts)
+    assert interned == {"id"}
+    assert contexts[0]["b"] == [{"k": 3, "h#": fragment, "h": link, "id@": [0, 0]}]
+
+
+def test_a_database_holding_shared_text_bundles_refuses_and_writes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db")
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (apt.text_name(0), b"{% if j == 0 %}x{% endif %}"))
+    conn.commit()
+    conn.close()
+    digest = sha(db)
+    code, out, err = run_tool(db)
+    assert code == 1 and "already holds this step's templates" in err and apt.text_name(0) in err
+    assert sha(db) == digest and [p.name for p in tmp_path.iterdir()] == ["doc.db"]
+
+
+def test_a_dry_run_with_shared_texts_writes_nothing(tmp_path):
+    db = make_db(tmp_path / "doc.db", shared_pages(5))
+    digest = sha(db)
+    code, out, err = run_tool(db, dry_run=True)
+    assert code == 0, err
+    assert re.search(r"and [1-9][0-9]* shared-text bundle\(s\)", out) and "Dry run: nothing written." in out
+    assert sha(db) == digest and [p.name for p in tmp_path.iterdir()] == ["doc.db"]
+
+
+class AlteringAll(Altering):
+    """Every page whose JSON holds one of `markers` comes back with one byte more."""
+
+    def __init__(self, real, markers: list):
+        super().__init__(real, b"")
+        self.markers = markers
+
+    def render(self, name, context):
+        ok, body, nanos = self.real.render(name, context)
+        return (ok, body + b"!", nanos) if ok and any(m in context for m in self.markers) else (ok, body, nanos)
+
+
+def test_a_bundle_only_pages_that_stay_html_use_is_not_written(tmp_path):
+    """Only the five holders share texts, and one more page, which shares none, converts. When every holder stays
+    HTML, no bundle has a reader."""
+    pages = {**shared_pages(5, others=False), "a/x/D0.html": dackka_page("D0")}
+    db = make_db(tmp_path / "doc.db", pages)
+    dry = run_tool(db, dry_run=True)
+    assert "and 0 shared-text bundle(s)" not in dry[1], dry[1]
+    markers = [f'"/a/pkg/C{i}.html"'.encode() for i in range(5)]
+    code, out, err = run_tool(db, renderer=AlteringAll(_harness(), markers))
+    assert code == 0, err
+    assert err.count("stays HTML: a/pkg/C") == 5
+    assert served(db)["a/x/D0.html"][1] and refs(db, "a/x/D0.html") == {}
+    assert not any(n.startswith(apt.TEXT_PREFIX) for n in templates(db))
 
 
 def _main() -> int:
