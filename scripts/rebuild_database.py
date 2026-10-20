@@ -102,8 +102,10 @@ from pathlib import Path
 UNDECLARED_REFERENCES = (
     # Kept in step with Content.id only by Content's AddBook and DeleteBook triggers.
     ("Bookshelf", "contentID", "Content", None),
-    # WebServer.kt renders a row through the template it names; 0 means the row
-    # is served as it is stored (7,156 rows of the 2026-10-20 build).
+    # CodeOnTheGo's DocumentationContentSource.kt renders a row through the
+    # template it names; 0 means the row is served as it is stored (7,156 rows
+    # of the 2026-10-20 build). The app takes any value below 1 as none; only 0
+    # is taken here, and a negative id is refused as an orphan.
     ("Content", "templateId", "Templates", 0),
 )
 
@@ -343,8 +345,7 @@ def fingerprint(path: Path, renumbered: dict = None, followed: dict = None) -> d
     copy must still match the source exactly. A followed column holding
     anything but NULL, its "none" value (none_value) or a new id - an old id
     the pack left behind - maps to a marker no source row holds, so it differs.
-    Rows are compared through a
-    digest per row, sorted by (original) rowid."""
+    Rows are compared through a digest per row, sorted by (original) rowid."""
     renumbered, followed = renumbered or {}, followed or {}
     conn = sqlite3.connect(read_only_uri(path), uri=True)
     try:
