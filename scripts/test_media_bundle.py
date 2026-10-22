@@ -83,6 +83,51 @@ def test_rewrite_and_undo_are_exact_inverses():
     assert ref.undo_rewrite(rewritten, sites, renames) == text
 
 
+def test_whitespace_after_an_equals_sign_or_a_parenthesis_still_marks_a_reference():
+    """HTML allows whitespace after an attribute's "=", and CSS and markdown
+    inside url( ) and ( ). The pattern needed the "=" or "(" right before the
+    name, so these went on naming a file the optimizer had deleted, and the run
+    exited 0. A JSON string writes a line break, tab, carriage return or form
+    feed there as \\n, \\t, \\r or \\f."""
+    renames = {"copy.png": "copy.webp"}
+    pattern = ref.build_pattern(renames)
+    for text, expected in (('<img src= copy.png>', '<img src= copy.webp>'),
+                           ('<img src =\tcopy.png alt="x">', '<img src =\tcopy.webp alt="x">'),
+                           ('<img\nsrc=\n  copy.png>', '<img\nsrc=\n  copy.webp>'),
+                           ('{"h":"<img src=\\ncopy.png>"}', '{"h":"<img src=\\ncopy.webp>"}'),
+                           ('{"h":"<img src=\\tcopy.png>"}', '{"h":"<img src=\\tcopy.webp>"}'),
+                           ('{"h":"<img src=\\rcopy.png>"}', '{"h":"<img src=\\rcopy.webp>"}'),
+                           ('{"h":"<img src=\\fcopy.png>"}', '{"h":"<img src=\\fcopy.webp>"}'),
+                           ('div{background:url( copy.png )}', 'div{background:url( copy.webp )}'),
+                           ('![shot]( copy.png )', '![shot]( copy.webp )')):
+        rewritten, sites = ref.rewrite_text(text, pattern, renames)
+        assert rewritten == expected, text
+        assert ref.undo_rewrite(rewritten, sites, renames) == text
+
+
+def test_whitespace_after_a_quote_or_a_slash_does_not_mark_a_reference():
+    """A closing quote, a space and a filename can be prose, so the rewrite
+    leaves them alone; update_media_references.run stops on what is left
+    instead (build_leftover_pattern). Only "=" and "(" take whitespace."""
+    renames = {"copy.png": "copy.webp"}
+    pattern = ref.build_pattern(renames)
+    for text in ('<p>"x" copy.png</p>', "<p>'x' copy.png</p>", '{"h":"<p>\\"x\\" copy.png</p>"}',
+                 "<p>a/ copy.png</p>", '<p>"x"\tcopy.png</p>'):
+        assert ref.rewrite_text(text, pattern, renames) == (text, []), text
+
+
+def test_the_leftover_pattern_finds_a_name_after_a_quote_and_whitespace_only():
+    """What run() refuses after rewriting. Whitespace is required: without it
+    the name was rewritten, or is alt text carried into aria-label."""
+    leftover = ref.build_leftover_pattern({"copy.png": "copy.webp"})
+    for text in ('<img src=" copy.png">', "url(' copy.png')", '{"h":"<img src=\\"\\ncopy.png\\">"}',
+                 '{"h":"<img src=\\"\\t copy.png\\">"}', "<a href=\" \r\fcopy.png\">"):
+        assert leftover.search(text) is not None, text
+    for text in ('aria-label="copy.png"', '<p>save as copy.png</p>', '<img src=" my_copy.png">',
+                 '<img src=" copy.pngx">', '<img src="/i/ copy.png">'):
+        assert leftover.search(text) is None, text
+
+
 def test_rewrite_reports_no_sites_when_nothing_matches():
     pattern = ref.build_pattern({"copy.png": "copy.webp"})
     text = "<p>nothing to see</p>"
@@ -497,22 +542,29 @@ def test_a_row_whose_original_cannot_be_archived_is_not_rewritten(tmp_path):
     assert _snapshot(db_path) == before
 
 
-def _main() -> int:
+def _main(namespace: dict = None) -> int:
     """Runs the tests without pytest installed as a runner, so this file works
-    the same way the tools beside it do (`uv run scripts/test_media_bundle.py`)."""
+    the same way the tools beside it do (`uv run scripts/test_media_bundle.py`).
+    Another test file passes its own globals() to reuse this runner. A test
+    can take tmp_path and monkeypatch, pytest's own MonkeyPatch, undone after
+    the test as under pytest."""
     failures = []
-    for name, function in sorted(globals().items()):
+    for name, function in sorted((namespace if namespace is not None else globals()).items()):
         if not name.startswith("test_") or not callable(function):
             continue
-        with tempfile.TemporaryDirectory() as directory:
-            needs_tmp = "tmp_path" in function.__code__.co_varnames[:function.__code__.co_argcount]
+        with tempfile.TemporaryDirectory() as directory, pytest.MonkeyPatch.context() as monkeypatch:
+            fixtures = {"tmp_path": Path(directory), "monkeypatch": monkeypatch}
+            arguments = function.__code__.co_varnames[:function.__code__.co_argcount]
             try:
-                function(Path(directory)) if needs_tmp else function()
+                function(**{argument: fixtures[argument] for argument in arguments})
             # pytest's own failure signals (pytest.raises, pytest.fail) derive
             # from BaseException, not Exception, so catching Exception here let
             # a failing assertion escape and abort the whole run.
             except (KeyboardInterrupt, SystemExit):
                 raise
+            except pytest.skip.Exception as skip:
+                # Also a BaseException; a test that cannot run here is not a failure.
+                print(f"skip {name}: {skip}")
             except BaseException as exc:  # noqa: BLE001 - a failure is the result here
                 frame = traceback.extract_tb(exc.__traceback__)[-1]
                 failures.append(f"{name} (line {frame.lineno}: {frame.line}): "
