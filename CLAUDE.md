@@ -61,7 +61,7 @@ edit that database** — it contains no part of the production Android app itsel
 > Note also that `image/webp` (id 26) and `video/quicktime` (id 28) now exist in `ContentTypes`, so
 > the workflows' `INSERT OR IGNORE ... image/webp` step is a no-op against current copies.
 
-> ### Schema 3.0.0: keyed tooltip tables, in the shipped copy only
+> ### Schema 3.0.0: keyed tooltip tables and compressed templates, in the shipped copy only
 >
 > `scripts/migrate_tooltip_schema.py` (ADFA-3305) rewrites the tooltip tables and declares **3.0.0**:
 > `Tooltips(id, categoryId, tag)` WITHOUT ROWID, keyed on `(categoryId, tag)`;
@@ -70,11 +70,31 @@ edit that database** — it contains no part of the production Android app itsel
 > string once in `TooltipButtonDescriptions` and `TooltipButtonUris`. Code On The Go from
 > CodeOnTheGo #2163 on reads only these tables, and refuses tooltips from a database declaring less.
 >
+> The same step stores **every `Templates` row Brotli-compressed** against `CompressionDictionary`,
+> with no per-row marker: in 3.0.0 all templates are compressed, and the app always decodes them.
+> Every other tool that reads or writes Templates expects them plain: `populate_db.py`,
+> `sync_javadoc_json_to_db.py`, `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py`
+> and `verify_android_json_db.py`, and in open PRs `minify_text.py` (#44), the `a/`
+> pages-to-templates step (`android_pages_to_templates.py`, #49) and `hm_pages_to_templates.py`
+> (#43). On the master the templates stay plain. Some of these run on the copy that ships as well
+> (the minify and the `a/` step do), so there every one of them runs before the migration. The order
+> on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
+> `migrate_tooltip_schema.py`, PR #48's `remint_dictionary.py --seeds 4` (which recompresses
+> templates too in 3.0.0), then `rebuild_database.py --pack Content,TooltipTexts`;
+> `hm_pages_to_templates.py` goes after the `i/` page steps it lists, before the migration like
+> every other Templates writer. PR #48 has to merge no later than this step's PRs (#45, #50): the
+> re-mint and verifier before it handle Content only, so they refuse a database declaring 3.0.0.
+>
+> `populate_db.py`, `sync_javadoc_json_to_db.py` and `load_android_json_db.py` write plain templates,
+> so each refuses a database declaring 3.0.0 or later before writing anything, backup included.
+> `load_android_json_db.py` keeps the major it finds, so a late run would otherwise leave a file
+> declaring 3.1.0 with plain templates in it, which the app cannot read.
+>
 > **Every tool in this repo still reads and writes the 2.x shape**: `check-tools` (whose daily
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
 > `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`), `TooltipManager.py` and
 > `docdb-studio`. So the step runs on the copy that ships, after all of them, and never on the
-> master database they edit; nothing converts 3.0 back.
+> master database they edit; nothing converts 3.0 back. It needs the `brotli` CLI on PATH.
 >
 > In the 3.0 shape `Tooltips.id` must be unique and name a `TooltipTexts` row: a writer takes the
 > id its `TooltipTexts` insert hands out, never one of its own. Nothing enforces it (a `UNIQUE (id)`
@@ -144,8 +164,9 @@ removes it. Measurements are in its docstring.
 **This repo writes `Templates`, but not `Bookshelf` or `BookCategories`.** `populate_db.py`
 (`page.peb`, `nav.peb`), `sync_javadoc_json_to_db.py` (`javadoc.peb`) and `load_android_json_db.py`
 (the `android-*.peb` templates) write rows there and point the pages they write at them via
-`templateId`; `verify_android_json_db.py` reads them; and `remint_dictionary.py` and
-`verify_remint_dictionary.py` recompress and compare them from 3.0.0 on (above).
+`templateId`; `verify_android_json_db.py` reads them; `migrate_tooltip_schema.py` compresses
+every one for 3.0.0; and `remint_dictionary.py` and `verify_remint_dictionary.py` recompress and
+compare them from 3.0.0 on (above).
 `insert_optimized_media.py` reads and writes `templateId` too.
 `Bookshelf` and `BookCategories` come from App Dev For All's plugin system, which writes into the
 documentation database - the bookshelf feature from
@@ -206,10 +227,11 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
   `create_empty_database.py`, `list_database_documents.py`, `migrate_tooltip_schema.py` (ADFA-3305:
-  converts the tooltip tables to the WITHOUT ROWID, lookup-table shape Code On The Go reads from
-  `DocumentationDatabaseVersion` 3.0.0 on; run it on the copy that ships, after every step that writes
-  tooltips, since they all write the old shape, never on the master they edit, and pack
-  `Content,TooltipTexts` afterwards, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
+  converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
+  lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
+  copy that ships, after every step that writes tooltips or templates, since they all write the old
+  shape and plain templates, never on the master they edit; re-mint afterwards, then pack
+  `Content,TooltipTexts`, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
   HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
   `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
   `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
