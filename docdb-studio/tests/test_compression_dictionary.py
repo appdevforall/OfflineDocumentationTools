@@ -280,3 +280,86 @@ def test_missing_brotli_cli_is_reported_not_swallowed(capsys) -> None:
     finally:
         docdb_studio.shutil.which = real_which
         db.unlink(missing_ok=True)
+
+
+# ---------- ADFA-5220: refuse a database this build cannot read ----------
+
+
+def _set_version(db: Path, major: int, minor: int = 0, patch: int = 0) -> None:
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
+              major INT NOT NULL, minor INT NOT NULL, patch INT NOT NULL,
+              who TEXT NOT NULL, comment TEXT NOT NULL,
+              changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+            """
+        )
+        conn.execute("DELETE FROM DocumentationDatabaseVersion")
+        conn.execute(
+            "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
+            "VALUES (?, ?, ?, 'test', 'test')",
+            (major, minor, patch),
+        )
+        conn.commit()
+
+
+def _append_stray_version(db: Path, major: int) -> None:
+    """Adds a row without removing the existing one -- what the contract forbids,
+    so the reader can be tested against a file that broke it."""
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) "
+            "VALUES (?, 0, 0, 'stray', 'appended')",
+            (major,),
+        )
+        conn.commit()
+
+
+def test_a_database_with_no_version_table_reads_as_unversioned() -> None:
+    db = _make_db()
+    try:
+        assert docdb_studio.database_major_version(db) is None
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_a_stray_extra_row_cannot_make_the_answer_arbitrary() -> None:
+    """The table is supposed to hold one row. If a file breaks that, the version
+    read has to still be deterministic -- the row written last -- rather than
+    whichever one SQLite happens to return first."""
+    db = _make_db()
+    try:
+        _set_version(db, 3)
+        _append_stray_version(db, 2)
+        assert docdb_studio.database_major_version(db) == 2
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_a_supported_or_older_version_is_not_refused() -> None:
+    """Older formats are strictly simpler -- no shared dictionary -- and
+    decompress_brotli's plain fallback already reads them."""
+    db = _make_db()
+    try:
+        for major in (1, docdb_studio.SUPPORTED_DATABASE_MAJOR_VERSION):
+            _set_version(db, major)
+            assert docdb_studio.database_major_version(db) <= docdb_studio.SUPPORTED_DATABASE_MAJOR_VERSION
+    finally:
+        db.unlink(missing_ok=True)
+
+
+def test_a_newer_major_produces_an_actionable_refusal() -> None:
+    db = _make_db()
+    try:
+        newer = docdb_studio.SUPPORTED_DATABASE_MAJOR_VERSION + 1
+        _set_version(db, newer)
+        assert docdb_studio.database_major_version(db) == newer
+
+        message = docdb_studio.unsupported_version_error(db, newer)
+        assert str(newer) in message
+        assert str(docdb_studio.SUPPORTED_DATABASE_MAJOR_VERSION) in message
+        # says what to do, not just what is wrong
+        assert "Update docdb-studio" in message
+    finally:
+        db.unlink(missing_ok=True)
