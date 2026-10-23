@@ -226,7 +226,10 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content rows
+  `create_empty_database.py`, `list_database_documents.py`, `trim_kotlin_json.py` (drops what
+  `layout.pebble` never shows from the Kotlin API pages' JSON; its T03 cuts member summaries to their
+  first paragraph, which changes pages, and T02 drops per-platform text no page shows; no dictionary
+  re-mint needed after it), `drop_unread_rows.py` (deletes Content rows
   nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
   placeholders - after checking that nothing kept refers to them, before or after the schema-3
   migration, whose templates it decodes; it also drops javadoc's 23 MB one-page `index-all.html` after
@@ -326,7 +329,9 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   `check-tools/main.py` against it), `build-kotlin-docs.yaml` and its local-filesystem counterpart
   `build-kotlin-docs-local.yaml` (manual dispatch, the five-step Kotlin docs pipeline — these two
   are the only ones with Slack notifications), and `python-tests.yaml` (push/PR, runs the pytest
-  suites).
+  suites). No workflow runs `scripts/trim_kotlin_json.py`: the pipeline's last step,
+  `sync_kdoc_json_to_db.py`, rewrites every k/ row, so the trim, like the other ADFA-3305
+  size-reduction steps, is run by hand on the pipeline's output (after the dictionary re-mint).
 
 ## Decisions log
 
