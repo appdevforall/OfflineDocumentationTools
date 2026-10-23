@@ -12,7 +12,7 @@ name: Python tests
 #
 # The suites are separate because their dependencies are: docdb-studio and
 # check-tools each own a pyproject.toml + uv.lock, while ProcessKotlinWebsiteJSON
-# runs against the root requirements.txt.
+# and scripts/test_optimize_pdfs.py run against the root requirements.txt.
 #
 # check-tools is NOT run here, deliberately. Its suite covers the health checker
 # behind the daily docdb-regression-test.yaml cron and genuinely ought to be
@@ -60,14 +60,16 @@ jobs:
           #   it because no Python binding exposes a custom dictionary.
           # zstd:     train_dictionary uses `zstd --train-fastcover` to build the
           #   shared dictionary the migration tests need.
-          sudo apt-get install -y pngquant brotli zstd
+          # jbig2dec: pikepdf decodes JBIG2 through it, and optimize_pdfs.py's
+          #   syntax check decodes every stream; its JBIG2Globals test needs it.
+          sudo apt-get install -y pngquant brotli zstd jbig2dec
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
       # scripts/test_migrate_tooltip_schema.py needs only the standard library, pytest and the brotli CLI (above).
       # scripts/test_trim_kotlin_json.py needs only brotli and Pillow (in requirements.txt) and the brotli CLI.
-      - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs + migrate_tooltip_schema + trim_kotlin_json + Android and Java loaders'
+      - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs + migrate_tooltip_schema + trim_kotlin_json + optimize_pdfs + Android and Java loaders'
         run: |
           uv run --with-requirements requirements.txt --with pytest -- \
             python -m pytest \
@@ -75,6 +77,7 @@ jobs:
               scripts/sync_kotlin_stdlib_docs \
               scripts/test_migrate_tooltip_schema.py \
               scripts/test_trim_kotlin_json.py \
+              scripts/test_optimize_pdfs.py \
               ProcessDocs/AndroidDocs/AndroidDocsToJson \
               scripts/sync_java_docs \
               -q

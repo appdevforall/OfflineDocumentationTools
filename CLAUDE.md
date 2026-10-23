@@ -251,7 +251,12 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
   rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
   renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as
-  its visual check), and four steps that run in this order before the `--before` snapshot
+  its visual check), `optimize_pdfs.py` (ADFA-6629: rewrites the PDF rows - and, with `--file`, the Bookshelf
+  plugin's `.pdf.br` books - losslessly so the Brotli around them compresses them better: streams other
+  than images stored plain, Flate-wrapped JPEGs stored bare, Flate images PNG-predicted; every rewrite
+  checked object by object against the original; run on the shipped copy after `svg_images_to_webp.py`,
+  before the final dictionary re-mint),
+  and four steps that run in this order before the `--before` snapshot
   `update_media_references.py` diffs against: `remove_skin_font_comment.py` (cuts Help+Manual's
   commented-out Google Fonts note out of the `i/` pages until the skin fix, ADFA-6609, ships;
   first - its docstring says why), `bundle_remote_images.py` (stores the 19 diagrams API reference
