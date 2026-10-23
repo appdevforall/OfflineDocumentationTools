@@ -167,3 +167,40 @@ CREATE TRIGGER DeleteBook AFTER DELETE ON Content WHEN OLD.path LIKE '%.pdf'
 BEGIN
 DELETE FROM Bookshelf WHERE contentID = OLD.id;
 END;
+
+-- Schema 3.0.0 (ADFA-3305, scripts/migrate_tooltip_schema.py; read and written since ADFA-6740).
+-- These replace Tooltips and TooltipButtons above; every Templates.content is then
+-- Brotli-compressed against CompressionDictionary, with no per-row marker. Dumped from
+-- the 2026-10-23 3.0.0 database the same way as above.
+CREATE TABLE TooltipButtonDescriptions (
+ id INTEGER PRIMARY KEY,
+ description TEXT NOT NULL
+);
+CREATE TABLE TooltipButtonUris (
+ id INTEGER PRIMARY KEY,
+ uri TEXT NOT NULL
+);
+CREATE TABLE TooltipButtons (
+ tooltipId INTEGER NOT NULL,
+ buttonNumberId INTEGER NOT NULL,
+ descriptionId INTEGER NOT NULL,
+ uriId INTEGER NOT NULL,
+ PRIMARY KEY (tooltipId, buttonNumberId),
+ FOREIGN KEY(tooltipId) REFERENCES TooltipTexts(id),
+ FOREIGN KEY(buttonNumberId) REFERENCES TooltipButtonNumbers(id),
+ FOREIGN KEY(descriptionId) REFERENCES TooltipButtonDescriptions(id),
+ FOREIGN KEY(uriId) REFERENCES TooltipButtonUris(id)
+) WITHOUT ROWID;
+CREATE TABLE TooltipTexts (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ summary TEXT NOT NULL,
+ detail TEXT NOT NULL
+);
+CREATE TABLE Tooltips (
+ id INTEGER NOT NULL,
+ categoryId INTEGER NOT NULL,
+ tag TEXT NOT NULL,
+ PRIMARY KEY (categoryId, tag),
+ FOREIGN KEY(categoryId) REFERENCES TooltipCategories(id),
+ FOREIGN KEY(id) REFERENCES TooltipTexts(id)
+) WITHOUT ROWID;

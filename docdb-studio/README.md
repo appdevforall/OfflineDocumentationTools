@@ -83,11 +83,11 @@ These same commands work on macOS, Linux, and Windows (in PowerShell, Command Pr
 
 ## Database versions it will open
 
-Databases declare a format version in `DocumentationDatabaseVersion` (ADFA-5220). docdb-studio understands MAJOR **2** and **refuses to open anything higher**, showing what it found and what it expected instead of the browser.
+Databases declare a format version in `DocumentationDatabaseVersion` (ADFA-5220). docdb-studio understands MAJOR **2** and **3** and **refuses to open anything higher**, showing what it found and what it expected instead of the browser.
 
 That refusal is not caution for its own sake: a higher MAJOR means the format changed in a way this build would read incorrectly, and because this tool *writes*, a misreading gets saved back into the file. Update docdb-studio when you meet one.
 
-An older version, or none at all, opens normally. Those formats are strictly simpler -- no shared compression dictionary -- and are read correctly by the same fallback that handles plain-Brotli rows.
+From MAJOR 3 (ADFA-6740) tooltip text lives in `TooltipTexts`, button strings in `TooltipButtonDescriptions` / `TooltipButtonUris`, and every `Templates` row is Brotli-compressed against the shared dictionary; docdb-studio reads and writes that shape. MAJOR 2, an older version, or none at all opens with the original tables and plain templates.
 
 One dependency `uv sync` cannot install for you. Databases built since ADFA-5153 compress their `Content` rows against a shared dictionary stored inside the database itself, and no Python library exposes a custom dictionary, so docdb-studio runs the `brotli` **command-line program** to read and write those rows. If it is missing, content rows come up blank and docdb-studio prints an explanatory error in the terminal you launched it from — so a blank preview plus that message means "install this tool", not "this page is empty". A database with no `CompressionDictionary` table needs nothing extra.
 
@@ -248,10 +248,13 @@ The toolbar's orange **Add** button opens a chooser:
 - **Import content folder** — pick a local folder; every file is brotli-compressed (when its `ContentTypes.compression` says so), split into 1 MiB chunks if needed, and inserted into `Content`. Files with unknown extensions are skipped and reported. The folder's basename is recorded in `LastChange` as `content-<basename>`.
 
 ### Validate URIs
-The toolbar's blue **Validate URIs** button audits every `TooltipButtons.uri` against `Content.path` (with `?query` and `#fragment` stripped). Broken URIs are listed with one-click **Edit** access. After saving or cancelling, you return to the same audit page — same pagination position included.
+The toolbar's blue **Validate URIs** button audits every tooltip button URI against `Content.path` (with `?query` and `#fragment` stripped). Broken URIs are listed with one-click **Edit** access. After saving or cancelling, you return to the same audit page — same pagination position included.
 
 ### Browse content
 The toolbar's blue **Browse content** button opens a Finder-style horizontally-scrolling column view of every `Content.path`. Folders show item counts and aggregate byte sizes; HTML files show inbound tooltip-button reference counts. Selecting an HTML file shows the list of referencing tooltips with per-row View / Edit buttons. Toggle between alphabetical and size-descending sort at any time.
+
+### Templates
+The toolbar's blue **Templates** button lists the `Templates` rows (the Pebble templates the app renders pages through), filterable by name. Click one to edit its source and **Save**; in a MAJOR 3 database it is decoded and re-compressed against the shared dictionary, so it needs the `brotli` command-line tool.
 
 ### Edit page niceties
 - Live ✓ / ✗ / ? icon next to each URI input.
@@ -270,4 +273,4 @@ docdb-studio/
 └── pyproject.toml    # project metadata + dependencies
 ```
 
-The database schema is documented in `SCHEMA.md` and is treated as immutable — the tool performs no migrations.
+The database schema is documented in `SCHEMA.md`. The tool performs no migrations; it reads and writes whichever shape the database declares.

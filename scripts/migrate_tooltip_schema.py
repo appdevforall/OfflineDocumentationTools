@@ -97,16 +97,15 @@ empty. A database without a CompressionDictionary is refused too. Compressing
 needs the brotli CLI on PATH.
 
 Pipeline position: on the copy that ships, after every step that writes
-tooltips, all of which write the old tables (TooltipManager.py, docdb-studio,
-sync_kdoc_json_to_db.py, the one-off scripts), and after every step that writes
-templates, all of which write them plain. On that copy the order is: the
+tooltips in the old tables (TooltipManager.py, sync_kdoc_json_to_db.py, the
+one-off scripts), and after every step that writes templates plain. On that copy the order is: the
 minify, the row drops, the Kotlin trim, the a/ pages-to-templates step, this
 step, PR #48's remint_dictionary.py --seeds 4, and rebuild_database.py, which
 then packs Content,TooltipTexts: it cannot pack a WITHOUT ROWID table, so not
 Tooltips. hm_pages_to_templates.py (PR #43) writes templates too, so it also
 goes before this step, after the i/ page steps it lists. populate_db.py,
-sync_javadoc_json_to_db.py and load_android_json_db.py refuse a database
-declaring 3.0.0 or later; the steps in the open PRs do not check.
+sync_javadoc_json_to_db.py, load_android_json_db.py and docdb-studio read and
+write 3.0.0 as well as 2.x (ADFA-6740); the steps in the open PRs do not check.
 Never run it on the master database those tools edit: they read or write the
 old shape and plain templates (check-tools, which docdb-regression-test.yaml
 runs daily, fails on the new tooltip tables), and nothing converts it back.

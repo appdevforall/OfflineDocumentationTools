@@ -18,7 +18,7 @@ Dependencies are managed with `uv`. Always use `uv run` rather than activating a
 
 This is a Flet (Flutter-based) GUI tool over a SQLite database (`documentation.db`, ~380 MB) that holds an IDE's tooltip / help-content data. There are two apps:
 
-- `docdb_studio.py` — full CRUD over the `Tooltips` / `TooltipCategories` / `TooltipButtons` tables, with paginated browse, search, view, edit, single-insert, and CSV bulk-import flows. ~1600 lines, single file by design.
+- `docdb_studio.py` — full CRUD over the tooltip tables, with paginated browse, search, view, edit, single-insert, and CSV bulk-import flows, plus a Templates editor. Single file by design.
 - `db-summary.py` — read-only window listing every user table and its row count.
 
 ### Schema is locked
@@ -28,6 +28,7 @@ Per `AGENTS.md`: **never change the schema.** The full schema is in `SCHEMA.md`.
 - `Tooltips.categoryId` → `TooltipCategories.id`
 - `TooltipButtons.tooltipId` → `Tooltips.id`, `TooltipButtons.buttonNumberId` → `TooltipButtonNumbers.id` (button-number IDs are manually assigned to control display order)
 - Tooltip uniqueness is `(categoryId, tag)`
+- Two shapes, chosen by the declared major (`_is_keyed`, ADFA-6740). Schema 2: the tables above, plain templates. Schema 3: `Tooltips(id, categoryId, tag)` keyed on `(categoryId, tag)`, text in `TooltipTexts` (a new tooltip inserts its text first and takes that id), button strings in `TooltipButtonDescriptions` / `TooltipButtonUris` (deduped; unused ones are deleted after every button change), and every `Templates` row Brotli-compressed against `CompressionDictionary`. Read SQL names `{tooltips}` / `{buttons}` and goes through `_tooltip_sql`, which substitutes 2.x-shaped subqueries on schema 3; writes go through `_insert_tooltip_row` / `_update_tooltip_text` / `_insert_button_row`.
 - Button URIs are validated against `Content.path` after stripping `?query` and `#fragment` (see `_uri_path_for_content_lookup` / `uris_exist_in_content`)
 - Every mutation should call `update_last_change(db, documentation_set, user)` so the `LastChange` table reflects who edited what and when. The `--user` CLI arg feeds this.
 

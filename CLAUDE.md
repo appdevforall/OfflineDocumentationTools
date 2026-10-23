@@ -85,16 +85,18 @@ edit that database** — it contains no part of the production Android app itsel
 > every other Templates writer. PR #48 has to merge no later than this step's PRs (#45, #50): the
 > re-mint and verifier before it handle Content only, so they refuse a database declaring 3.0.0.
 >
-> `populate_db.py`, `sync_javadoc_json_to_db.py` and `load_android_json_db.py` write plain templates,
-> so each refuses a database declaring 3.0.0 or later before writing anything, backup included.
-> `load_android_json_db.py` keeps the major it finds, so a late run would otherwise leave a file
-> declaring 3.1.0 with plain templates in it, which the app cannot read.
+> `populate_db.py`, `sync_javadoc_json_to_db.py` and `load_android_json_db.py` read and write both
+> (ADFA-6740): below 3.0.0 they write plain templates, from it compressed ones (`brotli -D -w 24`,
+> checked by decoding back, never large-window), and they leave a 3.x file at the version it
+> declares. They refuse a major above 3, a format they do not know, before writing anything.
+> `docdb-studio` reads and writes both shapes too (tooltips through the keyed tables, templates
+> decoded and re-encoded with the dictionary), choosing by the declared major.
 >
-> **Every tool in this repo still reads and writes the 2.x shape**: `check-tools` (whose daily
+> **The other tools still read and write only the 2.x shape**: `check-tools` (whose daily
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
-> `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`), `TooltipManager.py` and
-> `docdb-studio`. So the step runs on the copy that ships, after all of them, and never on the
-> master database they edit; nothing converts 3.0 back. It needs the `brotli` CLI on PATH.
+> `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`) and `TooltipManager.py`. Until they
+> catch up the step runs on the copy that ships, after all of them, and never on the master
+> database they edit; nothing converts 3.0 back. It needs the `brotli` CLI on PATH.
 >
 > In the 3.0 shape `Tooltips.id` must be unique and name a `TooltipTexts` row: a writer takes the
 > id its `TooltipTexts` insert hands out, never one of its own. Nothing enforces it (a `UNIQUE (id)`

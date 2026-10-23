@@ -61,16 +61,31 @@ ACTIONS_COLUMN_WIDTH = 200
 ZEBRA_EVEN = ft.Colors.SURFACE_CONTAINER_LOWEST
 ZEBRA_ODD = ft.Colors.SURFACE_CONTAINER_LOW
 
+# Tooltip SQL names its tables {tooltips} and {buttons}; _tooltip_sql fills them in
+# for the database's shape. In schema 2 they are the tables themselves. In schema 3
+# (ADFA-6740, scripts/migrate_tooltip_schema.py) the text lives in TooltipTexts and the
+# button strings in two lookup tables, so each becomes a subquery with the 2.x columns.
+V3_TOOLTIPS = (
+    "(SELECT T.id AS id, T.categoryId AS categoryId, T.tag AS tag, X.summary AS summary,"
+    " X.detail AS detail FROM Tooltips T JOIN TooltipTexts X ON X.id = T.id)"
+)
+V3_BUTTONS = (
+    "(SELECT B.tooltipId AS tooltipId, B.buttonNumberId AS buttonNumberId,"
+    " D.description AS description, U.uri AS uri FROM TooltipButtons B"
+    " JOIN TooltipButtonDescriptions D ON D.id = B.descriptionId"
+    " JOIN TooltipButtonUris U ON U.id = B.uriId)"
+)
+
 JOIN_BASE = """
 SELECT t.id, tc.category, t.tag, t.summary, t.detail
-FROM Tooltips t
+FROM {tooltips} t
 JOIN TooltipCategories tc ON t.categoryId = tc.id
 """
 JOIN_ORDER = " ORDER BY tc.category, t.tag"
 
 COUNT_BASE = """
 SELECT COUNT(*)
-FROM Tooltips t
+FROM {tooltips} t
 JOIN TooltipCategories tc ON t.categoryId = tc.id
 """
 
@@ -82,7 +97,7 @@ SEARCH_WHERE = (
     # Non-correlated subquery: SQLite evaluates it once (not per Tooltips row),
     # so URI/description search stays a single TooltipButtons scan instead of a
     # per-row nested loop. IN also keeps each tooltip to one result row.
-    " OR t.id IN (SELECT tb.tooltipId FROM TooltipButtons tb"
+    " OR t.id IN (SELECT tb.tooltipId FROM {buttons} tb"
     " WHERE tb.uri LIKE ? ESCAPE '\\' OR tb.description LIKE ? ESCAPE '\\'))"
 )
 
@@ -169,10 +184,12 @@ def _search_params(term: str) -> tuple[str, ...]:
 # in a way this code would misread -- and this tool *writes*, so misreading means
 # writing damage back. Refuse it instead.
 #
-# A lower or absent version is fine and is not refused: those formats are
-# strictly simpler (no shared dictionary, plain Brotli) and decompress_brotli's
-# fallback already reads them.
-SUPPORTED_DATABASE_MAJOR_VERSION = 2
+# A lower or absent version is not refused. From KEYED_SCHEMA_MAJOR_VERSION on the
+# tooltips are in the keyed tables and every Templates row is Brotli-compressed against
+# CompressionDictionary, with no per-row marker (ADFA-6740); below it, the 2.x tables
+# and plain templates. Both are read and written.
+SUPPORTED_DATABASE_MAJOR_VERSION = 3
+KEYED_SCHEMA_MAJOR_VERSION = 3
 
 
 def database_major_version(db_path: Path) -> int | None:
@@ -186,15 +203,36 @@ def database_major_version(db_path: Path) -> int | None:
     DatabaseVersionResolver, and populate_db repairs the file when it sees this.
     """
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
-        table = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'DocumentationDatabaseVersion'"
-        ).fetchone()
-        if table is None:
-            return None
-        row = conn.execute(
-            "SELECT major FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
-        ).fetchone()
-        return row[0] if row is not None and row[0] is not None else None
+        return _declared_major(conn)
+
+
+def _declared_major(conn: sqlite3.Connection) -> int | None:
+    table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'DocumentationDatabaseVersion'"
+    ).fetchone()
+    if table is None:
+        return None
+    # Newest by changeTime, then rowid: the order the app, migrate_tooltip_schema.py
+    # and remint_dictionary.py read it in.
+    row = conn.execute(
+        "SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row is not None and row[0] is not None else None
+
+
+def _is_keyed(conn: sqlite3.Connection) -> bool:
+    """Whether the database declares schema 3 or later: keyed tooltip tables and
+    compressed templates (ADFA-6740)."""
+    major = _declared_major(conn)
+    return major is not None and major >= KEYED_SCHEMA_MAJOR_VERSION
+
+
+def _tooltip_sql(conn: sqlite3.Connection, sql: str) -> str:
+    """`sql` with {tooltips} and {buttons} filled in for this database's shape."""
+    keyed = _is_keyed(conn)
+    return sql.replace("{tooltips}", V3_TOOLTIPS if keyed else "Tooltips").replace(
+        "{buttons}", V3_BUTTONS if keyed else "TooltipButtons"
+    )
 
 
 def unsupported_version_error(db_path: Path, major: int) -> str:
@@ -212,7 +250,7 @@ def get_total_count(db_path: Path, search_term: str | None = None) -> int:
     sql = COUNT_BASE.rstrip() + (SEARCH_WHERE if search_term else "")
     params = _search_params(search_term) if search_term else ()
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql, params)
+        cur = conn.execute(_tooltip_sql(conn, sql), params)
         return cur.fetchone()[0]
 
 
@@ -227,7 +265,7 @@ def get_page(
     )
     params = (_search_params(search_term) + (limit, offset)) if search_term else (limit, offset)
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql, params)
+        cur = conn.execute(_tooltip_sql(conn, sql), params)
         return cur.fetchall()
 
 
@@ -237,12 +275,12 @@ def get_tooltip_by_id(
     """Return (category, tag, summary, detail) for the tooltip id, or None."""
     sql = """
         SELECT tc.category, t.tag, t.summary, t.detail
-        FROM Tooltips t
+        FROM {tooltips} t
         JOIN TooltipCategories tc ON t.categoryId = tc.id
         WHERE t.id = ?
     """
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql, (tooltip_id,))
+        cur = conn.execute(_tooltip_sql(conn, sql), (tooltip_id,))
         row = cur.fetchone()
         return tuple(row) if row else None
 
@@ -253,12 +291,12 @@ def get_tooltip_buttons(
     """Return rows (buttonNumberId, description, uri) for the tooltip, sorted by buttonNumberId."""
     sql = """
         SELECT buttonNumberId, description, uri
-        FROM TooltipButtons
+        FROM {buttons} tb
         WHERE tooltipId = ?
         ORDER BY buttonNumberId
     """
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql, (tooltip_id,))
+        cur = conn.execute(_tooltip_sql(conn, sql), (tooltip_id,))
         return cur.fetchall()
 
 
@@ -476,14 +514,14 @@ def get_all_button_rows(
     """Return (tooltip_id, category, tag, button_number_id, description, uri) for every non-empty TooltipButton."""
     sql = """
         SELECT t.id, tc.category, t.tag, tb.buttonNumberId, tb.description, tb.uri
-        FROM TooltipButtons tb
-        JOIN Tooltips t ON tb.tooltipId = t.id
+        FROM {buttons} tb
+        JOIN {tooltips} t ON tb.tooltipId = t.id
         JOIN TooltipCategories tc ON t.categoryId = tc.id
         WHERE tb.uri IS NOT NULL AND tb.uri != ''
         ORDER BY tc.category, t.tag, tb.buttonNumberId
     """
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql)
+        cur = conn.execute(_tooltip_sql(conn, sql))
         return cur.fetchall()
 
 
@@ -511,11 +549,11 @@ def get_tooltip_export_rows(
     )
     params = _search_params(search_term) if search_term else ()
     with sqlite3.connect(db_path) as conn:
-        tooltips = conn.execute(tooltip_sql, params).fetchall()
+        tooltips = conn.execute(_tooltip_sql(conn, tooltip_sql), params).fetchall()
         # One pass over TooltipButtons, grouped by tooltip -> {buttonNumberId: (label, uri)}.
         buttons_by_tooltip: dict[int, dict[int, tuple[str, str]]] = {}
         for tid, bnum, desc, uri in conn.execute(
-            "SELECT tooltipId, buttonNumberId, description, uri FROM TooltipButtons"
+            _tooltip_sql(conn, "SELECT tooltipId, buttonNumberId, description, uri FROM {buttons} tb")
         ):
             buttons_by_tooltip.setdefault(tid, {})[bnum] = (desc or "", uri or "")
 
@@ -555,7 +593,7 @@ def find_empty_summary_tooltips(db_path: Path) -> list[tuple[int, str]]:
     CSV export skips them; the validate page surfaces them for fixing."""
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
-            "SELECT id, tag FROM Tooltips WHERE TRIM(summary) = '' ORDER BY tag"
+            _tooltip_sql(conn, "SELECT id, tag FROM {tooltips} t WHERE TRIM(summary) = '' ORDER BY tag")
         )
         return [(row[0], row[1] or "") for row in cur.fetchall()]
 
@@ -647,7 +685,7 @@ def get_button_reference_counts(db_path: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
-            "SELECT uri FROM TooltipButtons WHERE uri IS NOT NULL AND uri != ''"
+            _tooltip_sql(conn, "SELECT uri FROM {buttons} tb WHERE uri IS NOT NULL AND uri != ''")
         )
         for (uri,) in cur.fetchall():
             stripped = _uri_path_for_content_lookup(uri or "")
@@ -663,12 +701,12 @@ def get_tooltip_for_edit(
     """Return (category_id, category, tag, summary, detail) for the tooltip id, or None."""
     sql = """
         SELECT t.categoryId, tc.category, t.tag, t.summary, t.detail
-        FROM Tooltips t
+        FROM {tooltips} t
         JOIN TooltipCategories tc ON t.categoryId = tc.id
         WHERE t.id = ?
     """
     with sqlite3.connect(db_path) as conn:
-        cur = conn.execute(sql, (tooltip_id,))
+        cur = conn.execute(_tooltip_sql(conn, sql), (tooltip_id,))
         row = cur.fetchone()
         return tuple(row) if row else None
 
@@ -771,6 +809,7 @@ def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
         return 0
     deleted = 0
     with sqlite3.connect(db_path) as conn:
+        keyed = _is_keyed(conn)
         for batch in _chunked(tooltip_ids, SQL_PARAM_BATCH):
             placeholders = ",".join("?" * len(batch))
             conn.execute(
@@ -782,6 +821,9 @@ def delete_tooltips_bulk(db_path: Path, tooltip_ids: list[int]) -> int:
                 batch,
             )
             deleted += cur.rowcount
+            if keyed:
+                conn.execute(f"DELETE FROM TooltipTexts WHERE id IN ({placeholders})", batch)
+        _drop_unused_button_strings(conn, keyed)
         conn.commit()
     if deleted:
         vacuum_database(db_path)
@@ -916,15 +958,77 @@ def insert_tooltip(
     summary = sanitize_text(summary, field="summary")
     detail = sanitize_text(detail, field="detail", allow_newline=True)
     with sqlite3.connect(db_path) as conn:
+        tooltip_id = _insert_tooltip_row(conn, _is_keyed(conn), category_id, tag, summary, detail)
+        conn.commit()
+        return tooltip_id
+
+
+def _insert_tooltip_row(
+    conn: sqlite3.Connection, keyed: bool, category_id: int, tag: str, summary: str, detail: str
+) -> int:
+    """Insert one tooltip and return its id. In schema 3 the text goes in first and
+    Tooltips takes the id TooltipTexts hands out, never one of its own (ADFA-6740)."""
+    if not keyed:
         cur = conn.execute(
-            """
-            INSERT INTO Tooltips (categoryId, tag, summary, detail)
-            VALUES (?, ?, ?, ?)
-            """,
+            "INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (?, ?, ?, ?)",
             (category_id, tag, summary, detail),
         )
-        conn.commit()
         return cur.lastrowid or 0
+    tooltip_id = conn.execute(
+        "INSERT INTO TooltipTexts (summary, detail) VALUES (?, ?)", (summary, detail)
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO Tooltips (id, categoryId, tag) VALUES (?, ?, ?)",
+        (tooltip_id, category_id, tag),
+    )
+    return tooltip_id
+
+
+def _update_tooltip_text(
+    conn: sqlite3.Connection, keyed: bool, tooltip_id: int, summary: str, detail: str
+) -> None:
+    table = "TooltipTexts" if keyed else "Tooltips"
+    conn.execute(f"UPDATE {table} SET summary = ?, detail = ? WHERE id = ?", (summary, detail, tooltip_id))
+
+
+def _insert_button_row(
+    conn: sqlite3.Connection, keyed: bool, tooltip_id: int, button_number_id: int, description: str, uri: str
+) -> None:
+    if not keyed:
+        conn.execute(
+            "INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES (?, ?, ?, ?)",
+            (tooltip_id, button_number_id, description, uri),
+        )
+        return
+    conn.execute(
+        "INSERT INTO TooltipButtons (tooltipId, buttonNumberId, descriptionId, uriId) VALUES (?, ?, ?, ?)",
+        (
+            tooltip_id,
+            button_number_id,
+            _button_string_id(conn, "TooltipButtonDescriptions", "description", description),
+            _button_string_id(conn, "TooltipButtonUris", "uri", uri),
+        ),
+    )
+
+
+def _button_string_id(conn: sqlite3.Connection, table: str, column: str, value: str) -> int:
+    """The id of `value` in a schema 3 button lookup table, adding it if absent, so
+    each string is stored once."""
+    # ponytail: the text column has no index, so this scans the table (~20k URIs, ~1 ms);
+    # an index would cost the space schema 3 saves.
+    row = conn.execute(f"SELECT id FROM {table} WHERE {column} = ? LIMIT 1", (value,)).fetchone()
+    if row is not None:
+        return row[0]
+    return conn.execute(f"INSERT INTO {table} ({column}) VALUES (?)", (value,)).lastrowid
+
+
+def _drop_unused_button_strings(conn: sqlite3.Connection, keyed: bool) -> None:
+    """Delete schema 3 button descriptions and URIs no button uses any more."""
+    if keyed:
+        conn.execute(
+            "DELETE FROM TooltipButtonDescriptions WHERE id NOT IN (SELECT descriptionId FROM TooltipButtons)"
+        )
+        conn.execute("DELETE FROM TooltipButtonUris WHERE id NOT IN (SELECT uriId FROM TooltipButtons)")
 
 
 def update_tooltip(
@@ -941,13 +1045,10 @@ def update_tooltip(
     detail = sanitize_text(detail, field="detail", allow_newline=True)
     with sqlite3.connect(db_path) as conn:
         conn.execute(
-            """
-            UPDATE Tooltips
-            SET categoryId = ?, tag = ?, summary = ?, detail = ?
-            WHERE id = ?
-            """,
-            (category_id, tag, summary, detail, tooltip_id),
+            "UPDATE Tooltips SET categoryId = ?, tag = ? WHERE id = ?",
+            (category_id, tag, tooltip_id),
         )
+        _update_tooltip_text(conn, _is_keyed(conn), tooltip_id, summary, detail)
         conn.commit()
 
 
@@ -956,49 +1057,6 @@ def get_button_number_ids(db_path: Path) -> list[int]:
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute("SELECT id FROM TooltipButtonNumbers ORDER BY id")
         return [row[0] for row in cur.fetchall()]
-
-
-def add_tooltip_button(
-    db_path: Path,
-    tooltip_id: int,
-    button_number_id: int,
-    description: str,
-    uri: str,
-) -> None:
-    """Insert a row into TooltipButtons."""
-    description = sanitize_text(description.strip(), field="button description")
-    uri = sanitize_text(uri.strip(), field="button uri")
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            """
-            INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
-            VALUES (?, ?, ?, ?)
-            """,
-            (tooltip_id, button_number_id, description, uri),
-        )
-        conn.commit()
-
-
-def update_tooltip_button(
-    db_path: Path,
-    tooltip_id: int,
-    button_number_id: int,
-    description: str,
-    uri: str,
-) -> None:
-    """Update description and uri for one TooltipButtons row."""
-    description = sanitize_text(description.strip(), field="button description")
-    uri = sanitize_text(uri.strip(), field="button uri")
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            """
-            UPDATE TooltipButtons
-            SET description = ?, uri = ?
-            WHERE tooltipId = ? AND buttonNumberId = ?
-            """,
-            (description, uri, tooltip_id, button_number_id),
-        )
-        conn.commit()
 
 
 def delete_tooltip_button(
@@ -1013,6 +1071,7 @@ def delete_tooltip_button(
             """,
             (tooltip_id, button_number_id),
         )
+        _drop_unused_button_strings(conn, _is_keyed(conn))
         conn.commit()
     vacuum_database(db_path)
 
@@ -1033,18 +1092,14 @@ def replace_tooltip_buttons(
             )
         )
     with sqlite3.connect(db_path) as conn:
+        keyed = _is_keyed(conn)
         conn.execute(
             "DELETE FROM TooltipButtons WHERE tooltipId = ?",
             (tooltip_id,),
         )
         for button_number_id, description, uri in cleaned:
-            conn.execute(
-                """
-                INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
-                VALUES (?, ?, ?, ?)
-                """,
-                (tooltip_id, button_number_id, description, uri),
-            )
+            _insert_button_row(conn, keyed, tooltip_id, button_number_id, description, uri)
+        _drop_unused_button_strings(conn, keyed)
         conn.commit()
     vacuum_database(db_path)
 
@@ -1216,6 +1271,7 @@ def import_csv_rows(
     inserted = 0
     updated = 0
     with sqlite3.connect(db_path) as conn:
+        keyed = _is_keyed(conn)
         for row in rows:
             (
                 category_name,
@@ -1239,28 +1295,14 @@ def import_csv_rows(
                 ).fetchone()
                 if existing is not None:
                     tooltip_id = existing[0]
-                    conn.execute(
-                        """
-                        UPDATE Tooltips
-                        SET summary = ?, detail = ?
-                        WHERE id = ?
-                        """,
-                        (summary, detail, tooltip_id),
-                    )
+                    _update_tooltip_text(conn, keyed, tooltip_id, summary, detail)
                     conn.execute(
                         "DELETE FROM TooltipButtons WHERE tooltipId = ?",
                         (tooltip_id,),
                     )
                     updated += 1
             if tooltip_id == 0:
-                cur = conn.execute(
-                    """
-                    INSERT INTO Tooltips (categoryId, tag, summary, detail)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (cid, tag, summary, detail),
-                )
-                tooltip_id = cur.lastrowid or 0
+                tooltip_id = _insert_tooltip_row(conn, keyed, cid, tag, summary, detail)
                 inserted += 1
             for bid, label, uri in [
                 (1, b1_label, b1_uri),
@@ -1268,13 +1310,8 @@ def import_csv_rows(
                 (3, b3_label, b3_uri),
             ]:
                 if label and uri:
-                    conn.execute(
-                        """
-                        INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        (tooltip_id, bid, label, uri),
-                    )
+                    _insert_button_row(conn, keyed, tooltip_id, bid, label, uri)
+        _drop_unused_button_strings(conn, keyed)
         conn.commit()
     if updated:
         vacuum_database(db_path)
@@ -1536,6 +1573,66 @@ def decompress_brotli(data: bytes, db_path: Path) -> bytes:
     # brotli.error of its own if the blob is genuinely corrupt, so a real failure
     # still reaches the caller with the expected exception type.
     return brotli.decompress(data)
+
+
+def _template_brotli(db_path: Path, data: bytes, *args: str) -> bytes:
+    """Run the brotli CLI against db_path's dictionary, as migrate_tooltip_schema.py's
+    DictionaryCodec does. Templates have no plain fallback: in schema 3 every one is
+    compressed (ADFA-6740)."""
+    dictionary_data = get_compression_dictionary(db_path, strict=True)
+    if dictionary_data is None:
+        raise RuntimeError(f"{db_path} declares schema 3 but has no CompressionDictionary to decode its templates")
+    dict_path = _dictionary_temp_path(db_path, dictionary_data)
+    result = subprocess.run(
+        [_find_brotli_cli(), "-D", str(dict_path), *args, "-c"],
+        input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"brotli failed on a template: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def _large_window(stream: bytes) -> bool:
+    """A large-window Brotli stream (window over 24 bits), which the brotli CLI decodes
+    and the app's brotli4j refuses. Same test as migrate_tooltip_schema.large_window."""
+    return bool(stream) and stream[0] & 0x7F == 0x11
+
+
+def get_templates(db_path: Path) -> list[tuple[int, str]]:
+    """(id, name) for every Templates row, by name; empty if there is no Templates table."""
+    with sqlite3.connect(db_path) as conn:
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Templates'").fetchone():
+            return []
+        return conn.execute("SELECT id, name FROM Templates ORDER BY name").fetchall()
+
+
+def get_template_text(db_path: Path, template_id: int) -> str:
+    """The template's Pebble source, decoded from the dictionary in schema 3."""
+    with sqlite3.connect(db_path) as conn:
+        keyed = _is_keyed(conn)
+        stored = bytes(conn.execute("SELECT content FROM Templates WHERE id = ?", (template_id,)).fetchone()[0])
+    if keyed:
+        if _large_window(stored):
+            raise RuntimeError("template is a large-window Brotli stream, which the app cannot decode")
+        stored = _template_brotli(db_path, stored, "-d")
+    return stored.decode("utf-8")
+
+
+def save_template(db_path: Path, template_id: int, text: str) -> None:
+    """Store the template's Pebble source: plain UTF-8 below schema 3, Brotli against
+    the dictionary from it, with a 24-bit window (never large-window, which brotli4j
+    refuses), checked by decoding it back before anything is written."""
+    data = text.encode("utf-8")
+    with sqlite3.connect(db_path) as conn:
+        keyed = _is_keyed(conn)
+    if keyed:
+        plain = data
+        data = _template_brotli(db_path, plain, "-w", "24")
+        if _large_window(data) or _template_brotli(db_path, data, "-d") != plain:
+            raise RuntimeError("compressed template did not decode back to its text; nothing was written")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE Templates SET content = ? WHERE id = ?", (data, template_id))
+        conn.commit()
 
 
 def fragment_blob(blob: bytes, chunk_size: int = CONTENT_CHUNK_SIZE) -> list[bytes]:
@@ -3724,6 +3821,91 @@ def main(
         )
         rerender()
 
+    def show_templates_page(filter_text: str = "") -> None:
+        """List the Templates rows (the Pebble templates WebServer.kt renders pages
+        through), filterable by name; click one to edit it."""
+        _capture(user_name, "templates_opened")
+        page.controls.clear()
+        try:
+            templates = get_templates(db_path)
+        except sqlite3.Error as e:
+            page.add(ft.Text(f"Could not load templates: {e}", color=ft.Colors.RED, selectable=True))
+            page.update()
+            return
+        template_list = ft.ListView(expand=True)
+
+        def fill(_: object = None) -> None:
+            term = (filter_field.value or "").lower()
+            template_list.controls = [
+                ft.TextButton(name, on_click=lambda _, tid=tid, name=name: show_template_edit_page(tid, name, filter_field.value or ""))
+                for tid, name in templates
+                if term in name.lower()
+            ]
+            page.update()
+
+        filter_field = ft.TextField(label="Filter by name", value=filter_text, on_change=fill, width=400)
+        page.add(
+            ft.Column(
+                [
+                    ft.Button(
+                        "Back",
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.BLACK),
+                        on_click=lambda _: show_browse_page(get_total_count(db_path)),
+                    ),
+                    ft.Text(f"{len(templates)} templates", style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=14)),
+                    filter_field,
+                    template_list,
+                ],
+                expand=True,
+            )
+        )
+        fill()
+
+    def show_template_edit_page(template_id: int, name: str, filter_text: str) -> None:
+        page.controls.clear()
+        try:
+            text = get_template_text(db_path, template_id)
+        except (sqlite3.Error, RuntimeError, brotli.error, UnicodeDecodeError) as e:
+            page.add(ft.Text(f"Could not read template {name}: {e}", color=ft.Colors.RED, selectable=True))
+            page.update()
+            return
+        editor = ft.TextField(value=text, multiline=True, expand=True, text_style=ft.TextStyle(font_family="monospace"))
+
+        def on_save(_: ft.ControlEvent) -> None:
+            try:
+                save_template(db_path, template_id, editor.value or "")
+                update_last_change(db_path, "templates", user_name)
+            except (sqlite3.Error, RuntimeError, brotli.error) as e:
+                page.show_dialog(ft.SnackBar(content=ft.Text(f"Not saved: {e}")))
+                return
+            _capture(user_name, "template_saved")
+            page.show_dialog(ft.SnackBar(content=ft.Text(f"Saved {name}.")))
+
+        page.add(
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Button(
+                                "Back",
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.BLACK),
+                                on_click=lambda _: show_templates_page(filter_text),
+                            ),
+                            ft.Button(
+                                "Save",
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
+                                on_click=on_save,
+                            ),
+                        ]
+                    ),
+                    ft.Text(name, style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=14), selectable=True),
+                    editor,
+                ],
+                expand=True,
+            )
+        )
+        page.update()
+
     def show_validate_uris_page(restore_page: int | None = None) -> None:
         """Audit tooltips for problems (broken button URIs and empty summaries);
         render each problem tooltip with a Problem-type column and Edit link."""
@@ -4792,6 +4974,11 @@ def main(
             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
             on_click=lambda _: show_content_tree_page(),
         )
+        templates_btn = ft.Button(
+            "Templates",
+            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
+            on_click=lambda _: show_templates_page(),
+        )
 
         async def export_csv(_: ft.ControlEvent) -> None:
             # Export the current view: all tooltips when the search box is empty,
@@ -4978,6 +5165,7 @@ def main(
                 add_btn,
                 validate_btn,
                 browse_content_btn,
+                templates_btn,
                 export_btn,
                 bulk_delete_btn,
                 search_bar,
