@@ -61,6 +61,26 @@ edit that database** — it contains no part of the production Android app itsel
 > Note also that `image/webp` (id 26) and `video/quicktime` (id 28) now exist in `ContentTypes`, so
 > the workflows' `INSERT OR IGNORE ... image/webp` step is a no-op against current copies.
 
+> ### Schema 3.0.0: keyed tooltip tables, in the shipped copy only
+>
+> `scripts/migrate_tooltip_schema.py` (ADFA-3305) rewrites the tooltip tables and declares **3.0.0**:
+> `Tooltips(id, categoryId, tag)` WITHOUT ROWID, keyed on `(categoryId, tag)`;
+> `TooltipTexts(id AUTOINCREMENT, summary, detail)`; `TooltipButtons(tooltipId, buttonNumberId,
+> descriptionId, uriId)` WITHOUT ROWID, keyed on `(tooltipId, buttonNumberId)`; and each button
+> string once in `TooltipButtonDescriptions` and `TooltipButtonUris`. Code On The Go from
+> CodeOnTheGo #2163 on reads only these tables, and refuses tooltips from a database declaring less.
+>
+> **Every tool in this repo still reads and writes the 2.x shape**: `check-tools` (whose daily
+> `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
+> `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`), `TooltipManager.py` and
+> `docdb-studio`. So the step runs on the copy that ships, after all of them, and never on the
+> master database they edit; nothing converts 3.0 back.
+>
+> In the 3.0 shape `Tooltips.id` must be unique and name a `TooltipTexts` row: a writer takes the
+> id its `TooltipTexts` insert hands out, never one of its own. Nothing enforces it (a `UNIQUE (id)`
+> index would cost about the 613 pages the conversion saves), and two rows sharing an id share one
+> text, so deleting either key's text deletes the other's.
+
 The schema below is what `~/documentation.db` (Alex's current production copy) actually contains,
 as of 2026-08-05 — predating the 2.0.0 bump described above, which additionally adds the
 `CompressionDictionary` and `DocumentationDatabaseVersion` tables:
@@ -162,7 +182,9 @@ targets it — `scripts/tooltips.py`, `scripts/import_tooltips.py`, `scripts/and
 extended or relied on, and none of it writes to a table the shipped app or `docdb-studio` actually
 uses. Any future Android/Java tooltip work should target the normalized `Tooltips` /
 `TooltipCategories` / `TooltipButtons` / `TooltipButtonNumbers` tables instead (the same ones
-`docdb-studio` and `scripts/TooltipManager.py` already use for Kotlin tooltips).
+`docdb-studio` and `scripts/TooltipManager.py` already use for Kotlin tooltips), in their 2.x
+shape: every tool here reads and writes that, and only the shipped copy holds the 3.0.0 shape, after
+`migrate_tooltip_schema.py` (see "Schema 3.0.0" above).
 
 ## Repository tour
 
@@ -183,7 +205,11 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, `minify_text.py` (ADFA-6627: minifies the
+  `create_empty_database.py`, `list_database_documents.py`, `migrate_tooltip_schema.py` (ADFA-3305:
+  converts the tooltip tables to the WITHOUT ROWID, lookup-table shape Code On The Go reads from
+  `DocumentationDatabaseVersion` 3.0.0 on; run it on the copy that ships, after every step that writes
+  tooltips, since they all write the old shape, never on the master they edit, and pack
+  `Content,TooltipTexts` afterwards, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
   HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
   `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
   `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
