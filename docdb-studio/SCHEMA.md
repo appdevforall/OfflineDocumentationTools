@@ -23,6 +23,11 @@
 -- Rebuilding Content is a bigger job than it looks - AddBook is an AFTER INSERT
 -- trigger on it, so a naive row copy fires once per PDF and corrupts Bookshelf.
 --
+-- DocumentationDatabaseVersion holds exactly one row: the format version the
+-- file is, not a history of what it has been. Nothing in the DDL enforces that,
+-- so populate_db.py replaces the row rather than appending, and collapses a file
+-- that somehow accumulated several back to one.
+--
 -- The PUCC_* tables are unrelated to documentation tooling. They are included
 -- here because this is a faithful dump; do not maintain them.
 --
