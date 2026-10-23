@@ -202,6 +202,27 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   (ADFA-6589); this step ships after both. A media rollback (`--restore-originals`) cannot undo its
   pages: start the rollback from this step's pre-run backup, keep that backup with the rollback
   bundle, and run this step again afterwards.
+- **`scripts/android_pages_to_templates.py`** - stores the Android reference pages under `a/`
+  (except `a/devsite/`) as JSON plus `android-reference.peb` and one shared include per
+  inherited-member block header (`android-inherited-<n>.peb`), with every text of 32 or more
+  characters that 5 or more pages hold (link holes excepted) stored once in a shared-text bundle
+  (`android-text-<n>.peb`, at most 8,000 bytes of source each, texts grouped by the pages that use
+  them), after rendering every page back
+  byte for byte with the app's engine (`scripts/hm_render_check/`, as above); a page that does not
+  render back, or is over the app's render limit, stays HTML (ADFA-3305). Run it on the ship-time
+  copy only, never on the master: after the steps that write `a/` pages, `drop_unread_rows.py` and
+  the Kotlin trim, before the 3.0.0 migration (which compresses every template; the app reads
+  compressed templates from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final
+  dictionary re-mint.
+  It refuses a database that already holds its templates, or that declares documentation version 3
+  or later (whose templates are compressed, so its plain ones would not render).
+  Following `drop_unread_rows.py` is an exception to that step's "after every page-writing step"
+  rule, and safe: every converted page renders back byte for byte, so it links to nothing the row
+  drops did not already check.
+  ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` converts the same
+  `a/android/` and `a/androidx/` pages its own way. This step is the one that ships: the workflows
+  that ran that pipeline on the master (`build-android-docs.yaml`, `build-android-docs-local.yaml`)
+  were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
