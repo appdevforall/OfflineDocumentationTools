@@ -764,6 +764,215 @@ def test_a_dictionary_database_is_read_and_written_through_the_dictionary(tmp_pa
     assert _decompress(_stored(db)[tool.VIEWER][1], dictionary) == VIEWER_MJS_OFF
 
 
+INDEX_ALL_PAGE = (b'<html><head><title>Index</title></head><body class="index-page"><a href="m/a/B.html">B</a>'
+                  b'<h2 id="I:A">A</h2><h2 id="I:B">B</h2></body></html>')
+SPLIT_PAGE_A = (b'<html><head><title>A-Index</title></head><body class="index-page"><a href="index-2.html">B</a>'
+                b'<h2 id="I:A">A</h2></body></html>')
+SPLIT_PAGE_B = (b'<html><head><title>B-Index</title></head><body class="index-page"><a href="index-1.html">A</a>'
+                b'<h2 id="I:B">B</h2></body></html>')
+
+
+def _index_rows() -> dict:
+    """A javadoc tree with a one-page index, its split index, and links to the one-page index at several depths
+    and in several forms, with what each linking row must read once the links are pointed at the split index."""
+    rows = {
+        "j/html/api/index-all.html": ("text/html", INDEX_ALL_PAGE),
+        "j/html/api/index-files/index-1.html": ("text/html", SPLIT_PAGE_A),
+        "j/html/api/index-files/index-2.html": ("text/html", SPLIT_PAGE_B),
+        "j/html/api/help-doc.html": ("text/html", b'<p>The <a href="index-all.html">Index</a> lists every name.</p>'),
+        "j/html/api/m/a/B.html": ("text/html", b'<li><a href="../../index-all.html">Index</a></li>'
+                                               b'<a href="C.html">C</a><a href="https://example.com/api/index-all.html">'
+                                               b'theirs</a>'),
+        "j/html/api/m/a/b/C.html": ("text/html", b"<li><a href='../../../index-all.html'>Index</a></li>"
+                                                 b'<a href="../../../index-all.html#I:B">B names</a>'),
+        "j/html/api/m/a/doc-files/guide.html": ("text/html", b'<a href="../../../index-files/index-1.html">Index</a>'),
+        "i/apis.html": ("text/html", b'<a href="/j/html/api/index-all.html">Java names</a>'),
+        # Not javadoc: a page that happens to share the name is neither deleted nor checked as an index.
+        "k/notes/index-all.html": ("text/html", b"<p>All the notes</p>"),
+    }
+    expected = {
+        "j/html/api/help-doc.html": b'<p>The <a href="index-files/index-1.html">Index</a> lists every name.</p>',
+        "j/html/api/m/a/B.html": b'<li><a href="../../index-files/index-1.html">Index</a></li>'
+                                 b'<a href="C.html">C</a><a href="https://example.com/api/index-all.html">theirs</a>',
+        "j/html/api/m/a/b/C.html": b"<li><a href='../../../index-files/index-1.html'>Index</a></li>"
+                                   b'<a href="../../../index-files/index-2.html#I:B">B names</a>',
+        "i/apis.html": b'<a href="/j/html/api/index-files/index-1.html">Java names</a>',
+    }
+    return rows, expected
+
+
+def test_index_links_are_pointed_at_the_split_index_and_the_one_page_index_deleted(tmp_path: Path):
+    rows, expected = _index_rows()
+    db = _database(tmp_path, rows)
+    before = _stored(db)
+    code, out, err = _run(db, groups=["javadoc-index-all"])
+    after = _stored(db)
+    assert code == 0, err
+    assert set(before) - set(after) == {"j/html/api/index-all.html"}
+    for path in after:
+        if path in expected:
+            assert _decompress(after[path][1]) == expected[path], path
+            assert after[path][0] == before[path][0] and after[path][2:] == before[path][2:], path
+        else:
+            assert after[path] == before[path], path
+    assert "javadoc-index-all: 5 link(s) in 4 row(s) pointed at the split index" in out
+    assert "javadoc-index-all: 1 row(s) of javadoc one-page indexes" in out
+
+
+def test_a_fragment_goes_to_the_split_page_that_holds_its_anchor():
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html", "I:A": "j/api/index-files/index-1.html",
+                                      "I:B": "j/api/index-files/index-2.html"}}
+    new, count, problems = tool.point_at_split_index(b'<a href="../index-all.html#I:B">', "j/api/m", split)
+    assert (new, count, problems) == (b'<a href="../index-files/index-2.html#I:B">', 1, [])
+    new, count, problems = tool.point_at_split_index(b'<a href="../index-all.html#I:Z">', "j/api/m", split)
+    assert new == b'<a href="../index-all.html#I:Z">' and count == 0 and "an anchor no split index page holds" in problems[0]
+
+
+def test_upper_case_attributes_and_file_names_are_pointed_at_the_split_index():
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html"}}
+    for link in (b'<a HREF="../index-all.html">', b'<img SRC="../index-all.html">', b'<a href="../INDEX-ALL.HTML">'):
+        new, count, problems = tool.point_at_split_index(link, "j/api/m", split)
+        expected = link.replace(b"index-all.html", b"index-files/index-1.html").replace(b"INDEX-ALL.HTML",
+                                                                                      b"index-files/index-1.html")
+        assert (new, count, problems) == (expected, 1, []), link
+
+
+def test_a_row_whose_only_link_is_upper_case_is_rewritten_too(tmp_path: Path):
+    # The rewrite matches the name in any case, so whether a row is rewritten must not hang on it also holding a
+    # lower-case link.
+    rows, _expected = _index_rows()
+    rows["j/html/api/m/a/U.html"] = ("text/html", b'<a href="../../INDEX-ALL.HTML">Index</a>')
+    db = _database(tmp_path, rows)
+    code, out, err = _run(db, groups=["javadoc-index-all"])
+    assert code == 0, err
+    assert _decompress(_stored(db)["j/html/api/m/a/U.html"][1]) == b'<a href="../../index-files/index-1.html">Index</a>'
+    assert "javadoc-index-all: 6 link(s) in 5 row(s) pointed at the split index" in out
+
+
+def test_xlink_and_data_href_links_are_left_to_the_reference_check(tmp_path: Path):
+    # Only a bare href or src attribute is rewritten; a longer name ending in one is not, so the reference check
+    # sees the link to the one-page index and the run refuses.
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html"}}
+    for link in (b'<use xlink:href="../index-all.html"/>', b'<div data-href="../index-all.html">',
+                 b'<img data-src="../index-all.html">'):
+        assert tool.point_at_split_index(link, "j/api/m", split) == (link, 0, []), link
+    cases = [("j/html/api/m/a/G.svg", ("image/svg+xml", b'<svg xmlns:xlink="http://www.w3.org/1999/xlink">'
+                                                        b'<a xlink:href="../../index-all.html">Index</a></svg>')),
+             ("j/html/api/m/a/H.html", ("text/html", b'<div data-href="../../index-all.html">Index</div>'))]
+    for i, (path, row) in enumerate(cases):
+        rows, _expected = _index_rows()
+        rows[path] = row
+        _refused(tmp_path / str(i), rows, f"{path} links to j/html/api/index-all.html")
+
+
+def test_a_percent_encoded_fragment_goes_to_the_page_holding_the_decoded_id():
+    split = {"j/api/index-all.html": {None: "j/api/index-files/index-1.html", "I:A": "j/api/index-files/index-1.html",
+                                      "I:B": "j/api/index-files/index-2.html"}}
+    new, count, problems = tool.point_at_split_index(b'<a href="../index-all.html#I%3AB">', "j/api/m", split)
+    assert (new, count, problems) == (b'<a href="../index-files/index-2.html#I%3AB">', 1, [])
+
+
+def test_an_id_on_several_split_pages_goes_to_the_first(tmp_path: Path):
+    # javadoc repeats its navbar ids on every split page; a link to one goes to index-1.html, not the last page read.
+    rows, _expected = _index_rows()
+    for page in ("j/html/api/index-files/index-1.html", "j/html/api/index-files/index-2.html"):
+        rows[page] = (rows[page][0], rows[page][1].replace(b'<body class="index-page">',
+                                                             b'<body class="index-page"><nav id="navbar-top"></nav>'))
+    rows["j/html/api/m/a/D.html"] = ("text/html", b'<a href="../../index-all.html#navbar-top">Top</a>')
+    db = _database(tmp_path, rows)
+    code, _out, err = _run(db, groups=["javadoc-index-all"])
+    assert code == 0, err
+    assert _decompress(_stored(db)["j/html/api/m/a/D.html"][1]) == \
+        b'<a href="../../index-files/index-1.html#navbar-top">Top</a>'
+
+
+def test_a_link_to_an_anchor_no_split_page_holds_refuses(tmp_path: Path):
+    rows, _expected = _index_rows()
+    rows["j/html/api/m/a/D.html"] = ("text/html", b'<a href="../../index-all.html#I:Z">Z names</a>')
+    _refused(tmp_path, rows, "j/html/api/m/a/D.html links to j/html/api/index-all.html#I:Z, an anchor no split index")
+
+
+def test_a_link_the_rewrite_does_not_reach_refuses(tmp_path: Path):
+    cases = [
+        ("j/html/api/m/a/E.html", ("text/html", b"<a href=../../index-all.html>Index</a>"), "links to"),
+        ("j/html/api/script.js", ("text/javascript", b'var index = "index-all.html";'), "links to"),
+        # A templated row's JSON is not rewritten, whatever its quotes.
+        ("j/html/api/m/a/F.html", ("text/html", b"{\"body\": \"<a href='../../index-all.html'>Index</a>\"}", 3),
+         "links to"),
+    ]
+    for i, (path, row, how) in enumerate(cases):
+        rows, _expected = _index_rows()
+        rows[path] = row
+        _refused(tmp_path / str(i), rows, f"{path} {how} j/html/api/index-all.html")
+
+
+def test_a_template_link_to_the_one_page_index_refuses_in_either_encoding(tmp_path: Path):
+    if shutil.which("brotli") is None:
+        _skip("brotli is not on PATH")
+    # The rewrite reaches Content rows only, so a template's link must refuse, compressed (version 3) or plain.
+    template = LINKING_TEMPLATE.replace(b"../x/a.html", b"../../index-all.html")
+    stored = _compress(template, TEMPLATE_DICTIONARY)
+    assert b"index-all.html" not in stored, "the link survives compression, so this tests nothing"
+    for i, (body, versions) in enumerate([(stored, [(3, 0, 0, "2026-10-19 07:09:52")]),
+                                          (template, [(2, 1, 0, "2026-10-18 10:00:00")])]):
+        rows, _expected = _index_rows()
+        rows["j/html/api/m/a/T.html"] = ("text/html", b'{"title": "t"}', 1)
+        _refused(tmp_path / str(i), rows, "template page.peb links to j/html/api/index-all.html",
+                 dictionary=TEMPLATE_DICTIONARY, schema=3, versions=versions, templates={1: ("page.peb", body)})
+
+
+def test_a_one_page_index_without_its_split_index_refuses(tmp_path: Path):
+    rows, _expected = _index_rows()
+    del rows["j/html/api/index-files/index-1.html"]
+    _refused(tmp_path, rows, "j/html/api/index-all.html has no split index (j/html/api/index-files/index-1.html)")
+
+
+def test_an_unreadable_split_index_page_refuses(tmp_path: Path):
+    rows, _expected = _index_rows()
+    rows["j/html/api/index-files/index-2.html"] = ("text/html", b"not brotli", 0, True)
+    _refused(tmp_path, rows, "j/html/api/index-files/index-2.html could not be read, so its anchors are unknown")
+
+
+def test_a_page_named_index_all_that_is_not_an_index_refuses(tmp_path: Path):
+    rows, _expected = _index_rows()
+    rows["j/html/api/index-all.html"] = ("text/html", b"<html><body>Not an index</body></html>")
+    _refused(tmp_path, rows, "j/html/api/index-all.html is not a javadoc index page")
+
+
+def test_index_links_dry_run_writes_nothing_and_a_second_run_changes_nothing(tmp_path: Path):
+    rows, _expected = _index_rows()
+    db = _database(tmp_path, rows)
+    before = _stored(db)
+    code, out, err = _run(db, dry_run=True, groups=["javadoc-index-all"])
+    assert code == 0, err
+    assert "would point 5 index link(s) in 4 row(s)" in out and _stored(db) == before
+    assert len(list(tmp_path.iterdir())) == 1
+    assert _run(db, groups=["javadoc-index-all"])[0] == 0
+    once = _stored(db)
+    code, out, err = _run(db, groups=["javadoc-index-all"])
+    assert code == 0 and "Nothing to do" in out, out + err
+    assert _stored(db) == once
+
+
+def test_a_chunked_page_is_rewritten_and_rechunked(tmp_path: Path):
+    import random
+    rng = random.Random(11)
+    noise = bytes(rng.getrandbits(8) for _ in range(CHUNK_SIZE + 5000)).hex().encode()
+    page = b'<li><a href="../../index-all.html">Index</a></li><!--' + noise + b"-->"
+    stored = brotli.compress(page, quality=0)
+    assert len(stored) > CHUNK_SIZE
+    rows, _expected = _index_rows()
+    rows["j/html/api/m/a/Big.html"] = ("text/html", stored[:CHUNK_SIZE], 0, True)
+    rows["j/html/api/m/a/Big.html-1"] = ("text/html", stored[CHUNK_SIZE:], 0, True)
+    db = _database(tmp_path, rows)
+    code, _out, err = _run(db, groups=["javadoc-index-all"])
+    after = _stored(db)
+    assert code == 0, err
+    chunks = [after[p][1] for p in sorted(after) if p.startswith("j/html/api/m/a/Big.html")]
+    assert len(chunks) >= 2 and all(len(c) == CHUNK_SIZE for c in chunks[:-1])
+    assert _decompress(b"".join(chunks)) == page.replace(b"../../index-all.html", b"../../index-files/index-1.html")
+
+
 def test_a_missing_database_is_an_error(tmp_path: Path):
     code, _out, err = _run(tmp_path / "absent.db")
     assert code == 1 and "does not exist" in err

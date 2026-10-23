@@ -229,8 +229,10 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content rows
   nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
   placeholders - after checking that nothing kept refers to them, before or after the schema-3
-  migration, whose templates it decodes), `clear_repeated_tooltip_detail.py` (empties a tooltip detail
-  that repeats its summary), `migrate_tooltip_schema.py` (ADFA-3305:
+  migration, whose templates it decodes; it also drops javadoc's 23 MB one-page `index-all.html` after
+  pointing every link to it at the split `index-files/` pages, which loosens a packed file, so
+  `rebuild_database.py --pack` has to follow it), `clear_repeated_tooltip_detail.py` (empties a tooltip
+  detail that repeats its summary), `migrate_tooltip_schema.py` (ADFA-3305:
   converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
   lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
   copy that ships, after every step that writes tooltips or templates, since they all write the old
