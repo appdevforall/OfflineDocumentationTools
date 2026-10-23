@@ -189,6 +189,19 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
   **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
   only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
   `android_html_page.py`, `load_android_data.py`.
+- **`scripts/hm_pages_to_templates.py`** - stores the Help+Manual topic pages under `i/` as JSON
+  plus one Pebble template derived from the pages themselves (`helpmanual-topic.peb`), after
+  rendering every page back byte for byte with the app's engine (`scripts/hm_render_check/`,
+  which needs `java` and the Pebble jars). With `--drop-jstopics` it also stores
+  `helpmanual-jstopic.peb` and drops the `i/jstopics/` rows the app then builds from the page JSON
+  (ADFA-6618; needs the app side). Run it after every step that edits `i/` pages: after
+  `remove_skin_font_comment.py`, `bundle_remote_images.py`, `remove_remote_loads.py`,
+  `share_skin_sprite.py`, `check_remote_loads.py` and the media steps (with their snapshot before
+  them), then `check_remote_loads.py` again, which reads Templates and JSON pages and so works on
+  either side. `share_skin_sprite.py` comes with PR #42 (ADFA-4195) and the other four with PR #41
+  (ADFA-6589); this step ships after both. A media rollback (`--restore-originals`) cannot undo its
+  pages: start the rollback from this step's pre-run backup, keep that backup with the rollback
+  bundle, and run this step again afterwards.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
