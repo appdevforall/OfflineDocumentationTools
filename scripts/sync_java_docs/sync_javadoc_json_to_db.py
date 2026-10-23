@@ -95,8 +95,18 @@ PRUNED_IN_REFERENCES = frozenset({"signature"})
 REFERENCE_KEYS = frozenset({"specifiedBy", "members", "overrides"})
 
 
-# From this documentation major on, every template is stored compressed (migrate_tooltip_schema.py, ADFA-3305).
+# From this documentation major on, every template is stored compressed against CompressionDictionary, with no
+# per-row marker (migrate_tooltip_schema.py, ADFA-3305); below it, plain. A later major than the newest this step
+# knows may store rows in a way it would misread, so it is refused (ADFA-6740).
 COMPRESSED_TEMPLATES_MAJOR = 3
+NEWEST_KNOWN_MAJOR = 3
+# Brotli's largest RFC 7932 window; never a large-window stream, which the app's brotli4j refuses.
+WINDOW_BITS = 24
+
+
+def large_window(stream: bytes) -> bool:
+    """Same test as migrate_tooltip_schema.large_window: a window over 24 bits."""
+    return bool(stream) and stream[0] & 0x7F == 0x11
 
 
 def declared_major(conn) -> int | None:
@@ -166,14 +176,27 @@ class DictionaryBrotli:
         self._dict.write_bytes(dictionary_data)
         atexit.register(lambda: shutil.rmtree(self._dir, ignore_errors=True))
 
-    def compress(self, data: bytes) -> bytes:
+    def _run(self, *args: str, data: bytes) -> bytes:
         result = subprocess.run(
-            [self._brotli, "-D", str(self._dict), "-c"],
+            [self._brotli, "-D", str(self._dict), *args, "-c"],
             input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
         return result.stdout
+
+    def compress(self, data: bytes) -> bytes:
+        return self._run("-w", str(WINDOW_BITS), data=data)
+
+    def decompress(self, data: bytes) -> bytes:
+        return self._run("-d", data=data)
+
+    def compress_template(self, data: bytes) -> bytes:
+        """`data` compressed as a schema 3 template, checked by decoding it back."""
+        stream = self.compress(data)
+        if large_window(stream) or self.decompress(stream) != data:
+            raise RuntimeError("the compressed template did not decode back to its text")
+        return stream
 
 
 def rewrite_links(value):
@@ -249,12 +272,17 @@ def main() -> int:
     check = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     try:
         major = declared_major(check)
+        has_dictionary = load_compression_dictionary(check) is not None
     finally:
         check.close()
-    if major is not None and major >= COMPRESSED_TEMPLATES_MAJOR:
-        print(f"Error: the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 "
-              f"every template is stored compressed, and {TEMPLATE_NAME} would be written plain. Run this before "
-              "migrate_tooltip_schema.py; nothing was changed.", file=sys.stderr)
+    if major is not None and major > NEWEST_KNOWN_MAJOR:
+        print(f"Error: the database declares documentation version {major}, and this step writes versions up to "
+              f"{NEWEST_KNOWN_MAJOR}.x; nothing was changed.", file=sys.stderr)
+        return 1
+    templates_compressed = major is not None and major >= COMPRESSED_TEMPLATES_MAJOR
+    if templates_compressed and not has_dictionary:
+        print(f"Error: the database declares documentation version {major}, whose templates are compressed "
+              "against CompressionDictionary, but it has none; nothing was changed.", file=sys.stderr)
         return 1
 
     if args.dry_run:
@@ -271,15 +299,18 @@ def main() -> int:
 
     # --- template --------------------------------------------------------
     source = (args.templates / TEMPLATE_NAME).read_text(encoding="utf-8")
+    # Against the dictionary from 3.0.0 even with --plain-brotli: the app decodes every template that way.
+    stored = (DictionaryBrotli(load_compression_dictionary(conn)).compress_template(source.encode())
+              if templates_compressed else source.encode())
     existing = cur.execute("SELECT id FROM Templates WHERE name = ?", (TEMPLATE_NAME,)).fetchone()
     if args.dry_run:
         template_id = existing[0] if existing else -1
         print(f"  [{'UPDATE' if existing else 'INSERT'} TEMPLATE] {TEMPLATE_NAME} ({len(source)} bytes)")
     elif existing:
-        cur.execute("UPDATE Templates SET content = ? WHERE id = ?", (source.encode(), existing[0]))
+        cur.execute("UPDATE Templates SET content = ? WHERE id = ?", (stored, existing[0]))
         template_id = existing[0]
     else:
-        cur.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (TEMPLATE_NAME, source.encode()))
+        cur.execute("INSERT INTO Templates (name, content) VALUES (?, ?)", (TEMPLATE_NAME, stored))
         template_id = cur.lastrowid
     print(f"Installed template '{TEMPLATE_NAME}' ({len(source)} bytes) for all page kinds.")
 

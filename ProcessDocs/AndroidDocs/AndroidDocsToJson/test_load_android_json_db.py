@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import load_android_json_db as loader
+from populate_db import DictionaryCompressor, decode_template, load_dictionary  # loader put its directory on sys.path
 
 
 # --------------------------------------------------------------------------------------------
@@ -263,8 +264,9 @@ class TestRecordVersion:
 
 
 class TestCompressedTemplates:
-    """From documentation 3.0.0 every template is stored compressed and the app decodes every one. record_version
-    keeps the source's major, so loading a 3.x source would leave 3.(x+1) with plain Android templates in it."""
+    """From documentation 3.0.0 every template is stored compressed against the dictionary, with no per-row marker,
+    and the app decodes every one (ADFA-6740). A 3.0.0 source loads with compressed templates and stays 3.0.0; a
+    later major, a format this loader does not know, is refused before anything is written."""
 
     def run(self, db, tmp_path, *versions):
         db.executescript(VERSION_TABLES)
@@ -276,13 +278,24 @@ class TestCompressedTemplates:
         return loader.main([str(tmp_path / "json"), "--source", str(tmp_path / "test.db"),
                             "--out", str(tmp_path / "out.db"), "--workers", "2"])
 
-    @pytest.mark.parametrize("major", [3, 4])
-    def test_a_source_declaring_3_or_later_is_refused_before_anything_is_written(self, db, tmp_path, capsys, major):
+    def test_a_source_declaring_a_later_major_is_refused_before_anything_is_written(self, db, tmp_path, capsys):
         with pytest.raises(SystemExit) as exited:
-            self.run(db, tmp_path, (2, "2026-01-01 00:00:00"), (major, "2026-10-19 00:00:00"))
+            self.run(db, tmp_path, (3, "2026-01-01 00:00:00"), (4, "2026-10-19 00:00:00"))
         assert exited.value.code == 2
-        assert f"declares documentation version {major}" in capsys.readouterr().err
+        assert "declares documentation version 4" in capsys.readouterr().err
         assert not (tmp_path / "out.db").exists()
+
+    def test_a_source_declaring_3_loads_compressed_templates_and_stays_3_0_0(self, db, tmp_path):
+        assert self.run(db, tmp_path, (3, "2026-10-19 00:00:00")) == 0
+        out = sqlite3.connect(tmp_path / "out.db")
+        try:
+            assert out.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion").fetchall() == [(3, 0, 0)]
+            with DictionaryCompressor(load_dictionary(out)) as compressor:
+                for name, stored in out.execute("SELECT name, content FROM Templates").fetchall():
+                    assert name.startswith("android-")
+                    assert "{%" in decode_template(stored, compressor) or "{{" in decode_template(stored, compressor)
+        finally:
+            out.close()
 
     def test_a_source_declaring_2_still_loads(self, db, tmp_path):
         # The newest row by changeTime is 2, though a 3 was inserted after it.
@@ -291,6 +304,8 @@ class TestCompressedTemplates:
         try:
             assert out.execute("SELECT major, minor FROM DocumentationDatabaseVersion "
                                "ORDER BY rowid DESC LIMIT 1").fetchone() == (2, 1)
-            assert out.execute("SELECT COUNT(*) FROM Templates").fetchone() == (3,)
+            templates = out.execute("SELECT content FROM Templates").fetchall()
+            assert len(templates) == 3
+            assert all(decode_template(content, None) for (content,) in templates)
         finally:
             out.close()

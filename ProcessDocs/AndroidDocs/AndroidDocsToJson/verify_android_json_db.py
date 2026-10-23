@@ -27,7 +27,7 @@ _KOTLIN_PIPELINE = (Path(__file__).resolve().parents[2]
                     / "ProcessKotlinDocs" / "ProcessKotlinWebsiteJSON")
 sys.path.insert(0, str(_KOTLIN_PIPELINE))
 
-from populate_db import DictionaryCompressor, load_dictionary  # noqa: E402
+from populate_db import DictionaryCompressor, decode_template, load_dictionary, templates_compressed  # noqa: E402
 from migrate_content_to_dictionary_brotli import read_item  # noqa: E402
 
 RENDERER_CLASSPATH = (Path(__file__).resolve().parent
@@ -81,7 +81,10 @@ def main(argv: list[str] | None = None) -> int:
     conn = sqlite3.connect(args.db)
     failures = 0
 
-    templates = {row[0]: row[1].decode("utf-8")
+    compressor = DictionaryCompressor(load_dictionary(conn))
+    # From 3.0.0 every template is compressed against the dictionary (ADFA-6740).
+    template_compressor = compressor if templates_compressed(conn) else None
+    templates = {row[0]: decode_template(row[1], template_compressor)
                  for row in conn.execute("SELECT id, content FROM Templates").fetchall()}
     rows = android_rows(conn)
     print(f"==> {len(rows):,} Android pages")
@@ -94,7 +97,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    ! {path}")
 
     kinds: dict[str, int] = {}
-    compressor = DictionaryCompressor(load_dictionary(conn))
     known = {path for path, _t, _c in rows}
     known |= {path for (path,) in conn.execute(
         "SELECT path FROM Content WHERE path NOT LIKE '%-1'").fetchall()}

@@ -267,7 +267,13 @@ def declare_database_version(
     lower than the file already declares: rebuilding from an older pipeline
     genuinely produces an older format, and the row has to say what the file
     contains now rather than the highest it ever contained.
+
+    Except from COMPRESSED_TEMPLATES_MAJOR on: this step writes that format too
+    (upsert_template compresses, and it writes no tooltips), so a 3.x file keeps
+    the version it declares (ADFA-6740).
     """
+    if (declared_major(conn) or 0) >= COMPRESSED_TEMPLATES_MAJOR:
+        return False
     conn.execute(VERSION_TABLE_SQL)
     declared = conn.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion").fetchall()
     if len(declared) == 1 and tuple(declared[0]) == DATABASE_FORMAT_VERSION:
@@ -319,6 +325,16 @@ def train_dictionary(samples: list, dict_size: int = DEFAULT_DICT_SIZE) -> bytes
         return dict_path.read_bytes()
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+# Brotli's largest RFC 7932 window (see large_window).
+WINDOW_BITS = 24
+
+
+def large_window(stream: bytes) -> bool:
+    """Whether a Brotli stream uses the large-window extension (window over 24 bits), which the CLI decodes and
+    the app's brotli4j refuses. Same test as migrate_tooltip_schema.large_window."""
+    return bool(stream) and stream[0] & 0x7F == 0x11
 
 
 class DictionaryCompressor:
@@ -375,7 +391,9 @@ class DictionaryCompressor:
         return result.stdout
 
     def compress(self, data: bytes) -> bytes:
-        return self._run(data=data)
+        # -w 24 is the CLI's default for stdin, made explicit as migrate_tooltip_schema.py does: never a
+        # large-window stream, which the app's brotli4j refuses.
+        return self._run("-w", str(WINDOW_BITS), data=data)
 
     def decompress(self, data: bytes) -> bytes:
         return self._run("-d", data=data)
@@ -569,9 +587,8 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
     return True
 
 
-# From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
-# against the dictionary, and the app decodes every one: a plain template written into such a database would not
-# render, and the file would still declare 3.x.
+# From this documentation major on, every template is stored compressed against the dictionary, with no per-row
+# marker (migrate_tooltip_schema.py, ADFA-3305), and the app decodes every one; below it, plain UTF-8.
 COMPRESSED_TEMPLATES_MAJOR = 3
 
 
@@ -585,25 +602,55 @@ def declared_major(conn) -> int | None:
     return None if row is None else int(row[0])
 
 
-def compressed_templates_refusal(conn) -> str | None:
-    """Why no plain template may be written into this database, or None."""
+# The newest documentation major this step knows how to write. A later one may store rows in a way it would
+# misread, so it refuses that file before changing anything.
+NEWEST_KNOWN_MAJOR = 3
+
+
+def unknown_format_refusal(conn) -> str | None:
+    """Why this step must not write into this database, or None."""
     major = declared_major(conn)
-    if major is None or major < COMPRESSED_TEMPLATES_MAJOR:
+    if major is None or major <= NEWEST_KNOWN_MAJOR:
         return None
-    return (f"the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 every "
-            "template is stored compressed, and this step writes plain ones. Run it before migrate_tooltip_schema.py")
+    return (f"the database declares documentation version {major}, and this step writes versions up to "
+            f"{NEWEST_KNOWN_MAJOR}.x")
+
+
+def templates_compressed(conn) -> bool:
+    return (declared_major(conn) or 0) >= COMPRESSED_TEMPLATES_MAJOR
+
+
+def encode_template(conn, content: str) -> bytes:
+    """What Templates stores for `content`: plain UTF-8, or from COMPRESSED_TEMPLATES_MAJOR on, Brotli against
+    the database's dictionary, checked by decoding it back. Raises RuntimeError rather than store a template the
+    app cannot read."""
+    data = content.encode("utf-8")
+    if not templates_compressed(conn):
+        return data
+    with DictionaryCompressor(load_dictionary(conn)) as compressor:
+        stream = compressor.compress(data)
+        if large_window(stream) or compressor.decompress(stream) != data:
+            raise RuntimeError("a compressed template did not decode back to its text")
+    return stream
+
+
+def decode_template(stored: bytes, compressor: "DictionaryCompressor | None") -> str:
+    """A Templates row's text: `compressor` is the database's DictionaryCompressor if its templates are
+    compressed (templates_compressed), else None."""
+    stored = bytes(stored)
+    if compressor is not None:
+        if large_window(stored):
+            raise RuntimeError("a template is a large-window Brotli stream, which the app cannot decode")
+        stored = compressor.decompress(stored)
+    return stored.decode("utf-8")
 
 
 def upsert_template(conn, name: str, content: str) -> int:
-    """Writes one plain template. Raises RuntimeError, writing nothing, if the database's templates are stored
-    compressed."""
-    refusal = compressed_templates_refusal(conn)
-    if refusal:
-        raise RuntimeError(refusal)
+    """Writes one template, compressed if the database's templates are (encode_template)."""
     conn.execute(
         "INSERT INTO Templates (name, content) VALUES (?, ?) "
         "ON CONFLICT(name) DO UPDATE SET content = excluded.content",
-        (name, content.encode("utf-8")),
+        (name, encode_template(conn, content)),
     )
     return conn.execute("SELECT id FROM Templates WHERE name = ?", (name,)).fetchone()[0]
 
@@ -751,7 +798,7 @@ def main():
     # Checked before the conversion and the backup, so a refusal costs nothing and writes nothing.
     conn = sqlite3.connect(f"file:{args.db_path}?mode=ro", uri=True)
     try:
-        refusal = compressed_templates_refusal(conn)
+        refusal = unknown_format_refusal(conn)
     finally:
         conn.close()
     if refusal:
@@ -981,11 +1028,11 @@ def main():
         # Declared next to the dictionary because the dictionary is what the
         # version means (ADFA-5220): the two have to land in the same
         # transaction, or a reader can see one without the other.
-        version = ".".join(str(part) for part in DATABASE_FORMAT_VERSION)
         if declare_database_version(conn):
+            version = ".".join(str(part) for part in DATABASE_FORMAT_VERSION)
             print(f"Declared documentation database version {version}", file=sys.stderr)
         else:
-            print(f"Documentation database already declares version {version}", file=sys.stderr)
+            print(f"Documentation database keeps the version it declares, {declared_major(conn)}.x", file=sys.stderr)
         with DictionaryCompressor(dictionary_data) as compressor:
             for page, json_bytes in zip(pages, page_json_bytes):
                 path = f"{page['id']}.html"

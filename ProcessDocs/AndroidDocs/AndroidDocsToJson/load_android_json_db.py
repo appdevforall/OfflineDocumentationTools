@@ -45,8 +45,8 @@ _KOTLIN_PIPELINE = (Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_KOTLIN_PIPELINE))
 
 from populate_db import (  # noqa: E402  (the path has to be set up first)
-    DictionaryCompressor, compressed_templates_refusal, fragment_chain, get_content_type, get_id,
-    insert_chunked_content, load_dictionary, upsert_template,
+    DictionaryCompressor, fragment_chain, get_content_type, get_id, insert_chunked_content,
+    load_dictionary, templates_compressed, unknown_format_refusal, upsert_template,
 )
 from migrate_content_to_dictionary_brotli import write_item  # noqa: E402
 
@@ -288,7 +288,17 @@ def check_schema(conn) -> list[str]:
 
 def record_version(conn, stats: dict) -> None:
     """A row saying what changed, as the schema's own comment asks for. Minor, not major: nothing
-    about the schema or the server's contract changes, a documentation set is re-expressed."""
+    about the schema or the server's contract changes, a documentation set is re-expressed.
+
+    From 3.0.0 on the version is left as it is (ADFA-6740): that table holds the one row that says
+    what the file is, and the app and remint_dictionary.py read 3.0.0 as the format they know."""
+    if not templates_compressed(conn):
+        _append_version(conn, stats)
+    conn.execute("INSERT INTO LastChange (documentationSet, who) VALUES (?, ?)",
+                 ("android", "ADFA-5548"))
+
+
+def _append_version(conn, stats: dict) -> None:
     row = conn.execute(
         "SELECT major, minor, patch FROM DocumentationDatabaseVersion "
         "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
@@ -300,8 +310,6 @@ def record_version(conn, stats: dict) -> None:
          f"Serve the Android reference from JSON through Pebble templates "
          f"({stats['updated']:,} rows replaced, {stats['inserted']:,} added)"),
     )
-    conn.execute("INSERT INTO LastChange (documentationSet, who) VALUES (?, ?)",
-                 ("android", "ADFA-5548"))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -328,8 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     source_conn = sqlite3.connect(f"file:{args.source}?mode=ro", uri=True)
     try:
         missing = check_schema(source_conn)
-        # record_version keeps the major, so a 3.x source would come out 3.(x+1) with plain templates in it.
-        refusal = None if missing else compressed_templates_refusal(source_conn)
+        refusal = None if missing else unknown_format_refusal(source_conn)
     finally:
         source_conn.close()
     if missing:
