@@ -123,28 +123,42 @@ actively depends on them.** Its `/pr/bs` endpoint builds a JSON "bookshelf" payl
 and renders it with the Pebble template engine. More generally, any `Content` row with a non-zero
 `templateId` gets its stored (decompressed) content run through the matching row in `Templates` as
 a Pebble template before being served. This is a real, current feature of the shipped server, not
-a placeholder. Note this repo does now write to `Templates`: `populate_db.py` upserts `page.peb`
-and `nav.peb` there (and points every page it inserts at them via `templateId`), so the table is
-no longer read-only from this side.
+a placeholder.
 
-**Nothing that currently builds or writes to the database in this repository knows about any of
-that — and that's expected.** `Templates`/`Bookshelf`/`BookCategories` are populated by a separate
-plugin system, not by anything in this repo: App Dev For All supports plugins that write into the
-documentation database, including the bookshelf feature specifically —
-[appdevforall/bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin). So the absence
-of any `Templates`/`Bookshelf`/`BookCategories` handling here is not a gap to fill; it's out of
-scope for this repo. (A repo-wide search for `Templates`, `Bookshelf`, `BookCategories`, or `PUCC`
-turns up zero matches outside `WebServer.kt` itself, which is consistent with that division of
-responsibility. `templateId` itself is a different story - `populate_db.py` and
-`insert_optimized_media.py` both read/write it directly, since it's a plain column on `Content`
-they populate; it's only the `Templates` table and the plugin system that reference it that stay
-out of scope.) Concretely, relative to the schema above:
+In a database whose newest `DocumentationDatabaseVersion` row declares major 3 or later, every
+`Templates` row is stored Brotli-compressed against the shared dictionary, with no per-row marker
+(ADFA-3305). Only the ship-time copy is converted; the master database the tools here edit keeps
+plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
+the app does: from major 3 on they sample, recompress and verify the templates together with the
+`Content` rows, and below it they leave the templates exactly as stored.
+
+`remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
+(ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
+ship-time database that saved 1.66 MB of file and 1.92 MB of `.br`; a large dictionary needs the
+larger sample (with the small one, two of four 768 KiB seeds stored more than 256 KiB). Nothing that
+ships re-mints yet: CodeOnTheGo's release compresses the master as it is, so today's release keeps the
+master's 256 KiB dictionary. The new default applies to a re-mint run by hand and to the ship-time
+pipeline once one exists. Of the workflows here, only the Android docs pair calls the re-mint, and #49
+removes it. Measurements are in its docstring.
+
+**This repo writes `Templates`, but not `Bookshelf` or `BookCategories`.** `populate_db.py`
+(`page.peb`, `nav.peb`), `sync_javadoc_json_to_db.py` (`javadoc.peb`) and `load_android_json_db.py`
+(the `android-*.peb` templates) write rows there and point the pages they write at them via
+`templateId`; `verify_android_json_db.py` reads them; and `remint_dictionary.py` and
+`verify_remint_dictionary.py` recompress and compare them from 3.0.0 on (above).
+`insert_optimized_media.py` reads and writes `templateId` too.
+`Bookshelf` and `BookCategories` come from App Dev For All's plugin system, which writes into the
+documentation database - the bookshelf feature from
+[appdevforall/bookshelf-plugin](https://github.com/appdevforall/bookshelf-plugin), now archived on
+GitHub. Nothing here writes them, except that `Content`'s `AddBook` trigger adds a `Bookshelf` row
+for each `.pdf` path inserted (see `migrate_content_to_dictionary_brotli.py`). Concretely, relative
+to the schema above:
 
 | Piece | What it thinks the schema is | Consequence |
 | --- | --- | --- |
 | `scripts/DocumentationDatabase.py` (used by `scripts/ingest.py`, and hence by `.github/workflows/publish-doc-db.yaml`) | `Content` / `Languages` / `ContentTypes` only, plus an optional `ide_tooltip_table`. Its constructor explicitly **raises `ValueError`** if it opens a DB containing any table outside that whitelist. | **This will refuse to open the current production `documentation.db` at all** — it will list `Tooltips`, `TooltipCategories`, `TooltipButtons`, `TooltipButtonNumbers`, `LastChange`, `Templates`, `BookCategories`, `Bookshelf`, and every `PUCC_*` table as "unexpected." This is the single biggest blocker to reusing this script as-is. |
 | `docdb-studio/SCHEMA.md` / `AGENTS.md` (states the schema is "locked," no migrations) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, `LastChange` (with a *different* shape: `documentationSet`/`changeTime`/`who` — this part does match current), plus a legacy `ide_tooltip_table`. Missing `templateId`, `Templates`, `BookCategories`, `Bookshelf`, `PUCC_*`. | Closest of the three documented schemas to reality, but still out of date. `docdb_studio.py`'s own "never change the schema" policy is itself now stale, since the live schema has already changed underneath it. |
-| `check-tools/README.md`'s embedded schema (and by extension the mental model behind `check-tools/db_health_checker.py`) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, and a *third* variant of `LastChange` (`now`/`who`). No `Templates`/`Bookshelf`/`BookCategories`/`PUCC_*`. | The health checker's required-table check still passes (it only checks that its known tables exist, not that no others do). Since `Templates`/`Bookshelf`/`BookCategories` are out of scope for this repo (see above), this is not being treated as something to fix right now. |
+| `check-tools/README.md`'s embedded schema (and by extension the mental model behind `check-tools/db_health_checker.py`) | `Content` (no `templateId`, no `UNIQUE(path)`), `Tooltips`, `TooltipButtons`, `TooltipCategories`, `TooltipButtonNumbers`, and a *third* variant of `LastChange` (`now`/`who`). No `Templates`/`Bookshelf`/`BookCategories`/`PUCC_*`. | The health checker's required-table check still passes (it only checks that its known tables exist, not that no others do). Since `Bookshelf`/`BookCategories` are written outside this repo (see above) and check-tools reads no `Templates`, this is not being treated as something to fix right now. |
 
 There also appear to be **two unrelated tooltip storage formats** in this repo's history, and it's
 worth being deliberate about which one is current:
@@ -195,14 +209,64 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   converts the tooltip tables to the WITHOUT ROWID, lookup-table shape Code On The Go reads from
   `DocumentationDatabaseVersion` 3.0.0 on; run it on the copy that ships, after every step that writes
   tooltips, since they all write the old shape, never on the master they edit, and pack
-  `Content,TooltipTexts` afterwards, not `Tooltips`), `svg_images_to_webp.py` (ADFA-3305: re-encodes the
-  raster images SVG rows embed as data: URIs as WebP, image by image, by a quality rule; run on the
-  shipped copy before the final dictionary re-mint; `compare_svg_renders.py` renders each changed SVG
-  before and after in headless Chrome, through `<img>` and `<object>`, as its visual check).
-  **Deprecated/dead** (target the
-  removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
-  `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
-  `load_android_data.py`.
+  `Content,TooltipTexts` afterwards, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
+  HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
+  `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
+  `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
+  `svg_images_to_webp.py` (ADFA-3305:
+  re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
+  rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
+  renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as
+  its visual check), and four steps that run in this order before the `--before` snapshot
+  `update_media_references.py` diffs against: `remove_skin_font_comment.py` (cuts Help+Manual's
+  commented-out Google Fonts note out of the `i/` pages until the skin fix, ADFA-6609, ships;
+  first - its docstring says why), `bundle_remote_images.py` (stores the 19 diagrams API reference
+  pages load from developer.android.com, kept with their sources and licenses in
+  `remote_media/adfa-6589/`, and points the pages at them; a URL in that folder's `existing.tsv`
+  is pointed at the row already holding its image instead; ADFA-6589), then
+  `remove_remote_loads.py` (takes out the markup that makes pages fetch from the internet where no
+  download is needed - a remote `srcset` beside a stored `src`, dark-theme `<source>`s, kotl.in
+  badges, YouTube players - ADFA-6589; after `bundle_remote_images.py`, because it drops a remote
+  `srcset` only beside a stored `src`), and last `check_remote_loads.py` (reads every page,
+  template and tooltip, and fails the build, naming each, if anything would still load from off
+  the device; it writes nothing - ADFA-6589).
+  **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
+  only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
+  `android_html_page.py`, `load_android_data.py`.
+- **`scripts/hm_pages_to_templates.py`** - stores the Help+Manual topic pages under `i/` as JSON
+  plus one Pebble template derived from the pages themselves (`helpmanual-topic.peb`), after
+  rendering every page back byte for byte with the app's engine (`scripts/hm_render_check/`,
+  which needs `java` and the Pebble jars). With `--drop-jstopics` it also stores
+  `helpmanual-jstopic.peb` and drops the `i/jstopics/` rows the app then builds from the page JSON
+  (ADFA-6618; needs the app side). Run it after every step that edits `i/` pages: after
+  `remove_skin_font_comment.py`, `bundle_remote_images.py`, `remove_remote_loads.py`,
+  `share_skin_sprite.py`, `check_remote_loads.py` and the media steps (with their snapshot before
+  them), then `check_remote_loads.py` again, which reads Templates and JSON pages and so works on
+  either side. `share_skin_sprite.py` comes with PR #42 (ADFA-4195) and the other four with PR #41
+  (ADFA-6589); this step ships after both. A media rollback (`--restore-originals`) cannot undo its
+  pages: start the rollback from this step's pre-run backup, keep that backup with the rollback
+  bundle, and run this step again afterwards.
+- **`scripts/android_pages_to_templates.py`** - stores the Android reference pages under `a/`
+  (except `a/devsite/`) as JSON plus `android-reference.peb` and one shared include per
+  inherited-member block header (`android-inherited-<n>.peb`), with every text of 32 or more
+  characters that 5 or more pages hold (link holes excepted) stored once in a shared-text bundle
+  (`android-text-<n>.peb`, at most 8,000 bytes of source each, texts grouped by the pages that use
+  them), after rendering every page back
+  byte for byte with the app's engine (`scripts/hm_render_check/`, as above); a page that does not
+  render back, or is over the app's render limit, stays HTML (ADFA-3305). Run it on the ship-time
+  copy only, never on the master: after the steps that write `a/` pages, `drop_unread_rows.py` and
+  the Kotlin trim, before the 3.0.0 migration (which compresses every template; the app reads
+  compressed templates from documentation schema 3.0.0, CodeOnTheGo stacked on #2163) and the final
+  dictionary re-mint.
+  It refuses a database that already holds its templates, or that declares documentation version 3
+  or later (whose templates are compressed, so its plain ones would not render).
+  Following `drop_unread_rows.py` is an exception to that step's "after every page-writing step"
+  rule, and safe: every converted page renders back byte for byte, so it links to nothing the row
+  drops did not already check.
+  ADFA-5548's `ProcessDocs/AndroidDocs/AndroidDocsToJson/load_android_json_db.py` converts the same
+  `a/android/` and `a/androidx/` pages its own way. This step is the one that ships: the workflows
+  that ran that pipeline on the master (`build-android-docs.yaml`, `build-android-docs-local.yaml`)
+  were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and

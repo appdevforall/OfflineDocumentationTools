@@ -231,7 +231,7 @@ def doc_set(path: str) -> str:
 
 def collect_training_samples(conn, base_rows: list, sample_size: int,
                              byte_budget: int = DEFAULT_TRAINING_BYTES,
-                             seed: int = DEFAULT_SAMPLE_SEED, decode=None) -> list:
+                             seed: int = DEFAULT_SAMPLE_SEED, decode=None, read=None) -> list:
     """Plaintext samples for training a new dictionary, stratified across doc
     sets in proportion to their stored bytes and bounded by `byte_budget` of
     plaintext. See the module docstring for the measurements behind both
@@ -242,8 +242,11 @@ def collect_training_samples(conn, base_rows: list, sample_size: int,
     `decode` reads one item's stored bytes back to plaintext, defaulting to plain
     Brotli because this only ever runs before CompressionDictionary exists. A
     re-mint (see remint_dictionary.py) passes one that decodes against the
-    outgoing dictionary instead."""
+    outgoing dictionary instead. `read` fetches an item's stored bytes by its
+    path, defaulting to read_item; a re-mint passes one that also serves the
+    Templates rows it samples as a doc set of their own."""
     decode = decode or brotli.decompress
+    read = read or read_item
     by_set = defaultdict(list)
     for row in base_rows:
         by_set[doc_set(row[0])].append(row)
@@ -272,7 +275,7 @@ def collect_training_samples(conn, base_rows: list, sample_size: int,
         if used >= byte_budget or len(samples) >= sample_size * 3:
             break
         try:
-            plain = decode(read_item(conn, row[0]))
+            plain = decode(read(conn, row[0]))
         except brotli.error as exc:
             print(f"warning: could not decompress {row[0]!r} for training sample: {exc}", file=sys.stderr)
             continue
