@@ -59,8 +59,29 @@ redraw the same samples once a re-mint has changed the stored sizes, because
 the sampler weights each doc set by its stored bytes: re-minting a re-minted
 database at the same 2 seeds drew different samples and stored 0.1% less.
 
+From documentation version 3.0.0 on (ADFA-3305), every Templates row is stored
+Brotli-compressed against the same dictionary, so a re-mint carries the
+templates across too. When the newest DocumentationDatabaseVersion row declares
+major 3 or later (read as the app reads it), every template must decode against
+the outgoing dictionary -- one that does not stops the run before any training,
+since the app could not read it either. The templates join the training sample
+as one more doc set, "(templates)", weighted by their stored bytes like the
+others; each candidate recompresses them along with the Content rows, and the
+winner is the candidate that stores the two together smallest; the dictionary in
+place is measured the same way, Content and templates as stored, so the
+keep-current comparison weighs like with like. They are written in the same
+transaction. Below major 3, templates are plain text and are left
+exactly as they are. On the 2026-10-19 ship-time build (1,126 templates, the
+a/ pages' among them), the four default seeds stored the templates in 860,808
+to 908,471 bytes, beside 46.96 to 47.10 MB of Content, and the templates
+decided the outcome: seed 20821, the only one to beat the dictionary in place,
+stored 73 bytes more Content than it and 51,657 bytes less in templates.
+
 Every row is proved to round-trip against the new dictionary before it is
-written. Afterwards, run verify_remint_dictionary.py against a copy of the
+written. The backup (VACUUM INTO, unless --no-backup) is taken only then, just
+before the write: a run that refuses, or keeps the dictionary in place, writes
+nothing at all, backup included, and says why on an "error:" line. Afterwards,
+run verify_remint_dictionary.py against a copy of the
 original database: it re-reads every row through both dictionaries and requires
 the plaintexts to match. That check is not paranoia -- a row recompressed
 against a mismatched dictionary decodes without error into *different* bytes
@@ -93,6 +114,73 @@ _thread_local = threading.local()
 # 48 MiB, in /tmp, which can be RAM.
 _pass_compressors = []
 _pass_lock = threading.Lock()
+
+# From this documentation major on, every Templates row is Brotli-compressed against the shared dictionary.
+TEMPLATES_COMPRESSED_FROM_MAJOR = 3
+# Templates are sampled under this pseudo path, so they form a doc set of their own.
+TEMPLATE_SAMPLE_PREFIX = "(templates)/"
+
+
+def declared_major(conn) -> int | None:
+    """The major the newest DocumentationDatabaseVersion row declares, read the way the app's
+    DatabaseVersionResolver reads it (newest changeTime, then newest rowid); None without one."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'DocumentationDatabaseVersion'"
+                    ).fetchone() is None:
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
+                       ).fetchone()
+    return row[0] if row else None
+
+
+def templates_compressed(conn) -> bool:
+    major = declared_major(conn)
+    return major is not None and major >= TEMPLATES_COMPRESSED_FROM_MAJOR
+
+
+def load_templates(conn, old_dictionary: bytes) -> list:
+    """Every Templates row of a database whose templates are compressed, as (id, name, stored, plaintext).
+    Raises RuntimeError naming each one that does not decode against the outgoing dictionary."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Templates'").fetchone() is None:
+        return []
+    templates, unreadable = [], []
+    with DictionaryCompressor(old_dictionary) as old:
+        for template_id, name, content in conn.execute("SELECT id, name, content FROM Templates ORDER BY id"):
+            stored = content.encode("utf-8") if isinstance(content, str) else bytes(content)
+            try:
+                templates.append((template_id, name, stored, old.decompress(stored)))
+            except RuntimeError:
+                unreadable.append(name)
+    if unreadable:
+        raise RuntimeError(f"{len(unreadable)} template(s) do not decode against the outgoing dictionary, so "
+                           f"the app could not read them either; nothing written: {', '.join(unreadable[:10])}")
+    return templates
+
+
+def convert_templates(templates: list, old_dictionary: bytes, new_dictionary: bytes,
+                      max_workers: int | None) -> tuple:
+    """Every template recompressed against new_dictionary and proved to decode back, written nowhere:
+    a list of (id, recompressed bytes), the stored total, and the templates that failed."""
+    def one(template):
+        template_id, name, _stored, plain = template
+        _old, new = _compressors(old_dictionary, new_dictionary)
+        data = new.compress(plain)
+        try:
+            if new.decompress(data) != plain:
+                return template_id, name, None, "recompressed bytes do not decode back to the same plaintext"
+        except RuntimeError as exc:
+            return template_id, name, None, f"recompressed bytes failed to decode: {exc}"
+        return template_id, name, data, None
+
+    # A pool per pass, as in convert_all, so each thread's cached compressors hold this candidate; closed when the
+    # pass ends, as convert_all closes its own, or their temp dictionaries would outlive it.
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(one, templates))
+    finally:
+        _close_pass_compressors()
+    converted = [(template_id, data) for template_id, _name, data, problem in results if problem is None]
+    problems = [(f"template {name}", problem) for _id, name, _data, problem in results if problem]
+    return converted, sum(len(data) for _id, data in converted), problems
 
 
 def _compressors(old_dictionary: bytes, new_dictionary: bytes) -> tuple:
@@ -172,12 +260,17 @@ def convert_all(conn, base_rows: list, old_dictionary: bytes, new_dictionary: by
 
 def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAULT_DICT_SIZE,
            training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
-           max_workers: int | None = None, seeds: int = 1) -> dict:
+           max_workers: int | None = None, seeds: int = 1, before_write=None) -> dict:
     """Re-mints in one transaction, with the best of `seeds` candidate
     dictionaries (sample seeds seed, seed + 1, ...), unless none of them stores
     less than the current dictionary: then nothing is written, and the stats say
-    kept = "current". Raises RuntimeError, having written nothing, if any row
-    fails to convert."""
+    kept = "current". Raises RuntimeError, having written nothing, if any row or
+    template fails to convert. In a database whose templates are compressed (see
+    TEMPLATES_COMPRESSED_FROM_MAJOR) they are sampled, recompressed and counted
+    with the Content rows, in each candidate's total and the current dictionary's
+    alike. `before_write` is called once every check has passed, just before the
+    write, and not at all when nothing is to be written: main() takes its backup
+    there."""
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     if row is None or not row[0]:
         raise RuntimeError("this database has no CompressionDictionary to re-mint; "
@@ -185,43 +278,69 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
     old_dictionary = row[0]
     base_rows = load_base_rows(conn)
 
-    best, candidates = None, []
+    templates = []
+    if templates_compressed(conn):
+        clashing = [r[0] for r in base_rows if r[0].startswith(TEMPLATE_SAMPLE_PREFIX)]
+        if clashing:
+            raise RuntimeError(f"Content paths start with {TEMPLATE_SAMPLE_PREFIX!r}, the doc set templates are "
+                               f"sampled as; nothing written: {', '.join(clashing[:10])}")
+        templates = load_templates(conn, old_dictionary)
+    sampled_templates = {TEMPLATE_SAMPLE_PREFIX + name: stored for _id, name, stored, _plain in templates}
+    sample_rows = base_rows + [(path, None, None, None, len(stored)) for path, stored in sampled_templates.items()]
+
+    def read(c, path):
+        return sampled_templates[path] if path in sampled_templates else read_item(c, path)
+
+    best, candidates, parts = None, [], []
     for candidate_seed in range(seed, seed + max(1, seeds)):
         with DictionaryCompressor(old_dictionary) as old:
             samples = collect_training_samples(
-                conn, base_rows, sample_size, training_bytes, candidate_seed,
-                decode=lambda stored: decode_outgoing(old, stored) or b"",
+                conn, sample_rows, sample_size, training_bytes, candidate_seed,
+                decode=lambda stored: decode_outgoing(old, stored) or b"", read=read,
             )
         if not samples:
             raise RuntimeError("no training samples could be decoded; refusing to train on nothing")
         new_dictionary = train_dictionary(samples, dict_size)
-        converted, total, problems = convert_all(conn, base_rows, old_dictionary, new_dictionary, max_workers)
+        converted, content_total, problems = convert_all(conn, base_rows, old_dictionary, new_dictionary,
+                                                         max_workers)
+        converted_templates, template_total, template_problems = convert_templates(
+            templates, old_dictionary, new_dictionary, max_workers)
+        problems += template_problems
         if problems:
             for path, why in problems[:10]:
                 print(f"error: {path}: {why}", file=sys.stderr)
             raise RuntimeError(f"{len(problems)} row(s) failed to convert; nothing written")
+        total = content_total + template_total
         candidates.append((candidate_seed, total))
+        parts.append((candidate_seed, content_total, template_total))
         if seeds > 1:
-            print(f"Sample seed {candidate_seed}: {total:,} stored bytes", file=sys.stderr)
+            print(f"Sample seed {candidate_seed}: {total:,} stored bytes"
+                  + (f" ({content_total:,} Content, {template_total:,} Templates)" if templates else ""),
+                  file=sys.stderr)
         if best is None or total < best[2]:
-            best = (candidate_seed, new_dictionary, total, converted)
+            best = (candidate_seed, new_dictionary, total, converted, converted_templates)
         # Only the best candidate's rows are kept: holding this pass's too would keep three passes' rows in memory
         # while the next pass builds its own.
-        del converted
+        del converted, converted_templates
 
-    chosen_seed, new_dictionary, total, converted = best
-    # What the outgoing dictionary stores, from the same pass: every row's size as read.
-    current = sum(c[2] for c in converted)
-    stats = {"items": len(base_rows), "before": current, "candidates": candidates,
-             "best_candidate": (chosen_seed, total)}
+    chosen_seed, new_dictionary, total, converted, converted_templates = best
+    # What the outgoing dictionary stores, from the same pass: every row's size as read, and every template's, so
+    # it is weighed like the candidates' totals, which count both.
+    current = sum(c[2] for c in converted) + sum(len(t[2]) for t in templates)
+    stats = {"items": len(base_rows), "templates": len(templates), "before": current, "candidates": candidates,
+             "candidate_parts": parts, "best_candidate": (chosen_seed, total)}
     if total >= current:
         # No candidate beats the dictionary in place, so keep it and write nothing: a re-mint after a small
         # content change once stored 110,803 bytes more than the dictionary it replaced.
         return {**stats, "kept": "current", "after": current, "dictionary_bytes": len(old_dictionary),
                 "seed": None}
+    if before_write is not None:
+        before_write()
     conn.execute("BEGIN")
     for r, data, _before in converted:
         write_item(conn, r[0], r[1], r[2], r[3], data)
+    for template_id, data in converted_templates:
+        conn.execute("UPDATE Templates SET content = ? WHERE id = ?", (data, template_id))
     conn.execute("UPDATE CompressionDictionary SET data = ? WHERE id = 1", (new_dictionary,))
     conn.commit()
     return {**stats, "kept": "candidate", "after": total, "dictionary_bytes": len(new_dictionary),
@@ -247,20 +366,25 @@ def main() -> None:
                         help=f"new dictionary size in bytes (default: {DEFAULT_DICT_SIZE})")
     parser.add_argument("--max-workers", type=int, default=None, help="worker threads for recompression")
     parser.add_argument("--no-backup", action="store_true",
-                        help="skip the VACUUM INTO backup (for a copy you already treat as disposable)")
+                        help="skip the VACUUM INTO backup, otherwise taken just before the write (for a copy you "
+                             "already treat as disposable)")
     args = parser.parse_args()
 
     if not args.db_path.is_file():
         sys.exit(f"error: {args.db_path} does not exist")
 
-    if not args.no_backup:
+    def backup():
         print(f"Backing up {args.db_path}...", file=sys.stderr)
         print(f"Backup written to {backup_database(args.db_path)}", file=sys.stderr)
 
     conn = sqlite3.connect(args.db_path)
     try:
         stats = remint(conn, args.sample_size, args.dict_size, args.training_bytes,
-                       args.sample_seed, args.max_workers, args.seeds)
+                       args.sample_seed, args.max_workers, args.seeds,
+                       before_write=None if args.no_backup else backup)
+    except RuntimeError as exc:
+        # Every refusal is raised before the write, so before the backup too: one line, not a traceback.
+        sys.exit(f"error: {exc}")
     finally:
         conn.close()
 
@@ -278,7 +402,8 @@ def main() -> None:
     finally:
         vacuum_conn.close()
 
-    print(f"Re-minted {stats['items']:,} item(s) against a {stats['dictionary_bytes']:,}-byte dictionary "
+    templates = f" and {stats['templates']:,} template(s)" if stats["templates"] else ""
+    print(f"Re-minted {stats['items']:,} item(s){templates} against a {stats['dictionary_bytes']:,}-byte dictionary "
           f"from sample seed {stats['seed']}: {before:,} -> {after:,} bytes "
           f"({100 * (before - after) / before:.1f}% smaller)")
     print("Now run verify_remint_dictionary.py <original> <this file> before putting it in place.")
