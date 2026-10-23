@@ -260,3 +260,37 @@ class TestRecordVersion:
         comment = db.execute("SELECT comment FROM DocumentationDatabaseVersion").fetchone()[0]
         assert "12,106 rows replaced" in comment and "800 added" in comment
 
+
+
+class TestCompressedTemplates:
+    """From documentation 3.0.0 every template is stored compressed and the app decodes every one. record_version
+    keeps the source's major, so loading a 3.x source would leave 3.(x+1) with plain Android templates in it."""
+
+    def run(self, db, tmp_path, *versions):
+        db.executescript(VERSION_TABLES)
+        db.execute("INSERT INTO ContentTypes (value, compression) VALUES ('text/css', 'brotli')")
+        db.executemany("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                       "VALUES (?, 0, 0, 'test', 'test', ?)", versions)
+        db.commit()
+        (tmp_path / "json").mkdir()
+        return loader.main([str(tmp_path / "json"), "--source", str(tmp_path / "test.db"),
+                            "--out", str(tmp_path / "out.db"), "--workers", "2"])
+
+    @pytest.mark.parametrize("major", [3, 4])
+    def test_a_source_declaring_3_or_later_is_refused_before_anything_is_written(self, db, tmp_path, capsys, major):
+        with pytest.raises(SystemExit) as exited:
+            self.run(db, tmp_path, (2, "2026-01-01 00:00:00"), (major, "2026-10-19 00:00:00"))
+        assert exited.value.code == 2
+        assert f"declares documentation version {major}" in capsys.readouterr().err
+        assert not (tmp_path / "out.db").exists()
+
+    def test_a_source_declaring_2_still_loads(self, db, tmp_path):
+        # The newest row by changeTime is 2, though a 3 was inserted after it.
+        assert self.run(db, tmp_path, (2, "2026-10-19 00:00:00"), (3, "2026-01-01 00:00:00")) == 0
+        out = sqlite3.connect(tmp_path / "out.db")
+        try:
+            assert out.execute("SELECT major, minor FROM DocumentationDatabaseVersion "
+                               "ORDER BY rowid DESC LIMIT 1").fetchone() == (2, 1)
+            assert out.execute("SELECT COUNT(*) FROM Templates").fetchone() == (3,)
+        finally:
+            out.close()
