@@ -226,7 +226,11 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, `migrate_tooltip_schema.py` (ADFA-3305:
+  `create_empty_database.py`, `list_database_documents.py`, `drop_unread_rows.py` (deletes Content rows
+  nothing reads - javadoc Use pages, pdf.js CMaps, pdf.js fallbacks and scripting sandbox, x/
+  placeholders - after checking that nothing kept refers to them, before or after the schema-3
+  migration, whose templates it decodes), `clear_repeated_tooltip_detail.py` (empties a tooltip detail
+  that repeats its summary), `migrate_tooltip_schema.py` (ADFA-3305:
   converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
   lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
   copy that ships, after every step that writes tooltips or templates, since they all write the old
