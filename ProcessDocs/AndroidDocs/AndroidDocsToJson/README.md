@@ -50,9 +50,9 @@ Useful while working on either half:
 ./verify_android_json_db.py /tmp/staged.db --sample 40
 
 # Retrain the shared Brotli dictionary over the changed corpus and recompress every row
-# (about 6 minutes), then prove nothing changed but the encoding.
+# (4 passes, --seeds 4, of about 6 minutes each), then prove nothing changed but the encoding.
 cp /tmp/staged.db /tmp/preremint.db
-../../ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py /tmp/staged.db --no-backup
+../../ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py /tmp/staged.db --seeds 4 --no-backup
 ../../ProcessKotlinDocs/ProcessKotlinWebsiteJSON/verify_remint_dictionary.py \
     /tmp/preremint.db /tmp/staged.db
 mv /tmp/staged.db ~/Desktop/documentation_androidjson.db

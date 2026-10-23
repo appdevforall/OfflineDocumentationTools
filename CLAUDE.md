@@ -169,7 +169,11 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`, `svg_images_to_webp.py` (ADFA-3305:
+  `create_empty_database.py`, `list_database_documents.py`, `minify_text.py` (ADFA-6627: minifies the
+  HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
+  `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
+  `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
+  `svg_images_to_webp.py` (ADFA-3305:
   re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
   rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
   renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as

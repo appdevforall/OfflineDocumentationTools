@@ -3,20 +3,31 @@
 
 Run directly: python3 test_remint_dictionary.py
 """
+import contextlib
+import gc
+import io
 import random
 import shutil
 import sqlite3
+import sys
 import tempfile
 import unittest
+import weakref
 from pathlib import Path
+from unittest import mock
 
 import brotli
 
 from migrate_content_to_dictionary_brotli import migrate
 from populate_db import CHUNK_SIZE, DictionaryCompressor, load_dictionary
+import remint_dictionary
 from remint_dictionary import remint
 from verify_remint_dictionary import verify
 from test_migrate_content_to_dictionary_brotli import SCHEMA_SQL, insert_plain_chunked, make_text
+
+# The dictionary the fixture is first minted with. Small on purpose, so a 16 KiB re-mint beats it by hundreds of
+# bytes rather than a handful, whatever zstd and brotli version runs the tests.
+MIGRATE_DICT_SIZE = 1024
 
 
 class RemintDictionaryTest(unittest.TestCase):
@@ -30,15 +41,16 @@ class RemintDictionaryTest(unittest.TestCase):
         self.conn.execute("INSERT INTO ContentTypes (value, compression) VALUES ('text/html', 'brotli')")
         self.html_type_id = 1
         self.originals = {}
-        # Spread across doc sets, so the stratified sampler has something to stratify.
-        for doc_set in ("a", "j", "k"):
+        # Spread across doc sets, so the stratified sampler has something to stratify. The text seeds are fixed:
+        # hash() of a tuple changes with PYTHONHASHSEED, which made which candidate won vary from run to run.
+        for k, doc_set in enumerate(("a", "j", "k")):
             for i in range(12):
                 path_ = f"{doc_set}/page{i}.html"
-                plain = make_text(220, seed=hash((doc_set, i)) % 9973)
+                plain = make_text(220, seed=100 * k + i)
                 insert_plain_chunked(self.conn, path_, 1, self.html_type_id, 0, plain)
                 self.originals[path_] = plain
         self.conn.commit()
-        migrate(self.conn, sample_size=30, dict_size=16384)
+        migrate(self.conn, sample_size=30, dict_size=MIGRATE_DICT_SIZE)
         self.conn.commit()
         self.first_dictionary = load_dictionary(self.conn)
 
@@ -62,9 +74,9 @@ class RemintDictionaryTest(unittest.TestCase):
 
     def test_replaces_the_dictionary_and_preserves_every_payload(self):
         before = self.snapshot()
-        # A different seed is what makes this a real re-mint: the sampler is
-        # deterministic, so re-training on the same corpus with the same seed
-        # reproduces the stored dictionary byte for byte (see the sibling test).
+        # A different seed is what makes this a real re-mint: on this fixture the
+        # same seed draws the same sample and retrains the stored dictionary byte for
+        # byte (see the sibling test).
         stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999)
         self.assertEqual(stats["items"], len(self.originals))
 
@@ -76,11 +88,13 @@ class RemintDictionaryTest(unittest.TestCase):
 
     def test_same_seed_reproduces_the_stored_dictionary(self):
         """The sampler is seeded so a dictionary's training set can be
-        reproduced later -- which also means re-minting with the same seed and
-        corpus is a no-op, and the verifier says so rather than pretending
-        something changed."""
+        reproduced later. On this fixture the same seed draws the same sample, so
+        the re-mint keeps the stored dictionary and the verifier finds nothing
+        changed. That is not true in general: the sampler weighs each doc set by
+        its stored bytes, which a re-mint changes, so a second re-mint of real data
+        at the same seed drew a different sample (and stored 0.1% less)."""
         before = self.snapshot()
-        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20)
+        remint(self.conn, sample_size=30, dict_size=MIGRATE_DICT_SIZE, training_bytes=1 << 20)
         self.assertEqual(load_dictionary(self.conn), self.first_dictionary)
         self.assertEqual(verify(before, self.db_path), [])
 
@@ -99,6 +113,190 @@ class RemintDictionaryTest(unittest.TestCase):
         self.assertEqual({path: content for path, content in
                           self.conn.execute("SELECT path, content FROM Content")}, snapshot,
                          "rows were rewritten despite the abort")
+
+    def stored_bytes(self) -> int:
+        return self.conn.execute("SELECT SUM(LENGTH(content)) FROM Content").fetchone()[0]
+
+    def test_more_seeds_keep_the_candidate_that_stores_smallest(self):
+        before = self.snapshot()
+        stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual([seed for seed, _total in stats["candidates"]], [999, 1000, 1001])
+        smallest = min(stats["candidates"], key=lambda c: c[1])
+        self.assertEqual((stats["seed"], stats["after"]), smallest)
+        self.assertEqual(self.stored_bytes(), stats["after"], "the rows written are not the chosen candidate's")
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_a_worse_first_candidate_is_not_kept(self):
+        """A dictionary of noise first, a trained one second: the trained one
+        must win, and every row must be written with it. Each candidate also
+        needs its own compressors; reusing the first one's would tie the two
+        and keep the noise."""
+        before = self.snapshot()
+        noise = random.Random(7).randbytes(16384)
+        real = remint_dictionary.train_dictionary
+        trained = []
+
+        def candidates(samples, dict_size):
+            if not trained:
+                trained.append(noise)
+                return noise
+            trained.append(real(samples, dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=candidates):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
+
+        self.assertEqual(stats["seed"], 1000)
+        self.assertEqual(load_dictionary(self.conn), trained[1])
+        self.assertLess(stats["candidates"][1][1], stats["candidates"][0][1])
+        for path, plain in self.originals.items():
+            self.assertEqual(self.plaintext(path), plain, f"{path} lost its content")
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_a_winner_in_the_middle_is_kept(self):
+        """Noise, a trained dictionary, then noise: the second candidate must be kept, its dictionary stored and its
+        rows written - neither the first nor the last, so keeping or writing either of those fails."""
+        before = self.snapshot()
+        noise = random.Random(9)
+        real = remint_dictionary.train_dictionary
+        trained = []
+
+        def candidates(samples, dict_size):
+            trained.append(real(samples, dict_size) if len(trained) == 1 else noise.randbytes(dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=candidates):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(stats["seed"], 1000)
+        self.assertEqual(load_dictionary(self.conn), trained[1])
+        self.assertEqual(stats["after"], stats["candidates"][1][1])
+        self.assertEqual(self.stored_bytes(), stats["after"], "the rows written are not the chosen candidate's")
+        self.assertLess(stats["candidates"][1][1], min(stats["candidates"][0][1], stats["candidates"][2][1]))
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_each_candidate_trains_on_its_own_sample(self):
+        """Candidates differ only by their sample seed; if every pass drew the same sample, --seeds would retrain
+        one dictionary several times."""
+        real = remint_dictionary.train_dictionary
+        samples_seen = []
+
+        def record(samples, dict_size):
+            samples_seen.append(list(samples))
+            return real(samples, dict_size)
+
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=record):
+            remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(len(samples_seen), 3)
+        for i in range(3):
+            for j in range(i + 1, 3):
+                self.assertNotEqual(samples_seen[i], samples_seen[j], f"candidates {i} and {j} trained on one sample")
+
+    def test_main_reports_how_much_smaller(self):
+        stored_before = self.stored_bytes()
+        printed = self.run_main("--sample-seed", "999", "--seeds", "1")
+        stored_after = self.stored_bytes()
+        self.assertLess(stored_after, stored_before)
+        self.assertIn(f"{stored_before:,} -> {stored_after:,} bytes "
+                      f"({100 * (stored_before - stored_after) / stored_before:.1f}% smaller)", printed)
+
+    def test_each_pass_removes_its_temporary_dictionaries(self):
+        """Every worker's compressors write their dictionary to a temp directory; a pass must remove them when it
+        ends, not leave them to the process's exit."""
+        private = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, private, True)
+        with mock.patch.object(tempfile, "tempdir", str(private)):
+            remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3,
+                   max_workers=2)
+            left = sorted(p.name for p in private.iterdir())
+        self.assertEqual(left, [], "temp dictionaries left behind")
+
+    def test_a_losing_candidates_rows_are_freed_before_the_next_pass(self):
+        """A trained dictionary, then noise twice: entering the third pass, only the best so far (the first pass's
+        rows) may still be alive, not the second pass's losing rows as well."""
+        real_convert, real_train = remint_dictionary.convert_all, remint_dictionary.train_dictionary
+        noise = random.Random(13)
+
+        class Rows(list):
+            """A list that can be weakly referenced."""
+
+        returned, alive_at_entry, trained = [], [], []
+
+        def convert_all(*args):
+            gc.collect()
+            alive_at_entry.append(sum(ref() is not None for ref in returned))
+            converted, total, problems = real_convert(*args)
+            rows = Rows(converted)
+            returned.append(weakref.ref(rows))
+            return rows, total, problems
+
+        def train(samples, dict_size):
+            trained.append(real_train(samples, dict_size) if not trained else noise.randbytes(dict_size))
+            return trained[-1]
+
+        with mock.patch.object(remint_dictionary, "convert_all", side_effect=convert_all), \
+                mock.patch.object(remint_dictionary, "train_dictionary", side_effect=train):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=3)
+
+        self.assertEqual(stats["seed"], 999)
+        self.assertEqual(alive_at_entry, [0, 1, 1])
+
+    def contents(self) -> dict:
+        return {path: content for path, content in self.conn.execute("SELECT path, content FROM Content")}
+
+    def test_keeps_the_current_dictionary_when_no_candidate_stores_less(self):
+        """Every candidate is noise, so each stores more than the dictionary in place: nothing may be written."""
+        before, rows = self.snapshot(), self.contents()
+        noise = random.Random(11)
+        with mock.patch.object(remint_dictionary, "train_dictionary",
+                               side_effect=lambda samples, size: noise.randbytes(size)):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
+
+        self.assertEqual(load_dictionary(self.conn), self.first_dictionary,
+                         "replaced by a candidate that stores more")
+        self.assertEqual(self.contents(), rows, "rows were rewritten")
+        self.assertEqual(verify(before, self.db_path), [])
+        self.assertEqual(stats["kept"], "current")
+        self.assertGreater(stats["best_candidate"][1], stats["before"])
+        self.assertEqual(stats["after"], stats["before"])
+
+    def test_a_candidate_that_only_ties_writes_nothing(self):
+        """Every candidate is the stored dictionary itself, so it stores exactly as much, and a tie is no gain."""
+        remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999)
+        dictionary, rows, changes = load_dictionary(self.conn), self.contents(), self.conn.total_changes
+        with mock.patch.object(remint_dictionary, "train_dictionary", side_effect=lambda samples, size: dictionary):
+            stats = remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, seeds=2)
+
+        # Rewriting identical bytes leaves the contents equal, so count the writes.
+        self.assertEqual(self.conn.total_changes, changes, "rows were rewritten for no gain")
+        self.assertEqual(load_dictionary(self.conn), dictionary)
+        self.assertEqual(self.contents(), rows)
+        self.assertEqual(stats["kept"], "current")
+        self.assertEqual(stats["best_candidate"][1], stats["before"])
+
+    def run_main(self, *args: str) -> str:
+        """main() on the fixture's file, with --no-backup; returns what it printed."""
+        self.conn.close()
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["remint_dictionary.py", str(self.db_path), "--no-backup",
+                                             "--sample-size", "30", "--dict-size", "16384",
+                                             "--training-bytes", str(1 << 20), *args]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            remint_dictionary.main()
+        self.conn = sqlite3.connect(self.db_path)
+        return out.getvalue()
+
+    def test_main_says_it_kept_the_dictionary_and_leaves_the_file_alone(self):
+        data = self.db_path.read_bytes()
+        noise = random.Random(12)
+        with mock.patch.object(remint_dictionary, "train_dictionary",
+                               side_effect=lambda samples, size: noise.randbytes(size)):
+            printed = self.run_main("--sample-seed", "999", "--seeds", "2")
+        self.assertIn("Kept the current dictionary", printed)
+        self.assertNotIn("Re-minted", printed)
+        self.assertEqual(self.db_path.read_bytes(), data, "the file changed although nothing was to be written")
 
     def test_verifier_catches_a_corrupted_remint(self):
         """Guards against a vacuous verifier: hand it a database whose content
