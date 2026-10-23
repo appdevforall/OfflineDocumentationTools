@@ -81,6 +81,14 @@ These same commands work on macOS, Linux, and Windows (in PowerShell, Command Pr
 
 ## Installing the `brotli` command-line tool
 
+## Database versions it will open
+
+Databases declare a format version in `DocumentationDatabaseVersion` (ADFA-5220). docdb-studio understands MAJOR **2** and **refuses to open anything higher**, showing what it found and what it expected instead of the browser.
+
+That refusal is not caution for its own sake: a higher MAJOR means the format changed in a way this build would read incorrectly, and because this tool *writes*, a misreading gets saved back into the file. Update docdb-studio when you meet one.
+
+An older version, or none at all, opens normally. Those formats are strictly simpler -- no shared compression dictionary -- and are read correctly by the same fallback that handles plain-Brotli rows.
+
 One dependency `uv sync` cannot install for you. Databases built since ADFA-5153 compress their `Content` rows against a shared dictionary stored inside the database itself, and no Python library exposes a custom dictionary, so docdb-studio runs the `brotli` **command-line program** to read and write those rows. If it is missing, content rows come up blank and docdb-studio prints an explanatory error in the terminal you launched it from — so a blank preview plus that message means "install this tool", not "this page is empty". A database with no `CompressionDictionary` table needs nothing extra.
 
 > **The `brotli` in `uv sync` is not this.** The Python package named `brotli` is already installed for you, and it is a *different thing* from the `brotli` program. Installing the Python package again will not help; you need the program, which puts a `brotli` (or `brotli.exe`) command on your `PATH`.

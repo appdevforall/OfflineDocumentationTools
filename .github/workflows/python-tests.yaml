@@ -65,12 +65,18 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
-      - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs'
+      # scripts/test_migrate_tooltip_schema.py needs only the standard library, pytest and the brotli CLI (above).
+      # scripts/test_trim_kotlin_json.py needs only brotli and Pillow (in requirements.txt) and the brotli CLI.
+      - name: 'ProcessKotlinWebsiteJSON + sync_kotlin_stdlib_docs + migrate_tooltip_schema + trim_kotlin_json + Android and Java loaders'
         run: |
           uv run --with-requirements requirements.txt --with pytest -- \
             python -m pytest \
               ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON \
               scripts/sync_kotlin_stdlib_docs \
+              scripts/test_migrate_tooltip_schema.py \
+              scripts/test_trim_kotlin_json.py \
+              ProcessDocs/AndroidDocs/AndroidDocsToJson \
+              scripts/sync_java_docs \
               -q
 
       - name: docdb-studio
