@@ -29,7 +29,9 @@ filters (documentation.db's reader has none, and none of the templates already i
   - Member-level `signature` and `url` are dropped, because no template reads them -- the detail
     macros compose a member's signature from its parts and link it by anchor. See PRUNED_* below.
 
-A timestamped backup is taken before anything is written.
+A timestamped backup is taken before anything is written. A database declaring documentation version 3.0.0 or
+later is refused before that: from 3.0.0 migrate_tooltip_schema.py stores every template compressed, and this
+writes a plain one.
 """
 
 from __future__ import annotations
@@ -91,6 +93,21 @@ MEMBER_LISTS = frozenset({"methods", "constructors", "annotationElements", "fiel
 # JdMemberRef carries a `signature`; memberLink renders `name` and links by `url`.
 PRUNED_IN_REFERENCES = frozenset({"signature"})
 REFERENCE_KEYS = frozenset({"specifiedBy", "members", "overrides"})
+
+
+# From this documentation major on, every template is stored compressed (migrate_tooltip_schema.py, ADFA-3305).
+COMPRESSED_TEMPLATES_MAJOR = 3
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major the database declares - its newest DocumentationDatabaseVersion row, ordered as
+    Code On The Go orders them (changeTime, then rowid) - or None if it declares none."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                    "AND name = 'DocumentationDatabaseVersion'").fetchone() is None:
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
 
 
 def backup_database(db_path: str) -> str:
@@ -228,6 +245,17 @@ def main() -> int:
         print(f"Error: template directory '{args.templates}' not found; run flatten_templates.py first.",
               file=sys.stderr)
         return 2
+
+    check = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+    try:
+        major = declared_major(check)
+    finally:
+        check.close()
+    if major is not None and major >= COMPRESSED_TEMPLATES_MAJOR:
+        print(f"Error: the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 "
+              f"every template is stored compressed, and {TEMPLATE_NAME} would be written plain. Run this before "
+              "migrate_tooltip_schema.py; nothing was changed.", file=sys.stderr)
+        return 1
 
     if args.dry_run:
         print("Dry run: no backup will be made and nothing will be written.")

@@ -45,8 +45,8 @@ _KOTLIN_PIPELINE = (Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_KOTLIN_PIPELINE))
 
 from populate_db import (  # noqa: E402  (the path has to be set up first)
-    DictionaryCompressor, fragment_chain, get_content_type, get_id, insert_chunked_content,
-    load_dictionary, upsert_template,
+    DictionaryCompressor, compressed_templates_refusal, fragment_chain, get_content_type, get_id,
+    insert_chunked_content, load_dictionary, upsert_template,
 )
 from migrate_content_to_dictionary_brotli import write_item  # noqa: E402
 
@@ -328,11 +328,15 @@ def main(argv: list[str] | None = None) -> int:
     source_conn = sqlite3.connect(f"file:{args.source}?mode=ro", uri=True)
     try:
         missing = check_schema(source_conn)
+        # record_version keeps the major, so a 3.x source would come out 3.(x+1) with plain templates in it.
+        refusal = None if missing else compressed_templates_refusal(source_conn)
     finally:
         source_conn.close()
     if missing:
         parser.error(f"{args.source} is missing table(s) this loader writes: "
                      + ", ".join(missing))
+    if refusal:
+        parser.error(f"{args.source}: {refusal}; nothing was written")
 
     print(f"==> copying {args.source} -> {args.out}")
     shutil.copy2(args.source, args.out)
