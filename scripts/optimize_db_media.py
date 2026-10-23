@@ -13,9 +13,10 @@ optimize_db_media.py
 
 Applies the image optimization from PR #24 (the Kotlin website's
 optimize_media.py) to *every* media file already stored in a
-documentation.db, across all doc sets (a/, i/, k/, p/, j/, ...).
+documentation.db, across all doc sets (a/, i/, k/, p/, j/, ...), and can
+convert its H.264 video to VP9 WebM.
 
-Two modes:
+Modes:
 
   * Default - optimize each image **in place**: same Content.path, same
     extension, same contentTypeID. Every reference to it keeps resolving,
@@ -37,15 +38,35 @@ Two modes:
     ffmpeg, and a video/webm row in ContentTypes (set_content_type_compression.py
     adds one).
 
-    NOTE: --webp does NOT rewrite the references that point at the old
-    filenames, so pages will link to names that no longer exist until those
-    references are fixed separately. insert_optimized_media.py can only do
-    that rewriting for Kotlin, whose pages embed a literal
-    "/k/html/images/<name>"; the other doc sets don't share that form (an
-    Android page references media by absolute URL, e.g.
-    "https://developer.android.com/images/foo.gif", with no literal link to
-    the stored path "a/devsite/media/..._foo.gif"), so fixing them up is a
-    separate job this tool deliberately leaves alone.
+  * --video-webm - every H.264 video row (video/mp4, video/quicktime) becomes
+    VP9 WebM at CRF --video-crf, encoded from the file of the same name in
+    --video-originals, not from the stored bytes. The stored clips are already
+    cut-down lossy re-encodes (480 px, 15 fps); encoding them again would add a
+    second generation of loss, which is what the originals are for. That
+    directory also holds stored-digests.tsv, recording which clip each row
+    stored when its original was gathered (--write-video-digests writes it
+    then, and adds originals gathered later; --rerecord-video-digest records a
+    replaced clip again). A row with no original there, one whose clip has
+    changed since, one whose original is not plausibly the same clip (see
+    encode_video_webm), or one named in a <source> update_media_references.py
+    cannot parse is left as it is and listed in the summary, never re-encoded
+    from the stored copy, and the run exits non-zero once the rows that did
+    convert are committed; a script chaining the steps must still run
+    update_media_references.py for those before it stops on that exit code.
+    Pages reference video by <video src> or <source src>, which play WebM as
+    well, so update_media_references.py only renames those references,
+    setting a <source>'s type to video/webm where it has one. Needs ffmpeg and
+    ffprobe, and the video/webm content type --webm needs.
+
+  NOTE: none of the converting modes rewrites the references that point at
+  the old filenames, so pages will link to names that no longer exist until
+  update_media_references.py fixes them. insert_optimized_media.py can only
+  do that rewriting for Kotlin, whose pages embed a literal
+  "/k/html/images/<name>"; the other doc sets don't share that form (an
+  Android page references media by absolute URL, e.g.
+  "https://developer.android.com/images/foo.gif", with no literal link to
+  the stored path "a/devsite/media/..._foo.gif"), so fixing them up is a
+  separate job this tool deliberately leaves alone.
 
 What it does, per media Content row (inside one transaction, rolled back on
 any error), mirroring optimize_media.py's own encoders and defaults:
@@ -69,14 +90,15 @@ any error), mirroring optimize_media.py's own encoders and defaults:
     rounded to --svg-precision). With --webp, one still over
     --svg-rasterize-threshold is rasterized to WEBP; if that fails (e.g. no
     native cairo for cairosvg), the optimized SVG is kept and a note logged.
-  - Every other content type (video/mp4, image/x-icon, fonts, html, ...) is
-    left untouched.
+  - video/mp4, video/quicktime: only with --video-webm, as above. Stored raw.
+  - Every other content type (image/x-icon, fonts, html, ...) is left
+    untouched.
 
 Each row's bytes are decompressed per its ContentTypes.compression ("brotli"
 -> plain, or against the shared CompressionDictionary when the database has
 one; "none" -> raw), optimized, then compressed the way the *resulting*
 format's content type says to. A row is only rewritten when the result is
-actually smaller than what's already stored - an image is never made larger,
+actually smaller than what's already stored - a file is never made larger,
 and never renamed for no benefit.
 
 Reads/writes bytes straight from/to the DB; needs no source directory. Backs
@@ -119,7 +141,9 @@ Optimizing only some types (--types):
   re-encode every already-optimized WebP and PNG from its own lossy output.
   --types image/gif (any comma-separated list of the types above) limits a run
   to those types. Every other row is left exactly as it is - archived if
-  --save-originals asks for it, its manifest entry carried over.
+  --save-originals asks for it, its manifest entry carried over. Under
+  --video-webm the list must also name the video types to convert, e.g.
+  --types image/gif,video/mp4,video/quicktime.
 
 Keeping the originals (--save-originals / --restore-originals):
   Optimizing is lossy, and under --webp it renames files too, so once this has
@@ -135,14 +159,16 @@ Keeping the originals (--save-originals / --restore-originals):
   Every image row is archived, not only the ones this run rewrites and not only
   the optimizable types, so the bundle really is all of the originals and can
   be re-optimized from later at different settings instead of re-encoding this
-  run's lossy output. The single exception is a row --manifest-in vouches for:
+  run's lossy output. Under --video-webm so is every video row, as stored -
+  not the file in --video-originals - so a restore puts back exactly the clip
+  the database held. The single exception is a row --manifest-in vouches for:
   those bytes are this tool's own output from an earlier run, and filing them
   as "the original" would overwrite the real original with a lossy copy of
   itself. They are left out and counted. Refilling a bundle without passing
   that run's manifest back is the one way to get optimized media archived as
   though it were original, so doing so warns.
 
-  Archiving is a precondition, not a side effect: an image whose original
+  Archiving is a precondition, not a side effect: a file whose original
   cannot be written to the bundle - a full disk, a permission problem, a
   Content.path that is not a usable filename - is left UNOPTIMIZED, and the run
   exits non-zero. Rewriting it would be precisely the loss this flag was asked
@@ -182,7 +208,8 @@ Python dependencies (Pillow, scour, brotli) are declared inline above (PEP
     uv run scripts/optimize_db_media.py documentation.db
 
 The "pngquant" and "brotli" command-line tools must also be on PATH, plus
-"gifsicle" for animated GIFs and "ffmpeg" (with libvpx-vp9) for --webm (e.g.
+"gifsicle" for animated GIFs, "ffmpeg" (with libvpx-vp9) for --webm, and
+"ffmpeg" (also with libopus) and "ffprobe" for --video-webm (e.g.
 `brew install pngquant brotli gifsicle ffmpeg`); those are system binaries,
 not pip packages, so uv can't provide them.
 """
@@ -191,6 +218,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import re
 import shutil
 import subprocess
@@ -325,6 +353,7 @@ DEFAULTS = {
     "svg_rasterize_threshold": 300 * 1024,  # 300KB
     "animated_colors": 64,
     "webm_crf": 32,
+    "video_crf": 40,
 }
 
 
@@ -604,6 +633,145 @@ def optimize_animated_gif(img: Image.Image, data: bytes, max_width: int, gifsicl
     return min(resaved, gifsicle_optimize(resaved, gifsicle_path), key=len)
 
 
+class UnusableOriginal(Exception):
+    """A video row --video-webm cannot convert: --video-originals holds no file
+    of its name, or one gathered for a different version of the row, or one
+    that is evidently a different clip. The row is left as it is and listed,
+    and never re-encoded from the stored copy instead - that is exactly what
+    the originals are for. It is not counted as an error, since the other rows
+    still convert, but the run exits non-zero: a wrong --video-originals
+    folder must not pass for a clean run."""
+
+
+# How far an original's duration may stray from the stored copy's before it is
+# taken for a different clip. Over the 69 clips in the 2026-10-13 database the
+# largest gap was 0.14 s: the stored copies were cut to 15 fps, which moves the
+# end by up to two frames.
+VIDEO_DURATION_TOLERANCE = 0.5
+
+# What ties each file in --video-originals to the row it was gathered for: one
+# line per original, its file name and the sha256 of the clip that row stored
+# then (all its chunks joined, in order). The duration alone cannot: an author
+# who replaces a clip with another of the same length would see the old
+# original encoded over their edit. --write-video-digests writes this file when
+# the originals are gathered, and --video-webm converts a row only while it
+# still holds that clip.
+VIDEO_DIGESTS = "stored-digests.tsv"
+VIDEO_DIGESTS_HEADER = "# optimize_db_media video originals v1"
+VIDEO_DIGESTS_COLUMNS = "# name\tstored-sha256"
+
+
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def read_as_stored(path: Path) -> str:
+    """The text of `path` with its line ends as stored, CRLF included, which
+    Path.read_text turns into LF; RuntimeError if it is not UTF-8."""
+    try:
+        with path.open(encoding="utf-8", newline="") as stream:
+            return stream.read()
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"{path}: not UTF-8 text ({exc})") from exc
+
+
+def read_video_digests(path: Path, text: str = None) -> dict:
+    """{original's file name: sha256 of the clip its row stored} from a
+    VIDEO_DIGESTS file, or from `text`, its content read already. Anything but
+    the file as written is fatal, naming the line, as in read_manifest: a
+    missing or wrong header, a line without two tab-separated fields, a name
+    given twice, or a digest that is not 64 lowercase hex digits. Otherwise a
+    mistyped digest is reported as a changed clip and a repeated name's last
+    line wins. CRLF line ends and blank lines are read."""
+    lines = (read_as_stored(path) if text is None else text).splitlines()
+    if not lines or lines[0] != VIDEO_DIGESTS_HEADER:
+        raise RuntimeError(f"{path}:1: expected the header {VIDEO_DIGESTS_HEADER!r}, found "
+                           f"{repr(lines[0][:80]) if lines else 'an empty file'}")
+    entries, where = {}, {}
+    for number, line in enumerate(lines[1:], start=2):
+        if not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 2:
+            raise RuntimeError(f"{path}:{number}: expected 2 tab-separated fields, got {len(fields)}")
+        name, sha = fields
+        if not name:
+            raise RuntimeError(f"{path}:{number}: no file name")
+        if not _SHA256_RE.fullmatch(sha):
+            raise RuntimeError(f"{path}:{number}: {sha[:80]!r} is not a sha256 digest (64 lowercase hex digits)")
+        if name in entries:
+            raise RuntimeError(f"{path}:{number}: {name} is recorded already, on line {where[name]}")
+        entries[name], where[name] = sha, number
+    return entries
+
+
+def probe_video(path: Path, ffprobe_path: str) -> tuple:
+    """(duration in seconds, whether it has an audio stream) of a video file."""
+    result = subprocess.run(
+        [ffprobe_path, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json",
+         str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr.decode(errors='replace').strip()[-400:]}")
+    info = json.loads(result.stdout)
+    try:
+        duration = float(info["format"]["duration"])
+    except (KeyError, ValueError) as exc:
+        raise RuntimeError(f"ffprobe reports no duration for {path.name}") from exc
+    return duration, any(stream.get("codec_type") == "audio" for stream in info.get("streams", []))
+
+
+def encode_video_webm(original: Path, stored: bytes, recorded: str | None, crf: int, ffmpeg_path: str,
+                      ffprobe_path: str) -> bytes:
+    """VP9 WebM of a video row, encoded from `original` - the file its stored
+    copy was cut down from - rather than from the stored bytes.
+
+    The stored clips are lossy re-encodes at 480 px and 15 fps already, so
+    encoding them again would stack a second generation of loss on the first.
+    `stored` and `recorded` only serve to check that `original` is the clip the
+    row holds: an author may have replaced the row since the original was
+    gathered, and encoding the old original over their edit would discard it.
+    `recorded` is the digest VIDEO_DIGESTS kept of the row's clip when the
+    original was gathered, and `stored` must still match it. The duration has
+    to agree too, to within VIDEO_DURATION_TOLERANCE, as a check on the file
+    itself. A clip with no original, no recorded digest, or one that fails
+    either check raises UnusableOriginal.
+
+    fps=15 and a width of at most 480 px match the stored copies. min(480,iw)
+    never enlarges a narrower clip - several stored copies were enlarged from
+    320 px - and -2 keeps the aspect ratio with an even height. Opus carries the
+    audio when the original has any, and -an leaves the track out otherwise.
+    -threads 8 and -fflags +bitexact make a rerun write the same bytes on any
+    machine with the same ffmpeg, libvpx and libopus, for the reasons
+    encode_webm gives. These settings were measured over the 69 clips in the
+    2026-10-13 database (ADFA-6596)."""
+    if not original.is_file():
+        raise UnusableOriginal(f"no original named {original.name} in {original.parent}")
+    if recorded is None:
+        raise UnusableOriginal(f"{VIDEO_DIGESTS} in {original.parent} records no stored clip for {original.name}, "
+                               "so nothing says it was gathered for this row")
+    if recorded != digest(stored):
+        raise UnusableOriginal(f"the stored clip changed since {original.name} was gathered: it no longer matches "
+                               f"the digest {VIDEO_DIGESTS} recorded for it")
+    with tempfile.TemporaryDirectory(prefix="optimize_db_media_video_") as work:
+        work = Path(work)
+        stored_copy = work / f"stored{original.suffix}"
+        stored_copy.write_bytes(stored)
+        stored_seconds, _stored_audio = probe_video(stored_copy, ffprobe_path)
+        original_seconds, audio = probe_video(original, ffprobe_path)
+        if abs(original_seconds - stored_seconds) > VIDEO_DURATION_TOLERANCE:
+            raise UnusableOriginal(f"{original} runs {original_seconds:.2f} s and the stored copy "
+                                   f"{stored_seconds:.2f} s, so it is not the clip that copy was made from")
+        result = subprocess.run(
+            [ffmpeg_path, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", str(original),
+             "-vf", "fps=15,scale='min(480,iw)':-2:flags=lanczos", "-c:v", "libvpx-vp9", "-crf", str(crf),
+             "-b:v", "0", "-pix_fmt", "yuv420p", "-row-mt", "1", "-threads", "8", "-deadline", "good",
+             "-cpu-used", "2", "-fflags", "+bitexact", *(["-c:a", "libopus", "-b:a", "64k"] if audio else ["-an"]),
+             str(work / "out.webm")],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed: {result.stderr.decode(errors='replace').strip()[-400:]}")
+        return (work / "out.webm").read_bytes()
+
+
 def encode_webp(img: Image.Image, quality: int, max_width: int) -> bytes:
     """Resize and encode any already-loaded image as WEBP."""
     img = normalize_mode(img)
@@ -654,8 +822,9 @@ def optimize_svg(data: bytes, precision: int) -> bytes:
 
 
 WEBP_TYPE = "image/webp"
-# Content types this tool knows how to optimize. Anything absent (video/mp4,
-# image/x-icon, fonts, text, ...) is left untouched. The value is the extension
+# Content types this tool knows how to optimize. Anything absent (image/x-icon,
+# fonts, text, ...) is left untouched, as is video unless --video-webm converts
+# it (VIDEO_SOURCE_TYPES). The value is the extension
 # a file of that type is *renamed to* when this run converts something into it -
 # it is never used to "correct" a file already stored under that type, so a
 # `.jpeg` stays `.jpeg`.
@@ -671,6 +840,9 @@ OPTIMIZABLE = {
 # converted file has to be named for it, and its manifest entry carried over.
 WEBM_TYPE = "video/webm"
 OUTPUT_EXTENSIONS = {**OPTIMIZABLE, WEBM_TYPE: ".webm"}
+# What --video-webm converts into WebM, from the original files (see
+# encode_video_webm). Only under that flag: without it these rows are not read.
+VIDEO_SOURCE_TYPES = ("video/mp4", "video/quicktime")
 
 
 def optimize_media(data: bytes, value: str, name: str, cfg: dict, pngquant_path: str, logger,
@@ -834,18 +1006,20 @@ ORIGINALS_COLUMNS = ("# sha256\tbytes\tpath\tcontent-type\tlanguageID\ttemplateI
                      "\tconverted-to")
 
 
-def write_atomically(path: Path, text: str) -> Path:
+def write_atomically(path: Path, text: str, newline: str = None) -> Path:
     """Writes through a temporary file and renames it into place, so a failing
     or interrupted write leaves the previous contents rather than a truncated
     file the reader would reject - taking the whole bundle with it. The
     temporary is removed on failure so a half-written one is not left beside
-    the real file for someone to mistake for it.
+    the real file for someone to mistake for it. `newline` is open()'s: ""
+    writes the text's line ends as they are.
 
     Lives here rather than in update_media_references.py because both halves of
     the bundle need it and the import runs in this direction."""
     temporary = path.with_name(path.name + ".tmp")
     try:
-        temporary.write_text(text, encoding="utf-8")
+        with temporary.open("w", encoding="utf-8", newline=newline) as stream:
+            stream.write(text)
         temporary.replace(path)
     except OSError:
         temporary.unlink(missing_ok=True)
@@ -1244,11 +1418,51 @@ def run(cfg: dict) -> int:
     # handled as an untouchable type would be: archived if a bundle was asked
     # for, its manifest entry carried over, its bytes left alone.
     types = cfg.get("types")
+    video = bool(cfg.get("video_webm"))
+    if not video:
+        # Like the --webp knobs above: say so rather than let a setting look
+        # as though it took effect.
+        ignored = [flag for flag, given in
+                   (("--video-originals", cfg.get("video_originals") is not None),
+                    ("--video-crf", cfg.get("video_crf", DEFAULTS["video_crf"]) != DEFAULTS["video_crf"]))
+                   if given]
+        if ignored:
+            print(f"warning: {', '.join(ignored)} has no effect without --video-webm (no video is converted)",
+                  file=sys.stderr)
+    # Video types count as convertible only under --video-webm, and --types
+    # narrows them as it narrows the image types. A --types list naming no
+    # video type would leave --video-webm converting nothing, so it is refused
+    # rather than run as if the flag had worked.
+    convertible = set(OPTIMIZABLE) | (set(VIDEO_SOURCE_TYPES) if video else set())
     if types is not None:
-        unknown = sorted(set(types) - set(OPTIMIZABLE))
+        unknown = sorted(set(types) - convertible)
         if unknown:
             print(f"error: --types {', '.join(unknown)}: not a type this tool optimizes "
-                  f"({', '.join(sorted(OPTIMIZABLE))})", file=sys.stderr)
+                  f"({', '.join(sorted(convertible))}"
+                  f"{'' if video else '; video types need --video-webm'})", file=sys.stderr)
+            return 1
+        if video and not set(types) & set(VIDEO_SOURCE_TYPES):
+            print(f"error: --video-webm converts nothing when --types names no video type; add "
+                  f"{','.join(VIDEO_SOURCE_TYPES)} to --types", file=sys.stderr)
+            return 1
+    video_digests = {}
+    if video:
+        originals_dir = cfg.get("video_originals")
+        if originals_dir is None or not Path(originals_dir).is_dir():
+            problem = f"; {originals_dir} is not one" if originals_dir else ""
+            print(f"error: --video-webm needs --video-originals, a directory holding the original of each "
+                  f"video row under the row's own file name{problem}", file=sys.stderr)
+            return 1
+        digests_path = Path(originals_dir) / VIDEO_DIGESTS
+        if not digests_path.is_file():
+            print(f"error: --video-webm needs {digests_path}, recording which stored clip each original was "
+                  f"gathered for; write it with --write-video-digests {originals_dir} over the database the "
+                  "originals were gathered from", file=sys.stderr)
+            return 1
+        try:
+            video_digests = read_video_digests(digests_path)
+        except (OSError, RuntimeError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
             return 1
 
     pngquant_path = None
@@ -1262,11 +1476,17 @@ def run(cfg: dict) -> int:
     # Looked up, not required: only an animated GIF needs it, and one that finds
     # it missing fails on its own row with an install hint.
     gifsicle_path = shutil.which("gifsicle")
-    ffmpeg_path = None
-    if cfg.get("webm"):
+    ffmpeg_path = ffprobe_path = None
+    if cfg.get("webm") or video:
         ffmpeg_path = shutil.which("ffmpeg")
         if ffmpeg_path is None:
-            print("error: --webm needs ffmpeg (built with libvpx-vp9) on PATH; install it and retry",
+            print(f"error: {'--webm' if cfg.get('webm') else '--video-webm'} needs ffmpeg (built with libvpx-vp9) "
+                  "on PATH; install it and retry", file=sys.stderr)
+            return 1
+    if video:
+        ffprobe_path = shutil.which("ffprobe")
+        if ffprobe_path is None:
+            print("error: --video-webm needs ffprobe on PATH (it comes with ffmpeg); install it and retry",
                   file=sys.stderr)
             return 1
 
@@ -1318,6 +1538,10 @@ def run(cfg: dict) -> int:
              "before": 0, "after": 0, "saved": 0}
     per_type = {}
     produced = {}  # {content type converted into: count}
+    # [(path, why, "original" or "source")]: --video-webm had no usable
+    # original, or the references step could not rewrite a <source> naming it
+    videos_unconverted = []
+    videos_kept = []  # [(path, stored bytes, WebM bytes)]: the WebM was no smaller
     codec = None
     try:
         conn.execute("BEGIN")
@@ -1337,9 +1561,10 @@ def run(cfg: dict) -> int:
                   file=sys.stderr)
             conn.rollback()
             return 1
-        if cfg.get("webm") and WEBM_TYPE not in type_info:
-            print("error: --webm needs a 'video/webm' row in ContentTypes; add one with "
-                  f"set_content_type_compression.py {db_path} video/webm none --create", file=sys.stderr)
+        if (cfg.get("webm") or video) and WEBM_TYPE not in type_info:
+            print(f"error: {'--webm' if cfg.get('webm') else '--video-webm'} needs a 'video/webm' row in "
+                  f"ContentTypes; add one with set_content_type_compression.py {db_path} video/webm none "
+                  "--create", file=sys.stderr)
             conn.rollback()
             return 1
         # Every path already in use, so a converted file never collides with a
@@ -1351,32 +1576,48 @@ def run(cfg: dict) -> int:
             print(f"Using the database's {len(codec._dictionary):,}-byte shared Brotli dictionary "
                   "for image/svg+xml and image/webp rows.")
 
-        webm_blocked = frozenset()
-        if cfg.get("webm"):
+        # Names whose references update_media_references.py would refuse to
+        # rewrite once converted, found in one scan of the text rows: a GIF
+        # referenced where a <video> cannot replace it, and a video named in a
+        # <source> it cannot parse. {name: pages naming it}
+        webm_blocked, video_blocked = frozenset(), {}
+        if cfg.get("webm") or video:
             # Imported here rather than at the top: update_media_references
             # imports this module.
             from update_media_references import names_not_convertible_to_video
-            gif_names = {row[0].rsplit("/", 1)[-1] for row in conn.execute(
-                "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-                "WHERE ct.value = 'image/gif'")}
-            webm_blocked = frozenset(names_not_convertible_to_video(conn, codec, gif_names))
+
+            def stored_names(types):
+                return {row[0].rsplit("/", 1)[-1] for row in conn.execute(
+                    "SELECT c.path FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
+                    f"WHERE ct.value IN ({','.join('?' * len(types))})", types)}
+            gif_names = stored_names(("image/gif",)) if cfg.get("webm") else set()
+            blocked = names_not_convertible_to_video(
+                conn, codec, gif_names, video_names=stored_names(VIDEO_SOURCE_TYPES) if video else ())
+            webm_blocked = frozenset(name for name in blocked if name in gif_names)
+            video_blocked = {name: pages for name, pages in blocked.items() if name not in gif_names}
             if webm_blocked:
                 print(f"{len(webm_blocked)} GIF(s) are referenced where a <video> cannot replace them and "
                       f"will not become WebM: {', '.join(sorted(webm_blocked)[:5])}")
+            if video_blocked:
+                print(f"{len(video_blocked)} video(s) are named in a <source> whose attributes cannot be parsed "
+                      f"and will not be converted: {', '.join(sorted(video_blocked)[:5])}")
 
         # video/webm rows ride along although nothing here optimizes them:
-        # --webm produced them, so their manifest entries (and what they were
-        # converted from) have to carry over to the next manifest.
+        # --webm and --video-webm produced them, so their manifest entries (and
+        # what they were converted from) have to carry over to the next
+        # manifest. H.264 video is read only under --video-webm, so a run
+        # without it archives and reports exactly what it did before.
+        read_types = (WEBM_TYPE, *(VIDEO_SOURCE_TYPES if video else ()))
         rows = conn.execute(
             "SELECT c.path, c.content, c.contentTypeID, ct.value, ct.compression, c.templateId, "
             "c.languageID FROM Content c JOIN ContentTypes ct ON c.contentTypeID = ct.id "
-            "WHERE ct.value LIKE 'image/%' OR ct.value = ? ORDER BY c.path", (WEBM_TYPE,)
-        ).fetchall()
-        # {path: stored length} over every image row, so a "<base>-<N>" row can
+            f"WHERE ct.value LIKE 'image/%' OR ct.value IN ({','.join('?' * len(read_types))}) ORDER BY c.path",
+            read_types).fetchall()
+        # {path: stored length} over every row read, so a "<base>-<N>" row can
         # be recognized as a continuation only when its base is exactly
         # CHUNK_SIZE bytes (see content_chunking) rather than by its name alone.
         lengths = {path: len(blob) for path, blob, *_rest in rows}
-        print(f"Scanning {len(rows)} image row(s) ({sum(1 for p in lengths if is_continuation_path(lengths, p))} "
+        print(f"Scanning {len(rows)} media row(s) ({sum(1 for p in lengths if is_continuation_path(lengths, p))} "
               "chunk-continuation row(s) will be folded into their base)...")
         warn = lambda message: print(message, file=sys.stderr)  # noqa: E731
         # What the manifest will say about this database afterwards. Every row
@@ -1401,7 +1642,7 @@ def run(cfg: dict) -> int:
             if path in superseded:
                 continue  # already rewritten this run as another row's target
 
-            optimizable = value in OPTIMIZABLE and (types is None or value in types)
+            optimizable = value in convertible and (types is None or value in types)
             if not optimizable and archive is None and path not in known:
                 # Nothing to do with it, nothing to keep a copy of, and no
                 # manifest entry to carry over: skip it without paying for a
@@ -1466,13 +1707,28 @@ def run(cfg: dict) -> int:
                 stats["skipped_manifest"] += 1
                 manifest_out[path] = recorded
                 continue
+            if value in VIDEO_SOURCE_TYPES and name in video_blocked:
+                # The references step refuses a <source> it cannot parse, so
+                # converting this would leave its pages naming a deleted file.
+                # Left out of the manifest, like a video with no original, so
+                # a run after the tag is fixed converts it.
+                pages = ", ".join(video_blocked[name][:3])
+                videos_unconverted.append((path, f"named in a <source> whose attributes cannot be parsed, on {pages}, "
+                                                 "so update_media_references.py could not set its type to "
+                                                 "video/webm", "source"))
+                continue
 
             try:
                 if media_bytes is None:
                     media_bytes = codec.decompress(stored_full, compression)
-                result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
-                                        gifsicle_path=gifsicle_path, ffmpeg_path=ffmpeg_path,
-                                        webm_blocked=webm_blocked)
+                if value in VIDEO_SOURCE_TYPES:
+                    result = (encode_video_webm(Path(cfg["video_originals"]) / name, media_bytes,
+                                                video_digests.get(name), cfg.get("video_crf", DEFAULTS["video_crf"]),
+                                                ffmpeg_path, ffprobe_path), WEBM_TYPE)
+                else:
+                    result = optimize_media(media_bytes, value, name, cfg, pngquant_path, warn,
+                                            gifsicle_path=gifsicle_path, ffmpeg_path=ffmpeg_path,
+                                            webm_blocked=webm_blocked)
                 if result is not None:
                     new_media, new_type = result
                     # A converted file is stored under the content type of the
@@ -1480,7 +1736,12 @@ def run(cfg: dict) -> int:
                     # type says to - not however the source happened to be stored.
                     new_type_id, new_compression = type_info.get(new_type, (content_type_id, compression))
                     new_stored = codec.compress(new_media, new_compression)
-            except Exception as exc:  # noqa: BLE001 - one bad image is not the whole run
+            except UnusableOriginal as exc:
+                # Left out of the manifest, like an error, so a run that does
+                # have the original picks the row up.
+                videos_unconverted.append((path, str(exc), "original"))
+                continue
+            except Exception as exc:  # noqa: BLE001 - one bad file is not the whole run
                 stats["errors"] += 1
                 print(f"  error: failed to optimize {path}: {exc}", file=sys.stderr)
                 continue
@@ -1537,6 +1798,8 @@ def run(cfg: dict) -> int:
                 stats["no_gain"] += 1
                 stats["after"] += original_stored
                 manifest_out[path] = (digest(stored_full), original_stored, recorded[2] if recorded else None)
+                if value in VIDEO_SOURCE_TYPES:
+                    videos_kept.append((path, original_stored, len(new_stored)))
                 continue
 
             if replaces_stale:
@@ -1626,7 +1889,7 @@ def run(cfg: dict) -> int:
             print(f"  {archive.replaced_missing} asset(s) were recorded in the index but missing from the "
                   "bundle, and have been written again.", file=sys.stderr)
         if stats["archive_blocked"]:
-            print(f"  {stats['archive_blocked']} image(s) left UNOPTIMIZED because their original could not "
+            print(f"  {stats['archive_blocked']} file(s) left UNOPTIMIZED because their original could not "
                   "be archived; fix the archive directory and re-run to pick them up.", file=sys.stderr)
         if stats["archive_not_original"]:
             print(f"  {stats['archive_not_original']} row(s) not archived: --manifest-in says they hold this "
@@ -1647,8 +1910,8 @@ def run(cfg: dict) -> int:
     verb = "would optimize" if cfg["dry_run"] else "optimized"
     print()
     print(f"{'Dry run complete. ' if cfg['dry_run'] else 'Done. '}"
-          f"{verb} {stats['optimized']} image(s), of which {stats['converted']} changed format "
-          f"(new extension, old row deleted); {stats['no_gain']} already minimal, "
+          f"{verb} {stats['optimized']} media file(s), of which {stats['converted']} changed format "
+          f"(new extension, old row deleted); {stats['no_gain']} kept as stored (re-encoding saved nothing), "
           f"{stats['skipped_type']} untouched (a type this run does not optimize), "
           f"{stats['skipped_animated']} animated WEBP/APNG left alone, "
           f"{stats['skipped_manifest']} already optimized per the manifest, "
@@ -1656,20 +1919,46 @@ def run(cfg: dict) -> int:
           f"{stats['archive_blocked']} left alone because archiving them failed, "
           f"{stats['errors']} error(s).")
     if stats["replaced_stale"]:
-        print(f"  {stats['replaced_stale']} re-inserted source image(s) replaced the stale output "
+        print(f"  {stats['replaced_stale']} re-inserted source file(s) replaced the stale output "
               "they had produced in an earlier run.")
     for value in sorted(per_type):
         b = per_type[value]
         print(f"  {value}: {b['n']} optimized ({b['converted']} converted), saved {human(b['saved'])} bytes")
     if produced:
         print("  converted into: " + ", ".join(f"{value} {n}" for value, n in sorted(produced.items())))
-    print(f"Image bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
+    if videos_kept:
+        print(f"  {len(videos_kept)} video(s) kept as stored, the WebM being no smaller:")
+        for path, stored_size, webm_size in videos_kept:
+            print(f"    {path}: {human(stored_size)} stored, {human(webm_size)} as WebM")
+    if videos_unconverted:
+        print(f"  {len(videos_unconverted)} video(s) left as stored:", file=sys.stderr)
+        for path, why, _kind in videos_unconverted:
+            print(f"    {path}: {why}", file=sys.stderr)
+        kinds = {kind for _path, _why, kind in videos_unconverted}
+        print(f"  The rest of this run {'would be' if cfg['dry_run'] else 'is'} committed, but it exits non-zero "
+              "for these.", file=sys.stderr)
+        if stats["converted"] and not cfg["dry_run"]:
+            print(f"  {stats['converted']} file(s) did convert under new names: run update_media_references.py "
+                  "for them before a script stops on this exit code, or their pages go on naming the removed "
+                  "files.", file=sys.stderr)
+        if "original" in kinds:
+            originals = cfg["video_originals"]
+            print(f"  For a clip with no original, or none recorded, gather it into {originals} and record it "
+                  f"with --write-video-digests {originals}, which adds only originals not recorded yet. For a clip "
+                  "replaced since its original was gathered, add --rerecord-video-digest NAME once its new "
+                  "original is there, or delete the stale original if no new one will be gathered, so it cannot "
+                  "be recorded for the new clip later. Then run this again to convert them.", file=sys.stderr)
+        if "source" in kinds:
+            print("  Fix each <source> listed so its attributes parse, then run this again to convert its video.",
+                  file=sys.stderr)
+    print(f"Media bytes {'that would go' if cfg['dry_run'] else 'gone'} from "
           f"{human(stats['before'])} -> {human(stats['after'])} "
           f"(saved {human(stats['saved'])}, {pct:.1f}%).")
     # An archive that silently lost originals must not look like a clean run to
-    # whatever chained this command, so every archiving failure counts here too.
+    # whatever chained this command, so every archiving failure counts here too,
+    # as does a video left for want of a usable original.
     return 1 if (stats["errors"] or stats["archive_errors"] or stats["archive_blocked"]
-                 or (archive is not None and archive.skipped)) else 0
+                 or (archive is not None and archive.skipped) or videos_unconverted) else 0
 
 
 def check_bundle_belongs(conn, primaries: list) -> str:
@@ -1868,6 +2157,117 @@ def restore_originals(cfg: dict) -> int:
     return 1 if stats["missing"] or stats["corrupt"] or stats["errors"] else 0
 
 
+def write_video_digests(cfg: dict) -> int:
+    """--write-video-digests DIR: records in DIR/VIDEO_DIGESTS which clip each
+    video row with an original in DIR stores, and changes nothing else.
+
+    Meant to run when the originals are gathered. Over an existing file it adds
+    a line only for an original not recorded yet, and leaves every other line
+    as it is: recording a row again would accept a clip an author has replaced
+    since as though its stale original had been gathered for it.
+    --rerecord-video-digest NAME (cfg["rerecord_video_digests"]) records NAME
+    again, for a clip whose new original has been gathered; only the names
+    given change."""
+    db_path, directory = cfg["db_path"], cfg["write_video_digests"]
+    rerecord = set(cfg.get("rerecord_video_digests") or ())
+    target = directory / VIDEO_DIGESTS
+    for needed, present in ((db_path, db_path.is_file()), (directory, directory.is_dir())):
+        if not present:
+            print(f"error: {needed} does not exist", file=sys.stderr)
+            return 1
+    text, recorded = None, {}
+    if target.exists():
+        try:
+            text = read_as_stored(target)
+            recorded = read_video_digests(target, text)
+        except (OSError, RuntimeError) as exc:
+            print(f"error: {exc}; nothing was written", file=sys.stderr)
+            return 1
+    conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True)
+    codec = None
+    try:
+        codec = BrotliCodec(load_dictionary(conn))
+        rows = conn.execute(
+            "SELECT c.path, c.content, ct.compression FROM Content c JOIN ContentTypes ct "
+            f"ON c.contentTypeID = ct.id WHERE ct.value IN ({','.join('?' * len(VIDEO_SOURCE_TYPES))}) "
+            "ORDER BY c.path", VIDEO_SOURCE_TYPES).fetchall()
+        lengths = {path: len(blob) for path, blob, _compression in rows}
+        found, named, without = {}, set(), 0  # found: {name: {digest: [paths]}}
+        for path, blob, compression in rows:
+            if is_continuation_path(lengths, path):
+                continue
+            name = path.rsplit("/", 1)[-1]
+            named.add(name)
+            if not (directory / name).is_file():
+                without += 1
+                continue
+            clip = codec.decompress(reassemble(conn, path, blob), compression)
+            found.setdefault(name, {}).setdefault(digest(clip), []).append(path)
+    finally:
+        if codec is not None:
+            codec.close()
+        conn.close()
+    if not found:
+        print(f"error: none of the {without} video row(s) has an original in {directory}; nothing was written",
+              file=sys.stderr)
+        return 1
+    unknown = sorted(rerecord - set(found))
+    if unknown:
+        for name in unknown:
+            why = f"no original named {name} in {directory}" if name in named else "no video row has that name"
+            print(f"  error: {name}: {why}", file=sys.stderr)
+        print(f"error: --rerecord-video-digest names {len(unknown)} file(s) it cannot record; nothing was "
+              "written", file=sys.stderr)
+        return 1
+    writing = sorted(name for name in found if name not in recorded or name in rerecord)
+    # Originals are found by file name, so one name cannot vouch for two clips.
+    clashes = [name for name in writing if len(found[name]) > 1]
+    if clashes:
+        for name in clashes:
+            print(f"  error: {name}: {', '.join(sorted(sum(found[name].values(), [])))}", file=sys.stderr)
+        print(f"error: {len(clashes)} file name(s) belong to video rows storing different clips, which one "
+              "original cannot be gathered for; nothing was written", file=sys.stderr)
+        return 1
+    changed = sorted(name for name in found if name in recorded and name not in rerecord
+                     and recorded[name] not in found[name])
+    if changed:
+        print(f"  {len(changed)} recorded original(s) no longer match their row's clip and stay refused: "
+              f"{', '.join(changed)}. For each, gather the new original and pass --rerecord-video-digest NAME, "
+              "or delete the stale original if no new one will be gathered.")
+    if not writing:
+        print(f"{target} already records every original in {directory}; nothing was written.")
+        return 0
+    new = lambda name: f"{name}\t{next(iter(found[name]))}"  # noqa: E731
+    lines = (text or "").splitlines(keepends=True) or [f"{VIDEO_DIGESTS_HEADER}\n", f"{VIDEO_DIGESTS_COLUMNS}\n"]
+    # A line added ends as the header does, so a file with CRLF line ends
+    # stays one.
+    end = lines[0][len(lines[0].rstrip("\r\n")):] or "\n"
+    for number, line in enumerate(lines):
+        name = line.split("\t", 1)[0]
+        if name in rerecord and name in recorded and not line.startswith("#"):
+            lines[number] = new(name) + line[len(line.rstrip("\r\n")):]
+    if not lines[-1].endswith(("\n", "\r")):
+        lines[-1] += end
+    added = [name for name in writing if name not in recorded]
+    lines.extend(f"{new(name)}{end}" for name in added)
+    # Read before the database and replaced after it, the file would lose any
+    # line written to it meanwhile.
+    try:
+        unchanged = (read_as_stored(target) if target.exists() else None) == text
+    except (OSError, RuntimeError):
+        unchanged = False
+    if not unchanged:
+        print(f"error: {target} changed while the database was read; nothing was written. Run this again.",
+              file=sys.stderr)
+        return 1
+    write_atomically(target, "".join(lines), newline="")
+    again = len(writing) - len(added)
+    print(f"Recorded the stored clip of {len(added)} video row(s) in {target}"
+          f"{f', and of {again} again' if again else ''}; {len(recorded) - again} line(s) already there are "
+          f"unchanged, and {without} video row(s) have no original in {directory}.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database to optimize in place, e.g. documentation.db")
@@ -1889,6 +2289,29 @@ def build_parser() -> argparse.ArgumentParser:
                         "<img> tags into <video>")
     p.add_argument("--webm-crf", type=int, default=DEFAULTS["webm_crf"],
                    help=f"VP9 quality for --webm, 0 (best) to 63 (default: {DEFAULTS['webm_crf']})")
+    p.add_argument("--video-webm", action="store_true",
+                   help="Convert every video/mp4 and video/quicktime row to VP9 WebM (15 fps, at most 480 px "
+                        "wide), encoded from its original in --video-originals rather than from the stored "
+                        "copy, and kept only when smaller. A row with no usable original there is left as it is "
+                        "and listed, and the run exits non-zero. Needs ffmpeg, ffprobe and a video/webm content "
+                        "type; run update_media_references.py afterwards to rename the references, even when "
+                        "this exits non-zero")
+    p.add_argument("--video-originals", type=Path, default=None, metavar="DIR",
+                   help="With --video-webm (and required by it): the directory holding each video row's "
+                        "original under the row's own file name, e.g. DIR/foo.mp4 for a/devsite/media/foo.mp4, "
+                        f"and DIR/{VIDEO_DIGESTS} from --write-video-digests")
+    p.add_argument("--write-video-digests", type=Path, default=None, metavar="DIR",
+                   help=f"Instead of optimizing, write DIR/{VIDEO_DIGESTS}: for each video row with an original "
+                        "in DIR, the digest of the clip it stores. Run it when the originals are gathered; "
+                        "--video-webm converts a row only while it still holds that clip. Over an existing "
+                        "file it adds only originals not recorded yet and keeps every other line. Changes "
+                        "nothing in the database")
+    p.add_argument("--rerecord-video-digest", action="append", default=None, metavar="NAME",
+                   help="With --write-video-digests, record the clip of original NAME again, replacing its line: "
+                        "for a clip an author replaced, once its new original is in DIR. Repeat it for each "
+                        "such clip; no other line changes")
+    p.add_argument("--video-crf", type=int, default=DEFAULTS["video_crf"],
+                   help=f"VP9 quality for --video-webm, 0 (best) to 63 (default: {DEFAULTS['video_crf']})")
     p.add_argument("--svg-rasterize-threshold", type=int, default=DEFAULTS["svg_rasterize_threshold"],
                    help="With --webp, rasterize a minified SVG still larger than this many bytes "
                         f"(default: {DEFAULTS['svg_rasterize_threshold']:,})")
@@ -1905,7 +2328,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest-out", type=Path, default=None, metavar="PATH",
                    help="After a successful run, write a text manifest of every media file this tool "
                         "manages - its stored size, a digest, and what it was converted from. Feed it "
-                        "back as --manifest-in on a later run")
+                        "back as --manifest-in on a later run, and to update_media_references.py as "
+                        "--manifest, which pairs each converted file with its source through it")
     p.add_argument("--manifest-in", type=Path, default=None, metavar="PATH",
                    help="A manifest from an earlier run. Media matching it byte for byte is left alone "
                         "instead of being re-encoded (which would lose quality each time), while new or "
@@ -1930,8 +2354,9 @@ def build_parser() -> argparse.ArgumentParser:
                    type=lambda value: {t.strip() for t in value.split(",") if t.strip()},
                    help="Optimize only these content types (e.g. image/gif) and leave every other row as it "
                         "is. Without a manifest from the run that optimized the rest, this is how to avoid "
-                        "re-encoding lossy output from lossy input")
-    p.add_argument("--verbose", action="store_true", help="Log every optimized image, with byte sizes")
+                        "re-encoding lossy output from lossy input. With --video-webm the list may name, and "
+                        "must include one of, video/mp4 and video/quicktime")
+    p.add_argument("--verbose", action="store_true", help="Log every optimized file, with byte sizes")
     return p
 
 
@@ -1943,6 +2368,23 @@ def main() -> None:
     # from it would delete rows this run never created.
     if args.save_originals is not None and args.dry_run:
         parser.error("--save-originals cannot be combined with --dry-run: a dry run makes no changes to undo")
+    if args.video_webm and args.video_originals is None:
+        parser.error("--video-webm needs --video-originals: it encodes each video from its original, never "
+                     "from the stored copy")
+    # Recorded just before converting, the digests would match whatever the
+    # rows hold by then, stale originals included. Nothing else applies to
+    # writing them, --dry-run included, so any other option is refused rather
+    # than ignored.
+    if args.write_video_digests is not None:
+        alone = ("db_path", "write_video_digests", "rerecord_video_digest")
+        others = [f"--{dest.replace('_', '-')}" for dest, value in vars(args).items()
+                  if dest not in alone and value != parser.get_default(dest)]
+        if others:
+            parser.error(f"--write-video-digests runs on its own, when the originals are gathered: it writes only "
+                         f"DIR/{VIDEO_DIGESTS}, changes nothing in the database and has no dry run, so it takes no "
+                         f"other option ({', '.join(others)}) except --rerecord-video-digest")
+    if args.rerecord_video_digest and args.write_video_digests is None:
+        parser.error("--rerecord-video-digest only works with --write-video-digests")
     cfg = {
         "db_path": args.db_path, "dry_run": args.dry_run, "max_width": args.max_width,
         "jpeg_quality": args.jpeg_quality, "webp_quality": args.webp_quality,
@@ -1951,8 +2393,12 @@ def main() -> None:
         "manifest_out": args.manifest_out, "manifest_in": args.manifest_in,
         "save_originals": args.save_originals, "restore_originals": args.restore_originals,
         "force_restore": args.force_restore, "types": args.types, "animated_colors": args.animated_colors,
-        "webm": args.webm, "webm_crf": args.webm_crf,
+        "webm": args.webm, "webm_crf": args.webm_crf, "video_webm": args.video_webm,
+        "video_originals": args.video_originals, "video_crf": args.video_crf,
+        "write_video_digests": args.write_video_digests, "rerecord_video_digests": args.rerecord_video_digest or [],
     }
+    if args.write_video_digests is not None:
+        sys.exit(write_video_digests(cfg))
     sys.exit(restore_originals(cfg) if args.restore_originals is not None else run(cfg))
 
 

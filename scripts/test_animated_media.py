@@ -531,7 +531,7 @@ def test_the_optimizer_is_told_which_gifs_cannot_become_video(tmp_path):
         codec = opt.BrotliCodec(opt.load_dictionary(conn))
         blocked = ref.names_not_convertible_to_video(conn, codec, {"spring.gif", "spinner.gif", "retina.gif"}, 2)
         codec.close()
-    assert blocked == {"spinner.gif", "retina.gif"}
+    assert blocked == {"spinner.gif": ["a/site.css"], "retina.gif": ["a/two.html"]}
 
 
 def _probe(data: bytes, tmp_path: Path) -> tuple:
