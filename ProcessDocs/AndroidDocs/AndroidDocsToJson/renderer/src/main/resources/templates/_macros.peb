@@ -1,0 +1,220 @@
+{#
+  The shared macros, appended to whichever page template is being rendered.
+
+  This file is not a template on its own: a page template and this are concatenated into one
+  source before compiling, because macros are only visible inside the file that defines them and
+  the documentation database stores one self-contained template per row -- no `extends`, no
+  `import`. The database's own page.peb keeps its macros at the bottom of the same file for the
+  same reason; this splits them out only so the two page kinds can share them.
+
+  Every macro here is called by BARE NAME. Pebble has no `macros.` prefix, and a prefixed call
+  resolves to nothing and renders empty, silently, which is easy to miss.
+
+  All of them are defensive about missing keys. The extractor drops null and empty values rather
+  than writing them out, so on any given page most of these fields are simply absent.
+
+  Documentation fields carry HTML and go through `raw`; everything else is escaped by default.
+#}
+
+{#
+  "Added in" / "Deprecated in", worded for whatever the library is versioned by.
+
+  The two halves of the scrape count versions differently: the framework by API level, Jetpack by
+  the release of the artifact a class ships in. The JSON records which applies in `versionScheme`
+  rather than pre-formatting the text, so the number stays a number for anything else reading it.
+#}
+{% macro versionNote(scheme, addedIn, deprecatedIn) %}
+{%- if addedIn is not empty or deprecatedIn is not empty %}
+<div class="api-level">
+{%- if addedIn is not empty %}<span class="added-in">Added in {% if scheme == 'api-level' %}API level {% endif %}{{ addedIn }}</span>{% endif %}
+{%- if deprecatedIn is not empty %}<span class="deprecated-in">Deprecated in {% if scheme == 'api-level' %}API level {% endif %}{{ deprecatedIn }}</span>{% endif %}
+</div>
+{%- endif %}
+{% endmacro %}
+
+{#
+  A label + link pair, as the JSON stores every cross-reference.
+
+  `linkClass` is present when the link is not a plain one into this documentation: `external-link`
+  for one that leaves the app and needs the network, `broken-link` for one that names nothing. The
+  extractor decides which, since a template cannot see whether a URL resolves; the stylesheet
+  colours both red.
+#}
+{% macro reference(ref) %}
+{%- if ref.url is not empty -%}
+<a href="{{ ref.url }}"{% if ref.linkClass is not empty %} class="{{ ref.linkClass }}"{% endif %}>{{ ref.label }}</a>
+{%- else -%}{{ ref.label }}{%- endif -%}
+{% endmacro %}
+
+{% macro referenceList(refs) %}
+{%- for ref in refs -%}{{ reference(ref) }}{% if not loop.last %}, {% endif %}{%- endfor -%}
+{% endmacro %}
+
+{# Zebra striping, driven off the row index the way the reference tables are. #}
+{% macro rowColor(index) %}{% if index % 2 == 1 %}odd-row{% else %}even-row{% endif %}{% endmacro %}
+
+{#
+  The rows of one summary table: the member's type on the left, the member and its first sentence
+  on the right.
+
+  `row.member` is HTML that already contains the link to the member's own detail entry further
+  down the page -- the extractor kept the reference site's link rather than inventing one -- so it
+  goes through `doc`, which fixes up the extension, rather than being rebuilt from `row.anchor`.
+#}
+{% macro summaryRows(rows, scheme) %}
+{%- for row in rows %}
+{#
+  A row with no type spans both columns. Index and package listings have no type to show at all,
+  and reserving a column for one would leave a third of those pages empty.
+#}
+<tr class="{{ rowColor(loop.index) }}">
+{%- if row.type is not empty %}<td class="type-col"><code>{{ row.type | raw }}</code></td>{% endif %}
+<td class="member-col"{% if row.type is empty %} colspan="2"{% endif %}>
+{%- if row.member is not empty %}<div class="member-name"><code>{{ row.member | raw }}</code></div>{% endif %}
+{%- if row.description is not empty %}<div class="member-brief">{{ row.description | raw }}</div>{% endif %}
+{%- if row.deprecatedIn is not empty %}<div class="member-deprecated">Deprecated in {% if scheme == 'api-level' %}API level {% endif %}{{ row.deprecatedIn }}</div>{% endif %}
+</td>
+</tr>
+{%- endfor %}
+{% endmacro %}
+
+{#
+  One summary section. A section can carry both its own members and members it inherits -- the
+  framework's nested-classes table is written that way -- so both are rendered here.
+#}
+{% macro summaryTable(section, scheme) %}
+<div class="summary-section" id="{{ section.id }}">
+<div class="table-wrapper">
+<table class="summary">
+<thead><tr><th colspan="2"><h3>{{ section.title }}</h3></th></tr></thead>
+<tbody>
+{{ summaryRows(section.rows, scheme) }}
+</tbody>
+</table>
+</div>
+{% for group in section.groups %}{{ inheritedGroup(group, scheme) }}{% endfor %}
+</div>
+{% endmacro %}
+
+{#
+  Members a class inherits, one collapsed block per declaring type.
+
+  Collapsed because there are often far more of them than there are members of the class itself --
+  `android.app.Activity` inherits several hundred -- and because that is how the reference site
+  presents them.
+#}
+{% macro inheritedGroup(group, scheme) %}
+<details class="inherited-group">
+<summary>From {{ reference(group.from) }}</summary>
+<div class="table-wrapper">
+<table class="summary">
+<tbody>
+{{ summaryRows(group.rows, scheme) }}
+</tbody>
+</table>
+</div>
+</details>
+{% endmacro %}
+
+{% macro inheritedSection(section, scheme) %}
+<div class="summary-section inherited" id="{{ section.id }}">
+<h3>{{ section.title }}</h3>
+{% for group in section.groups %}{{ inheritedGroup(group, scheme) }}{% endfor %}
+</div>
+{% endmacro %}
+
+{#
+  One member of a detail section: signature, deprecation, prose, then its tables.
+
+  A parameter is printed from `declaration` rather than from `type` and `name`: the two halves of
+  the scrape disagree about how much of a parameter is a type (Jetpack counts the annotations and
+  the name as part of one declaration, the framework separates them), and `declaration` is the
+  field where the extractor reconciled that.
+#}
+{% macro memberDetail(member, scheme) %}
+<div class="api-item" id="{{ member.anchor }}">
+<div class="api-name-block">
+<h3 class="api-name">{{ member.name }}</h3>
+{{ versionNote(scheme, member.addedIn, member.deprecatedIn) }}
+</div>
+{% if member.signatureHtml is not empty %}<pre class="api-signature">{{ member.signatureHtml | raw }}</pre>{% endif %}
+{% if member.deprecated %}
+<aside class="caution">
+{%- if member.deprecationLabel is not empty %}<strong>{{ member.deprecationLabel }}</strong>{% else %}<strong>Deprecated.</strong>{% endif %}
+{%- if member.deprecationNote is not empty %} {{ member.deprecationNote | raw }}{% endif %}
+</aside>
+{% endif %}
+{% if member.description is not empty %}<div class="description">{{ member.description | raw }}</div>{% endif %}
+{% if member.parameters is not empty %}
+<div class="table-wrapper">
+<table class="member-table">
+<thead><tr><th colspan="2">Parameters</th></tr></thead>
+<tbody>
+{%- for parameter in member.parameters %}
+<tr class="{{ rowColor(loop.index) }}">
+<td class="type-col"><code>{% if parameter.declaration is not empty %}{{ parameter.declaration | raw }}{% else %}{{ parameter.name }}{% endif %}</code></td>
+<td>{% if parameter.description is not empty %}{{ parameter.description | raw }}{% endif %}</td>
+</tr>
+{%- endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% if member.returns is not empty %}
+<div class="table-wrapper">
+<table class="member-table">
+<thead><tr><th colspan="2">Returns</th></tr></thead>
+<tbody>
+{%- for entry in member.returns %}
+<tr class="{{ rowColor(loop.index) }}">
+<td class="type-col"><code>{{ entry.type | raw }}</code></td>
+<td>{% if entry.description is not empty %}{{ entry.description | raw }}{% endif %}</td>
+</tr>
+{%- endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% if member.throws is not empty %}
+<div class="table-wrapper">
+<table class="member-table">
+<thead><tr><th colspan="2">Throws</th></tr></thead>
+<tbody>
+{%- for entry in member.throws %}
+<tr class="{{ rowColor(loop.index) }}">
+<td class="type-col"><code>{{ entry.type | raw }}</code></td>
+<td>{% if entry.description is not empty %}{{ entry.description | raw }}{% endif %}</td>
+</tr>
+{%- endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% if member.constantValue is not empty %}
+<p class="constant-value">Constant value: <code>{{ member.constantValue }}</code></p>
+{% endif %}
+{% if member.seeAlso is not empty %}
+<div class="see-also">
+<h4>See also</h4>
+<ul>{% for ref in member.seeAlso %}<li><code>{{ reference(ref) }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+</div>
+{% endmacro %}
+
+{#
+  The page footer, including the legend for the red links.
+
+  A macro rather than three copies because the colouring is applied by `reference` above, which
+  every page kind uses: a class page, a package summary and an index all render red links, so all
+  three need the sentence that says what red means. It lived on class.peb alone, and a reader
+  landing on a package summary saw the colour with nothing to explain it.
+#}
+{% macro pageFooter() %}
+<footer>
+<p>Generated from the developer.android.com reference scrape. A link shown in red is not part of
+this documentation: nearly all of them leave for the web and need a network connection -- most
+back to developer.android.com, the rest to other sites the reference cites -- and a handful name
+nothing at all, because the <code>href</code> in the source is malformed.</p>
+</footer>
+{% endmacro %}

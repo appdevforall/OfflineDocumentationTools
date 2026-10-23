@@ -1,0 +1,477 @@
+name: Build Java Docs (Local)
+
+# Local-filesystem counterpart of build-java-docs.yaml: the same four steps
+# against paths on the runner's own disk instead of Google Drive. No GCP
+# Workload Identity Federation, Drive API, or associated secrets are used
+# anywhere in this file. The Kotlin equivalent is build-kotlin-docs-local.yaml;
+# this file deliberately mirrors its shape.
+#
+# The four things this run does, in order:
+#   1. Read the input documentation.db from db_path.
+#   2. Copy it - db_path itself is never written to, and the copy it started
+#      from is left in output_dir next to the result.
+#   3. Sync the Java API documentation into the working copy - only the
+#      j/html/api/ rows. Nothing else in the database is touched.
+#   4. Save the result to output_db_path.
+#
+# What step 3 involves: unpacking the JDK's lib/src.zip, keeping only the
+# packages javadoc documents (those a module `exports` unqualified), running
+# Dokka with kdoc-to-json in javadoc-mode over them, composing the single Pebble
+# template the database serves those pages from, and replacing the j/html/api/
+# rows with the resulting JSON.
+#
+# Since a GitHub-hosted runner is a fresh, disposable VM with no access to
+# anyone's actual local disk, db_path/output_dir only make sense here against a
+# self-hosted runner, or when this workflow is run locally (e.g. via
+# https://github.com/nektos/act) with those host paths bind-mounted into the
+# job's container at the paths you pass as inputs.
+#
+# INPUT AND OUTPUT ARE SEPARATE FILES. An earlier version of this workflow
+# wrote the rebuilt database back over db_path, which made dry_run the only
+# thing standing between a routine run and a modified input. It no longer does:
+# db_path is read once and never written, the result goes to output_db_path,
+# and run-build-java-docs-with-act.sh mounts db_path read-only so the container
+# cannot write it even if some future step tries.
+#
+# CAUTION when invoking act by hand: act does NOT apply workflow_dispatch input
+# defaults. Every "default:" below applies on real GitHub and is simply absent
+# under act, so an input you don't pass arrives empty - including required
+# ones, which act will not complain about. Pass every input explicitly;
+# run-build-java-docs-with-act.sh does exactly that.
+#
+# NOTE ON MEMORY: Dokka generates in a *worker process*, which
+# org.gradle.jvmargs does not size - jdk-docs/build.gradle.kts sizes it via
+# dokkaGeneratorIsolation, defaulting to a 24g maximum. That is a ceiling, not
+# a reservation, so it is fine on a smaller runner as long as the build's real
+# usage fits in RAM; documenting the whole JDK is ~4,800 source files in one
+# analysis pass. The default is therefore left alone here. If a run does die
+# with an OutOfMemoryError, set dokka_worker_heap below, which is forwarded to
+# Gradle as -PdokkaWorkerHeap - and check the "Dokka worker heap" line the
+# build script logs to confirm it was actually applied, since nothing else
+# reports it. "Java heap space" means the JVM hit the cap you set; exit 137
+# means the kernel killed it from outside, i.e. the machine is too small rather
+# than the cap too low. For reference, the full JDK could not be made to fit a
+# 7.7 GB container VM at any setting, and runs in ~4 minutes on a 15.6 GB one
+# with dokka_worker_heap=8g - see run-build-java-docs-with-act.sh for the
+# numbers. A GitHub-hosted runner is not a container in this sense and has its
+# own memory; treat those figures as a floor, not a prediction.
+#
+# NOTE ON JDK VERSION: java_version picks both the JDK whose sources are
+# documented AND the JDK the Gradle builds run on. It must be 21 or lower:
+# kdoc-to-json is pinned to Kotlin 1.9.24, whose compiler cannot run on a newer
+# JDK at all (it fails parsing the version string). It must also be a JDK, not
+# a JRE, since the sources come from its lib/src.zip.
+#
+# Optional secret (Slack notifications are skipped with a warning if unset) -
+# same as build-java-docs.yaml:
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, kept in step with the Drive workflow
+#                        even though a local run writes only output_db_path).
+
+permissions:
+  contents: read
+
+# Two runs would write the same output_db_path and fight over output_dir -
+# never let them overlap.
+concurrency:
+  group: build-java-docs-local
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      java_version:
+        description: >-
+          JDK whose lib/src.zip is documented, and which the Gradle builds run
+          on. Must be 21 or lower (kdoc-to-json is pinned to Kotlin 1.9.24,
+          which cannot run on a newer JDK). Keep this in step with the
+          reference docs in SourceDocs/JavaDocs, which are Java SE 17.
+        required: false
+        default: '17'
+      db_path:
+        description: >-
+          Path on this runner's disk to the input documentation.db. Read
+          directly (no download/unzip) and never written to - the result goes
+          to output_db_path instead.
+        required: true
+      output_db_path:
+        description: >-
+          Path on this runner's disk to save the updated database to. Leave
+          empty to write <output_dir>/documentation.db. Naming db_path here is
+          refused: this workflow keeps its input intact. Ignored when dry_run
+          is true.
+        required: false
+        default: ''
+      output_dir:
+        description: >-
+          Directory on this runner's disk to write outputs into: a
+          run-numbered copy of the built database
+          (documentation-db-<run_number>.db), the copy of the input the run
+          started from (documentation-db-original-<run_number>.db), and
+          output_db_path's default location. Created if it doesn't already
+          exist.
+        required: false
+        default: 'build-java-docs-output'
+      modules:
+        description: >-
+          Comma-separated JPMS module names to document instead of all of
+          them, e.g. "java.sql,java.transaction.xa". Leave empty for the whole
+          JDK. A subset run takes seconds rather than minutes and is the quick
+          way to smoke-test a change; it will also make the parity check below
+          fail, so pair it with verify_parity=false.
+        required: false
+        default: ''
+      dokka_worker_heap:
+        description: >-
+          Max heap for Dokka's worker process, e.g. 6g (see NOTE ON MEMORY
+          above). Leave empty to use the build's own default; set it only if a
+          run dies with an OutOfMemoryError.
+        required: false
+        default: ''
+      verify_parity:
+        description: >-
+          Compare the generated tree against the reference javadoc HTML in
+          SourceDocs/JavaDocs/html/api and fail on any missing or extra
+          module/package/type. Only meaningful for a full java_version=17 run;
+          turn it off for a subset or a different JDK.
+        required: false
+        default: true
+        type: boolean
+      delete_missing:
+        description: >-
+          Also delete j/html/api/ rows that have no JSON counterpart -
+          class-use/, package-use, the tree pages, serialized-form. That is
+          about half the rows. They are working documentation nothing in the
+          new pages links to, so the default is to leave them alone.
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT write output_db_path.
+          The run-numbered copy in output_dir is still written either way, so a
+          dry run still leaves you something to inspect. db_path is untouched
+          regardless of this setting.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-java-docs-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DB_PATH: ${{ inputs.db_path }}
+      OUTPUT_DB_PATH_INPUT: ${{ inputs.output_db_path }}
+      OUTPUT_DIR: ${{ inputs.output_dir }}
+      JAVA_VERSION: ${{ inputs.java_version }}
+      MODULES: ${{ inputs.modules }}
+      DOKKA_WORKER_HEAP: ${{ inputs.dokka_worker_heap }}
+      DELETE_MISSING: ${{ inputs.delete_missing }}
+      # Where build-jdk-json-docs.sh writes the JSON tree and its scratch
+      # staging copy of the JDK sources.
+      JSON_OUT: ${{ github.workspace }}/java-json-build/api
+      WORK_DIR: ${{ github.workspace }}/java-json-build/work
+      REFERENCE_API: ${{ github.workspace }}/SourceDocs/JavaDocs/html/api
+      # The pristine copy of the input, kept for the whole run so the final
+      # check can prove the sync changed only the Java rows.
+      ORIGINAL_DB: ${{ github.workspace }}/documentation-original.db
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve local file paths
+        run: |
+          # Checked here, before the JDK build, rather than at the save step at
+          # the end: a bad destination should cost seconds, not the whole
+          # multi-minute run.
+          if [ ! -f "$DB_PATH" ]; then
+            echo "Error: db_path '$DB_PATH' does not exist on this runner - for a self-hosted runner this must be a path on that machine; for act, bind-mount it into the container so it's visible at this exact path" >&2
+            exit 1
+          fi
+          mkdir -p "$OUTPUT_DIR"
+          OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+
+          OUTPUT_DB_PATH="${OUTPUT_DB_PATH_INPUT:-$OUTPUT_DIR/documentation.db}"
+          mkdir -p "$(dirname "$OUTPUT_DB_PATH")"
+
+          # Compare what the filesystem resolves, not what was typed: an
+          # absolute path, a relative one and a symlink can all name db_path,
+          # and only one of those is caught by a string comparison. `readlink
+          # -f` also works on a path that does not exist yet, which
+          # OUTPUT_DB_PATH generally will not.
+          if [ "$(readlink -f "$OUTPUT_DB_PATH")" = "$(readlink -f "$DB_PATH")" ]; then
+            echo "Error: output_db_path resolves to the same file as db_path ('$DB_PATH')." >&2
+            echo "  This workflow keeps its input intact so a bad run can be compared against it." >&2
+            echo "  Point output_db_path somewhere else, or leave it empty for \$output_dir/documentation.db." >&2
+            exit 1
+          fi
+
+          echo "Resolved DB_PATH (input, read-only): $DB_PATH"
+          echo "Resolved OUTPUT_DB_PATH:             $OUTPUT_DB_PATH"
+          echo "Resolved OUTPUT_DIR:                 $OUTPUT_DIR"
+          {
+            echo "OUTPUT_DIR=$OUTPUT_DIR"
+            echo "OUTPUT_DB_PATH=$OUTPUT_DB_PATH"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (documented sources + the kdoc-to-json / jdk-docs Gradle builds)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Verify the JDK ships sources
+        run: |
+          # The whole pipeline reads lib/src.zip; a JRE or a stripped JDK has
+          # none, and the failure would otherwise surface as an empty staging
+          # tree several minutes later.
+          if [ ! -f "$JAVA_HOME/lib/src.zip" ]; then
+            echo "Error: $JAVA_HOME/lib/src.zip not found - java_version must name a JDK that ships sources, not a JRE" >&2
+            exit 1
+          fi
+          echo "Documenting sources from $JAVA_HOME/lib/src.zip"
+          "$JAVA_HOME/bin/java" -version
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # brotli: the CLI, not the Python package. sync_javadoc_json_to_db.py
+          # shells out to it because no Python binding exposes a custom
+          # dictionary (ADFA-5153), and it is also what writes the plain-Brotli
+          # rows this pipeline stores.
+          sudo apt-get install -y unzip sqlite3 brotli
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: 'Step 1/4: read the input documentation.db from local disk'
+        run: |
+          cp "$DB_PATH" documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      - name: 'Step 2/4: set the original aside and work on a copy'
+        run: |
+          # documentation.db is the working copy from here on; ORIGINAL_DB is
+          # never written to again. db_path is not relied on for this: it may
+          # be mounted read-only, and on a self-hosted runner it could be
+          # changed by someone else while this run is in flight.
+          cp documentation.db "$ORIGINAL_DB"
+          sqlite3 "$ORIGINAL_DB" "SELECT 1;" > /dev/null
+          # Read-only after the check, not before it: the sqlite3 CLI opens a
+          # database read-write by default, and there is no reason to rely on
+          # its read-only fallback behaving for a file we just made unwritable.
+          chmod a-w "$ORIGINAL_DB"
+          echo "Original preserved at $ORIGINAL_DB ($DB_SIZE bytes)"
+          echo "  sha256: $(sha256sum "$ORIGINAL_DB" | cut -d' ' -f1)"
+          echo "Java API rows in the original: $(sqlite3 "$ORIGINAL_DB" \
+            "SELECT count(*) FROM Content WHERE path LIKE 'j/html/api/%';")"
+
+      - name: 'Notify Slack: build started'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: 'Step 3/4a: build-jdk-json-docs.sh (stage JDK sources -> javadoc-mode JSON)'
+        run: |
+          ARGS=(-j "$JAVA_HOME" -o "$JSON_OUT" -w "$WORK_DIR")
+          [ -n "$MODULES" ] && ARGS+=(-m "$MODULES")
+          # Passed as a real Gradle -P property by the script, not through the
+          # environment: the worker is not the Gradle daemon, so GRADLE_OPTS and
+          # org.gradle.jvmargs do not size it, and an environment-based override
+          # fails silently rather than loudly.
+          [ -n "$DOKKA_WORKER_HEAP" ] && ARGS+=(--dokka-worker-heap "$DOKKA_WORKER_HEAP")
+          Dokka-plugin-kdoc2json/scripts/java/build-jdk-json-docs.sh "${ARGS[@]}"
+
+      - name: 'Step 3/4b: flatten_templates.py (compose the single database template)'
+        run: python3 scripts/sync_java_docs/flatten_templates.py
+
+      - name: 'Step 3/4c: sync_javadoc_json_to_db.py (replace j/html/api content)'
+        run: |
+          ARGS=("$JSON_OUT" --db documentation.db --plain-brotli)
+          [ "$DELETE_MISSING" = "true" ] && ARGS+=(--delete-missing)
+          # --plain-brotli, not the shared dictionary: a row written with the
+          # brotli CLI's -D needs the reader to attach the same dictionary the
+          # same way, and it does not, so dictionary-compressed rows fail to
+          # decode in the app. See scripts/sync_java_docs/README.md.
+          python3 scripts/sync_java_docs/sync_javadoc_json_to_db.py "${ARGS[@]}"
+
+      - name: Parity verification against the reference javadoc
+        if: ${{ inputs.verify_parity }}
+        run: |
+          # The Java analogue of build-kotlin-docs.yaml's blacklist check: prove
+          # the generated tree still covers every module, package and type the
+          # real javadoc output has. Member-level differences are understood and
+          # documented (README section 11), so only the structural levels gate
+          # the build.
+          python3 Dokka-plugin-kdoc2json/scripts/java/compare_with_javadoc.py \
+            "$JSON_OUT" "$REFERENCE_API"
+
+      - name: Summary
+        run: |
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3
+          import sys
+
+          conn = sqlite3.connect(sys.argv[1])
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          templated = count("path LIKE ? AND templateId != 0", ("j/html/api/%",))
+          print(f"Database: {sys.argv[1]}")
+          print(f"  j/html/api/*                rows: {count('path LIKE ?', ('j/html/api/%',))}")
+          print(f"    of those, JSON + template rows: {templated}")
+          print(f"    still raw HTML            rows: {count('path LIKE ? AND templateId = 0', ('j/html/api/%',))}")
+          print(f"  module pages                    : {count('path LIKE ?', ('j/html/api/%/module-summary.html',))}")
+          print(f"  package pages                   : {count('path LIKE ?', ('j/html/api/%/package-summary.html',))}")
+          stored = conn.execute(
+              "SELECT SUM(length(content)) FROM Content WHERE path LIKE ? AND templateId != 0",
+              ("j/html/api/%",)).fetchone()[0] or 0
+          print(f"  stored bytes of the JSON rows   : {stored:,}")
+          if templated == 0:
+              print("FAIL: no Java rows are pointing at a template - the sync did nothing.")
+              sys.exit(1)
+          conn.close()
+          PYEOF
+
+      - name: Verify the stored rows decode and render
+        run: |
+          # The failure mode this guards against is silent: a row that is
+          # written but cannot be decoded by a reader without the shared
+          # dictionary looks fine in the database and blank in the app.
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3, subprocess, sys
+          conn = sqlite3.connect(sys.argv[1])
+          rows = conn.execute(
+              "SELECT path, content FROM Content WHERE path LIKE 'j/html/api/%' AND templateId != 0"
+          ).fetchall()
+          bad = [p for p, b in rows
+                 if subprocess.run(["brotli", "-d", "-c"], input=b,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0]
+          print(f"{len(rows)} row(s) checked with a stock (no-dictionary) Brotli decode; {len(bad)} failed")
+          for p in bad[:10]:
+              print(f"  {p}")
+          sys.exit(1 if bad else 0)
+          PYEOF
+          sqlite3 documentation.db "PRAGMA quick_check;" | head -1
+
+      - name: Verify only the Java API rows changed
+        run: |
+          # The scope promise this workflow makes is "Java API only". Nothing
+          # else checks it: sync_javadoc_json_to_db.py is told to touch
+          # j/html/api/, and if a future change to it reached wider, every
+          # other step here would still pass. Comparing against the preserved
+          # original is what turns that promise into something tested.
+          python3 - "$ORIGINAL_DB" documentation.db <<'PYEOF'
+          import hashlib, sqlite3, sys
+
+          PREFIX = "j/html/api/"
+
+          def fingerprints(path):
+              """path -> hash of the row, for every Content row.
+
+              Hashed rather than compared as values because the alternative -
+              an EXCEPT over the blob columns - makes SQLite sort several
+              hundred megabytes of BLOBs. Streaming the cursor keeps only one
+              row in memory at a time regardless of database size.
+              """
+              conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+              try:
+                  out = {}
+                  for row_path, content, type_id, template_id, language_id in conn.execute(
+                      "SELECT path, content, contentTypeID, templateId, languageID FROM Content"
+                  ):
+                      digest = hashlib.sha256()
+                      digest.update(content if content is not None else b"")
+                      digest.update(f"|{type_id}|{template_id}|{language_id}".encode())
+                      out[row_path] = digest.digest()
+                  return out
+              finally:
+                  conn.close()
+
+          before, after = fingerprints(sys.argv[1]), fingerprints(sys.argv[2])
+
+          # Added and removed paths count as changes too - --delete-missing
+          # removes rows, and a new page kind would add them.
+          changed = {p for p in before.keys() | after.keys()
+                     if before.get(p) != after.get(p)}
+
+          outside = sorted(p for p in changed if not p.startswith(PREFIX))
+          inside = len(changed) - len(outside)
+          print(f"Content rows changed under j/html/api/: {inside}")
+          print(f"Content rows changed anywhere else:     {len(outside)}")
+          if outside:
+              print("FAIL: this workflow must change Java API rows only. Also changed:")
+              for path in outside[:20]:
+                  print(f"  {path}")
+              if len(outside) > 20:
+                  print(f"  ... and {len(outside) - 20} more")
+              sys.exit(1)
+          if inside == 0:
+              print("FAIL: no Java API rows changed at all - the sync did nothing.")
+              sys.exit(1)
+          print("PASS: the run changed Java API rows and nothing else.")
+          PYEOF
+
+      - name: Write the built database and its original to output_dir
+        # always(), for the same reason the Drive workflow uploads its
+        # artifacts unconditionally: the run you most need to look at is the
+        # one where a verification step above failed. Guarded below for the
+        # case where the failure happened before there was anything to copy.
+        if: always()
+        run: |
+          # Written whatever dry_run says: a run that produces nothing you can
+          # look at is not much of a rehearsal. The original goes next to it so
+          # the two can be diffed without hunting for the input.
+          if [ ! -f documentation.db ] || [ ! -f "$ORIGINAL_DB" ]; then
+            echo "note: the run failed before a database existed to copy - nothing written to $OUTPUT_DIR" >&2
+            exit 0
+          fi
+          BUILT="$OUTPUT_DIR/documentation-db-${{ github.run_number }}.db"
+          ORIG="$OUTPUT_DIR/documentation-db-original-${{ github.run_number }}.db"
+          cp documentation.db "$BUILT"
+          cp "$ORIGINAL_DB" "$ORIG"
+          # $ORIGINAL_DB is mode a-w and cp preserves nothing by default, but
+          # the copy is a record rather than a working file - make it match.
+          chmod a-w "$ORIG"
+          echo "Wrote $BUILT"
+          echo "Wrote $ORIG"
+
+      - name: 'Step 4/4: save the updated database to output_db_path'
+        if: ${{ !inputs.dry_run }}
+        run: |
+          cp documentation.db "$OUTPUT_DB_PATH"
+          echo "Saved the updated database to $OUTPUT_DB_PATH"
+          echo "  sha256: $(sha256sum "$OUTPUT_DB_PATH" | cut -d' ' -f1)"
+          echo "Input left untouched at $DB_PATH"
+          echo "  sha256: $(sha256sum "$DB_PATH" | cut -d' ' -f1)"
+
+      - name: 'Notify Slack: build complete'
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data "{\"text\": \"Updated Java documentation -> ${OUTPUT_DB_PATH}. Dropping baton\"}" \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi

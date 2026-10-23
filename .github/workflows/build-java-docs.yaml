@@ -1,0 +1,592 @@
+name: Build Java Docs
+
+# CI counterpart of the Java pipeline in Dokka-plugin-kdoc2json/scripts/java and
+# scripts/sync_java_docs - the same generation chain (build-jdk-json-docs ->
+# flatten_templates -> sync_javadoc_json_to_db), but sourcing the JDK it
+# documents from the runner's own toolchain instead of a developer's machine,
+# and taking its input database from Google Drive instead of a local copy. The
+# Kotlin equivalent is build-kotlin-docs.yaml; this file deliberately mirrors
+# its shape.
+#
+# The four things this run does, in order:
+#   1. Fetch the current documentation.db from Google Drive (GOOGLE_DRIVE_FILE_ID).
+#   2. Set that download aside as documentation-original.db and work on a copy,
+#      so the run always carries the exact before-state it started from.
+#   3. Sync the Java API documentation into the working copy - only the
+#      j/html/api/ rows. Nothing else in the database is touched.
+#   4. Save the result to a destination you name (destination_file_id or
+#      destination_folder_id). The source file is NOT written back to; see
+#      "WHERE THE RESULT GOES" below.
+#
+# What step 3 involves: unpacking the JDK's lib/src.zip, keeping only the
+# packages javadoc documents (those a module `exports` unqualified), running
+# Dokka with kdoc-to-json in javadoc-mode over them, composing the single Pebble
+# template the database serves those pages from, and replacing the j/html/api/
+# rows with the resulting JSON.
+#
+# WHERE THE RESULT GOES: this workflow reads the production database and writes
+# somewhere else. Supply exactly one of destination_file_id (a new revision of an
+# existing Drive file) or destination_folder_id (a new, timestamped file in a
+# Drive folder). Naming the source file as the destination is refused unless you
+# also set allow_source_overwrite - the point of separating the two is that a
+# Java-only run cannot quietly become a production release. Both the built
+# database and the untouched original are attached to the run as artifacts
+# either way, so a dry_run still leaves you something to inspect.
+#
+# NOTE ON MEMORY: Dokka generates in a *worker process*, which
+# org.gradle.jvmargs does not size - jdk-docs/build.gradle.kts sizes it via
+# dokkaGeneratorIsolation, defaulting to a 24g maximum. That is a ceiling, not
+# a reservation, so it is fine on a smaller runner as long as the build's real
+# usage fits in RAM; documenting the whole JDK is ~4,800 source files in one
+# analysis pass. The default is therefore left alone here. If a run does die
+# with an OutOfMemoryError, set dokka_worker_heap below, which is forwarded to
+# Gradle as -PdokkaWorkerHeap - and check the "Dokka worker heap" line the
+# build script logs to confirm it was actually applied, since nothing else
+# reports it. "Java heap space" means the JVM hit the cap you set; exit 137
+# means the kernel killed it from outside, i.e. the machine is too small rather
+# than the cap too low. For reference, the full JDK could not be made to fit a
+# 7.7 GB container VM at any setting, and runs in ~4 minutes on a 15.6 GB one
+# with dokka_worker_heap=8g - see run-build-java-docs-with-act.sh for the
+# numbers. A GitHub-hosted runner is not a container in this sense and has its
+# own memory; treat those figures as a floor, not a prediction.
+#
+# NOTE ON JDK VERSION: java_version picks both the JDK whose sources are
+# documented AND the JDK the Gradle builds run on. It must be 21 or lower:
+# kdoc-to-json is pinned to Kotlin 1.9.24, whose compiler cannot run on a newer
+# JDK at all (it fails parsing the version string). It must also be a JDK, not
+# a JRE, since the sources come from its lib/src.zip.
+#
+# Required secrets (already configured - see docdb-regression-test.yaml for
+# their other use in this repo):
+#   GCP_WIF_PROVIDER        - Workload Identity Federation provider name
+#   GCP_WIF_SERVICE_ACCOUNT - Service account email for WIF. Needs read access
+#                              to the source database file, and write access to
+#                              whichever destination you name - for
+#                              destination_folder_id that means the service
+#                              account must be able to create files in that
+#                              folder, which is a permission on the folder
+#                              itself, not on the database.
+#   GOOGLE_DRIVE_FILE_ID     - File ID of the production documentation.db
+#                              (stored on Drive as a zip). Read-only here.
+#
+# Optional secret (falls back to the destination_file_id input if unset):
+#   GOOGLE_DRIVE_JAVA_DEST_FILE_ID - File ID of the Drive file this workflow
+#                        publishes to, so a routine run needs no input at all.
+#
+# Optional secret (Slack notifications are skipped with a warning if unset):
+#   SLACK_WEBHOOK_URL - Incoming Webhook URL for the "Notify Slack" steps
+#                        below ("Grabbing baton" on start, "...Dropping
+#                        baton" on finish - org shorthand for lock
+#                        acquire/release, since a run can be pointed at a
+#                        shared Drive file).
+
+permissions:
+  contents: read
+  id-token: write
+
+# A run can be pointed at a shared Drive file - never let two of them race to
+# upload against each other.
+concurrency:
+  group: build-java-docs
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      java_version:
+        description: >-
+          JDK whose lib/src.zip is documented, and which the Gradle builds run
+          on. Must be 21 or lower (kdoc-to-json is pinned to Kotlin 1.9.24,
+          which cannot run on a newer JDK). Keep this in step with the
+          reference docs in SourceDocs/JavaDocs, which are Java SE 17.
+        required: false
+        default: '17'
+      modules:
+        description: >-
+          Comma-separated JPMS module names to document instead of all of
+          them, e.g. "java.sql,java.transaction.xa". Leave empty for the whole
+          JDK. A subset run takes seconds rather than minutes and is the quick
+          way to smoke-test a change; it will also make the parity check below
+          fail, so pair it with verify_parity=false.
+        required: false
+        default: ''
+      dokka_worker_heap:
+        description: >-
+          Max heap for Dokka's worker process, e.g. 6g (see NOTE ON MEMORY
+          above). Leave empty to use the build's own default; set it only if a
+          run dies with an OutOfMemoryError.
+        required: false
+        default: ''
+      verify_parity:
+        description: >-
+          Compare the generated tree against the reference javadoc HTML in
+          SourceDocs/JavaDocs/html/api and fail on any missing or extra
+          module/package/type. Only meaningful for a full java_version=17 run;
+          turn it off for a subset or a different JDK.
+        required: false
+        default: true
+        type: boolean
+      delete_missing:
+        description: >-
+          Also delete j/html/api/ rows that have no JSON counterpart -
+          class-use/, package-use, the tree pages, serialized-form. That is
+          about half the rows. They are working documentation nothing in the
+          new pages links to, so the default is to leave them alone.
+        required: false
+        default: false
+        type: boolean
+      destination_file_id:
+        description: >-
+          Google Drive file ID to save the updated database to, as a new
+          revision of that existing file. Falls back to the
+          GOOGLE_DRIVE_JAVA_DEST_FILE_ID secret if left empty. Mutually
+          exclusive with destination_folder_id. Ignored when dry_run is true.
+        required: false
+        default: ''
+      destination_folder_id:
+        description: >-
+          Google Drive folder ID to save the updated database into, as a new
+          timestamped file (documentation-java-<run>-<UTC timestamp>.zip) -
+          use this when you want each run kept separately rather than
+          revisions of one file. Mutually exclusive with destination_file_id.
+          Ignored when dry_run is true.
+        required: false
+        default: ''
+      allow_source_overwrite:
+        description: >-
+          Permit destination_file_id to name the same file the database was
+          read from. Off by default: this workflow refreshes Java only, and
+          writing it straight back over the shared production database is a
+          release decision that should be taken deliberately rather than by
+          leaving an input at its default.
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: >-
+          If true, build and verify everything but do NOT upload anything to
+          Google Drive. The built database and the untouched original are
+          still attached to the run as artifacts. Set to false only once you
+          trust a given version/module combination.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-java-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DB_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_FILE_ID }}
+      # --- Hard-coded override for one-off manual testing ------------------
+      # Fill in with a literal Google Drive file ID to bypass the secret
+      # resolution above for a quick, repeatable test run (e.g. against a
+      # scratch copy of the database on Drive). Leave empty ('') for normal
+      # operation.
+      TEST_DB_FILE_ID: ''
+      DEST_FILE_ID_INPUT: ${{ inputs.destination_file_id }}
+      DEST_FILE_ID_SECRET: ${{ secrets.GOOGLE_DRIVE_JAVA_DEST_FILE_ID }}
+      DEST_FOLDER_ID_INPUT: ${{ inputs.destination_folder_id }}
+      ALLOW_SOURCE_OVERWRITE: ${{ inputs.allow_source_overwrite }}
+      JAVA_VERSION: ${{ inputs.java_version }}
+      MODULES: ${{ inputs.modules }}
+      DOKKA_WORKER_HEAP: ${{ inputs.dokka_worker_heap }}
+      DELETE_MISSING: ${{ inputs.delete_missing }}
+      # Where build-jdk-json-docs.sh writes the JSON tree and its scratch
+      # staging copy of the JDK sources.
+      JSON_OUT: ${{ github.workspace }}/java-json-build/api
+      WORK_DIR: ${{ github.workspace }}/java-json-build/work
+      REFERENCE_API: ${{ github.workspace }}/SourceDocs/JavaDocs/html/api
+      # The pristine copy of what was downloaded, kept for the whole run so the
+      # final step can prove the sync changed only the Java rows.
+      ORIGINAL_DB: ${{ github.workspace }}/documentation-original.db
+    steps:
+      - name: Checkout OfflineDocumentationTools
+        uses: actions/checkout@v4
+
+      - name: Resolve Google Drive file IDs
+        run: |
+          # Everything this step checks is checked here, before the JDK build,
+          # rather than at the upload step at the end: a misconfigured
+          # destination should cost seconds, not the whole multi-minute run.
+          DB_FILE_ID="${TEST_DB_FILE_ID:-$DB_FILE_ID_SECRET}"
+          if [ -z "$DB_FILE_ID" ]; then
+            echo "Error: no source database file ID resolved - set the GOOGLE_DRIVE_FILE_ID secret, or TEST_DB_FILE_ID above for a test run" >&2
+            exit 1
+          fi
+
+          # An explicitly passed input always beats the secret, and the two
+          # inputs conflict only with each other. Resolving it this way means
+          # setting GOOGLE_DRIVE_JAVA_DEST_FILE_ID once does not make
+          # destination_folder_id unusable ever after - which it would if the
+          # secret were folded in before the conflict check.
+          if [ -n "$DEST_FILE_ID_INPUT" ] && [ -n "$DEST_FOLDER_ID_INPUT" ]; then
+            echo "Error: destination_file_id and destination_folder_id are mutually exclusive - a run saves to one place. Clear whichever you did not mean." >&2
+            exit 1
+          fi
+          if [ -n "$DEST_FOLDER_ID_INPUT" ]; then
+            DEST_FILE_ID=""
+            DEST_FOLDER_ID="$DEST_FOLDER_ID_INPUT"
+          else
+            DEST_FILE_ID="${DEST_FILE_ID_INPUT:-$DEST_FILE_ID_SECRET}"
+            DEST_FOLDER_ID=""
+          fi
+
+          # dry_run resolves the destination anyway so a dry run still reports
+          # exactly where a live one would have put the file.
+          if [ -z "$DEST_FILE_ID" ] && [ -z "$DEST_FOLDER_ID" ]; then
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "note: no destination set. Fine for a dry run - the built database is attached as an artifact." >&2
+            else
+              echo "Error: dry_run is false but no destination was given. Set destination_file_id or destination_folder_id (or the GOOGLE_DRIVE_JAVA_DEST_FILE_ID secret)." >&2
+              echo "  This workflow deliberately has no default destination: falling back to the source file would make an ordinary run overwrite the production database." >&2
+              exit 1
+            fi
+          fi
+
+          if [ -n "$DEST_FILE_ID" ] && [ "$DEST_FILE_ID" = "$DB_FILE_ID" ] && [ "$ALLOW_SOURCE_OVERWRITE" != "true" ]; then
+            echo "Error: destination_file_id is the same file the database was read from." >&2
+            echo "  That publishes a Java-only refresh straight over the shared production database." >&2
+            echo "  If that is genuinely what you want, set allow_source_overwrite=true as well." >&2
+            exit 1
+          fi
+
+          echo "Resolved DB_FILE_ID (source):   ${DB_FILE_ID:+(set)}"
+          echo "Resolved DEST_FILE_ID:          ${DEST_FILE_ID:+(set)}"
+          echo "Resolved DEST_FOLDER_ID:        ${DEST_FOLDER_ID:+(set)}"
+          if [ -n "$DEST_FILE_ID" ] && [ "$DEST_FILE_ID" = "$DB_FILE_ID" ]; then
+            echo "WARNING: allow_source_overwrite is set - the source database WILL be overwritten." >&2
+          fi
+          {
+            echo "DB_FILE_ID=$DB_FILE_ID"
+            echo "DEST_FILE_ID=$DEST_FILE_ID"
+            echo "DEST_FOLDER_ID=$DEST_FOLDER_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK (documented sources + the kdoc-to-json / jdk-docs Gradle builds)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Verify the JDK ships sources
+        run: |
+          # The whole pipeline reads lib/src.zip; a JRE or a stripped JDK has
+          # none, and the failure would otherwise surface as an empty staging
+          # tree several minutes later.
+          if [ ! -f "$JAVA_HOME/lib/src.zip" ]; then
+            echo "Error: $JAVA_HOME/lib/src.zip not found - java_version must name a JDK that ships sources, not a JRE" >&2
+            exit 1
+          fi
+          echo "Documenting sources from $JAVA_HOME/lib/src.zip"
+          "$JAVA_HOME/bin/java" -version
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          # brotli: the CLI, not the Python package. sync_javadoc_json_to_db.py
+          # shells out to it because no Python binding exposes a custom
+          # dictionary (ADFA-5153), and it is also what writes the plain-Brotli
+          # rows this pipeline stores.
+          sudo apt-get install -y unzip zip sqlite3 brotli
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          # google-api-python-client & friends: Drive download/upload, same
+          # libraries check-tools/download_database.py already depends on.
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Authenticate to Google Cloud using Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/drive.file
+          # drive.file, as everywhere else in this repo, scopes the token to
+          # files this app created or was explicitly given. Creating a file
+          # inside someone else's folder (destination_folder_id) is the one
+          # case it can refuse: if the save step fails with a 404 on the
+          # parent, the folder has not been shared with GCP_WIF_SERVICE_ACCOUNT
+          # as an editor. Share the folder rather than widening the scope.
+
+      - name: 'Step 1/4: download the current documentation.db from Google Drive'
+        run: |
+          python3 check-tools/download_database.py "$DB_FILE_ID" documentation.zip
+          unzip -o documentation.zip
+          if [ ! -f documentation.db ]; then
+            found="$(find . -maxdepth 2 -name documentation.db | head -n1)"
+            [ -n "$found" ] && mv "$found" documentation.db
+          fi
+          test -f documentation.db
+          sqlite3 documentation.db "SELECT 1;" > /dev/null
+          rm -f documentation.zip
+          echo "DB_SIZE=$(stat -c%s documentation.db 2>/dev/null || stat -f%z documentation.db)" >> "$GITHUB_ENV"
+
+      - name: 'Step 2/4: set the original aside and work on a copy'
+        run: |
+          # documentation.db is the working copy from here on; ORIGINAL_DB is
+          # never written to again. Keeping both costs a few hundred MB of
+          # runner disk and buys two things: the "changed only the Java rows"
+          # check at the end has something real to compare against, and the run
+          # can hand back the exact input it started from when a result turns
+          # out to be wrong.
+          cp documentation.db "$ORIGINAL_DB"
+          sqlite3 "$ORIGINAL_DB" "SELECT 1;" > /dev/null
+          # Read-only after the check, not before it: the sqlite3 CLI opens a
+          # database read-write by default, and there is no reason to rely on
+          # its read-only fallback behaving for a file we just made unwritable.
+          chmod a-w "$ORIGINAL_DB"
+          echo "Original preserved at $ORIGINAL_DB ($DB_SIZE bytes)"
+          echo "  sha256: $(sha256sum "$ORIGINAL_DB" | cut -d' ' -f1)"
+          echo "Java API rows in the original: $(sqlite3 "$ORIGINAL_DB" \
+            "SELECT count(*) FROM Content WHERE path LIKE 'j/html/api/%';")"
+
+      - name: 'Notify Slack: build started'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data '{"text": "Grabbing baton"}' \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
+
+      - name: 'Step 3/4a: build-jdk-json-docs.sh (stage JDK sources -> javadoc-mode JSON)'
+        run: |
+          ARGS=(-j "$JAVA_HOME" -o "$JSON_OUT" -w "$WORK_DIR")
+          [ -n "$MODULES" ] && ARGS+=(-m "$MODULES")
+          # Passed as a real Gradle -P property by the script, not through the
+          # environment: the worker is not the Gradle daemon, so GRADLE_OPTS and
+          # org.gradle.jvmargs do not size it, and an environment-based override
+          # fails silently rather than loudly.
+          [ -n "$DOKKA_WORKER_HEAP" ] && ARGS+=(--dokka-worker-heap "$DOKKA_WORKER_HEAP")
+          Dokka-plugin-kdoc2json/scripts/java/build-jdk-json-docs.sh "${ARGS[@]}"
+
+      - name: 'Step 3/4b: flatten_templates.py (compose the single database template)'
+        run: python3 scripts/sync_java_docs/flatten_templates.py
+
+      - name: 'Step 3/4c: sync_javadoc_json_to_db.py (replace j/html/api content)'
+        run: |
+          ARGS=("$JSON_OUT" --db documentation.db --plain-brotli)
+          [ "$DELETE_MISSING" = "true" ] && ARGS+=(--delete-missing)
+          # --plain-brotli, not the shared dictionary: a row written with the
+          # brotli CLI's -D needs the reader to attach the same dictionary the
+          # same way, and it does not, so dictionary-compressed rows fail to
+          # decode in the app. See scripts/sync_java_docs/README.md.
+          python3 scripts/sync_java_docs/sync_javadoc_json_to_db.py "${ARGS[@]}"
+
+      - name: Parity verification against the reference javadoc
+        if: ${{ inputs.verify_parity }}
+        run: |
+          # The Java analogue of build-kotlin-docs.yaml's blacklist check: prove
+          # the generated tree still covers every module, package and type the
+          # real javadoc output has. Member-level differences are understood and
+          # documented (README section 11), so only the structural levels gate
+          # the build.
+          python3 Dokka-plugin-kdoc2json/scripts/java/compare_with_javadoc.py \
+            "$JSON_OUT" "$REFERENCE_API"
+
+      - name: Summary
+        run: |
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3
+          import sys
+
+          conn = sqlite3.connect(sys.argv[1])
+
+          def count(where, params=()):
+              return conn.execute(f"SELECT count(*) FROM Content WHERE {where}", params).fetchone()[0]
+
+          templated = count("path LIKE ? AND templateId != 0", ("j/html/api/%",))
+          print(f"Database: {sys.argv[1]}")
+          print(f"  j/html/api/*                rows: {count('path LIKE ?', ('j/html/api/%',))}")
+          print(f"    of those, JSON + template rows: {templated}")
+          print(f"    still raw HTML            rows: {count('path LIKE ? AND templateId = 0', ('j/html/api/%',))}")
+          print(f"  module pages                    : {count('path LIKE ?', ('j/html/api/%/module-summary.html',))}")
+          print(f"  package pages                   : {count('path LIKE ?', ('j/html/api/%/package-summary.html',))}")
+          stored = conn.execute(
+              "SELECT SUM(length(content)) FROM Content WHERE path LIKE ? AND templateId != 0",
+              ("j/html/api/%",)).fetchone()[0] or 0
+          print(f"  stored bytes of the JSON rows   : {stored:,}")
+          if templated == 0:
+              print("FAIL: no Java rows are pointing at a template - the sync did nothing.")
+              sys.exit(1)
+          conn.close()
+          PYEOF
+
+      - name: Verify the stored rows decode and render
+        run: |
+          # The failure mode this guards against is silent: a row that is
+          # written but cannot be decoded by a reader without the shared
+          # dictionary looks fine in the database and blank in the app.
+          python3 - documentation.db <<'PYEOF'
+          import sqlite3, subprocess, sys
+          conn = sqlite3.connect(sys.argv[1])
+          rows = conn.execute(
+              "SELECT path, content FROM Content WHERE path LIKE 'j/html/api/%' AND templateId != 0"
+          ).fetchall()
+          bad = [p for p, b in rows
+                 if subprocess.run(["brotli", "-d", "-c"], input=b,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0]
+          print(f"{len(rows)} row(s) checked with a stock (no-dictionary) Brotli decode; {len(bad)} failed")
+          for p in bad[:10]:
+              print(f"  {p}")
+          sys.exit(1 if bad else 0)
+          PYEOF
+          sqlite3 documentation.db "PRAGMA quick_check;" | head -1
+
+      - name: Verify only the Java API rows changed
+        run: |
+          # The scope promise this workflow makes is "Java API only". Nothing
+          # else checks it: sync_javadoc_json_to_db.py is told to touch
+          # j/html/api/, and if a future change to it reached wider, every
+          # other step here would still pass. Comparing against the preserved
+          # original is what turns that promise into something tested.
+          python3 - "$ORIGINAL_DB" documentation.db <<'PYEOF'
+          import hashlib, sqlite3, sys
+
+          PREFIX = "j/html/api/"
+
+          def fingerprints(path):
+              """path -> hash of the row, for every Content row.
+
+              Hashed rather than compared as values because the alternative -
+              an EXCEPT over the blob columns - makes SQLite sort several
+              hundred megabytes of BLOBs. Streaming the cursor keeps only one
+              row in memory at a time regardless of database size.
+              """
+              conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+              try:
+                  out = {}
+                  for row_path, content, type_id, template_id, language_id in conn.execute(
+                      "SELECT path, content, contentTypeID, templateId, languageID FROM Content"
+                  ):
+                      digest = hashlib.sha256()
+                      digest.update(content if content is not None else b"")
+                      digest.update(f"|{type_id}|{template_id}|{language_id}".encode())
+                      out[row_path] = digest.digest()
+                  return out
+              finally:
+                  conn.close()
+
+          before, after = fingerprints(sys.argv[1]), fingerprints(sys.argv[2])
+
+          # Added and removed paths count as changes too - --delete-missing
+          # removes rows, and a new page kind would add them.
+          changed = {p for p in before.keys() | after.keys()
+                     if before.get(p) != after.get(p)}
+
+          outside = sorted(p for p in changed if not p.startswith(PREFIX))
+          inside = len(changed) - len(outside)
+          print(f"Content rows changed under j/html/api/: {inside}")
+          print(f"Content rows changed anywhere else:     {len(outside)}")
+          if outside:
+              print("FAIL: this workflow must change Java API rows only. Also changed:")
+              for path in outside[:20]:
+                  print(f"  {path}")
+              if len(outside) > 20:
+                  print(f"  ... and {len(outside) - 20} more")
+              sys.exit(1)
+          if inside == 0:
+              print("FAIL: no Java API rows changed at all - the sync did nothing.")
+              sys.exit(1)
+          print("PASS: the run changed Java API rows and nothing else.")
+          PYEOF
+
+      - name: Upload built database as workflow artifact
+        # always(), because the runs worth inspecting are the ones where a
+        # verification step above failed - and those are exactly the runs a
+        # default (success-only) upload would leave you nothing to inspect
+        # with. if-no-files-found: ignore covers failing before it exists.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-db-${{ github.run_number }}
+          path: documentation.db
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload the original database as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # The input this run started from, kept next to its output so a bad
+          # result can be compared against - or rolled back to - without
+          # having to work out which Drive revision was current at the time.
+          name: documentation-db-original-${{ github.run_number }}
+          path: documentation-original.db
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: 'Step 4/4a: zip the updated database for upload'
+        if: ${{ !inputs.dry_run }}
+        run: |
+          zip -j documentation.zip documentation.db
+          ls -l documentation.zip
+
+      - name: 'Step 4/4b: save the updated database to the destination on Google Drive'
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          from datetime import datetime, timezone
+
+          from google.auth import default
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          dest_file_id = os.environ.get("DEST_FILE_ID", "")
+          dest_folder_id = os.environ.get("DEST_FOLDER_ID", "")
+          run_number = os.environ["GITHUB_RUN_NUMBER"]
+
+          credentials, _ = default()
+          service = build("drive", "v3", credentials=credentials)
+          media = MediaFileUpload("documentation.zip", mimetype="application/zip", resumable=True)
+
+          if dest_file_id:
+              result = service.files().update(
+                  fileId=dest_file_id, media_body=media,
+                  fields="id, name, modifiedTime, md5Checksum",
+              ).execute()
+              print(f"Saved a new revision of {dest_file_id}: {result}")
+          else:
+              # A new file per run. Named so the listing sorts chronologically
+              # and a file can be traced back to the run that produced it.
+              stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+              name = f"documentation-java-{stamp}-run{run_number}.zip"
+              result = service.files().create(
+                  body={"name": name, "parents": [dest_folder_id]}, media_body=media,
+                  fields="id, name, parents, webViewLink",
+                  # Shared drives keep files in a different corpus; without
+                  # this the create fails on one with a bare 404 on the parent.
+                  supportsAllDrives=True,
+              ).execute()
+              print(f"Saved {name} to folder {dest_folder_id}: {result}")
+          PYEOF
+
+      - name: 'Notify Slack: build complete'
+        if: ${{ !inputs.dry_run }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - skipping Slack notification" >&2
+          else
+            if [ -n "$DEST_FOLDER_ID" ]; then
+              WHERE="a new file in Drive folder $DEST_FOLDER_ID"
+            else
+              WHERE="Drive file $DEST_FILE_ID"
+            fi
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data "{\"text\": \"Updated Java documentation -> ${WHERE}. Dropping baton\"}" \
+              "$SLACK_WEBHOOK_URL" || echo "warning: Slack notification failed" >&2
+          fi
