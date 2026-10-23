@@ -263,7 +263,13 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   badges, YouTube players - ADFA-6589; after `bundle_remote_images.py`, because it drops a remote
   `srcset` only beside a stored `src`), and last `check_remote_loads.py` (reads every page,
   template and tooltip, and fails the build, naming each, if anything would still load from off
-  the device; it writes nothing - ADFA-6589).
+  the device; it writes nothing - ADFA-6589), and `share_skin_sprite.py`, which runs
+  before the `--before` snapshot `update_media_references.py` diffs against: it replaces the SVG
+  icon sprite Help+Manual's skin copies into the `i/` pages with one shared `i/js/hm_sprite.js`
+  that puts the sprite back as each page loads, until the skin stops inlining it (ADFA-4195); with
+  the ADFA-6589 steps it runs after `remove_remote_loads.py` and before `check_remote_loads.py`,
+  which reads scripts without searching them, so this step refuses a sprite that names anything
+  outside the page.
   **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
   only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
   `android_html_page.py`, `load_android_data.py`.
