@@ -357,6 +357,59 @@ class RemintDictionaryTest(_RemintFixture):
         self.assertEqual([path for path, _why in problems], ["j/page3.html"])
 
 
+class _StopTraining(Exception):
+    pass
+
+
+class RemintDefaultsTest(_RemintFixture):
+    """The re-mint's defaults, measured on the ADFA-3305 ship-time database: a 768 KiB dictionary trained on up to
+    3 x 1,200 rows within 128 MiB. With the first mint's 300-row sample, two of four 768 KiB seeds stored 4-5 MB more
+    than a 256 KiB dictionary."""
+
+    def test_a_default_remint_trains_768_kib_on_the_larger_sample(self):
+        seen = {}
+        real_collect = remint_dictionary.collect_training_samples
+
+        def collect(conn, rows, sample_size, byte_budget, seed, **kwargs):
+            seen["sample"] = (sample_size, byte_budget)
+            return real_collect(conn, rows, sample_size, byte_budget, seed, **kwargs)
+
+        def train(samples, dict_size):
+            seen["dict_size"] = dict_size
+            raise _StopTraining()
+
+        with mock.patch.object(remint_dictionary, "collect_training_samples", side_effect=collect), \
+                mock.patch.object(remint_dictionary, "train_dictionary", side_effect=train):
+            with self.assertRaises(_StopTraining):
+                remint(self.conn)
+        self.assertEqual(seen, {"sample": (1200, 128 * 1024 * 1024), "dict_size": 768 * 1024})
+        self.assertEqual(load_dictionary(self.conn), self.first_dictionary, "a stopped re-mint wrote a dictionary")
+
+    def test_the_command_line_uses_the_same_defaults(self):
+        calls = []
+
+        def fake_remint(conn, *args, **kwargs):
+            calls.append(args)
+            return {"items": 0, "templates": 0, "before": 1, "after": 1, "kept": "current", "best_candidate": (0, 1),
+                    "dictionary_bytes": 0, "seed": None}
+
+        with mock.patch.object(remint_dictionary, "remint", side_effect=fake_remint), \
+                mock.patch.object(sys, "argv", ["remint_dictionary.py", str(self.db_path), "--no-backup"]), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            remint_dictionary.main()
+        sample_size, dict_size, training_bytes = calls[0][:3]
+        self.assertEqual((sample_size, dict_size, training_bytes), (1200, 768 * 1024, 128 * 1024 * 1024))
+
+    def test_the_first_mint_keeps_its_smaller_defaults(self):
+        # The larger defaults are the re-mint's own: the docstring's "Dictionary size" and CLAUDE.md compare them
+        # with the first mint's 256 KiB on up to 900 rows within 32 MiB.
+        import migrate_content_to_dictionary_brotli
+        import populate_db
+        self.assertEqual((populate_db.DEFAULT_DICT_SIZE, migrate_content_to_dictionary_brotli.DEFAULT_SAMPLE_SIZE,
+                          migrate_content_to_dictionary_brotli.DEFAULT_TRAINING_BYTES),
+                         (256 * 1024, 300, 32 * 1024 * 1024))
+
+
 class RemintTemplatesTest(_RemintFixture):
     """From documentation version 3.0.0 on every Templates row is compressed against the shared dictionary,
     so a re-mint has to carry the templates across with the Content rows."""

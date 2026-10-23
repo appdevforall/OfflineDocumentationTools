@@ -59,6 +59,36 @@ redraw the same samples once a re-mint has changed the stored sizes, because
 the sampler weights each doc set by its stored bytes: re-minting a re-minted
 database at the same 2 seeds drew different samples and stored 0.1% less.
 
+Dictionary size (ADFA-3305). A re-mint defaults to a 768 KiB dictionary trained
+on up to 3,600 rows within 128 MiB of plaintext (--sample-size 1200,
+--training-bytes), where the first mint (populate_db.py,
+migrate_content_to_dictionary_brotli.py) uses 256 KiB and up to 900 rows within
+32 MiB. Measured on the 2026-10-19 ship-time database (22,745 items, 1,126
+templates), 4 seeds each, packed with rebuild_database.py --pack
+Content,TooltipTexts --page-size 4096, .br with brotli -q 11 -w 24:
+
+    dictionary, sample      stored by seed (MB)           file          .br
+    256 KiB, 900 rows       47.92 47.99 47.82 47.89   90,726,400   72,436,600
+    768 KiB, 900 rows       53.04 51.75 46.19 46.30   89,604,096   70,924,003
+    256 KiB, 3,600 rows     47.54 47.50 47.53 47.53   90,419,200   72,191,833
+    512 KiB, 3,600 rows     46.47 46.63 46.46 46.37   89,526,272   71,148,049
+    768 KiB, 3,600 rows     45.65 45.98 45.69 45.71   89,063,424   70,517,587
+    1 MiB, 3,600 rows       63.20 45.53 45.24 45.22   88,875,008   70,131,363
+
+The small sample is what limits a large dictionary: with it, two of four 768
+KiB seeds stored more than 256 KiB did, and zstd could not fill a 1 MiB
+dictionary (it returned 965,307 bytes, which stored 7.7% more than 256 KiB on a
+probe of 1,500 rows). The brotli CLI's window is not the cause: an explicit -w 24
+compressed every probe row to the same bytes as the default. With the larger
+sample, 768 KiB saves 1,662,976 file and 1,919,013 .br bytes against the first
+mint's settings. Its seeds spread 0.33 MB (256 KiB's: 0.16 MB on the small
+sample, 0.03 MB on the large), but its worst seed still stores less than 512
+KiB's best. 1 MiB stored 0.43 MB less at its best, but one seed in four stored
+17.55 MB more than 768 KiB's best, so it is not the default. On a Pixel 6 Pro
+the app showed no measurable difference in page load time or memory between the
+256 KiB database and a 768 KiB one. That one was trained on the small sample
+(the second row), so its dictionary is this default's size but not its bytes.
+
 From documentation version 3.0.0 on (ADFA-3305), every Templates row is stored
 Brotli-compressed against the same dictionary, so a re-mint carries the
 templates across too. When the newest DocumentationDatabaseVersion row declares
@@ -103,10 +133,9 @@ from pathlib import Path
 import brotli
 
 from migrate_content_to_dictionary_brotli import (
-    BATCH_ROWS, DEFAULT_SAMPLE_SEED, DEFAULT_SAMPLE_SIZE, DEFAULT_TRAINING_BYTES,
-    collect_training_samples, load_base_rows, read_item, write_item,
+    BATCH_ROWS, DEFAULT_SAMPLE_SEED, collect_training_samples, load_base_rows, read_item, write_item,
 )
-from populate_db import DEFAULT_DICT_SIZE, DictionaryCompressor, backup_database, train_dictionary
+from populate_db import DictionaryCompressor, backup_database, train_dictionary
 
 _thread_local = threading.local()
 # Every DictionaryCompressor the current pass's workers made. Each holds a temp directory, and atexit keeps it alive
@@ -114,6 +143,12 @@ _thread_local = threading.local()
 # 48 MiB, in /tmp, which can be RAM.
 _pass_compressors = []
 _pass_lock = threading.Lock()
+
+# A re-mint's defaults (ADFA-3305), larger than the first mint's (populate_db.DEFAULT_DICT_SIZE and the sample in
+# migrate_content_to_dictionary_brotli): see "Dictionary size" in the docstring.
+REMINT_DICT_SIZE = 768 * 1024
+REMINT_SAMPLE_SIZE = 1200
+REMINT_TRAINING_BYTES = 128 * 1024 * 1024
 
 # From this documentation major on, every Templates row is Brotli-compressed against the shared dictionary.
 TEMPLATES_COMPRESSED_FROM_MAJOR = 3
@@ -258,8 +293,8 @@ def convert_all(conn, base_rows: list, old_dictionary: bytes, new_dictionary: by
     return converted, total, problems
 
 
-def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAULT_DICT_SIZE,
-           training_bytes: int = DEFAULT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
+def remint(conn, sample_size: int = REMINT_SAMPLE_SIZE, dict_size: int = REMINT_DICT_SIZE,
+           training_bytes: int = REMINT_TRAINING_BYTES, seed: int = DEFAULT_SAMPLE_SEED,
            max_workers: int | None = None, seeds: int = 1, before_write=None) -> dict:
     """Re-mints in one transaction, with the best of `seeds` candidate
     dictionaries (sample seeds seed, seed + 1, ...), unless none of them stores
@@ -350,11 +385,11 @@ def remint(conn, sample_size: int = DEFAULT_SAMPLE_SIZE, dict_size: int = DEFAUL
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("db_path", type=Path, help="database to re-mint; work on a copy")
-    parser.add_argument("--sample-size", type=int, default=DEFAULT_SAMPLE_SIZE,
-                        help=f"rows to aim for when training (default: {DEFAULT_SAMPLE_SIZE}); "
-                             f"--training-bytes is the real limit")
-    parser.add_argument("--training-bytes", type=int, default=DEFAULT_TRAINING_BYTES,
-                        help=f"plaintext byte budget for training (default: {DEFAULT_TRAINING_BYTES:,})")
+    parser.add_argument("--sample-size", type=int, default=REMINT_SAMPLE_SIZE,
+                        help=f"rows to aim for when training (default: {REMINT_SAMPLE_SIZE}); at most three "
+                             f"times this many rows are drawn, within --training-bytes")
+    parser.add_argument("--training-bytes", type=int, default=REMINT_TRAINING_BYTES,
+                        help=f"plaintext byte budget for training (default: {REMINT_TRAINING_BYTES:,})")
     parser.add_argument("--sample-seed", type=int, default=DEFAULT_SAMPLE_SEED,
                         help="seed for the stratified sample, so a dictionary's training set stays "
                              "reproducible (default: %(default)s)")
@@ -362,8 +397,8 @@ def main() -> None:
                         help="candidate dictionaries to train, one per consecutive sample seed from "
                              "--sample-seed; the one that stores smallest is kept, at one full "
                              "recompression pass each (default: %(default)s)")
-    parser.add_argument("--dict-size", type=int, default=DEFAULT_DICT_SIZE,
-                        help=f"new dictionary size in bytes (default: {DEFAULT_DICT_SIZE})")
+    parser.add_argument("--dict-size", type=int, default=REMINT_DICT_SIZE,
+                        help=f"new dictionary size in bytes (default: {REMINT_DICT_SIZE})")
     parser.add_argument("--max-workers", type=int, default=None, help="worker threads for recompression")
     parser.add_argument("--no-backup", action="store_true",
                         help="skip the VACUUM INTO backup, otherwise taken just before the write (for a copy you "

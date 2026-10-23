@@ -112,6 +112,15 @@ plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read t
 the app does: from major 3 on they sample, recompress and verify the templates together with the
 `Content` rows, and below it they leave the templates exactly as stored.
 
+`remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
+(ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
+ship-time database that saved 1.66 MB of file and 1.92 MB of `.br`; a large dictionary needs the
+larger sample (with the small one, two of four 768 KiB seeds stored more than 256 KiB). Nothing that
+ships re-mints yet: CodeOnTheGo's release compresses the master as it is, so today's release keeps the
+master's 256 KiB dictionary. The new default applies to a re-mint run by hand and to the ship-time
+pipeline once one exists. Of the workflows here, only the Android docs pair calls the re-mint, and #49
+removes it. Measurements are in its docstring.
+
 **This repo writes `Templates`, but not `Bookshelf` or `BookCategories`.** `populate_db.py`
 (`page.peb`, `nav.peb`), `sync_javadoc_json_to_db.py` (`javadoc.peb`) and `load_android_json_db.py`
 (the `android-*.peb` templates) write rows there and point the pages they write at them via
