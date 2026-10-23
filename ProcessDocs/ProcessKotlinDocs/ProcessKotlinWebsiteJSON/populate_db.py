@@ -211,6 +211,76 @@ CREATE TABLE IF NOT EXISTS CompressionDictionary (
 # worth it).
 DEFAULT_DICT_SIZE = 256 * 1024
 
+# ADFA-5220. MAJOR is a compatibility contract, not a build number: 2 means the
+# brotli Content rows are compressed against CompressionDictionary, which is
+# exactly what the app gates on (DatabaseVersionResolver's
+# MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY). Bump MAJOR only when a reader that
+# understands the previous number would get this format wrong; MINOR/PATCH for
+# additions and fixes it can ignore.
+#
+# This has to be written by whichever step establishes the format, and that is
+# this script, because it is where load_or_create_dictionary mints the
+# dictionary. A database with dictionary-compressed content and no version row
+# reads as unversioned, so the app declines to use the dictionary and every
+# brotli row then fails to decode -- a working-looking database that serves
+# nothing.
+#
+# The table holds exactly one row: the version this file is, not a log of what it
+# has been. declare_database_version therefore replaces rather than appends.
+DATABASE_FORMAT_VERSION = (2, 0, 0)
+
+# Verbatim from ADFA-5220, including the comments: this is the schema the app
+# reads and the shipped database already carries, so it is copied rather than
+# paraphrased. changeTime is left to its default.
+VERSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
+  -- From https://semver.org/
+  --
+  -- Given a version number MAJOR.MINOR.PATCH, increment the:
+  --   MAJOR version when you make incompatible API changes
+  --   MINOR version when you add functionality in a backward compatible manner
+  --   PATCH version when you make backward compatible bug fixes
+  major      INT NOT NULL,
+  minor      INT NOT NULL,
+  patch      INT NOT NULL,
+  who        TEXT NOT NULL,                      -- Who made the change?
+  comment    TEXT NOT NULL,                      -- What changed?
+  changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Don't provide this. The default is fine.
+);
+"""
+
+
+def declare_database_version(
+    conn,
+    who: str = "populate_db.py",
+    comment: str = "Content rows compressed against CompressionDictionary",
+) -> bool:
+    """Records DATABASE_FORMAT_VERSION in DocumentationDatabaseVersion, creating
+    the table if this database predates it. Returns whether the row changed.
+
+    **The table holds exactly one row**: the version this file *is*, not a history
+    of what it has been. So this replaces rather than appends, and a database that
+    somehow holds several rows -- an older tool, a hand-edit -- is collapsed back
+    to one. Anything wanting the history has git and the LastChange table.
+
+    The replacement is unconditional in either direction, including a version
+    lower than the file already declares: rebuilding from an older pipeline
+    genuinely produces an older format, and the row has to say what the file
+    contains now rather than the highest it ever contained.
+    """
+    conn.execute(VERSION_TABLE_SQL)
+    declared = conn.execute("SELECT major, minor, patch FROM DocumentationDatabaseVersion").fetchall()
+    if len(declared) == 1 and tuple(declared[0]) == DATABASE_FORMAT_VERSION:
+        return False
+
+    major, minor, patch = DATABASE_FORMAT_VERSION
+    conn.execute("DELETE FROM DocumentationDatabaseVersion")
+    conn.execute(
+        "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, ?, ?, ?, ?)",
+        (major, minor, patch, who, comment),
+    )
+    return True
+
 
 def find_tool(name: str) -> str:
     """Locates an executable on PATH. Raises if it's missing, rather than
@@ -499,7 +569,37 @@ def insert_file(conn, data: bytes, name: str, db_path: str, language_id: int, co
     return True
 
 
+# From this documentation major on, migrate_tooltip_schema.py (ADFA-3305) has stored every template compressed
+# against the dictionary, and the app decodes every one: a plain template written into such a database would not
+# render, and the file would still declare 3.x.
+COMPRESSED_TEMPLATES_MAJOR = 3
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major the database declares - its newest DocumentationDatabaseVersion row, ordered as
+    Code On The Go orders them (changeTime, then rowid) - or None if it declares none."""
+    if not _table_exists(conn, "DocumentationDatabaseVersion"):
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion "
+                       "ORDER BY changeTime DESC, rowid DESC LIMIT 1").fetchone()
+    return None if row is None else int(row[0])
+
+
+def compressed_templates_refusal(conn) -> str | None:
+    """Why no plain template may be written into this database, or None."""
+    major = declared_major(conn)
+    if major is None or major < COMPRESSED_TEMPLATES_MAJOR:
+        return None
+    return (f"the database declares documentation version {major}; from {COMPRESSED_TEMPLATES_MAJOR}.0.0 every "
+            "template is stored compressed, and this step writes plain ones. Run it before migrate_tooltip_schema.py")
+
+
 def upsert_template(conn, name: str, content: str) -> int:
+    """Writes one plain template. Raises RuntimeError, writing nothing, if the database's templates are stored
+    compressed."""
+    refusal = compressed_templates_refusal(conn)
+    if refusal:
+        raise RuntimeError(refusal)
     conn.execute(
         "INSERT INTO Templates (name, content) VALUES (?, ?) "
         "ON CONFLICT(name) DO UPDATE SET content = excluded.content",
@@ -647,6 +747,15 @@ def main():
             sys.exit(1)
     if not args.db_path.is_file():
         print(f"error: {args.db_path} does not exist", file=sys.stderr)
+        sys.exit(1)
+    # Checked before the conversion and the backup, so a refusal costs nothing and writes nothing.
+    conn = sqlite3.connect(f"file:{args.db_path}?mode=ro", uri=True)
+    try:
+        refusal = compressed_templates_refusal(conn)
+    finally:
+        conn.close()
+    if refusal:
+        print(f"error: {refusal}; nothing was changed", file=sys.stderr)
         sys.exit(1)
 
     config = load_config(args.config)
@@ -869,6 +978,14 @@ def main():
         nav_json_bytes = json.dumps({"tree": nav_tree}, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
         dictionary_data = load_or_create_dictionary(conn, page_json_bytes + [nav_json_bytes])
+        # Declared next to the dictionary because the dictionary is what the
+        # version means (ADFA-5220): the two have to land in the same
+        # transaction, or a reader can see one without the other.
+        version = ".".join(str(part) for part in DATABASE_FORMAT_VERSION)
+        if declare_database_version(conn):
+            print(f"Declared documentation database version {version}", file=sys.stderr)
+        else:
+            print(f"Documentation database already declares version {version}", file=sys.stderr)
         with DictionaryCompressor(dictionary_data) as compressor:
             for page, json_bytes in zip(pages, page_json_bytes):
                 path = f"{page['id']}.html"
