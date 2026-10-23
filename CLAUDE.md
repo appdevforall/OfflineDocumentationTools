@@ -169,10 +169,26 @@ uses. Any future Android/Java tooltip work should target the normalized `Tooltip
 - **`scripts/`** — the original CLI toolbox. Live/current: `DocumentationDatabase.py` (Content
   ingestion — see whitelist issue above), `ingest.py` (thin CLI over it, used by
   `publish-doc-db.yaml`), `TooltipManager.py` (CSV ⇄ normalized-Tooltips round-trip),
-  `create_empty_database.py`, `list_database_documents.py`. **Deprecated/dead** (target the
-  removed `ide_tooltip_table` — see above, kept for reference only): `tooltips.py`,
-  `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`, `android_html_page.py`,
-  `load_android_data.py`.
+  `create_empty_database.py`, `list_database_documents.py`, `svg_images_to_webp.py` (ADFA-3305:
+  re-encodes the raster images SVG rows embed as data: URIs as WebP, image by image, by a quality
+  rule; run on the shipped copy before the final dictionary re-mint; `compare_svg_renders.py`
+  renders each changed SVG before and after in headless Chrome, through `<img>` and `<object>`, as
+  its visual check), and four steps that run in this order before the `--before` snapshot
+  `update_media_references.py` diffs against: `remove_skin_font_comment.py` (cuts Help+Manual's
+  commented-out Google Fonts note out of the `i/` pages until the skin fix, ADFA-6609, ships;
+  first - its docstring says why), `bundle_remote_images.py` (stores the 19 diagrams API reference
+  pages load from developer.android.com, kept with their sources and licenses in
+  `remote_media/adfa-6589/`, and points the pages at them; a URL in that folder's `existing.tsv`
+  is pointed at the row already holding its image instead; ADFA-6589), then
+  `remove_remote_loads.py` (takes out the markup that makes pages fetch from the internet where no
+  download is needed - a remote `srcset` beside a stored `src`, dark-theme `<source>`s, kotl.in
+  badges, YouTube players - ADFA-6589; after `bundle_remote_images.py`, because it drops a remote
+  `srcset` only beside a stored `src`), and last `check_remote_loads.py` (reads every page,
+  template and tooltip, and fails the build, naming each, if anything would still load from off
+  the device; it writes nothing - ADFA-6589).
+  **Deprecated/dead** (target the removed `ide_tooltip_table` — see above, kept for reference
+  only): `tooltips.py`, `import_tooltips.py`, `android_tooltips.py`, `java_tooltips.py`,
+  `android_html_page.py`, `load_android_data.py`.
 - **`scripts/hm_pages_to_templates.py`** - stores the Help+Manual topic pages under `i/` as JSON
   plus one Pebble template derived from the pages themselves (`helpmanual-topic.peb`), after
   rendering every page back byte for byte with the app's engine (`scripts/hm_render_check/`,
