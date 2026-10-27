@@ -80,7 +80,10 @@ edit that database** — it contains no part of the production Android app itsel
 > (the minify and the `a/` step do), so there every one of them runs before the migration. The order
 > on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
 > `migrate_tooltip_schema.py`, PR #48's `remint_dictionary.py --seeds 4` (which recompresses
-> templates too in 3.0.0), then `rebuild_database.py --pack Content,TooltipTexts`;
+> templates too in 3.0.0) and its verify, then `rebuild_database.py --pack
+> Templates,Content,TooltipTexts --page-size 4096`, as CodeOnTheGo's `compress_docdb.yml` packs it
+> (for 4.0.0, `store_pages_in_blocks.py` goes between the verify and the pack, which then ends with
+> `--pack Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`: "Schema 4.0.0" below);
 > `hm_pages_to_templates.py` goes after the `i/` page steps it lists, before the migration like
 > every other Templates writer. PR #48 has to merge no later than this step's PRs (#45, #50): the
 > re-mint and verifier before it handle Content only, so they refuse a database declaring 3.0.0.
@@ -128,28 +131,54 @@ edit that database** — it contains no part of the production Android app itsel
 > `a/devsite/`), `j/` HTML, `k/` templated JSON, and every Brotli row under `a/devsite/` and `i/`. A
 > page over 1 MiB decoded, a row with continuation rows, and each continuation row stay rows, and a
 > block never decodes to more than 4 MiB, so two fit the app's 8 MiB block cache. 4.0.0 promises
-> everything 3.0.0 does too (keyed tooltips, compressed templates). Code On The Go reads blocks only
-> from a database declaring major 4 or later, never because the tables exist; one without the reader
-> would show every blocked page empty. On the 2026-10-20 ship-time build the step blocked 22,478 pages
-> in 356 blocks and took the packed file's `.br` 10,368,636 bytes smaller (66,283,003 to 55,914,367).
+> everything 3.0.0 does too (keyed tooltips, compressed templates). The app's block reader is
+> ADFA-6683's CodeOnTheGo PR to `stage` (B04 in the ticket's plan), not yet numbered or merged. It
+> reads blocks only from a database declaring major 4 or later, never because the tables exist, so a
+> file declaring major 5 would be read as 4 (the gate is `>=`, as the 3.x gates are). An app without
+> the reader would show every blocked page empty. On the 2026-10-20 ship-time build the step blocked
+> 22,478 pages in 356 blocks and took the packed file's `.br` 10,368,636 bytes smaller (66,283,003 to
+> 55,914,367).
 >
 > Only the copy that ships gets the step, after the last dictionary re-mint and its verify, before the
 > pack. With it, the order on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
 > `migrate_tooltip_schema.py`, `remint_dictionary.py --seeds 4` and `verify_remint_dictionary.py`,
 > `store_pages_in_blocks.py`, then `rebuild_database.py --pack
 > Templates,Content,TooltipTexts,ContentBlocks --page-size 4096` (`ContentBlocks` in the list, so the
-> blocks are packed and `ContentBlockItems.blockId` follows them).
+> blocks are packed and `ContentBlockItems.blockId` follows them). The re-mint stays before the step:
+> re-minting after it, on the blocks, was measured (ADFA-6683's B02, 2026-10-26, on the 2026-10-23
+> 3.0.0 ship-time database) and saved at most 30,880 bytes of `.br` (the mean of 4 seeds was 25,285
+> bytes larger), against a 0.33 MB spread between re-mint seeds; `remint_dictionary.py`'s docstring
+> has the figures.
 >
 > Which tools refuse 4.x, writing nothing: `store_pages_in_blocks.py` itself (it runs on a file
 > declaring 3, and refuses one that already has the tables); `remint_dictionary.py` and
 > `verify_remint_dictionary.py`, which recompress and compare `Content` rows and templates, not
-> blocks; `populate_db.py`, `sync_javadoc_json_to_db.py`, `load_android_json_db.py` and `docdb-studio`,
-> which refuse a major above 3; and `android_pages_to_templates.py` and `trim_kotlin_json.py`, which
-> refuse 3 or later. The other steps that read or write `Content` (`drop_unread_rows.py`,
-> `minify_text.py`, `hm_pages_to_templates.py`, the ADFA-6589 and ADFA-4195 steps,
-> `svg_images_to_webp.py`, `optimize_pdfs.py`, the media steps) do not read the version and do not know
-> blocks: on a 4.x file they would take every blocked page for an empty one. They all run before the
-> step, and must never run after it.
+> blocks (they also refuse a file holding `ContentBlocks` or `ContentBlockItems`, whatever it
+> declares); `populate_db.py`, `sync_javadoc_json_to_db.py`, `load_android_json_db.py` and
+> `docdb-studio`, which refuse a major above 3; and `android_pages_to_templates.py` and
+> `trim_kotlin_json.py`, which refuse 3 or later.
+>
+> No other step that reads or writes `Content` knows blocks or refuses 4.x. Two read the version:
+> `drop_unread_rows.py`, only to know that templates are compressed from 3 on, and
+> `migrate_tooltip_schema.py`. None of them sees a blocked page as an empty one: its `x''` is not a
+> Brotli stream (`brotli -d` reports "corrupt input"), so decoding it fails. What each does then:
+>
+> - refuses, writing nothing: `drop_unread_rows.py` (it reports the blocked rows it reads as
+>   unreadable), `minify_text.py` (on the blocked stylesheets), `svg_images_to_webp.py`, and
+>   `optimize_pdfs.py` if a PDF were blocked;
+> - writes what it can read, then exits 1 on `error:` lines: `bundle_remote_images.py`,
+>   `remove_remote_loads.py`, `remove_skin_font_comment.py`, `share_skin_sprite.py`,
+>   `optimize_db_media.py`, `update_media_references.py` and `migrate_content_to_dictionary_brotli.py`;
+> - stops with a traceback before reaching a block, as on any 3.x file: `hm_pages_to_templates.py`
+>   (on its compressed template) and `check_remote_loads.py` (on the 3.x tooltip tables);
+>   `insert_optimized_media.py` stops with one on the first blocked row;
+> - `migrate_tooltip_schema.py` leaves the file alone ("nothing to do", exit 0), and
+>   `sync_kdoc_json_to_db.py`, which never decodes `Content`, would overwrite or delete blocked `k/`
+>   rows and leave their `ContentBlockItems` pointing at the old page.
+>
+> The ship-time steps all run before the blocks step and must never run after it;
+> `migrate_content_to_dictionary_brotli.py`, `insert_optimized_media.py` and `sync_kdoc_json_to_db.py`
+> write the master only, which never gets blocks.
 >
 > Release order: a 4.0.0 database goes to dev-assets or Drive only once the app's block reader is on
 > CodeOnTheGo's `stage`. Builds take whatever dev-assets holds, so an early copy would give every build
@@ -206,7 +235,10 @@ In a database whose newest `DocumentationDatabaseVersion` row declares major 3 o
 plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
 the app does: from major 3 on they sample, recompress and verify the templates together with the
 `Content` rows, and below it they leave the templates exactly as stored. From major 4 on (content
-blocks, "Schema 4.0.0" above) they refuse the file, writing nothing.
+blocks, "Schema 4.0.0" above) they refuse the file, writing nothing, and so they do a file holding
+`ContentBlocks` or `ContentBlockItems` whatever it declares. Re-minting on the blocks instead was
+measured (ADFA-6683's B02) and does not pay: at most 30,880 bytes of `.br`, against 0.33 MB of seed
+noise.
 
 `remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
 (ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
@@ -298,9 +330,11 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
   lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
   copy that ships, after every step that writes tooltips or templates, since they all write the old
-  shape and plain templates, never on the master they edit; re-mint afterwards, then pack
-  `Content,TooltipTexts`, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
-  HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
+  shape and plain templates, never on the master they edit; re-mint afterwards, then
+  `rebuild_database.py --pack Templates,Content,TooltipTexts --page-size 4096` (not `Tooltips`);
+  for 4.0.0, `store_pages_in_blocks.py` goes before the pack, which then ends with `--pack
+  Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`), `minify_text.py` (ADFA-6627:
+  minifies the HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
   `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
   `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
   `svg_images_to_webp.py` (ADFA-3305:
@@ -370,7 +404,8 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
 - **`scripts/store_pages_in_blocks.py`** - stores the `a/`, `j/`, `k/`, `a/devsite/` and `i/` pages up
   to 64 to a compressed block and declares documentation version 4.0.0 (ADFA-6683; "Schema 4.0.0"
-  above). Ship-time copy only, after the last re-mint and its verify, before the pack.
+  above). Ship-time copy only, after the last re-mint and its verify, then `rebuild_database.py --pack
+  Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
