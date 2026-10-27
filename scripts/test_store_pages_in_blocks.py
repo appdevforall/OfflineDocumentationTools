@@ -15,10 +15,13 @@ three pages to a block: each of the five sets in path order with its own
 blocks, the last one shorter, a/devsite/ and i/ rows taken whether templated
 or not; rows held in more than one row left alone; every item sliced from its
 block equal to its row's decoded bytes; blocked rows emptied, 4.0.0 declared
-and nothing else changed; a second run, no version, 2.x and 4.x refused; a dry
-run, and a block that does not read back byte for byte, writing nothing. On
-the second, with the default 64: an item over 1 MiB decoded kept as a row, and
-a block closed before it would decode past 4 MiB.
+and nothing else changed; a second run, no version, 1.x, 2.x and 4.x refused;
+a set decoded in several windows, and one page to a block so that blocks are
+written while more are pending, each blocked whole and in order; --workers
+below 1 refused; a dry run, a block that does not read back byte for byte or
+decodes longer than its items, a lost block and a blocked row left full, each
+writing nothing. On the second, with the default 64: an item over 1 MiB
+decoded kept as a row, and a block closed before it would decode past 4 MiB.
 
     uv run --with pytest --with-requirements requirements.txt python -m pytest -q scripts/test_store_pages_in_blocks.py
 """
@@ -288,11 +291,22 @@ def _assert_nothing_written(db_path: Path, sha: str) -> None:
     assert _query(db_path, "SELECT name FROM sqlite_master WHERE name LIKE 'ContentBlock%'") == []
 
 
+def _blocked_in_order() -> list:
+    """Every blocked path, set by set in SETS order, each set in path order: the order the items are written in."""
+    return [path for name, _condition in spb.SETS for path in _in_path_order(p for p, _t, _i in BLOCKED[name])]
+
+
+def _assert_every_slice_is_its_page(db_path: Path, plain: dict) -> None:
+    for data, items in _blocks(db_path):
+        for path, offset, length in items:
+            assert data[offset:offset + length] == plain[path], path
+
+
 def test_blocks_follow_path_order_and_never_mix_sets(database):
     db_path, _plain = database
     assert _run(db_path) == 0
     blocks = _blocks(db_path)
-    expected = [path for name, _condition in spb.SETS for path in _in_path_order(p for p, _t, _i in BLOCKED[name])]
+    expected = _blocked_in_order()
     assert [path for _data, items in blocks for path, _offset, _length in items] == expected
     assert [name for name, _condition in spb.SETS] == ["a/", "j/", "k/", "a/devsite/", "i/"]
     # Binary, not case-blind: a/Zeta.html sorts before a/android/..., a/androidx/B before a/androidx/a.
@@ -357,6 +371,64 @@ def test_every_slice_equals_the_rows_decoded_bytes(database):
             assert data[offset:offset + length] == plain[path], path
             sliced += 1
     assert sliced == sum(len(group) for group in BLOCKED.values())
+
+
+class _RecordingPool:
+    """Maps in the calling thread, recording how many rows each map() is handed."""
+
+    def __init__(self):
+        self.batches = []
+
+    def map(self, fn, rows):
+        rows = list(rows)
+        self.batches.append(len(rows))
+        return [fn(row) for row in rows]
+
+
+class _Reversing:
+    """A codec whose decode reverses the bytes, so a row and its decoded bytes differ."""
+
+    @staticmethod
+    def decode(data: bytes) -> bytes:
+        return data[::-1]
+
+
+def test_rows_are_decoded_a_window_at_a_time_in_order(monkeypatch):
+    monkeypatch.setattr(spb, "DECODE_WINDOW", 4)
+    rows = [(n, f"a/{n}.html", "text/html", f"row {n}".encode()) for n in range(10)]
+    pool = _RecordingPool()
+    walk = spb.decoded_in_order(pool, _Reversing(), rows)
+    taken = [next(walk) for _ in range(4)]
+    assert pool.batches == [4], "rows past the first window were decoded before the walk reached them"
+    taken += list(walk)
+    assert pool.batches == [4, 4, 2]
+    assert taken == [(row, row[3][::-1]) for row in rows]
+
+
+@pytest.mark.parametrize("window", [2, 5])
+def test_a_set_spanning_several_decode_windows_is_blocked_whole(database, monkeypatch, window):
+    """a/ has 7 pages, so with a window of 2 or 5 it is decoded in more than one window, and a block of 3 straddles
+    two of them. Every page must still be blocked, in order."""
+    db_path, plain = database
+    monkeypatch.setattr(spb, "DECODE_WINDOW", window)
+    assert _run(db_path) == 0
+    assert [path for paths in _block_paths(db_path) for path in paths] == _blocked_in_order()
+    _assert_every_slice_is_its_page(db_path, plain)
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_blocks_are_written_in_order_while_more_are_pending(database, capsys, workers):
+    """One page to a block: a/'s 7 blocks are more than the 2 * workers built ahead of the writes, so blocks are
+    written while later ones are still pending. Every block must be written, and in path order."""
+    db_path, plain = database
+    assert spb.run({"db_path": db_path, "pages_per_block": 1, "dry_run": False, "workers": workers}) == 0
+    expected = _blocked_in_order()
+    assert len(BLOCKED["a/"]) > 2 * workers, "fixture premise: a/ alone fills the write-ahead limit"
+    assert _block_paths(db_path) == [[path] for path in expected]
+    assert _query(db_path, "SELECT id FROM ContentBlocks ORDER BY id") == [(n,) for n in range(1, len(expected) + 1)]
+    _assert_every_slice_is_its_page(db_path, plain)
+    assert _query(db_path, "SELECT COUNT(*) FROM Content WHERE LENGTH(content) = 0") == [(len(expected),)]
+    assert f"Stored {len(expected)} page(s) in {len(expected)} block(s)" in capsys.readouterr().out
 
 
 def test_blocked_rows_are_emptied_and_nothing_else_changes(database):
@@ -425,23 +497,27 @@ def test_dry_run_writes_nothing(database, capsys):
 JAN, OCT = "2026-01-01 00:00:00", "2026-10-21 00:00:00"
 
 
-@pytest.mark.parametrize("statements, says", [
-    (["DROP TABLE DocumentationDatabaseVersion"], "declares no documentation version"),
-    (["DELETE FROM DocumentationDatabaseVersion"], "declares no documentation version"),
+@pytest.mark.parametrize("statements, says, migrate", [
+    (["DROP TABLE DocumentationDatabaseVersion"], "declares no documentation version", False),
+    (["DELETE FROM DocumentationDatabaseVersion"], "declares no documentation version", False),
+    ([f"INSERT INTO DocumentationDatabaseVersion VALUES (1, 0, 0, 'later', 'later', '{OCT}')"],
+     "declares documentation major 1", False),
     ([f"INSERT INTO DocumentationDatabaseVersion VALUES (2, 1, 0, 'later', 'later', '{OCT}')"],
-     "declares documentation major 2"),
+     "declares documentation major 2", True),
     ([f"INSERT INTO DocumentationDatabaseVersion VALUES (4, 0, 0, 'later', 'later', '{OCT}')"],
-     "declares documentation major 4"),
+     "declares documentation major 4", False),
     ([f"INSERT INTO DocumentationDatabaseVersion VALUES (5, 0, 0, 'later', 'later', '{OCT}')"],
-     "declares documentation major 5"),
-], ids=["no version table", "no version row", "2.x", "4.x", "5.x"])
-def test_a_database_not_declaring_3_is_refused_with_nothing_written(database, capsys, statements, says):
+     "declares documentation major 5", False),
+], ids=["no version table", "no version row", "1.x", "2.x", "4.x", "5.x"])
+def test_a_database_not_declaring_3_is_refused_with_nothing_written(database, capsys, statements, says, migrate):
+    """Only a 2.x database is pointed at migrate_tooltip_schema.py, which converts 2.x and refuses anything else."""
     db_path, _plain = database
     _execute(db_path, *statements)
     sha = _sha(db_path)
     assert _run(db_path) == 1
     err = capsys.readouterr().err
-    assert says in err and "nothing was written" in err, err
+    assert err.startswith("error: ") and says in err and "nothing was written" in err, err
+    assert ("run migrate_tooltip_schema.py first" in err) == migrate, err
     _assert_nothing_written(db_path, sha)
 
 
@@ -507,10 +583,23 @@ def test_64_pages_to_a_block_by_default(cap_database, monkeypatch):
     assert [len(paths) for paths in k_blocks] == [64, 1]
 
 
+@pytest.mark.parametrize("workers", ["0", "-1"])
+def test_workers_below_1_is_refused_on_an_error_line(database, capsys, monkeypatch, workers):
+    db_path, _plain = database
+    sha = _sha(db_path)
+    monkeypatch.setattr(sys, "argv", ["store_pages_in_blocks.py", str(db_path), "--workers", workers])
+    with pytest.raises(SystemExit) as exited:
+        spb.main()
+    assert exited.value.code == 1
+    assert capsys.readouterr().err == f"error: --workers must be at least 1, not {workers}\n"
+    _assert_nothing_written(db_path, sha)
+
+
 class _Garbling(spb.DictionaryBrotli):
     """The real codec, except that the `garble`-th decode of each block it encoded comes back with one byte
-    changed, the length kept."""
+    changed, the length kept, or with `extend` with one byte more at the end, every item's slice intact."""
     garble = 1
+    extend = False
 
     def __init__(self, dictionary: bytes):
         super().__init__(dictionary)
@@ -531,6 +620,8 @@ class _Garbling(spb.DictionaryBrotli):
             self._decodes[data] += 1
             if self._decodes[data] != self.garble:
                 return plain
+        if self.extend:
+            return plain + b"!"
         middle = len(plain) // 2
         return plain[:middle] + bytes([plain[middle] ^ 1]) + plain[middle + 1:]
 
@@ -555,4 +646,53 @@ def test_a_stored_block_that_does_not_read_back_writes_nothing(database, capsys,
     assert _run(db_path) == 1
     err = capsys.readouterr().err
     assert "does not read back from block" in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
+
+
+@pytest.mark.parametrize("garble, says", [
+    (1, "decoded back to"),  # the decode-back, before a row is emptied
+    (2, "but its items add up to"),  # the decode of the stored blocks, before the commit
+], ids=["decode-back", "stored"])
+def test_a_block_that_decodes_longer_than_its_items_writes_nothing(database, capsys, monkeypatch, garble, says):
+    """One byte more at the end leaves every item's slice intact, so only a length check can stop the run."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+    monkeypatch.setattr(spb, "DictionaryBrotli", type("Longer", (_Garbling,), {"garble": garble, "extend": True}))
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert says in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
+
+
+def _lose_the_last_block(conn) -> None:
+    """A block and its items gone, as a lost write would leave them: their rows are empty all the same."""
+    block_id = conn.execute("SELECT MAX(id) FROM ContentBlocks").fetchone()[0]
+    conn.execute("DELETE FROM ContentBlockItems WHERE blockId = ?", (block_id,))
+    conn.execute("DELETE FROM ContentBlocks WHERE id = ?", (block_id,))
+
+
+def _refill_a_blocked_row(conn) -> None:
+    """A blocked row whose content was never emptied."""
+    conn.execute("UPDATE Content SET content = x'00' WHERE id = (SELECT MIN(contentId) FROM ContentBlockItems)")
+
+
+@pytest.mark.parametrize("damage, says", [
+    (_lose_the_last_block, "ContentBlockItems does not hold one row per blocked item"),
+    (_refill_a_blocked_row, "1 blocked row(s) still hold their content"),
+], ids=["a block lost", "a row not emptied"])
+def test_the_check_before_the_commit_refuses_what_the_writes_got_wrong(database, capsys, monkeypatch, damage, says):
+    """Each damage leaves every stored block decoding to its items, so only the check that names it can stop the
+    run."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+    check_stored = spb.check_stored
+
+    def damaged(conn, *args):
+        damage(conn)
+        return check_stored(conn, *args)
+
+    monkeypatch.setattr(spb, "check_stored", damaged)
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert says in err and "nothing was written" in err, err
     _assert_nothing_written(db_path, sha)

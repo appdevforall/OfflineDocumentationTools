@@ -81,11 +81,13 @@ Without the cap, j/'s Javadoc index pages (up to 5,065,005 bytes each) made a
 the pages in blocks and their content types, the pages the cap kept as rows,
 and the rows left for their continuation rows.
 
-Checks: every block is decoded again before its rows are emptied, and each
-item's slice of it compared byte for byte with its row's decoded bytes. Before
-the commit every item is sliced from its block as stored and compared, by
-sha256, with its row's decoded bytes, and every blocked row must be empty. Any
-failure rolls everything back.
+Checks: every block is decoded again before its rows are emptied; it must
+decode to its items' total length, and each item's slice of it is compared byte
+for byte with its row's decoded bytes. Before the commit ContentBlockItems must
+hold one row per blocked item, every block as stored must decode to exactly its
+items' lengths added up, every item is sliced from it and compared, by sha256,
+with its row's decoded bytes, and every blocked row must be empty. Any failure
+rolls everything back.
 
 A database that already has ContentBlocks or ContentBlockItems is refused
 too: its blocked rows are empty, so a second run would store empty pages over
@@ -135,11 +137,14 @@ SETS = (
 MAX_ITEM_BYTES = 1024 * 1024
 MAX_BLOCK_BYTES = 4 * 1024 * 1024
 PAGES_PER_BLOCK = 64
-# Rows decoded ahead of the grouping walk, at most, so a set is never held decoded all at once.
+# Rows decoded at a time ahead of the grouping walk, so a set is never held decoded all at once. Read when a set is
+# decoded, not bound as a default argument, so a test can shrink it.
 DECODE_WINDOW = 256
 
 # This step turns a 3.x database into 4.0.0, as one DocumentationDatabaseVersion row.
 FROM_MAJOR, TO_MAJOR = 3, 4
+# migrate_tooltip_schema.py turns this major, and no other, into 3.0.0.
+TOOLTIP_MIGRATION_FROM_MAJOR = 2
 WHO = "ADFA-6683"
 COMMENT = ("ADFA-6683: a/, j/, k/, a/devsite/ and i/ pages stored up to 64 to a Brotli block in ContentBlocks, each "
            "located by ContentBlockItems; a blocked Content row's content is empty. Keyed tooltips and compressed "
@@ -207,12 +212,16 @@ def version_refusal(conn) -> str | None:
     """Why this database's declared version keeps it from getting blocks, or None if it declares FROM_MAJOR."""
     major = declared_major(conn)
     if major is None:
-        return (f"it declares no documentation version, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0. "
-                f"{TO_MAJOR}.0.0 promises everything {FROM_MAJOR}.0.0 does; run migrate_tooltip_schema.py first")
+        return (f"it declares no documentation version (no DocumentationDatabaseVersion row), and this step turns "
+                f"only a database declaring {FROM_MAJOR}.x into {TO_MAJOR}.0.0. Run it on the copy that ships, once "
+                f"that declares {FROM_MAJOR}.0.0")
     if major < FROM_MAJOR:
-        return (f"it declares documentation major {major}, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0, "
-                f"which promises everything {FROM_MAJOR}.0.0 does (keyed tooltips, compressed templates); run "
-                "migrate_tooltip_schema.py first")
+        refusal = (f"it declares documentation major {major}, and this step turns {FROM_MAJOR}.x into "
+                   f"{TO_MAJOR}.0.0, which promises everything {FROM_MAJOR}.0.0 does (keyed tooltips, compressed "
+                   "templates)")
+        if major == TOOLTIP_MIGRATION_FROM_MAJOR:
+            refusal += f"; run migrate_tooltip_schema.py first, which turns {major}.x into {FROM_MAJOR}.0.0"
+        return refusal
     if major > FROM_MAJOR:
         return (f"it declares documentation major {major}, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0; "
                 f"from {TO_MAJOR} on, pages are already in blocks or in a format this step does not know")
@@ -253,8 +262,10 @@ def decode_row(codec: DictionaryBrotli, row: tuple) -> bytes:
         raise RuntimeError(f"{row[1]}: {exc}") from exc
 
 
-def decoded_in_order(pool, codec: DictionaryBrotli, rows: list, window: int = DECODE_WINDOW):
-    """(row, its decoded bytes) for every row, in order, decoded in the pool at most `window` rows ahead."""
+def decoded_in_order(pool, codec: DictionaryBrotli, rows: list):
+    """(row, its decoded bytes) for every row, in order, decoded in the pool DECODE_WINDOW rows at a time: the next
+    window only once the walk has taken the last row of this one."""
+    window = DECODE_WINDOW
     for start in range(0, len(rows), window):
         batch = rows[start:start + window]
         yield from zip(batch, pool.map(lambda row: decode_row(codec, row), batch))
@@ -332,8 +343,9 @@ def store_set(conn, pool, codec: DictionaryBrotli, rows: list, per_block: int, w
 
 def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) -> None:
     """Slices every item from its block as stored and compares it with its
-    row's decoded bytes (`expected`: {content id: sha256}); every blocked row
-    must now be empty."""
+    row's decoded bytes (`expected`: {content id: sha256}). ContentBlockItems
+    must hold one row per blocked item, each block must decode to exactly its
+    items' lengths added up, and every blocked row must now be empty."""
     items = {}
     for content_id, block_id, offset, length in conn.execute(
             "SELECT contentId, blockId, offset, length FROM ContentBlockItems"):
@@ -345,7 +357,12 @@ def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) ->
     def check(block):
         block_id, data = block
         plain = codec.decode(data)
-        for content_id, offset, length in items.get(block_id, ()):
+        located = items.get(block_id, ())
+        total = sum(length for _content_id, _offset, length in located)
+        if len(plain) != total:
+            raise RuntimeError(f"block {block_id} decodes to {human(len(plain))} bytes, but its items add up to "
+                               f"{human(total)}")
+        for content_id, offset, length in located:
             if hashlib.sha256(plain[offset:offset + length]).digest() != expected.get(content_id):
                 raise RuntimeError(f"Content id {content_id} does not read back from block {block_id}")
 
@@ -379,9 +396,12 @@ def report(summary: list, per_block: int, dry_run: bool) -> None:
 
 
 def run(cfg: dict) -> int:
-    db_path, per_block, workers = cfg["db_path"], cfg["pages_per_block"], cfg.get("workers") or 1
+    db_path, per_block, workers = cfg["db_path"], cfg["pages_per_block"], cfg.get("workers", 1)
     if per_block < 1:
         print(f"error: --pages-per-block must be at least 1, not {per_block}", file=sys.stderr)
+        return 1
+    if workers < 1:
+        print(f"error: --workers must be at least 1, not {workers}", file=sys.stderr)
         return 1
     if not db_path.is_file():
         print(f"error: {db_path} does not exist", file=sys.stderr)
