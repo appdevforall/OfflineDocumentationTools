@@ -32,7 +32,8 @@ against the original, before the file is put in place.
 Reads only: neither database is modified. A database it cannot check (no
 CompressionDictionary row) is reported on an "error:" line, exit 1. So is a
 pair where either database declares documentation major 4 or later
-(ADFA-6683): most of its pages are in ContentBlocks, which this check does not
+(ADFA-6683), or has ContentBlocks or ContentBlockItems whatever it declares:
+most of its pages are, or may be, in ContentBlocks, which this check does not
 compare, and which remint_dictionary.py refuses to re-mint. Re-mint and verify
 before scripts/store_pages_in_blocks.py.
 """

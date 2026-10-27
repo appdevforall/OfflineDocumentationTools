@@ -39,6 +39,13 @@ TEMPLATES_SQL = """
 CREATE TABLE Templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content BLOB NOT NULL, UNIQUE(name));
 """
 TEMPLATE_NAMES = ("layout.pebble", "page.peb", "nav.peb")
+# The tables scripts/store_pages_in_blocks.py adds (ADFA-6683), as it creates them.
+BLOCK_TABLES = {
+    "ContentBlocks": "CREATE TABLE ContentBlocks (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB NOT NULL)",
+    "ContentBlockItems": ("CREATE TABLE ContentBlockItems (contentId INTEGER NOT NULL PRIMARY KEY REFERENCES "
+                          "Content(id), blockId INTEGER NOT NULL REFERENCES ContentBlocks(id), offset INTEGER NOT "
+                          "NULL, length INTEGER NOT NULL) WITHOUT ROWID"),
+}
 HERE = Path(__file__).resolve().parent
 
 # The dictionary the fixture is first minted with. Small on purpose, so a 16 KiB re-mint beats it by hundreds of
@@ -729,7 +736,8 @@ class RemintTemplatesTest(_RemintFixture):
 class ContentBlocksRefusalTest(_RemintFixture):
     """From documentation version 4.0.0 on (ADFA-6683) most pages are in ContentBlocks, compressed against the
     dictionary, which neither the re-mint nor its verifier handles: both refuse a database declaring major 4 or later,
-    as the app reads its version, write nothing, and say the re-mint goes before the blocks step."""
+    as the app reads its version, or holding the blocks step's tables whatever it declares, write nothing, and say the
+    re-mint goes before the blocks step."""
 
     def remint(self, **kwargs):
         return remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, **kwargs)
@@ -737,7 +745,8 @@ class ContentBlocksRefusalTest(_RemintFixture):
     def assertNamesTheBlocksStepAndTheOrder(self, message: str):
         self.assertIn("Re-mint before scripts/store_pages_in_blocks.py", message)
         self.assertIn("verify_remint_dictionary.py, scripts/store_pages_in_blocks.py, then "
-                      "scripts/rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks", message)
+                      "scripts/rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks --page-size 4096",
+                      message)
 
     def test_the_remint_refuses_major_4_or_later_before_training(self):
         for majors in ((3, 4), (5,)):
@@ -782,6 +791,51 @@ class ContentBlocksRefusalTest(_RemintFixture):
                 message = str(raised.exception)
                 self.assertTrue(message.startswith(f"{self.db_path}: the database declares documentation major 4"),
                                 message)
+                self.assertIn("This check compares Content rows and templates, not blocks", message)
+                self.assertNamesTheBlocksStepAndTheOrder(message)
+
+    def add_block_tables(self, tables=BLOCK_TABLES):
+        self.conn.executescript("".join(BLOCK_TABLES[name] + ";" for name in tables))
+        self.conn.commit()
+
+    def test_the_remint_refuses_block_tables_whatever_the_database_declares(self):
+        """A version row rewritten to 3 after the blocks step, or dropped, leaves the pages in blocks all the same."""
+        for majors, tables, declares in (((3,), tuple(BLOCK_TABLES), "documentation major 3"),
+                                         ((3,), ("ContentBlockItems",), "documentation major 3"),
+                                         (None, ("ContentBlocks",), "no documentation version")):
+            with self.subTest(majors=majors, tables=tables):
+                self.tearDown()
+                self.setUp()
+                if majors is not None:
+                    self.add_versions_and_templates(majors=majors)
+                self.add_block_tables(tables)
+                content = dict(self.conn.execute("SELECT path, content FROM Content"))
+                templates = self.stored_templates() if majors is not None else None
+                with mock.patch.object(remint_dictionary, "train_dictionary",
+                                       side_effect=AssertionError("trained on a database with blocks")):
+                    with self.assertRaises(RuntimeError) as raised:
+                        self.remint()
+                message = str(raised.exception)
+                self.assertTrue(message.startswith(f"the database has {' and '.join(tables)}, the tables "
+                                                   "scripts/store_pages_in_blocks.py (ADFA-6683) adds, though it "
+                                                   f"declares {declares}"), message)
+                self.assertIn("nothing written", message)
+                self.assertNamesTheBlocksStepAndTheOrder(message)
+                self.assertEqual(load_dictionary(self.conn), self.first_dictionary, "dictionary was replaced anyway")
+                self.assertEqual(dict(self.conn.execute("SELECT path, content FROM Content")), content)
+                if templates is not None:
+                    self.assertEqual(self.stored_templates(), templates)
+
+    def test_the_verifier_refuses_either_database_with_block_tables(self):
+        self.add_versions_and_templates(majors=(3,))
+        original = self.snapshot()
+        self.add_block_tables(("ContentBlocks",))
+        for old, new in ((original, self.db_path), (self.db_path, original)):
+            with self.subTest(old=old.name, new=new.name):
+                with self.assertRaises(RuntimeError) as raised:
+                    verify(old, new)
+                message = str(raised.exception)
+                self.assertTrue(message.startswith(f"{self.db_path}: the database has ContentBlocks"), message)
                 self.assertIn("This check compares Content rows and templates, not blocks", message)
                 self.assertNamesTheBlocksStepAndTheOrder(message)
 
@@ -843,6 +897,13 @@ class CommandLineRefusalTest(_RemintFixture):
         self.add_versions_and_templates(majors=(3, 4))
         sha = self.sha()
         self.assertRefusedWithNothingWritten(self.run_remint(), sha, "Re-mint before scripts/store_pages_in_blocks.py")
+
+    def test_a_3_x_database_with_block_tables_refuses_with_no_backup(self):
+        self.add_versions_and_templates(majors=(3,))
+        self.conn.executescript("".join(sql + ";" for sql in BLOCK_TABLES.values()))
+        sha = self.sha()
+        self.assertRefusedWithNothingWritten(self.run_remint(), sha, "the database has ContentBlocks and "
+                                            "ContentBlockItems")
 
     def test_the_verifier_reports_a_database_with_blocks_on_an_error_line(self):
         self.add_versions_and_templates(majors=(3, 4))
