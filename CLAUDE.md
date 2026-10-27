@@ -103,6 +103,59 @@ edit that database** — it contains no part of the production Android app itsel
 > index would cost about the 613 pages the conversion saves), and two rows sharing an id share one
 > text, so deleting either key's text deletes the other's.
 
+> ### Schema 4.0.0: content blocks, in the shipped copy only
+>
+> `scripts/store_pages_in_blocks.py` (ADFA-6683) stores most pages up to 64 to a compressed block and
+> declares **4.0.0**:
+>
+> ```sql
+> CREATE TABLE ContentBlocks (
+>     id   INTEGER PRIMARY KEY AUTOINCREMENT,
+>     data BLOB NOT NULL      -- Brotli (q11, w24) of the block's items, concatenated, against CompressionDictionary
+> );
+> CREATE TABLE ContentBlockItems (
+>     contentId INTEGER NOT NULL PRIMARY KEY REFERENCES Content(id),
+>     blockId   INTEGER NOT NULL REFERENCES ContentBlocks(id),
+>     offset    INTEGER NOT NULL, -- into the decoded block, in bytes
+>     length    INTEGER NOT NULL  -- in bytes
+> ) WITHOUT ROWID;
+> ```
+>
+> An item is exactly its row's decoded bytes, before any template is applied. **A blocked `Content`
+> row is empty**: it keeps `path`, `languageID`, `contentTypeID` and `templateId`, and its `content`
+> is `x''`, so anything that reads `Content.content` from a 4.x file reads nothing for that page. The
+> blocked rows are five sets, each in path order, never mixed in a block: `a/` templated JSON (not
+> `a/devsite/`), `j/` HTML, `k/` templated JSON, and every Brotli row under `a/devsite/` and `i/`. A
+> page over 1 MiB decoded, a row with continuation rows, and each continuation row stay rows, and a
+> block never decodes to more than 4 MiB, so two fit the app's 8 MiB block cache. 4.0.0 promises
+> everything 3.0.0 does too (keyed tooltips, compressed templates). Code On The Go reads blocks only
+> from a database declaring major 4 or later, never because the tables exist; one without the reader
+> would show every blocked page empty. On the 2026-10-20 ship-time build the step blocked 22,478 pages
+> in 356 blocks and took the packed file's `.br` 10,368,636 bytes smaller (66,283,003 to 55,914,367).
+>
+> Only the copy that ships gets the step, after the last dictionary re-mint and its verify, before the
+> pack. With it, the order on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
+> `migrate_tooltip_schema.py`, `remint_dictionary.py --seeds 4` and `verify_remint_dictionary.py`,
+> `store_pages_in_blocks.py`, then `rebuild_database.py --pack
+> Templates,Content,TooltipTexts,ContentBlocks --page-size 4096` (`ContentBlocks` in the list, so the
+> blocks are packed and `ContentBlockItems.blockId` follows them).
+>
+> Which tools refuse 4.x, writing nothing: `store_pages_in_blocks.py` itself (it runs on a file
+> declaring 3, and refuses one that already has the tables); `remint_dictionary.py` and
+> `verify_remint_dictionary.py`, which recompress and compare `Content` rows and templates, not
+> blocks; `populate_db.py`, `sync_javadoc_json_to_db.py`, `load_android_json_db.py` and `docdb-studio`,
+> which refuse a major above 3; and `android_pages_to_templates.py` and `trim_kotlin_json.py`, which
+> refuse 3 or later. The other steps that read or write `Content` (`drop_unread_rows.py`,
+> `minify_text.py`, `hm_pages_to_templates.py`, the ADFA-6589 and ADFA-4195 steps,
+> `svg_images_to_webp.py`, `optimize_pdfs.py`, the media steps) do not read the version and do not know
+> blocks: on a 4.x file they would take every blocked page for an empty one. They all run before the
+> step, and must never run after it.
+>
+> Release order: a 4.0.0 database goes to dev-assets or Drive only once the app's block reader is on
+> CodeOnTheGo's `stage`. Builds take whatever dev-assets holds, so an early copy would give every build
+> empty pages. It ships with the 3.0.0 switch or later. An app update never replaces the installed
+> database, so a phone with a 3.x or 2.x file keeps the old read path.
+
 The schema below is what `~/documentation.db` (Alex's current production copy) actually contains,
 as of 2026-08-05 — predating the 2.0.0 bump described above, which additionally adds the
 `CompressionDictionary` and `DocumentationDatabaseVersion` tables:
@@ -152,7 +205,8 @@ In a database whose newest `DocumentationDatabaseVersion` row declares major 3 o
 (ADFA-3305). Only the ship-time copy is converted; the master database the tools here edit keeps
 plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
 the app does: from major 3 on they sample, recompress and verify the templates together with the
-`Content` rows, and below it they leave the templates exactly as stored.
+`Content` rows, and below it they leave the templates exactly as stored. From major 4 on (content
+blocks, "Schema 4.0.0" above) they refuse the file, writing nothing.
 
 `remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
 (ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
@@ -314,6 +368,9 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   `a/android/` and `a/androidx/` pages its own way. This step is the one that ships: the workflows
   that ran that pipeline on the master (`build-android-docs.yaml`, `build-android-docs-local.yaml`)
   were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
+- **`scripts/store_pages_in_blocks.py`** - stores the `a/`, `j/`, `k/`, `a/devsite/` and `i/` pages up
+  to 64 to a compressed block and declares documentation version 4.0.0 (ADFA-6683; "Schema 4.0.0"
+  above). Ship-time copy only, after the last re-mint and its verify, before the pack.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and
