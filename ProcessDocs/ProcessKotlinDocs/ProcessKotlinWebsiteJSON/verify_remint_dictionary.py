@@ -30,7 +30,11 @@ referenced). Nothing at runtime detects that, so it has to be caught here,
 against the original, before the file is put in place.
 
 Reads only: neither database is modified. A database it cannot check (no
-CompressionDictionary row) is reported on an "error:" line, exit 1.
+CompressionDictionary row) is reported on an "error:" line, exit 1. So is a
+pair where either database declares documentation major 4 or later
+(ADFA-6683): most of its pages are in ContentBlocks, which this check does not
+compare, and which remint_dictionary.py refuses to re-mint. Re-mint and verify
+before scripts/store_pages_in_blocks.py.
 """
 import argparse
 import sys
@@ -42,7 +46,7 @@ import brotli
 
 from populate_db import DictionaryCompressor
 from migrate_content_to_dictionary_brotli import load_base_rows, read_item
-from remint_dictionary import templates_compressed
+from remint_dictionary import content_blocks_refusal, templates_compressed
 
 _thread_local = threading.local()
 
@@ -142,6 +146,10 @@ def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
     import sqlite3
     old_conn = sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)
     new_conn = sqlite3.connect(f"file:{new_db}?mode=ro", uri=True)
+    for path, conn in ((old_db, old_conn), (new_db, new_conn)):
+        refusal = content_blocks_refusal(conn, "This check compares")
+        if refusal:
+            raise RuntimeError(f"{path}: {refusal}")
     old_dictionary = dictionary_of(old_conn, old_db)
     new_dictionary = dictionary_of(new_conn, new_db)
     if old_dictionary == new_dictionary:

@@ -726,6 +726,66 @@ class RemintTemplatesTest(_RemintFixture):
                                             "template page.peb"])
 
 
+class ContentBlocksRefusalTest(_RemintFixture):
+    """From documentation version 4.0.0 on (ADFA-6683) most pages are in ContentBlocks, compressed against the
+    dictionary, which neither the re-mint nor its verifier handles: both refuse a database declaring major 4 or later,
+    as the app reads its version, write nothing, and say the re-mint goes before the blocks step."""
+
+    def remint(self, **kwargs):
+        return remint(self.conn, sample_size=30, dict_size=16384, training_bytes=1 << 20, seed=999, **kwargs)
+
+    def assertNamesTheBlocksStepAndTheOrder(self, message: str):
+        self.assertIn("Re-mint before scripts/store_pages_in_blocks.py", message)
+        self.assertIn("verify_remint_dictionary.py, scripts/store_pages_in_blocks.py, then "
+                      "scripts/rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks", message)
+
+    def test_the_remint_refuses_major_4_or_later_before_training(self):
+        for majors in ((3, 4), (5,)):
+            with self.subTest(majors=majors):
+                self.tearDown()
+                self.setUp()
+                self.add_versions_and_templates(majors=majors)
+                content, templates = dict(self.conn.execute("SELECT path, content FROM Content")), \
+                    self.stored_templates()
+                with mock.patch.object(remint_dictionary, "train_dictionary",
+                                       side_effect=AssertionError("trained on a database with blocks")):
+                    with self.assertRaises(RuntimeError) as raised:
+                        self.remint()
+                message = str(raised.exception)
+                self.assertIn(f"declares documentation major {majors[-1]}", message)
+                self.assertIn("nothing written", message)
+                self.assertNamesTheBlocksStepAndTheOrder(message)
+                self.assertEqual(load_dictionary(self.conn), self.first_dictionary, "dictionary was replaced anyway")
+                self.assertEqual(dict(self.conn.execute("SELECT path, content FROM Content")), content)
+                self.assertEqual(self.stored_templates(), templates)
+
+    def test_the_newest_version_row_decides(self):
+        """An older row declaring 4 under a newer one declaring 3 is a 3.x database, as the app reads it: re-minted,
+        templates and all, and verified."""
+        self.add_versions_and_templates(majors=(4, 3))
+        before = self.snapshot()
+        stats = self.remint()
+        self.assertEqual(stats["kept"], "candidate")
+        self.assertEqual(stats["templates"], len(TEMPLATE_NAMES))
+        self.assertEqual(verify(before, self.db_path), [])
+
+    def test_the_verifier_refuses_either_database_declaring_major_4(self):
+        self.add_versions_and_templates(majors=(3,))
+        original = self.snapshot()
+        self.conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                          "VALUES (4, 0, 0, 'ADFA-6683', 'blocks', '2026-10-26 00:00:00')")
+        self.conn.commit()
+        for old, new in ((original, self.db_path), (self.db_path, original)):
+            with self.subTest(old=old.name, new=new.name):
+                with self.assertRaises(RuntimeError) as raised:
+                    verify(old, new)
+                message = str(raised.exception)
+                self.assertTrue(message.startswith(f"{self.db_path}: the database declares documentation major 4"),
+                                message)
+                self.assertIn("This check compares Content rows and templates, not blocks", message)
+                self.assertNamesTheBlocksStepAndTheOrder(message)
+
+
 class CommandLineRefusalTest(_RemintFixture):
     """A run that refuses writes nothing at all, the backup included, and says why on one "error:" line rather
     than in a traceback."""
@@ -778,6 +838,23 @@ class CommandLineRefusalTest(_RemintFixture):
         self.conn.commit()
         sha = self.sha()
         self.assertRefusedWithNothingWritten(self.run_remint(), sha, "(templates)/page.peb")
+
+    def test_a_database_with_blocks_refuses_with_no_backup(self):
+        self.add_versions_and_templates(majors=(3, 4))
+        sha = self.sha()
+        self.assertRefusedWithNothingWritten(self.run_remint(), sha, "Re-mint before scripts/store_pages_in_blocks.py")
+
+    def test_the_verifier_reports_a_database_with_blocks_on_an_error_line(self):
+        self.add_versions_and_templates(majors=(3, 4))
+        original = self.dir / "original.db"
+        shutil.copy2(self.db_path, original)
+        result = self.run_script("verify_remint_dictionary.py", str(original), str(self.db_path))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertTrue(result.stderr.startswith(f"error: {original}: the database declares documentation major 4"),
+                        result.stderr)
+        self.assertIn("store_pages_in_blocks.py", result.stderr)
+        self.assertNotIn("Byte-identical", result.stdout)
 
     def test_no_dictionary_refuses_with_no_backup(self):
         self.conn.execute("DELETE FROM CompressionDictionary")
