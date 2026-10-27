@@ -14,9 +14,9 @@ Covers store_pages_in_blocks.py on small synthetic databases. On the first,
 three pages to a block: each of the five sets in path order with its own
 blocks, the last one shorter, a/devsite/ and i/ rows taken whether templated
 or not; rows held in more than one row left alone; every item sliced from its
-block equal to its row's decoded bytes; blocked rows emptied and nothing else
-changed; a second run refused; a dry run, and a block that does not read back
-byte for byte, writing nothing. On
+block equal to its row's decoded bytes; blocked rows emptied, 4.0.0 declared
+and nothing else changed; a second run, no version, 2.x and 4.x refused; a dry
+run, and a block that does not read back byte for byte, writing nothing. On
 the second, with the default 64: an item over 1 MiB decoded kept as a row, and
 a block closed before it would decode past 4 MiB.
 
@@ -91,7 +91,14 @@ CREATE TABLE Content (
     UNIQUE(path)
 );
 CREATE TABLE Bookshelf (contentID INTEGER NOT NULL, title STRING DEFAULT '');
+CREATE TABLE DocumentationDatabaseVersion (
+  major INT NOT NULL, minor INT NOT NULL, patch INT NOT NULL, who TEXT NOT NULL, comment TEXT NOT NULL,
+  changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO DocumentationDatabaseVersion VALUES (2, 0, 0, 'ADFA-5220', 'dictionary', '2026-08-20 00:00:00');
+INSERT INTO DocumentationDatabaseVersion VALUES (3, 0, 0, 'ADFA-3305', 'keyed tooltips', '2026-10-20 00:00:00');
 """
+VERSION_ROWS = "SELECT major, minor, patch, who, comment FROM DocumentationDatabaseVersion ORDER BY rowid"
 
 
 def _brotli(args: list, data: bytes, dictionary: Path) -> bytes:
@@ -256,6 +263,16 @@ def _query(db_path: Path, sql: str, args=()) -> list:
         conn.close()
 
 
+def _execute(db_path: Path, *statements: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        for sql in statements:
+            conn.execute(sql)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _in_path_order(paths) -> list:
     """ORDER BY path in SQLite's BINARY collation: by UTF-8 bytes."""
     return sorted(paths, key=lambda path: path.encode("utf-8"))
@@ -358,6 +375,8 @@ def test_blocked_rows_are_emptied_and_nothing_else_changes(database):
             assert now == was
     sequence = dict(before.pop("sqlite_sequence"))
     assert dict(after.pop("sqlite_sequence")) == {**sequence, "ContentBlocks": 9}
+    before.pop("DocumentationDatabaseVersion")
+    after.pop("DocumentationDatabaseVersion")  # test_declares_4_0_0_in_one_row
     assert after == before
     conn = sqlite3.connect(db_path)
     try:
@@ -365,6 +384,18 @@ def test_blocked_rows_are_emptied_and_nothing_else_changes(database):
             [("blob",)]
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
+    finally:
+        conn.close()
+
+
+def test_declares_4_0_0_in_one_row(database):
+    db_path, _plain = database
+    assert _run(db_path) == 0
+    assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.COMMENT)]
+    assert "ADFA-6683" in spb.COMMENT
+    conn = sqlite3.connect(db_path)
+    try:
+        assert spb.declared_major(conn) == 4
     finally:
         conn.close()
 
@@ -382,9 +413,58 @@ def test_a_second_run_is_refused(database, capsys):
 def test_dry_run_writes_nothing(database, capsys):
     db_path, _plain = database
     pristine = _sha(db_path)
+    versions = _query(db_path, VERSION_ROWS)
     assert _run(db_path, dry_run=True) == 0
-    assert "Would store 20 page(s) in 9 block(s)" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Would store 20 page(s) in 9 block(s)" in out
+    assert "would declare 4.0.0" in out
     _assert_nothing_written(db_path, pristine)
+    assert _query(db_path, VERSION_ROWS) == versions
+
+
+JAN, OCT = "2026-01-01 00:00:00", "2026-10-21 00:00:00"
+
+
+@pytest.mark.parametrize("statements, says", [
+    (["DROP TABLE DocumentationDatabaseVersion"], "declares no documentation version"),
+    (["DELETE FROM DocumentationDatabaseVersion"], "declares no documentation version"),
+    ([f"INSERT INTO DocumentationDatabaseVersion VALUES (2, 1, 0, 'later', 'later', '{OCT}')"],
+     "declares documentation major 2"),
+    ([f"INSERT INTO DocumentationDatabaseVersion VALUES (4, 0, 0, 'later', 'later', '{OCT}')"],
+     "declares documentation major 4"),
+    ([f"INSERT INTO DocumentationDatabaseVersion VALUES (5, 0, 0, 'later', 'later', '{OCT}')"],
+     "declares documentation major 5"),
+], ids=["no version table", "no version row", "2.x", "4.x", "5.x"])
+def test_a_database_not_declaring_3_is_refused_with_nothing_written(database, capsys, statements, says):
+    db_path, _plain = database
+    _execute(db_path, *statements)
+    sha = _sha(db_path)
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert says in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
+
+
+@pytest.mark.parametrize("rows, major", [
+    ([(3, OCT), (2, JAN)], 3),  # a later rowid with an older changeTime does not decide
+    ([(2, OCT), (3, OCT)], 3),  # a tie goes to the later rowid
+    ([(3, OCT), (2, OCT)], 2),
+    ([(4, JAN), (3, OCT)], 3),  # an older row declaring 4 does not decide
+    ([(3, JAN), (4, OCT)], 4),
+], ids=["older changeTime, later rowid", "tie, later rowid 3", "tie, later rowid 2", "older 4", "newer 4"])
+def test_the_newest_version_row_decides(database, rows, major):
+    """Read as the app reads it: ORDER BY changeTime DESC, rowid DESC. Each case is built so that rowid alone,
+    changeTime alone with the tie broken the other way, or the greatest major would read another major."""
+    db_path, _plain = database
+    _execute(db_path, "DELETE FROM DocumentationDatabaseVersion",
+             *(f"INSERT INTO DocumentationDatabaseVersion VALUES ({m}, 0, 0, 'test', 'test', '{t}')" for m, t in rows))
+    sha = _sha(db_path)
+    if major == 3:
+        assert _run(db_path) == 0
+        assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.COMMENT)]
+    else:
+        assert _run(db_path) == 1
+        _assert_nothing_written(db_path, sha)
 
 
 def test_an_item_over_1_mib_decoded_stays_a_row(cap_database, capsys):

@@ -10,7 +10,8 @@
 store_pages_in_blocks.py
 
 Stores the pages of five documentation sets up to 64 to a compressed block,
-instead of one compressed Content row each (ADFA-6683):
+instead of one compressed Content row each, and declares documentation
+version 4.0.0 (ADFA-6683):
 
     uv run scripts/store_pages_in_blocks.py documentation.db --dry-run
     uv run scripts/store_pages_in_blocks.py documentation.db
@@ -30,7 +31,7 @@ and its release .br (brotli -q 11 -w 24) from 66,283,003 to 55,914,367:
 and the largest block decodes to 4,172,562 bytes. With 16 workers the step
 took 53 seconds.
 
-The format:
+The format, documentation version 4.0.0 (CLAUDE.md, "Schema 4.0.0"):
 
     ContentBlocks(id, data)
         data: Brotli of the block's items, concatenated - quality 11, window
@@ -44,6 +45,17 @@ An item is exactly its row's decoded bytes, before any template is applied. A
 blocked row keeps its path, languageID, contentTypeID and templateId, so every
 lookup by path and every page's template work as before; only its content
 becomes an empty blob.
+
+The version: 4.0.0 is a new major, because an app that does not read blocks
+would serve every blocked page empty. The app reads blocks from a database
+declaring major 4 or later, and never decides by whether the tables exist.
+4.0.0 promises everything 3.0.0 does too: keyed tooltips and compressed
+templates. So this step runs only on a database whose newest
+DocumentationDatabaseVersion row (ORDER BY changeTime DESC, rowid DESC, as the
+app and remint_dictionary.declared_major read it) declares major 3, and in the
+same transaction as the blocks it replaces that table's rows with one, 4.0.0,
+as migrate_tooltip_schema.py declares 3.0.0. A database declaring no version,
+a major below 3, or a major of 4 or more is refused with nothing written.
 
 Which rows: five sets, each in ORDER BY path COLLATE BINARY, in this order; a
 block never mixes sets. Blocks are numbered in this order as written;
@@ -86,13 +98,13 @@ blocks) and before the pack. On that copy the order is: minify, row drops,
 Kotlin trim, a/ pages-to-templates, migrate_tooltip_schema.py,
 remint_dictionary.py --seeds 4 and verify_remint_dictionary.py, this step, then
 rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks
---page-size 4096. A database with blocks goes to dev-assets or Drive only
-once the app's block reader is on CodeOnTheGo's stage: builds take whatever
-dev-assets holds, and an app without the reader would show every blocked page
-empty.
+--page-size 4096. A 4.0.0 database goes to dev-assets or Drive only once the
+app's block reader is on CodeOnTheGo's stage: builds take whatever dev-assets
+holds, and an app without the reader would show every blocked page empty.
 
 Runs in one transaction and VACUUMs afterwards. Takes no backup: run it on a
-copy. --dry-run does all the work, writes included, and rolls it back.
+copy. --dry-run does all the work, writes and version included, and rolls it
+back.
 """
 from __future__ import annotations
 
@@ -125,6 +137,13 @@ MAX_BLOCK_BYTES = 4 * 1024 * 1024
 PAGES_PER_BLOCK = 64
 # Rows decoded ahead of the grouping walk, at most, so a set is never held decoded all at once.
 DECODE_WINDOW = 256
+
+# This step turns a 3.x database into 4.0.0, as one DocumentationDatabaseVersion row.
+FROM_MAJOR, TO_MAJOR = 3, 4
+WHO = "ADFA-6683"
+COMMENT = ("ADFA-6683: a/, j/, k/, a/devsite/ and i/ pages stored up to 64 to a Brotli block in ContentBlocks, each "
+           "located by ContentBlockItems; a blocked Content row's content is empty. Keyed tooltips and compressed "
+           "templates as in 3.0.0")
 
 SCHEMA = (
     """CREATE TABLE ContentBlocks (
@@ -171,6 +190,39 @@ class DictionaryBrotli:
 
 def table_exists(conn, name: str) -> bool:
     return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+def declared_major(conn) -> int | None:
+    """The major the newest DocumentationDatabaseVersion row declares, read the way the app's
+    DatabaseVersionResolver and remint_dictionary.declared_major read it (newest changeTime, then newest rowid);
+    None without one."""
+    if not table_exists(conn, "DocumentationDatabaseVersion"):
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
+                       ).fetchone()
+    return row[0] if row else None
+
+
+def version_refusal(conn) -> str | None:
+    """Why this database's declared version keeps it from getting blocks, or None if it declares FROM_MAJOR."""
+    major = declared_major(conn)
+    if major is None:
+        return (f"it declares no documentation version, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0. "
+                f"{TO_MAJOR}.0.0 promises everything {FROM_MAJOR}.0.0 does; run migrate_tooltip_schema.py first")
+    if major < FROM_MAJOR:
+        return (f"it declares documentation major {major}, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0, "
+                f"which promises everything {FROM_MAJOR}.0.0 does (keyed tooltips, compressed templates); run "
+                "migrate_tooltip_schema.py first")
+    if major > FROM_MAJOR:
+        return (f"it declares documentation major {major}, and this step turns {FROM_MAJOR}.x into {TO_MAJOR}.0.0; "
+                f"from {TO_MAJOR} on, pages are already in blocks or in a format this step does not know")
+    return None
+
+
+def declare_version(conn) -> None:
+    conn.execute("DELETE FROM DocumentationDatabaseVersion")
+    conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
+                 (TO_MAJOR, WHO, COMMENT))
 
 
 def select_sets(conn) -> list:
@@ -319,10 +371,11 @@ def report(summary: list, per_block: int, dry_run: bool) -> None:
         if len(kept) > 10:
             print(f"    ... and {human(len(kept) - 10)} more")
     saved = sum(figures["stored"] - figures["compressed"] for _name, figures, _c, _n in summary)
-    verb = "Would store" if dry_run else "Stored"
+    verb, declare = ("Would store", "would declare") if dry_run else ("Stored", "declared")
     print(f"{verb} {human(sum(figures['items'] for _n, figures, _c, _k in summary))} page(s) in "
           f"{human(sum(figures['blocks'] for _n, figures, _c, _k in summary))} block(s) of up to {per_block} pages and "
-          f"{human(MAX_BLOCK_BYTES)} bytes decoded, {human(saved)} bytes smaller than their rows.")
+          f"{human(MAX_BLOCK_BYTES)} bytes decoded, {human(saved)} bytes smaller than their rows; {declare} "
+          f"{TO_MAJOR}.0.0.")
 
 
 def run(cfg: dict) -> int:
@@ -345,6 +398,10 @@ def run(cfg: dict) -> int:
                       "rows are empty, so a second run would store empty pages over them. Start again from a "
                       "database that has not.", file=sys.stderr)
                 return 1
+        refusal = version_refusal(conn)
+        if refusal:
+            print(f"error: {db_path}: {refusal}; nothing was written", file=sys.stderr)
+            return 1
         dictionary = load_dictionary(conn)
         if not dictionary:
             print(f"error: {db_path} has no CompressionDictionary, which blocks are compressed against",
@@ -367,6 +424,7 @@ def run(cfg: dict) -> int:
                     figures = store_set(conn, pool, codec, rows, per_block, workers, expected)
                     summary.append((name, figures, chunked, continuations))
             check_stored(conn, codec, expected, workers)
+            declare_version(conn)
             if cfg["dry_run"]:
                 conn.execute("ROLLBACK")
             else:
