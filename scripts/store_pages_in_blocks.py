@@ -9,66 +9,90 @@
 """
 store_pages_in_blocks.py
 
-Stores the pages of three documentation sets N to a compressed block instead
-of one compressed Content row each (ADFA-6683, prototype):
+Stores the pages of five documentation sets up to 64 to a compressed block,
+instead of one compressed Content row each (ADFA-6683):
 
-    uv run scripts/store_pages_in_blocks.py documentation.db --pages-per-block 16 --dry-run
-    uv run scripts/store_pages_in_blocks.py documentation.db --pages-per-block 16
+    uv run scripts/store_pages_in_blocks.py documentation.db --dry-run
+    uv run scripts/store_pages_in_blocks.py documentation.db
 
 Why: each Content row is compressed on its own, so what neighbouring pages
 share - the same member tables, inherited-method lists and markup - is paid
 for again in every row, and the shared CompressionDictionary only covers what
-all pages share. Compressed together, N pages in path order share the rest.
-On the 2026-10-20 G02 ship-time build, packed afterwards (below), the release
-.br (brotli -q 11 -w 24) came out 7,904,471 bytes smaller for N = 16 and
-10,236,536 for N = 64, of 66,283,003.
+all pages share. Compressed together, the pages of a block in path order share
+the rest. On the 2026-10-20 G02 ship-time build (3.0.0, after its re-mint),
+this step stored 22,478 pages in 356 blocks: their rows held 34,834,228 bytes,
+the blocks hold 24,608,732 (a/ 5,457,314 less, j/ 3,549,974, k/ 758,039,
+a/devsite/ 296,984, i/ 163,185). Packed with rebuild_database.py --pack
+Templates,Content,TooltipTexts,ContentBlocks --page-size 4096, the file went
+from 84,688,896 bytes (the same build packed without blocks) to 74,616,832,
+and its release .br (brotli -q 11 -w 24) from 66,283,003 to 55,914,367:
+10,368,636 bytes smaller. The cap kept 18 pages as rows (5 a/, 12 j/, 1 k/),
+and the largest block decodes to 4,172,562 bytes. With 16 workers the step
+took 53 seconds.
 
-The cost is at read time: serving one page decodes its whole block, so the
-app caches decoded blocks, up to 8 MiB of them. Most blocks are far smaller
-(on G02 the median a/ block decodes to 259,426 bytes for N = 16), but j/'s
-Javadoc index pages decode to as much as 5,065,005 bytes each, so two j/
-blocks decode to more than 8 MiB for N = 16 (the larger 14,169,872 bytes) and
-one for N = 64 (28,055,018).
-
-The format (ADFA-6683-block-format.md, which the app reader follows too):
+The format:
 
     ContentBlocks(id, data)
-        data: Brotli of the block's plain items, concatenated - quality 11,
-        window 24, against CompressionDictionary, as Content rows are.
+        data: Brotli of the block's items, concatenated - quality 11, window
+        24, against CompressionDictionary, as Content rows are.
     ContentBlockItems(contentId, blockId, offset, length) WITHOUT ROWID
         The item is [offset, offset + length) of the decoded block. Its
         foreign key to Content lets rebuild_database.py --pack Content
         renumber contentId with Content.
 
-Which rows: three sets, each cut in ORDER BY path into blocks of N
-consecutive items, the last block of a set maybe shorter; a block never mixes
-sets. Blocks are numbered in this order as written; rebuild_database.py
---pack ContentBlocks renumbers them, and nothing reads the order:
+An item is exactly its row's decoded bytes, before any template is applied. A
+blocked row keeps its path, languageID, contentTypeID and templateId, so every
+lookup by path and every page's template work as before; only its content
+becomes an empty blob.
 
-    1. a/ templated JSON: path LIKE 'a/%' AND path NOT LIKE 'a/devsite/%' AND templateId > 0
-    2. j/ HTML:           path LIKE 'j/%' AND content type text/html
-    3. k/ templated JSON: path LIKE 'k/%' AND templateId > 0
+Which rows: five sets, each in ORDER BY path COLLATE BINARY, in this order; a
+block never mixes sets. Blocks are numbered in this order as written;
+rebuild_database.py --pack ContentBlocks renumbers them, and nothing reads the
+order. Paths are matched with GLOB, which is case-sensitive as paths are:
+
+    1. a/ templated JSON:  path GLOB 'a/*' AND NOT GLOB 'a/devsite/*' AND templateId > 0
+    2. j/ HTML:            path GLOB 'j/*' AND content type text/html
+    3. k/ templated JSON:  path GLOB 'k/*' AND templateId > 0
+    4. a/devsite/:         every row under it
+    5. i/:                 every row under it
 
 Only rows whose content type is compressed with brotli, and only items held in
 one row: a row that owns continuation rows ("path-1", ... after a 1 MiB row),
-and each continuation row, stay as they are. An item is exactly its row's
-decoded bytes, before any template rendering. A blocked row keeps its path,
-languageID, contentTypeID and templateId, so every lookup by path and every
-page's template work as before; only its content becomes an empty blob.
+and each continuation row, stay as they are.
 
-Every block is decoded again before it is stored and compared with the items
-it was built from, and before the commit every item is sliced from its stored
-block and compared, by sha256, with its row's decoded bytes.
+The cap: an item over MAX_ITEM_BYTES (1 MiB) decoded stays a row. A block
+closes at --pages-per-block items (default 64), or before the next item would
+take it past MAX_BLOCK_BYTES (4 MiB) decoded. Serving a page decodes its whole
+block, and the app caches decoded blocks up to 8 MiB, so two blocks always fit.
+Without the cap, j/'s Javadoc index pages (up to 5,065,005 bytes each) made a
+64-page block decode to 28,055,018 bytes. The summary counts, for each set,
+the pages in blocks and their content types, the pages the cap kept as rows,
+and the rows left for their continuation rows.
 
-A database that already has ContentBlockItems is refused: its blocked rows
-are empty, so a second run would store empty pages over the blocked ones.
+Checks: every block is decoded again before its rows are emptied, and each
+item's slice of it compared byte for byte with its row's decoded bytes. Before
+the commit every item is sliced from its block as stored and compared, by
+sha256, with its row's decoded bytes, and every blocked row must be empty. Any
+failure rolls everything back.
+
+A database that already has ContentBlocks or ContentBlockItems is refused
+too: its blocked rows are empty, so a second run would store empty pages over
+the blocked ones.
+
+Where it goes: on the copy that ships only, never the master, after the last
+dictionary re-mint and its verify (remint_dictionary.py and
+verify_remint_dictionary.py refuse a 4.x database: they do not recompress
+blocks) and before the pack. On that copy the order is: minify, row drops,
+Kotlin trim, a/ pages-to-templates, migrate_tooltip_schema.py,
+remint_dictionary.py --seeds 4 and verify_remint_dictionary.py, this step, then
+rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks
+--page-size 4096. A database with blocks goes to dev-assets or Drive only
+once the app's block reader is on CodeOnTheGo's stage: builds take whatever
+dev-assets holds, and an app without the reader would show every blocked page
+empty.
 
 Runs in one transaction and VACUUMs afterwards. Takes no backup: run it on a
-copy, then pack that with rebuild_database.py --pack
-Templates,Content,TooltipTexts,ContentBlocks. On G02, adding ContentBlocks to
---pack took the file 823,296 bytes smaller for N = 16 and 200,704 for N = 64,
-and its .br 34,947 bytes larger and 101,421 smaller. --dry-run does all the
-work, writes included, and rolls it back.
+copy. --dry-run does all the work, writes included, and rolls it back.
 """
 from __future__ import annotations
 
@@ -79,22 +103,33 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from optimize_db_media import human, is_continuation_path, load_dictionary, owned_fragment_paths
 
-# (set, condition on Content AS c joined to ContentTypes AS t), in block-id order.
+# (set, condition on Content AS c joined to ContentTypes AS t), in block-id order. GLOB, not LIKE: LIKE ignores case.
 SETS = (
-    ("a/", "c.path LIKE 'a/%' AND c.path NOT LIKE 'a/devsite/%' AND c.templateId > 0"),
-    ("j/", "c.path LIKE 'j/%' AND t.value = 'text/html'"),
-    ("k/", "c.path LIKE 'k/%' AND c.templateId > 0"),
+    ("a/", "c.path GLOB 'a/*' AND c.path NOT GLOB 'a/devsite/*' AND c.templateId > 0"),
+    ("j/", "c.path GLOB 'j/*' AND t.value = 'text/html'"),
+    ("k/", "c.path GLOB 'k/*' AND c.templateId > 0"),
+    ("a/devsite/", "c.path GLOB 'a/devsite/*'"),
+    ("i/", "c.path GLOB 'i/*'"),
 )
+
+# Decoded sizes. An item over MAX_ITEM_BYTES stays a row; a block closes before an item would take it past
+# MAX_BLOCK_BYTES, so two blocks fit the app's 8 MiB cache of decoded blocks.
+MAX_ITEM_BYTES = 1024 * 1024
+MAX_BLOCK_BYTES = 4 * 1024 * 1024
+PAGES_PER_BLOCK = 64
+# Rows decoded ahead of the grouping walk, at most, so a set is never held decoded all at once.
+DECODE_WINDOW = 256
 
 SCHEMA = (
     """CREATE TABLE ContentBlocks (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    data BLOB NOT NULL      -- Brotli of the block's plain items, concatenated
+    data BLOB NOT NULL      -- Brotli (q11, w24) of the block's items, concatenated, against CompressionDictionary
 )""",
     """CREATE TABLE ContentBlockItems (
     contentId INTEGER NOT NULL PRIMARY KEY REFERENCES Content(id),
@@ -139,42 +174,108 @@ def table_exists(conn, name: str) -> bool:
 
 
 def select_sets(conn) -> list:
-    """[(set, [(content id, path, stored bytes)] in path order, items held in
-    more than one row, their continuation rows)] for each of SETS."""
+    """[(set, [(content id, path, content type, stored bytes)] in path order, items held in more than one row,
+    their continuation rows)] for each of SETS."""
     lengths = dict(conn.execute("SELECT path, LENGTH(content) FROM Content"))
     selected = []
     for name, condition in SETS:
         rows, chunked, continuations = [], 0, 0
-        for content_id, path, stored in conn.execute(
-                "SELECT c.id, c.path, c.content FROM Content AS c JOIN ContentTypes AS t ON t.id = c.contentTypeID "
-                f"WHERE t.compression = 'brotli' AND {condition} ORDER BY c.path COLLATE BINARY"):
+        for content_id, path, content_type, stored in conn.execute(
+                "SELECT c.id, c.path, t.value, c.content FROM Content AS c JOIN ContentTypes AS t "
+                f"ON t.id = c.contentTypeID WHERE t.compression = 'brotli' AND {condition} "
+                "ORDER BY c.path COLLATE BINARY"):
             if is_continuation_path(lengths, path):
                 continuations += 1
             elif owned_fragment_paths(conn, path, len(stored)):
                 chunked += 1
             else:
-                rows.append((content_id, path, stored))
+                rows.append((content_id, path, content_type, stored))
         selected.append((name, rows, chunked, continuations))
     return selected
 
 
-def build_block(codec: DictionaryBrotli, rows: list) -> tuple:
-    """(compressed block, plain length, [(content id, offset, length, sha256)])
-    for one block's rows, the block decoded again and checked."""
-    plain, items, offset = [], [], 0
-    for content_id, path, stored in rows:
-        try:
-            raw = codec.decode(stored)
-        except RuntimeError as exc:
-            raise RuntimeError(f"{path}: {exc}") from exc
-        items.append((content_id, offset, len(raw), hashlib.sha256(raw).digest()))
-        plain.append(raw)
-        offset += len(raw)
-    plain = b"".join(plain)
+def decode_row(codec: DictionaryBrotli, row: tuple) -> bytes:
+    try:
+        return codec.decode(row[3])
+    except RuntimeError as exc:
+        raise RuntimeError(f"{row[1]}: {exc}") from exc
+
+
+def decoded_in_order(pool, codec: DictionaryBrotli, rows: list, window: int = DECODE_WINDOW):
+    """(row, its decoded bytes) for every row, in order, decoded in the pool at most `window` rows ahead."""
+    for start in range(0, len(rows), window):
+        batch = rows[start:start + window]
+        yield from zip(batch, pool.map(lambda row: decode_row(codec, row), batch))
+
+
+def group_items(decoded, per_block: int, kept: list):
+    """Walks (row, decoded bytes) in path order and yields the blocks, each a list of them. A block closes at
+    `per_block` items, or before the next item would take it past MAX_BLOCK_BYTES decoded. An item over
+    MAX_ITEM_BYTES decoded goes to `kept` instead, and stays a row."""
+    group, size = [], 0
+    for row, plain in decoded:
+        if len(plain) > MAX_ITEM_BYTES:
+            kept.append(row)
+            continue
+        if group and (len(group) == per_block or size + len(plain) > MAX_BLOCK_BYTES):
+            yield group
+            group, size = [], 0
+        group.append((row, plain))
+        size += len(plain)
+    if group:
+        yield group
+
+
+def build_block(codec: DictionaryBrotli, group: list) -> tuple:
+    """(compressed block, decoded length, [(content id, offset, length, sha256)]) for one block's (row, decoded
+    bytes), once the block has been decoded back and each item's slice of it matched its row's decoded bytes byte
+    for byte."""
+    plain = b"".join(raw for _row, raw in group)
     data = codec.encode(plain)
-    if codec.decode(data) != plain:
-        raise RuntimeError(f"the block starting at {rows[0][1]} did not decode back to its items")
+    back = codec.decode(data)
+    first = group[0][0][1]
+    if len(back) != len(plain):
+        raise RuntimeError(f"the block starting at {first} decoded back to {human(len(back))} bytes, not "
+                           f"{human(len(plain))}")
+    view, items, offset = memoryview(back), [], 0
+    for (content_id, path, _type, _stored), raw in group:
+        if view[offset:offset + len(raw)] != raw:
+            raise RuntimeError(f"{path} does not read back byte for byte from the block starting at {first}")
+        items.append((content_id, offset, len(raw), hashlib.sha256(raw).digest()))
+        offset += len(raw)
     return data, len(plain), items
+
+
+def store_set(conn, pool, codec: DictionaryBrotli, rows: list, per_block: int, workers: int, expected: dict) -> dict:
+    """Stores one set's rows in blocks, written in order as they are built, a few blocks ahead at most. Adds each
+    blocked item's sha256 to `expected` ({content id: sha256}); returns the set's figures."""
+    stored_length = {row[0]: len(row[3]) for row in rows}
+    content_type = {row[0]: row[2] for row in rows}
+    figures = {"blocks": 0, "items": 0, "stored": 0, "compressed": 0, "decoded": 0, "types": Counter(), "kept": []}
+    pending = deque()
+
+    def write(future):
+        data, plain_length, items = future.result()
+        block_id = conn.execute("INSERT INTO ContentBlocks (data) VALUES (?)", (data,)).lastrowid
+        for content_id, offset, length, digest in items:
+            conn.execute("INSERT INTO ContentBlockItems (contentId, blockId, offset, length) VALUES (?, ?, ?, ?)",
+                         (content_id, block_id, offset, length))
+            conn.execute("UPDATE Content SET content = x'' WHERE id = ?", (content_id,))
+            expected[content_id] = digest
+            figures["stored"] += stored_length[content_id]
+            figures["types"][content_type[content_id]] += 1
+        figures["blocks"] += 1
+        figures["items"] += len(items)
+        figures["compressed"] += len(data)
+        figures["decoded"] += plain_length
+
+    for group in group_items(decoded_in_order(pool, codec, rows), per_block, figures["kept"]):
+        pending.append(pool.submit(build_block, codec, group))
+        while len(pending) > 2 * workers:
+            write(pending.popleft())
+    while pending:
+        write(pending.popleft())
+    return figures
 
 
 def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) -> None:
@@ -202,6 +303,26 @@ def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) ->
                         "(SELECT contentId FROM ContentBlockItems)").fetchone()[0]
     if left:
         raise RuntimeError(f"{left} blocked row(s) still hold their content")
+
+
+def report(summary: list, per_block: int, dry_run: bool) -> None:
+    for name, figures, chunked, continuations in summary:
+        types = ", ".join(f"{value} {human(count)}" for value, count in figures["types"].most_common())
+        print(f"  {name}: {human(figures['items'])} page(s) in {human(figures['blocks'])} block(s); their rows held "
+              f"{human(figures['stored'])} bytes, the blocks hold {human(figures['compressed'])} "
+              f"({human(figures['decoded'])} decoded). Content types: {types or 'none'}.")
+        kept = figures["kept"]
+        print(f"  {name}: left as rows: {human(len(kept))} page(s) over {human(MAX_ITEM_BYTES)} bytes decoded, "
+              f"{human(chunked)} page(s) held in more than one row, and {human(continuations)} continuation row(s).")
+        for _id, path, _type, _stored in kept[:10]:
+            print(f"    kept by the cap: {path}")
+        if len(kept) > 10:
+            print(f"    ... and {human(len(kept) - 10)} more")
+    saved = sum(figures["stored"] - figures["compressed"] for _name, figures, _c, _n in summary)
+    verb = "Would store" if dry_run else "Stored"
+    print(f"{verb} {human(sum(figures['items'] for _n, figures, _c, _k in summary))} page(s) in "
+          f"{human(sum(figures['blocks'] for _n, figures, _c, _k in summary))} block(s) of up to {per_block} pages and "
+          f"{human(MAX_BLOCK_BYTES)} bytes decoded, {human(saved)} bytes smaller than their rows.")
 
 
 def run(cfg: dict) -> int:
@@ -233,9 +354,9 @@ def run(cfg: dict) -> int:
         selected = select_sets(conn)
 
         if cfg["dry_run"]:
-            print(f"Dry run: every write is rolled back. Storing {db_path}'s pages {per_block} to a block ...")
+            print(f"Dry run: every write is rolled back. Storing {db_path}'s pages up to {per_block} to a block ...")
         else:
-            print(f"Storing {db_path}'s pages {per_block} to a block ...")
+            print(f"Storing {db_path}'s pages up to {per_block} to a block ...")
         conn.execute("BEGIN")
         try:
             for sql in SCHEMA:
@@ -243,21 +364,8 @@ def run(cfg: dict) -> int:
             expected = {}
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 for name, rows, chunked, continuations in selected:
-                    groups = [rows[start:start + per_block] for start in range(0, len(rows), per_block)]
-                    stored = compressed = plain_total = 0
-                    for group, (data, plain_length, items) in zip(
-                            groups, pool.map(lambda group: build_block(codec, group), groups)):
-                        block_id = conn.execute("INSERT INTO ContentBlocks (data) VALUES (?)", (data,)).lastrowid
-                        for content_id, offset, length, digest in items:
-                            conn.execute("INSERT INTO ContentBlockItems (contentId, blockId, offset, length) "
-                                         "VALUES (?, ?, ?, ?)", (content_id, block_id, offset, length))
-                            conn.execute("UPDATE Content SET content = x'' WHERE id = ?", (content_id,))
-                            expected[content_id] = digest
-                        stored += sum(len(row[2]) for row in group)
-                        compressed += len(data)
-                        plain_total += plain_length
-                    summary.append((name, len(rows), len(groups), stored, compressed, plain_total, chunked,
-                                    continuations))
+                    figures = store_set(conn, pool, codec, rows, per_block, workers, expected)
+                    summary.append((name, figures, chunked, continuations))
             check_stored(conn, codec, expected, workers)
             if cfg["dry_run"]:
                 conn.execute("ROLLBACK")
@@ -275,17 +383,7 @@ def run(cfg: dict) -> int:
             codec.close()
         conn.close()
 
-    for name, items, blocks, stored, compressed, plain, chunked, continuations in summary:
-        print(f"  {name}: {human(items)} page(s) in {human(blocks)} block(s); their rows held {human(stored)} "
-              f"bytes, the blocks hold {human(compressed)} ({human(plain)} decoded).")
-        if chunked or continuations:
-            print(f"  {name}: left as they are: {human(chunked)} page(s) held in more than one row, and "
-                  f"{human(continuations)} continuation row(s).")
-    saved = sum(row[3] - row[4] for row in summary)
-    verb = "Would store" if cfg["dry_run"] else "Stored"
-    print(f"{verb} {human(sum(row[1] for row in summary))} page(s) in {human(sum(row[2] for row in summary))} "
-          f"block(s) of up to {per_block}, {human(saved)} bytes smaller than their rows.")
-
+    report(summary, per_block, cfg["dry_run"])
     if not cfg["dry_run"]:
         print("Vacuuming database...")
         vac = sqlite3.connect(db_path)
@@ -300,8 +398,9 @@ def run(cfg: dict) -> int:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("db_path", type=Path, help="SQLite database to change in place; run it on a copy")
-    p.add_argument("--pages-per-block", type=int, required=True, metavar="N",
-                   help="Pages per block; the last block of each set may hold fewer")
+    p.add_argument("--pages-per-block", type=int, default=PAGES_PER_BLOCK, metavar="N",
+                   help=f"Pages per block at most (default: {PAGES_PER_BLOCK}); a block also closes before it would "
+                        f"decode to more than {human(MAX_BLOCK_BYTES)} bytes")
     p.add_argument("--dry-run", action="store_true", help="Do all the work, then roll back without writing")
     p.add_argument("--workers", type=int, default=8,
                    help="brotli processes run at once to decode rows and compress blocks (default: 8)")

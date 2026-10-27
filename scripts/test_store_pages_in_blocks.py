@@ -10,11 +10,15 @@
 """
 test_store_pages_in_blocks.py
 
-Covers store_pages_in_blocks.py on a small synthetic database, three pages to
-a block: each set in path order with its own blocks, the last one shorter;
-rows held in more than one row left alone; every item sliced from its block
-equal to its row's decoded bytes; blocked rows emptied and nothing else
-changed; a second run refused; a dry run writing nothing.
+Covers store_pages_in_blocks.py on small synthetic databases. On the first,
+three pages to a block: each of the five sets in path order with its own
+blocks, the last one shorter, a/devsite/ and i/ rows taken whether templated
+or not; rows held in more than one row left alone; every item sliced from its
+block equal to its row's decoded bytes; blocked rows emptied and nothing else
+changed; a second run refused; a dry run, and a block that does not read back
+byte for byte, writing nothing. On
+the second, with the default 64: an item over 1 MiB decoded kept as a row, and
+a block closed before it would decode past 4 MiB.
 
     uv run --with pytest --with-requirements requirements.txt python -m pytest -q scripts/test_store_pages_in_blocks.py
 """
@@ -26,6 +30,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -36,6 +41,9 @@ import optimize_db_media as opt  # noqa: E402
 import store_pages_in_blocks as spb  # noqa: E402
 
 PER_BLOCK = 3
+# The cap, written out rather than read from the script, so a script with another cap fails here.
+ITEM_CAP = 1024 * 1024
+BLOCK_CAP = 4 * 1024 * 1024
 DICTIONARY = b'{"title": "", "members": [{"name": "", "summary": ""}]} <div class="devsite-article-body">' * 64
 
 # (path, content type, templateId). Inserted in this order, so ids do not follow paths.
@@ -48,18 +56,27 @@ BLOCKED = {
     "j/": [("j/index.html", "text/html", 0), ("j/api/b.html", "text/html", 0),
            ("j/Overview.html", "text/html", 0), ("j/api/A.html", "text/html", 0)],
     "k/": [("k/html/y.html", "text/html", 9), ("k/html/x.html", "text/html", 8)],
+    # Every Brotli row under a/devsite/ and i/, templated or not, HTML or not.
+    "a/devsite/": [("a/devsite/reference/x.html", "text/html", 7), ("a/devsite/b.html", "text/html", 0),
+                   ("a/devsite/style.css", "text/css", 0), ("a/devsite/Z.js", "text/javascript", 0)],
+    "i/": [("i/topic.html", "text/html", 0), ("i/jstopics/topic.js", "text/javascript", 0),
+           ("i/hm-topic.html", "text/html", 8)],
 }
 LEFT = [
-    ("a/devsite/reference/x.html", "text/html", 7),  # a/devsite/ is not in the a/ set
-    ("a/plain.html", "text/html", 0),  # no template
+    ("a/plain.html", "text/html", 0),  # a/ without a template
     ("a/raw.json", "text", 7),  # its type is stored uncompressed
+    ("A/Upper.html", "text/html", 7),  # not under a/: GLOB tells case apart, as paths do, where LIKE would not
     ("j/style.css", "text/css", 0),  # not HTML
     ("j/logo.png", "image/png", 0),
     ("k/html/nav.html", "text/html", 0),  # no template
-    ("i/topic.html", "text/html", 7),  # not one of the sets
+    ("a/devsite/logo.png", "image/png", 0),  # under a/devsite/, but not Brotli
+    ("i/img.png", "image/png", 0),  # under i/, but not Brotli
+    ("d/other.html", "text/html", 7),  # in no set
 ]
-CHUNKED = "a/big.html"  # a/ templated, but stored as a 1 MiB row and a continuation row
-TYPES = [("text/html", "brotli"), ("text/css", "brotli"), ("text", "none"), ("image/png", "none")]
+# Each stored as a 1 MiB row and a continuation row: in a set, but left as they are.
+CHUNKED = [("a/big.html", "text/html", 7), ("i/book.pdf", "application/pdf", 0)]
+TYPES = [("text/html", "brotli"), ("text/css", "brotli"), ("text/javascript", "brotli"),
+         ("application/pdf", "brotli"), ("text", "none"), ("image/png", "none")]
 SCHEMA = """
 CREATE TABLE Languages (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE);
 CREATE TABLE ContentTypes (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL UNIQUE,
@@ -88,19 +105,21 @@ def _plain(path: str, rng: random.Random) -> bytes:
     return f'{{"path": "{path}", "members": [{{"name": "{words}"}}]}}'.encode()
 
 
+def _sized(path: str, size: int) -> bytes:
+    """`size` bytes naming `path`, cheap to compress at any quality."""
+    head = f'{{"path": "{path}", "text": "'.encode()
+    return (head + b"m" * size)[:size]
+
+
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-@pytest.fixture(scope="module")
-def built(tmp_path_factory):
-    """(database, {path: plain bytes}): the pristine synthetic database."""
-    work = tmp_path_factory.mktemp("blocks")
-    dictionary = work / "dict.bin"
+def _create(db_path: Path) -> tuple:
+    """A new database with SCHEMA, its types and templates; returns (connection, {content type: (id,
+    compression)}, the dictionary as a file)."""
+    dictionary = db_path.with_name("dict.bin")
     dictionary.write_bytes(DICTIONARY)
-    rng = random.Random(6683)
-    db_path = work / "documentation.db"
-    plain = {}
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO Languages (value) VALUES ('en')")
@@ -109,21 +128,37 @@ def built(tmp_path_factory):
     conn.executemany("INSERT INTO Templates (id, name, content) VALUES (?, ?, ?)",
                      [(7, "android-reference.peb", b"t7"), (8, "page.peb", b"t8"), (9, "nav.peb", b"t9")])
     types = {value: (type_id, compression) for type_id, value, compression in conn.execute("SELECT * FROM ContentTypes")}
+    return conn, types, dictionary
+
+
+def _insert(conn, types: dict, dictionary: Path, path: str, content_type: str, template_id: int, plain: bytes,
+            quality: str = "5") -> None:
+    type_id, compression = types[content_type]
+    stored = _brotli(["-c", "-q", quality], plain, dictionary) if compression == "brotli" else plain
+    conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) VALUES (?, 1, ?, ?, ?)",
+                 (path, stored, type_id, template_id))
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    """(database, {path: plain bytes}): the pristine synthetic database."""
+    db_path = tmp_path_factory.mktemp("blocks") / "documentation.db"
+    rng = random.Random(6683)
+    plain = {}
+    conn, types, dictionary = _create(db_path)
     pages = [page for group in BLOCKED.values() for page in group] + LEFT
     rng.shuffle(pages)
     for path, content_type, template_id in pages:
         plain[path] = _plain(path, rng)
-        type_id, compression = types[content_type]
-        stored = _brotli(["-c", "-q", "5"], plain[path], dictionary) if compression == "brotli" else plain[path]
-        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
-                     "VALUES (?, 1, ?, ?, ?)", (path, stored, type_id, template_id))
+        _insert(conn, types, dictionary, path, content_type, template_id, plain[path])
     # One Brotli stream split across "<path>" and "<path>-1", as a real chunked row is.
-    plain[CHUNKED] = rng.randbytes(opt.CHUNK_SIZE + 100_000)
-    stored = _brotli(["-c", "-q", "0"], plain[CHUNKED], dictionary)
-    assert len(stored) > opt.CHUNK_SIZE
-    for path, chunk in ((CHUNKED, stored[:opt.CHUNK_SIZE]), (f"{CHUNKED}-1", stored[opt.CHUNK_SIZE:])):
-        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
-                     "VALUES (?, 1, ?, ?, 7)", (path, chunk, types["text/html"][0]))
+    for path, content_type, template_id in CHUNKED:
+        plain[path] = rng.randbytes(opt.CHUNK_SIZE + 100_000)
+        stored = _brotli(["-c", "-q", "0"], plain[path], dictionary)
+        assert len(stored) > opt.CHUNK_SIZE
+        for part, chunk in ((path, stored[:opt.CHUNK_SIZE]), (f"{path}-1", stored[opt.CHUNK_SIZE:])):
+            conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                         "VALUES (?, 1, ?, ?, ?)", (part, chunk, types[content_type][0], template_id))
     conn.execute("INSERT INTO Bookshelf (contentID, title) SELECT id, 'Pair' FROM Content "
                  "WHERE path = 'a/android/util/Pair.html'")
     conn.commit()
@@ -140,8 +175,44 @@ def database(built, tmp_path):
     return copy, plain
 
 
-def _run(db_path: Path, dry_run: bool = False) -> int:
-    return spb.run({"db_path": db_path, "pages_per_block": PER_BLOCK, "dry_run": dry_run, "workers": 4})
+# The cap's database, in path order within each set:
+#   a/: one item 1 byte over the item cap (kept), one exactly at it and a small one (one block);
+#   j/: four items at the item cap, exactly the block cap (one block), then three at the item cap and one of half,
+#       3.5 MiB, closed before the next item, half and a byte, would take it past the block cap;
+#   k/: 65 small items, 64 to a block by default.
+CAP_PAGES = (
+    [("a/cap/huge.html", "text/html", 7, ITEM_CAP + 1), ("a/cap/limit.html", "text/html", 7, ITEM_CAP),
+     ("a/cap/small.html", "text/html", 7, 100)]
+    + [(f"j/b{n}.html", "text/html", 0, ITEM_CAP) for n in range(4)]
+    + [(f"j/c{n}.html", "text/html", 0, ITEM_CAP) for n in range(3)]
+    + [("j/c3.html", "text/html", 0, ITEM_CAP // 2), ("j/c4.html", "text/html", 0, ITEM_CAP // 2 + 1)]
+    + [(f"k/{n:02}.html", "text/html", 9, 200) for n in range(65)]
+)
+
+
+@pytest.fixture(scope="module")
+def cap_built(tmp_path_factory):
+    db_path = tmp_path_factory.mktemp("cap") / "documentation.db"
+    conn, types, dictionary = _create(db_path)
+    plain = {}
+    for path, content_type, template_id, size in CAP_PAGES:
+        plain[path] = _sized(path, size)
+        _insert(conn, types, dictionary, path, content_type, template_id, plain[path], quality="1")
+    conn.commit()
+    conn.close()
+    return db_path, plain
+
+
+@pytest.fixture
+def cap_database(cap_built, tmp_path):
+    db_path, plain = cap_built
+    copy = tmp_path / "documentation.db"
+    shutil.copyfile(db_path, copy)
+    return copy, plain
+
+
+def _run(db_path: Path, dry_run: bool = False, per_block: int = PER_BLOCK) -> int:
+    return spb.run({"db_path": db_path, "pages_per_block": per_block, "dry_run": dry_run, "workers": 4})
 
 
 def _blocks(db_path: Path) -> list:
@@ -160,6 +231,11 @@ def _blocks(db_path: Path) -> list:
         conn.close()
 
 
+def _block_paths(db_path: Path) -> list:
+    """[[path, ...] by offset] in block-id order."""
+    return [[path for path, _offset, _length in items] for _data, items in _blocks(db_path)]
+
+
 def _tables(db_path: Path) -> dict:
     """Every row of every table, by table. Content's columns: id, path,
     languageID, content, contentTypeID, templateId."""
@@ -172,21 +248,40 @@ def _tables(db_path: Path) -> dict:
         conn.close()
 
 
+def _query(db_path: Path, sql: str, args=()) -> list:
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute(sql, args).fetchall()
+    finally:
+        conn.close()
+
+
 def _in_path_order(paths) -> list:
     """ORDER BY path in SQLite's BINARY collation: by UTF-8 bytes."""
     return sorted(paths, key=lambda path: path.encode("utf-8"))
+
+
+def _set_of(path: str) -> str:
+    return "a/devsite/" if path.startswith("a/devsite/") else path[:2]
+
+
+def _assert_nothing_written(db_path: Path, sha: str) -> None:
+    assert _sha(db_path) == sha
+    assert not db_path.with_name(db_path.name + "-journal").exists()
+    assert _query(db_path, "SELECT name FROM sqlite_master WHERE name LIKE 'ContentBlock%'") == []
 
 
 def test_blocks_follow_path_order_and_never_mix_sets(database):
     db_path, _plain = database
     assert _run(db_path) == 0
     blocks = _blocks(db_path)
-    expected = [path for name in ("a/", "j/", "k/") for path in _in_path_order(p for p, _t, _i in BLOCKED[name])]
+    expected = [path for name, _condition in spb.SETS for path in _in_path_order(p for p, _t, _i in BLOCKED[name])]
     assert [path for _data, items in blocks for path, _offset, _length in items] == expected
+    assert [name for name, _condition in spb.SETS] == ["a/", "j/", "k/", "a/devsite/", "i/"]
     # Binary, not case-blind: a/Zeta.html sorts before a/android/..., a/androidx/B before a/androidx/a.
     assert expected[:3] == ["a/Zeta.html", "a/android/util/Pair.html", "a/android/widget/TextView.html"]
     for data, items in blocks:
-        assert len({path[:2] for path, _offset, _length in items}) == 1
+        assert len({_set_of(path) for path, _offset, _length in items}) == 1
         offset = 0
         for _path, start, length in items:
             assert start == offset
@@ -197,29 +292,43 @@ def test_blocks_follow_path_order_and_never_mix_sets(database):
 def test_the_last_block_of_a_set_is_shorter(database):
     db_path, _plain = database
     assert _run(db_path) == 0
-    # a/ has 7 pages, j/ 4 and k/ 2: each set starts a block of its own.
-    assert [len(items) for _data, items in _blocks(db_path)] == [3, 3, 1, 3, 1, 2]
+    # a/ has 7 pages, j/ 4, k/ 2, a/devsite/ 4 and i/ 3: each set starts a block of its own.
+    assert [len(items) for _data, items in _blocks(db_path)] == [3, 3, 1, 3, 1, 2, 3, 1, 3]
+
+
+def test_the_summary_names_every_set_its_content_types_and_what_it_left(database, capsys):
+    db_path, _plain = database
+    assert _run(db_path) == 0
+    out = capsys.readouterr().out
+    for name, pages, blocks in (("a/", 7, 3), ("j/", 4, 2), ("k/", 2, 1), ("a/devsite/", 4, 2), ("i/", 3, 1)):
+        assert f"  {name}: {pages} page(s) in {blocks} block(s);" in out
+    devsite = next(line for line in out.splitlines() if line.startswith("  a/devsite/: 4 page(s)"))
+    assert all(kind in devsite for kind in ("text/html 2", "text/css 1", "text/javascript 1"))
+    assert ("  i/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, and "
+            "1 continuation row(s).") in out
+    assert "Stored 20 page(s) in 9 block(s) of up to 3 pages and 4,194,304 bytes decoded" in out
 
 
 def test_continuation_rows_are_left_alone(database):
     db_path, plain = database
     before = _tables(db_path)["Content"]
     assert _run(db_path) == 0
-    blocked = {path for _data, items in _blocks(db_path) for path, _offset, _length in items}
-    assert CHUNKED not in blocked and f"{CHUNKED}-1" not in blocked
+    blocked = {path for paths in _block_paths(db_path) for path in paths}
     assert "a/z.html-1" in blocked
     after = _tables(db_path)["Content"]
-    for path in (CHUNKED, f"{CHUNKED}-1"):
-        assert [row for row in after if row[1] == path] == [row for row in before if row[1] == path]
-    conn = sqlite3.connect(db_path)
-    try:
-        first = conn.execute("SELECT content FROM Content WHERE path = ?", (CHUNKED,)).fetchone()[0]
-        stored = opt.reassemble(conn, CHUNKED, first)
-    finally:
-        conn.close()
     dictionary = db_path.with_name("chunked.dict.bin")
     dictionary.write_bytes(DICTIONARY)
-    assert _brotli(["-d", "-c"], stored, dictionary) == plain[CHUNKED]
+    for chunked, _type, _template in CHUNKED:
+        for path in (chunked, f"{chunked}-1"):
+            assert path not in blocked
+            assert [row for row in after if row[1] == path] == [row for row in before if row[1] == path]
+        conn = sqlite3.connect(db_path)
+        try:
+            first = conn.execute("SELECT content FROM Content WHERE path = ?", (chunked,)).fetchone()[0]
+            stored = opt.reassemble(conn, chunked, first)
+        finally:
+            conn.close()
+        assert _brotli(["-d", "-c"], stored, dictionary) == plain[chunked]
 
 
 def test_every_slice_equals_the_rows_decoded_bytes(database):
@@ -248,7 +357,7 @@ def test_blocked_rows_are_emptied_and_nothing_else_changes(database):
         else:
             assert now == was
     sequence = dict(before.pop("sqlite_sequence"))
-    assert dict(after.pop("sqlite_sequence")) == {**sequence, "ContentBlocks": 6}
+    assert dict(after.pop("sqlite_sequence")) == {**sequence, "ContentBlocks": 9}
     assert after == before
     conn = sqlite3.connect(db_path)
     try:
@@ -274,11 +383,96 @@ def test_dry_run_writes_nothing(database, capsys):
     db_path, _plain = database
     pristine = _sha(db_path)
     assert _run(db_path, dry_run=True) == 0
-    assert "Would store 13 page(s) in 6 block(s)" in capsys.readouterr().out
-    assert _sha(db_path) == pristine
-    assert not db_path.with_name(db_path.name + "-journal").exists()
-    conn = sqlite3.connect(db_path)
-    try:
-        assert conn.execute("SELECT name FROM sqlite_master WHERE name LIKE 'ContentBlock%'").fetchall() == []
-    finally:
-        conn.close()
+    assert "Would store 20 page(s) in 9 block(s)" in capsys.readouterr().out
+    _assert_nothing_written(db_path, pristine)
+
+
+def test_an_item_over_1_mib_decoded_stays_a_row(cap_database, capsys):
+    db_path, plain = cap_database
+    before = dict(_query(db_path, "SELECT path, content FROM Content"))
+    assert len(before["a/cap/huge.html"]) < ITEM_CAP, "fixture premise: stored small, decoded over the cap"
+    assert _run(db_path, per_block=64) == 0
+    blocks = _block_paths(db_path)
+    assert blocks[0] == ["a/cap/limit.html", "a/cap/small.html"]  # exactly 1 MiB is not over it
+    assert "a/cap/huge.html" not in {path for paths in blocks for path in paths}
+    after = dict(_query(db_path, "SELECT path, content FROM Content"))
+    assert after["a/cap/huge.html"] == before["a/cap/huge.html"]
+    out = capsys.readouterr().out
+    assert "  a/: left as rows: 1 page(s) over 1,048,576 bytes decoded" in out
+    assert "    kept by the cap: a/cap/huge.html" in out
+    for data, items in _blocks(db_path):
+        for path, offset, length in items:
+            assert data[offset:offset + length] == plain[path], path
+
+
+def test_a_block_closes_before_it_would_decode_past_4_mib(cap_database):
+    db_path, _plain = cap_database
+    assert _run(db_path, per_block=64) == 0
+    blocks = _blocks(db_path)
+    j_blocks = [[path for path, _offset, _length in items] for _data, items in blocks
+                if items[0][0].startswith("j/")]
+    # Exactly 4 MiB is not past it; 3.5 MiB closes before half a MiB and a byte more.
+    assert j_blocks == [[f"j/b{n}.html" for n in range(4)], [f"j/c{n}.html" for n in range(4)], ["j/c4.html"]]
+    sizes = [len(data) for data, _items in blocks]
+    assert max(sizes) == BLOCK_CAP and all(size <= BLOCK_CAP for size in sizes)
+
+
+def test_64_pages_to_a_block_by_default(cap_database, monkeypatch):
+    db_path, _plain = cap_database
+    monkeypatch.setattr(sys, "argv", ["store_pages_in_blocks.py", str(db_path), "--workers", "4"])
+    with pytest.raises(SystemExit) as exited:
+        spb.main()
+    assert exited.value.code == 0
+    k_blocks = [paths for paths in _block_paths(db_path) if paths[0].startswith("k/")]
+    assert [len(paths) for paths in k_blocks] == [64, 1]
+
+
+class _Garbling(spb.DictionaryBrotli):
+    """The real codec, except that the `garble`-th decode of each block it encoded comes back with one byte
+    changed, the length kept."""
+    garble = 1
+
+    def __init__(self, dictionary: bytes):
+        super().__init__(dictionary)
+        self._lock = threading.Lock()
+        self._decodes = {}
+
+    def encode(self, data: bytes) -> bytes:
+        encoded = super().encode(data)
+        with self._lock:
+            self._decodes[encoded] = 0
+        return encoded
+
+    def decode(self, data: bytes) -> bytes:
+        plain = super().decode(data)
+        with self._lock:
+            if data not in self._decodes:
+                return plain
+            self._decodes[data] += 1
+            if self._decodes[data] != self.garble:
+                return plain
+        middle = len(plain) // 2
+        return plain[:middle] + bytes([plain[middle] ^ 1]) + plain[middle + 1:]
+
+
+def test_a_block_that_does_not_decode_back_byte_for_byte_writes_nothing(database, capsys, monkeypatch):
+    """Garbled only on the decode-back, so the blocks stored are sound and only the byte-for-byte check before
+    a row is emptied can stop the run."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+    monkeypatch.setattr(spb, "DictionaryBrotli", type("FirstDecode", (_Garbling,), {"garble": 1}))
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert "does not read back byte for byte from the block starting at" in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
+
+
+def test_a_stored_block_that_does_not_read_back_writes_nothing(database, capsys, monkeypatch):
+    """Garbled only on the second decode, the one over the stored blocks before the commit."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+    monkeypatch.setattr(spb, "DictionaryBrotli", type("SecondDecode", (_Garbling,), {"garble": 2}))
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert "does not read back from block" in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
