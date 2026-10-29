@@ -57,7 +57,9 @@ BLOCKED = {
            ("a/Zeta.html", "text/html", 7), ("a/androidx/B.html", "text/html", 7),
            ("a/android/util/Pair.html", "text/html", 7)],
     "j/": [("j/index.html", "text/html", 0), ("j/api/b.html", "text/html", 0),
-           ("j/Overview.html", "text/html", 0), ("j/api/A.html", "text/html", 0)],
+           ("j/Overview.html", "text/html", 0), ("j/api/A.html", "text/html", 0),
+           # A templated javadoc JSON row: sync_javadoc_json_to_db.py keeps text/html and sets templateId.
+           ("j/api/T.html", "text/html", 7)],
     "k/": [("k/html/y.html", "text/html", 9), ("k/html/x.html", "text/html", 8)],
     # Every Brotli row under a/devsite/ and i/, templated or not, HTML or not.
     "a/devsite/": [("a/devsite/reference/x.html", "text/html", 7), ("a/devsite/b.html", "text/html", 0),
@@ -309,6 +311,8 @@ def test_blocks_follow_path_order_and_never_mix_sets(database):
     expected = _blocked_in_order()
     assert [path for _data, items in blocks for path, _offset, _length in items] == expected
     assert [name for name, _condition in spb.SETS] == ["a/", "j/", "k/", "a/devsite/", "i/"]
+    # j/ takes text/html whatever its templateId: the javadoc JSON rows are templated.
+    assert "j/api/T.html" in expected
     # Binary, not case-blind: a/Zeta.html sorts before a/android/..., a/androidx/B before a/androidx/a.
     assert expected[:3] == ["a/Zeta.html", "a/android/util/Pair.html", "a/android/widget/TextView.html"]
     for data, items in blocks:
@@ -323,21 +327,21 @@ def test_blocks_follow_path_order_and_never_mix_sets(database):
 def test_the_last_block_of_a_set_is_shorter(database):
     db_path, _plain = database
     assert _run(db_path) == 0
-    # a/ has 7 pages, j/ 4, k/ 2, a/devsite/ 4 and i/ 3: each set starts a block of its own.
-    assert [len(items) for _data, items in _blocks(db_path)] == [3, 3, 1, 3, 1, 2, 3, 1, 3]
+    # a/ has 7 pages, j/ 5, k/ 2, a/devsite/ 4 and i/ 3: each set starts a block of its own.
+    assert [len(items) for _data, items in _blocks(db_path)] == [3, 3, 1, 3, 2, 2, 3, 1, 3]
 
 
 def test_the_summary_names_every_set_its_content_types_and_what_it_left(database, capsys):
     db_path, _plain = database
     assert _run(db_path) == 0
     out = capsys.readouterr().out
-    for name, pages, blocks in (("a/", 7, 3), ("j/", 4, 2), ("k/", 2, 1), ("a/devsite/", 4, 2), ("i/", 3, 1)):
+    for name, pages, blocks in (("a/", 7, 3), ("j/", 5, 2), ("k/", 2, 1), ("a/devsite/", 4, 2), ("i/", 3, 1)):
         assert f"  {name}: {pages} page(s) in {blocks} block(s);" in out
     devsite = next(line for line in out.splitlines() if line.startswith("  a/devsite/: 4 page(s)"))
     assert all(kind in devsite for kind in ("text/html 2", "text/css 1", "text/javascript 1"))
     assert ("  i/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, and "
             "1 continuation row(s).") in out
-    assert "Stored 20 page(s) in 9 block(s) of up to 3 pages and 4,194,304 bytes decoded" in out
+    assert "Stored 21 page(s) in 9 block(s) of up to 3 pages and 4,194,304 bytes decoded" in out
 
 
 def test_continuation_rows_are_left_alone(database):
@@ -488,7 +492,7 @@ def test_dry_run_writes_nothing(database, capsys):
     versions = _query(db_path, VERSION_ROWS)
     assert _run(db_path, dry_run=True) == 0
     out = capsys.readouterr().out
-    assert "Would store 20 page(s) in 9 block(s)" in out
+    assert "Would store 21 page(s) in 9 block(s)" in out
     assert "would declare 4.0.0" in out
     _assert_nothing_written(db_path, pristine)
     assert _query(db_path, VERSION_ROWS) == versions

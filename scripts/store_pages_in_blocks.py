@@ -63,10 +63,15 @@ rebuild_database.py --pack ContentBlocks renumbers them, and nothing reads the
 order. Paths are matched with GLOB, which is case-sensitive as paths are:
 
     1. a/ templated JSON:  path GLOB 'a/*' AND NOT GLOB 'a/devsite/*' AND templateId > 0
-    2. j/ HTML:            path GLOB 'j/*' AND content type text/html
+    2. j/ HTML:            path GLOB 'j/*' AND content type text/html, templated or not
     3. k/ templated JSON:  path GLOB 'k/*' AND templateId > 0
     4. a/devsite/:         every row under it
     5. i/:                 every row under it
+
+j/ takes every text/html row, including templated JSON rows:
+sync_javadoc_json_to_db.py keeps contentTypeID as text/html and sets templateId
+to the javadoc.peb id (its docstring, lines 7-8; the UPDATE at line 375 and the
+INSERT at line 398), so there is no templateId condition here.
 
 Only rows whose content type is compressed with brotli, and only items held in
 one row: a row that owns continuation rows ("path-1", ... after a 1 MiB row),
