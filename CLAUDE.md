@@ -99,14 +99,15 @@ edit that database** — it contains no part of the production Android app itsel
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
 > `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`) and `TooltipManager.py`. Until they
 > catch up the step runs on the copy that ships, after all of them, and never on the master
-> database they edit; nothing converts 3.0 back. It needs the `brotli` CLI on PATH.
+> database they edit; nothing converts 3.0 back. (The Drive master will itself become 4.0.0, which
+> includes 3.0.0: "Schema 4.0.0" below.) It needs the `brotli` CLI on PATH.
 >
 > In the 3.0 shape `Tooltips.id` must be unique and name a `TooltipTexts` row: a writer takes the
 > id its `TooltipTexts` insert hands out, never one of its own. Nothing enforces it (a `UNIQUE (id)`
 > index would cost about the 613 pages the conversion saves), and two rows sharing an id share one
 > text, so deleting either key's text deletes the other's.
 
-> ### Schema 4.0.0: content blocks, in the shipped copy only
+> ### Schema 4.0.0: content blocks
 >
 > `scripts/store_pages_in_blocks.py` (ADFA-6683) stores most pages up to 64 to a compressed block and
 > declares **4.0.0**:
@@ -150,6 +151,12 @@ edit that database** — it contains no part of the production Android app itsel
 > bytes larger), against a 0.33 MB spread between re-mint seeds; `remint_dictionary.py`'s docstring
 > has the figures.
 >
+> **The Google Drive master database the documentation team edits will become 4.0.0 and will never go
+> back to 3.x.** The blocks step itself still runs on the copy that ships, at build time, but from the
+> upgrade on every tool below that does not refuse 4.x runs on a blocked database. None of them may be
+> left as it is when the Drive copy is upgraded: each must be fixed or guarded first, as ADFA-6806 (the
+> docs pipeline scripts), ADFA-6807 (DocDB Studio) and ADFA-6808 (check-tools) track.
+>
 > Which tools refuse 4.x, writing nothing: `store_pages_in_blocks.py` itself (it runs on a file
 > declaring 3, and refuses one that already has the tables); `remint_dictionary.py` and
 > `verify_remint_dictionary.py`, which recompress and compare `Content` rows and templates, not
@@ -172,16 +179,23 @@ edit that database** — it contains no part of the production Android app itsel
 > - stops with a traceback before reaching a block, as on any 3.x file: `hm_pages_to_templates.py`
 >   (on its compressed template) and `check_remote_loads.py` (on the 3.x tooltip tables);
 >   `insert_optimized_media.py` stops with one on the first blocked row;
-> - `migrate_tooltip_schema.py` leaves the file alone ("nothing to do", exit 0), and
->   `sync_kdoc_json_to_db.py`, which never decodes `Content`, would overwrite or delete blocked `k/`
->   rows and leave their `ContentBlockItems` pointing at the old page.
+> - `migrate_tooltip_schema.py` leaves the file alone ("nothing to do", exit 0);
+> - `sync_kdoc_json_to_db.py` has no version check and never decodes `Content`, so it writes into a
+>   blocked database as if it were 3.x, and silently (code, not run): `write_content` updates a `k/`
+>   page that still fits in one row in place (`UPDATE Content SET content = ?`, `:147`), leaving a blocked
+>   row holding its own content beside its `ContentBlockItems` row, a state the blocks step never writes
+>   (it checks that every blocked row is empty), and a page that has grown past one row is deleted and
+>   re-inserted under a new id (`:152-160`), which orphans its `ContentBlockItems` row;
 >
-> The ship-time steps all run before the blocks step and must never run after it;
-> `migrate_content_to_dictionary_brotli.py`, `insert_optimized_media.py` and `sync_kdoc_json_to_db.py`
-> write the master only, which never gets blocks.
+> The ship-time steps all run before the blocks step on the copy that ships, and must never run after it
+> there. They also run on the Drive master, which is 4.0.0 from the upgrade, and these three do so
+> without refusing: `migrate_content_to_dictionary_brotli.py`, `insert_optimized_media.py` and
+> `sync_kdoc_json_to_db.py`, with the results above. They must be fixed or guarded (ADFA-6806) before the
+> Drive copy is upgraded.
 >
 > Release order: a 4.0.0 database goes to dev-assets or Drive only once the app's block reader is on
-> CodeOnTheGo's `stage`. Builds take whatever dev-assets holds, so an early copy would give every build
+> CodeOnTheGo's `stage`, and the Drive master is upgraded only after ADFA-6806, ADFA-6807 and ADFA-6808
+> are done. Builds take whatever dev-assets holds, so an early copy would give every build
 > empty pages. It ships with the 3.0.0 switch or later. An app update never replaces the installed
 > database, so a phone with a 3.x or 2.x file keeps the old read path.
 
@@ -231,7 +245,7 @@ a placeholder.
 
 In a database whose newest `DocumentationDatabaseVersion` row declares major 3 or later, every
 `Templates` row is stored Brotli-compressed against the shared dictionary, with no per-row marker
-(ADFA-3305). Only the ship-time copy is converted; the master database the tools here edit keeps
+(ADFA-3305). Until the Drive master is upgraded to 4.0.0 ("Schema 4.0.0" above), only the ship-time copy is converted; the master database the tools here edit keeps
 plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
 the app does: from major 3 on they sample, recompress and verify the templates together with the
 `Content` rows, and below it they leave the templates exactly as stored. From major 4 on (content
