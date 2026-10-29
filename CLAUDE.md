@@ -172,9 +172,12 @@ edit that database** — it contains no part of the production Android app itsel
 > (marked "run" where it was run on a small 4.0.0 test copy made with `store_pages_in_blocks.py
 > --pages-per-block 4`, "code" where it is read from the code):
 >
-> - refuses, writing nothing: `drop_unread_rows.py` (it reports the blocked rows it reads as
->   unreadable), `minify_text.py` (on the blocked stylesheets), `svg_images_to_webp.py`, and
->   `optimize_pdfs.py` if a PDF were blocked;
+> - refuses, writing nothing: `minify_text.py` (on the blocked stylesheets; run),
+>   `svg_images_to_webp.py` (on a blocked SVG; run), `optimize_pdfs.py` if a PDF were blocked (code),
+>   and `drop_unread_rows.py` only when it has to read a blocked row (run): given nothing to drop it
+>   exits 0 with "Nothing to do" without reading one, and given something to drop it reports every
+>   blocked row it must read (the rows to drop, then the kept rows' references) as unreadable and exits
+>   1, changing nothing;
 > - writes what it can read, then exits 1 on `error:` lines: `bundle_remote_images.py`,
 >   `remove_remote_loads.py`, `remove_skin_font_comment.py`, `share_skin_sprite.py`,
 >   `update_media_references.py` (code), `optimize_db_media.py` (run: it commits, then prints "failed to
