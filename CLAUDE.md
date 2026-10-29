@@ -168,24 +168,55 @@ edit that database** — it contains no part of the production Android app itsel
 > No other step that reads or writes `Content` knows blocks or refuses 4.x. Two read the version:
 > `drop_unread_rows.py`, only to know that templates are compressed from 3 on, and
 > `migrate_tooltip_schema.py`. None of them sees a blocked page as an empty one: its `x''` is not a
-> Brotli stream (`brotli -d` reports "corrupt input"), so decoding it fails. What each does then:
+> Brotli stream (`brotli -d` reports "corrupt input"), so decoding it fails. What each does then
+> (marked "run" where it was run on a small 4.0.0 test copy made with `store_pages_in_blocks.py
+> --pages-per-block 4`, "code" where it is read from the code):
 >
 > - refuses, writing nothing: `drop_unread_rows.py` (it reports the blocked rows it reads as
 >   unreadable), `minify_text.py` (on the blocked stylesheets), `svg_images_to_webp.py`, and
 >   `optimize_pdfs.py` if a PDF were blocked;
 > - writes what it can read, then exits 1 on `error:` lines: `bundle_remote_images.py`,
 >   `remove_remote_loads.py`, `remove_skin_font_comment.py`, `share_skin_sprite.py`,
->   `optimize_db_media.py`, `update_media_references.py` and `migrate_content_to_dictionary_brotli.py`;
+>   `update_media_references.py` (code), `optimize_db_media.py` (run: it commits, then prints "failed to
+>   optimize" for each blocked SVG and exits 1) and `migrate_content_to_dictionary_brotli.py` (run: an
+>   `error:` line per blocked row and exit 1; it commits in batches, code);
 > - stops with a traceback before reaching a block, as on any 3.x file: `hm_pages_to_templates.py`
 >   (on its compressed template) and `check_remote_loads.py` (on the 3.x tooltip tables);
->   `insert_optimized_media.py` stops with one on the first blocked row;
-> - `migrate_tooltip_schema.py` leaves the file alone ("nothing to do", exit 0);
+> - stops with a traceback on the first blocked row: `insert_optimized_media.py` (run: it writes its
+>   backup, then `rewrite_pages` fails decoding the first blocked page, `insert_optimized_media.py:289`),
+>   `verify_android_json_db.py` (run: the first blocked `a/` page it samples, decoded with
+>   `populate_db.py:399` after the read at `verify_android_json_db.py:107`) and
+>   `set_content_type_compression.py` (run: after its backup, the first blocked row of the type, decoded
+>   at `:118-121`); `compare_svg_renders.py` fails the same way in `svg_rows` (`:74-76`; code, not run);
+> - exits 0 with a wrong answer: `list_database_documents.py` lists a blocked page as
+>   "Bytes: 0" (run; `:17-20`), and `migrate_tooltip_schema.py` leaves the file alone ("nothing to do");
+> - refuses a table it does not know, writing nothing: `DocumentationDatabase.py` and `ingest.py`
+>   (run: `ValueError: Database schema contains unexpected tables`, `DocumentationDatabase.py:92-95`; its
+>   allowed list is only `Content`, `Languages`, `ContentTypes` and `ide_tooltip_table`, so it refuses any
+>   2.x or 3.x `documentation.db` too, not only a 4.x one);
+> - fails on the 3.x tooltip tables whatever the blocks, so these cannot work on the master after 3.0.0
+>   either (ADFA-6808 for `check-tools`): `layout_xml_tooltips.py` (inserts `Tooltips(summary, detail)`,
+>   `:92-97`) and `TooltipManager.py` (`:52`) read or write columns the 3.0 `Tooltips` table no longer
+>   has (code; the same SQL on a 3.0.0 test copy gives "no such column: summary"), and so does
+>   `check-tools/` (`db_health_checker.py` selects `t.summary` at `:130`). `check-tools` also has a
+>   check of its own that a blocked database fails: the empty-content query at
+>   `db_health_checker.py:266-269` counts every blocked row (22 of 22 on the test copy) as empty;
 > - `sync_kdoc_json_to_db.py` has no version check and never decodes `Content`, so it writes into a
 >   blocked database as if it were 3.x, and silently (code, not run): `write_content` updates a `k/`
 >   page that still fits in one row in place (`UPDATE Content SET content = ?`, `:147`), leaving a blocked
 >   row holding its own content beside its `ContentBlockItems` row, a state the blocks step never writes
 >   (it checks that every blocked row is empty), and a page that has grown past one row is deleted and
 >   re-inserted under a new id (`:152-160`), which orphans its `ContentBlockItems` row;
+> - works on 4.x: `rebuild_database.py --pack Templates,Content,ContentBlocks` (run: it renumbers the
+>   blocks, follows `ContentBlockItems.blockId` and `contentId`, and keeps the declared 4.0.0).
+>
+> `docdb-studio` (ADFA-6807) refuses a major above 3 (`SUPPORTED_DATABASE_MAJOR_VERSION = 3`,
+> `docdb_studio.py:191`, checked at `:5220-5221`), and nothing in it mentions `ContentBlocks` or
+> `ContentBlockItems`: reading a page (`fetch_content_for_path`, `get_html_anchors_for_path`), listing
+> sizes (`get_paths_with_sizes`, `LENGTH(content)`), deleting rows (`_delete_content_by_ids`) and the
+> import's orphan pass all treat `Content.content` as the page, so a blocked page would read as empty
+> and a delete or overwrite would orphan its `ContentBlockItems` row. DocDB Studio has to gain block
+> support before the Drive copy is upgraded, or the team cannot edit the master.
 >
 > The ship-time steps all run before the blocks step on the copy that ships, and must never run after it
 > there. They also run on the Drive master, which is 4.0.0 from the upgrade, and these three do so
