@@ -722,8 +722,8 @@ def _refill_a_blocked_row(conn) -> None:
     (_refill_a_blocked_row, "1 blocked row(s) still hold their content"),
 ], ids=["a block lost", "a block lost, its items kept", "a block changed", "an item moved", "a row not emptied"])
 def test_the_check_before_the_commit_refuses_what_the_writes_got_wrong(database, capsys, monkeypatch, damage, says):
-    """Each damage leaves every stored block decoding to its items, so only the check that names it can stop the
-    run."""
+    """Each damage is one a write could leave after its block was built. The check before the commit must name it
+    and write nothing; a block lost with its items kept once passed it."""
     db_path, _plain = database
     sha = _sha(db_path)
     check_stored = spb.check_stored

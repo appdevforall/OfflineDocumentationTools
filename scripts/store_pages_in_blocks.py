@@ -106,12 +106,12 @@ database: they do not recompress blocks) and before the pack. On that copy the
 order is: minify, row drops, Kotlin trim, a/ pages-to-templates,
 migrate_tooltip_schema.py, remint_dictionary.py --seeds 4 and
 verify_remint_dictionary.py, this step, then rebuild_database.py --pack
-Templates,Content,TooltipTexts,ContentBlocks --page-size 4096. That order needs
-a 3.x copy, so the Drive master it is made from stays 3.x until ADFA-6871. The
-master is to become 4.0.0 too (CLAUDE.md, "Schema 4.0.0"); from then on the
-build first turns the copy's blocks back into rows (ADFA-6871), so the same
-order runs and this step blocks every page again, those added or edited on the
-master since included. A 4.0.0 database goes to dev-assets or Drive only once
+Templates,Content,TooltipTexts,ContentBlocks --page-size 4096. That order
+starts from a 2.x copy, as the Drive master is today: the Kotlin trim and the
+a/ step refuse 3 or later, and migrate_tooltip_schema.py converts only 2.x. The
+master is to become 4.0.0 too (CLAUDE.md, "Schema 4.0.0"), but only once
+ADFA-6871 settles how a 4.x master is built into a copy that ships: this order
+cannot start from one. A 4.0.0 database goes to dev-assets or Drive only once
 the app's block reader is on CodeOnTheGo's stage: builds take whatever
 dev-assets holds, and an app without the reader would show every blocked page
 empty.

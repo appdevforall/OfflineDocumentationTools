@@ -152,13 +152,15 @@ edit that database** — it contains no part of the production Android app itsel
 > has the figures.
 >
 > **The Google Drive master database the documentation team edits will become 4.0.0 and will never go
-> back to 3.x**, but not yet. The order above needs a 3.x copy, and the copy is made from the master:
-> the re-mint, its verify and the blocks step each refuse a 4.x file. So the master stays 3.x until
-> ADFA-6871 adds a build step that first turns the copy's blocks back into 3.x rows. The order then
-> runs as written: the dictionary is re-minted, and the blocks step blocks every page again, including
-> pages added or edited on the master since. ADFA-6872 teaches those three tools 4.x, after which that
-> build step can go. From the upgrade on, every tool below that does not refuse 4.x runs on a blocked
-> database. None of them may be left as it is when the Drive copy is upgraded: each must be fixed or
+> back to 3.x**, but not yet. The master is 2.x: `migrate_tooltip_schema.py` runs only on the copy
+> that ships (above). The order above starts from a 2.x copy: the Kotlin trim and the `a/`
+> pages-to-templates step refuse a file declaring 3 or later, `migrate_tooltip_schema.py` converts
+> only 2.x, and the re-mint, its verify and the blocks step refuse 4.x. Nothing converts 3.0 back to
+> 2.x, so the order cannot start from a 4.x master, even with its blocks turned back into rows.
+> ADFA-6871 settles how a 4.x master is built into a copy that ships (which steps run, on what, and
+> in what order), and the master is not upgraded before it does. ADFA-6872 teaches the re-mint, its
+> verify and the blocks step 4.x. From the upgrade on, every tool below that does not refuse 4.x runs
+> on a blocked database. None of them may be left as it is when the Drive copy is upgraded: each must be fixed or
 > guarded first, as ADFA-6806 (the docs pipeline scripts), ADFA-6807 (DocDB Studio) and ADFA-6808
 > (check-tools) track.
 >
@@ -233,8 +235,8 @@ edit that database** — it contains no part of the production Android app itsel
 > Drive copy is upgraded.
 >
 > Release order: a 4.0.0 database goes to dev-assets or Drive only once the app's block reader is on
-> CodeOnTheGo's `stage`, and the Drive master is upgraded only after ADFA-6806, ADFA-6807 and ADFA-6808
-> are done. Builds take whatever dev-assets holds, so an early copy would give every build
+> CodeOnTheGo's `stage`, and the Drive master is upgraded only after ADFA-6871, ADFA-6806, ADFA-6807
+> and ADFA-6808 are done. Builds take whatever dev-assets holds, so an early copy would give every build
 > empty pages. It ships with the 3.0.0 switch or later. An app update never replaces the installed
 > database, so a phone with a 3.x or 2.x file keeps the old read path.
 
