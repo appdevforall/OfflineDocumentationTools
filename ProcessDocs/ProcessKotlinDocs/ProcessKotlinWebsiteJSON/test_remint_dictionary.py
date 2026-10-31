@@ -839,6 +839,29 @@ class ContentBlocksRefusalTest(_RemintFixture):
                 self.assertIn("This check compares Content rows and templates, not blocks", message)
                 self.assertNamesTheBlocksStepAndTheOrder(message)
 
+    def test_the_verifier_closes_both_databases_when_it_refuses(self):
+        """Otherwise each refused pair leaves two read-only handles open until they are collected, and on Windows
+        neither file can be deleted meanwhile."""
+        self.add_versions_and_templates(majors=(3,))
+        original = self.snapshot()
+        self.add_block_tables(("ContentBlocks",))
+        opened = []
+        connect = sqlite3.connect
+
+        def recording(*args, **kwargs):
+            opened.append(connect(*args, **kwargs))
+            return opened[-1]
+
+        for old, new in ((original, self.db_path), (self.db_path, original)):
+            with self.subTest(old=old.name, new=new.name):
+                opened.clear()
+                with mock.patch.object(sqlite3, "connect", recording), self.assertRaises(RuntimeError):
+                    verify(old, new)
+                self.assertEqual(len(opened), 2)
+                for conn in opened:
+                    with self.assertRaises(sqlite3.ProgrammingError):
+                        conn.execute("SELECT 1")
+
 
 class CommandLineRefusalTest(_RemintFixture):
     """A run that refuses writes nothing at all, the backup included, and says why on one "error:" line rather
