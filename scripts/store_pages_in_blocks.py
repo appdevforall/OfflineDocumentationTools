@@ -75,7 +75,8 @@ INSERT at line 398), so there is no templateId condition here.
 
 Only rows whose content type is compressed with brotli, and only items held in
 one row: a row that owns continuation rows ("path-1", ... after a 1 MiB row),
-and each continuation row, stay as they are.
+and each continuation row, stay as they are. So does an empty row, which has
+nothing to decode.
 
 The cap: an item over MAX_ITEM_BYTES (1 MiB) decoded stays a row. A block
 closes at --pages-per-block items (default 64), or before the next item would
@@ -84,30 +85,36 @@ block, and the app caches decoded blocks up to 8 MiB, so two blocks always fit.
 Without the cap, j/'s Javadoc index pages (up to 5,065,005 bytes each) made a
 64-page block decode to 28,055,018 bytes. The summary counts, for each set,
 the pages in blocks and their content types, the pages the cap kept as rows,
-and the rows left for their continuation rows.
+the rows left for their continuation rows, and the empty rows.
 
 Checks: every block is decoded again before its rows are emptied; it must
 decode to its items' total length, and each item's slice of it is compared byte
-for byte with its row's decoded bytes. Before the commit ContentBlockItems must
-hold one row per blocked item, every block as stored must decode to exactly its
-items' lengths added up, every item is sliced from it and compared, by sha256,
-with its row's decoded bytes, and every blocked row must be empty. Any failure
-rolls everything back.
+for byte with its row's decoded bytes. Before the commit ContentBlocks must
+hold exactly the blocks written, each the same bytes (by sha256) as the block
+that was decoded back, ContentBlockItems exactly the items written, each with
+its block, offset and length, and every blocked row must be empty. A block
+stored as it was built decodes as it did, so it is not decoded twice. Any
+failure rolls everything back.
 
 A database that already has ContentBlocks or ContentBlockItems is refused
 too: its blocked rows are empty, so a second run would store empty pages over
 the blocked ones.
 
-Where it goes: on the copy that ships only, never the master, after the last
-dictionary re-mint and its verify (remint_dictionary.py and
-verify_remint_dictionary.py refuse a 4.x database: they do not recompress
-blocks) and before the pack. On that copy the order is: minify, row drops,
-Kotlin trim, a/ pages-to-templates, migrate_tooltip_schema.py,
-remint_dictionary.py --seeds 4 and verify_remint_dictionary.py, this step, then
-rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks
---page-size 4096. A 4.0.0 database goes to dev-assets or Drive only once the
-app's block reader is on CodeOnTheGo's stage: builds take whatever dev-assets
-holds, and an app without the reader would show every blocked page empty.
+Where it goes: on the copy that ships, after the last dictionary re-mint and
+its verify (remint_dictionary.py and verify_remint_dictionary.py refuse a 4.x
+database: they do not recompress blocks) and before the pack. On that copy the
+order is: minify, row drops, Kotlin trim, a/ pages-to-templates,
+migrate_tooltip_schema.py, remint_dictionary.py --seeds 4 and
+verify_remint_dictionary.py, this step, then rebuild_database.py --pack
+Templates,Content,TooltipTexts,ContentBlocks --page-size 4096. That order needs
+a 3.x copy, so the Drive master it is made from stays 3.x until ADFA-6871. The
+master is to become 4.0.0 too (CLAUDE.md, "Schema 4.0.0"); from then on the
+build first turns the copy's blocks back into rows (ADFA-6871), so the same
+order runs and this step blocks every page again, those added or edited on the
+master since included. A 4.0.0 database goes to dev-assets or Drive only once
+the app's block reader is on CodeOnTheGo's stage: builds take whatever
+dev-assets holds, and an app without the reader would show every blocked page
+empty.
 
 Runs in one transaction and VACUUMs afterwards. Takes no backup: run it on a
 copy. --dry-run does all the work, writes and version included, and rolls it
@@ -117,16 +124,22 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sqlite3
-import subprocess
 import sys
-import tempfile
 from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from optimize_db_media import human, is_continuation_path, load_dictionary, owned_fragment_paths
+from migrate_tooltip_schema import declare_version
+from optimize_db_media import (
+    BrotliCodec,
+    declared_major,
+    human,
+    is_continuation_path,
+    load_dictionary,
+    owned_fragment_paths,
+    table_exists,
+)
 
 # (set, condition on Content AS c joined to ContentTypes AS t), in block-id order. GLOB, not LIKE: LIKE ignores case.
 SETS = (
@@ -169,50 +182,6 @@ SCHEMA = (
 )
 
 
-class DictionaryBrotli:
-    """The `brotli` CLI against one dictionary. No Python binding takes a
-    custom dictionary, so every tool here shells out the same way."""
-
-    def __init__(self, dictionary: bytes):
-        self._brotli = shutil.which("brotli")
-        if self._brotli is None:
-            raise RuntimeError("the `brotli` CLI is not on PATH; install it and retry")
-        self._work_dir = Path(tempfile.mkdtemp(prefix="store_pages_in_blocks_"))
-        self._dictionary = self._work_dir / "dict.bin"
-        self._dictionary.write_bytes(dictionary)
-
-    def _run(self, args: list, data: bytes) -> bytes:
-        result = subprocess.run([self._brotli, *args, "-D", str(self._dictionary)], input=data,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-        if result.returncode != 0:
-            raise RuntimeError(f"brotli failed: {result.stderr.decode(errors='replace').strip()}")
-        return result.stdout
-
-    def encode(self, data: bytes) -> bytes:
-        return self._run(["-c", "-q", "11", "-w", "24"], data)
-
-    def decode(self, data: bytes) -> bytes:
-        return self._run(["-d", "-c"], data)
-
-    def close(self) -> None:
-        shutil.rmtree(self._work_dir, ignore_errors=True)
-
-
-def table_exists(conn, name: str) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
-
-
-def declared_major(conn) -> int | None:
-    """The major the newest DocumentationDatabaseVersion row declares, read the way the app's
-    DatabaseVersionResolver and remint_dictionary.declared_major read it (newest changeTime, then newest rowid);
-    None without one."""
-    if not table_exists(conn, "DocumentationDatabaseVersion"):
-        return None
-    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
-                       ).fetchone()
-    return row[0] if row else None
-
-
 def version_refusal(conn) -> str | None:
     """Why this database's declared version keeps it from getting blocks, or None if it declares FROM_MAJOR."""
     major = declared_major(conn)
@@ -233,41 +202,38 @@ def version_refusal(conn) -> str | None:
     return None
 
 
-def declare_version(conn) -> None:
-    conn.execute("DELETE FROM DocumentationDatabaseVersion")
-    conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
-                 (TO_MAJOR, WHO, COMMENT))
-
-
 def select_sets(conn) -> list:
     """[(set, [(content id, path, content type, stored bytes)] in path order, items held in more than one row,
-    their continuation rows)] for each of SETS."""
+    their continuation rows, empty rows)] for each of SETS."""
     lengths = dict(conn.execute("SELECT path, LENGTH(content) FROM Content"))
     selected = []
     for name, condition in SETS:
-        rows, chunked, continuations = [], 0, 0
+        rows, chunked, continuations, empty = [], 0, 0, 0
         for content_id, path, content_type, stored in conn.execute(
                 "SELECT c.id, c.path, t.value, c.content FROM Content AS c JOIN ContentTypes AS t "
                 f"ON t.id = c.contentTypeID WHERE t.compression = 'brotli' AND {condition} "
                 "ORDER BY c.path COLLATE BINARY"):
-            if is_continuation_path(lengths, path):
+            if not stored:
+                # Not a Brotli stream: `brotli -d` calls it corrupt input, and there is no page to block.
+                empty += 1
+            elif is_continuation_path(lengths, path):
                 continuations += 1
             elif owned_fragment_paths(conn, path, len(stored)):
                 chunked += 1
             else:
                 rows.append((content_id, path, content_type, stored))
-        selected.append((name, rows, chunked, continuations))
+        selected.append((name, rows, chunked, continuations, empty))
     return selected
 
 
-def decode_row(codec: DictionaryBrotli, row: tuple) -> bytes:
+def decode_row(codec: BrotliCodec, row: tuple) -> bytes:
     try:
-        return codec.decode(row[3])
+        return codec.decompress(row[3], "brotli")
     except RuntimeError as exc:
         raise RuntimeError(f"{row[1]}: {exc}") from exc
 
 
-def decoded_in_order(pool, codec: DictionaryBrotli, rows: list):
+def decoded_in_order(pool, codec: BrotliCodec, rows: list):
     """(row, its decoded bytes) for every row, in order, decoded in the pool DECODE_WINDOW rows at a time: the next
     window only once the walk has taken the last row of this one."""
     window = DECODE_WINDOW
@@ -294,13 +260,13 @@ def group_items(decoded, per_block: int, kept: list):
         yield group
 
 
-def build_block(codec: DictionaryBrotli, group: list) -> tuple:
-    """(compressed block, decoded length, [(content id, offset, length, sha256)]) for one block's (row, decoded
-    bytes), once the block has been decoded back and each item's slice of it matched its row's decoded bytes byte
-    for byte."""
+def build_block(codec: BrotliCodec, group: list) -> tuple:
+    """(compressed block, decoded length, [(content id, offset, length)]) for one block's (row, decoded bytes),
+    once the block has been decoded back and each item's slice of it matched its row's decoded bytes byte for
+    byte."""
     plain = b"".join(raw for _row, raw in group)
-    data = codec.encode(plain)
-    back = codec.decode(data)
+    data = codec.compress(plain, "brotli")
+    back = codec.decompress(data, "brotli")
     first = group[0][0][1]
     if len(back) != len(plain):
         raise RuntimeError(f"the block starting at {first} decoded back to {human(len(back))} bytes, not "
@@ -309,27 +275,30 @@ def build_block(codec: DictionaryBrotli, group: list) -> tuple:
     for (content_id, path, _type, _stored), raw in group:
         if view[offset:offset + len(raw)] != raw:
             raise RuntimeError(f"{path} does not read back byte for byte from the block starting at {first}")
-        items.append((content_id, offset, len(raw), hashlib.sha256(raw).digest()))
+        items.append((content_id, offset, len(raw)))
         offset += len(raw)
     return data, len(plain), items
 
 
-def store_set(conn, pool, codec: DictionaryBrotli, rows: list, per_block: int, workers: int, expected: dict) -> dict:
-    """Stores one set's rows in blocks, written in order as they are built, a few blocks ahead at most. Adds each
-    blocked item's sha256 to `expected` ({content id: sha256}); returns the set's figures."""
+def store_set(conn, pool, codec: BrotliCodec, rows: list, per_block: int, workers: int, written: tuple) -> dict:
+    """Stores one set's rows in blocks, written in order as they are built, a few blocks ahead at most. Adds what
+    it writes to `written`, ({block id: sha256 of its data}, {content id: (block id, offset, length)}); returns
+    the set's figures."""
     stored_length = {row[0]: len(row[3]) for row in rows}
     content_type = {row[0]: row[2] for row in rows}
     figures = {"blocks": 0, "items": 0, "stored": 0, "compressed": 0, "decoded": 0, "types": Counter(), "kept": []}
+    written_blocks, written_items = written
     pending = deque()
 
     def write(future):
         data, plain_length, items = future.result()
         block_id = conn.execute("INSERT INTO ContentBlocks (data) VALUES (?)", (data,)).lastrowid
-        for content_id, offset, length, digest in items:
+        written_blocks[block_id] = hashlib.sha256(data).digest()
+        for content_id, offset, length in items:
             conn.execute("INSERT INTO ContentBlockItems (contentId, blockId, offset, length) VALUES (?, ?, ?, ?)",
                          (content_id, block_id, offset, length))
             conn.execute("UPDATE Content SET content = x'' WHERE id = ?", (content_id,))
-            expected[content_id] = digest
+            written_items[content_id] = (block_id, offset, length)
             figures["stored"] += stored_length[content_id]
             figures["types"][content_type[content_id]] += 1
         figures["blocks"] += 1
@@ -346,33 +315,28 @@ def store_set(conn, pool, codec: DictionaryBrotli, rows: list, per_block: int, w
     return figures
 
 
-def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) -> None:
-    """Slices every item from its block as stored and compares it with its
-    row's decoded bytes (`expected`: {content id: sha256}). ContentBlockItems
-    must hold one row per blocked item, each block must decode to exactly its
-    items' lengths added up, and every blocked row must now be empty."""
-    items = {}
-    for content_id, block_id, offset, length in conn.execute(
-            "SELECT contentId, blockId, offset, length FROM ContentBlockItems"):
-        items.setdefault(block_id, []).append((content_id, offset, length))
-    if sum(len(group) for group in items.values()) != len(expected):
-        raise RuntimeError("ContentBlockItems does not hold one row per blocked item")
-    blocks = conn.execute("SELECT id, data FROM ContentBlocks ORDER BY id").fetchall()
-
-    def check(block):
-        block_id, data = block
-        plain = codec.decode(data)
-        located = items.get(block_id, ())
-        total = sum(length for _content_id, _offset, length in located)
-        if len(plain) != total:
-            raise RuntimeError(f"block {block_id} decodes to {human(len(plain))} bytes, but its items add up to "
-                               f"{human(total)}")
-        for content_id, offset, length in located:
-            if hashlib.sha256(plain[offset:offset + length]).digest() != expected.get(content_id):
-                raise RuntimeError(f"Content id {content_id} does not read back from block {block_id}")
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        list(pool.map(check, blocks))
+def check_stored(conn, written: tuple) -> None:
+    """Compares the tables with what was written (`written`, as store_set fills it): ContentBlocks must hold
+    exactly the blocks written, each the same bytes by sha256, ContentBlockItems exactly the items written, each
+    with its block, offset and length, and every blocked row must now be empty. build_block decoded each block
+    back and matched every item's slice of it, so a block stored as built needs no second decode."""
+    written_blocks, written_items = written
+    items = {content_id: (block_id, offset, length) for content_id, block_id, offset, length in conn.execute(
+        "SELECT contentId, blockId, offset, length FROM ContentBlockItems")}
+    wrong = sorted(content_id for content_id in items.keys() | written_items.keys()
+                   if items.get(content_id) != written_items.get(content_id))
+    if wrong:
+        raise RuntimeError(f"ContentBlockItems does not hold {human(len(wrong))} item(s) as written, Content id "
+                           f"{wrong[0]} first")
+    stored = set()
+    # One block at a time from the cursor, so the blocks are never all in memory at once.
+    for block_id, data in conn.execute("SELECT id, data FROM ContentBlocks"):
+        if hashlib.sha256(data).digest() != written_blocks.get(block_id):
+            raise RuntimeError(f"block {block_id} as stored is not the block written")
+        stored.add(block_id)
+    lost = sorted(written_blocks.keys() - stored)
+    if lost:
+        raise RuntimeError(f"{human(len(lost))} block(s) written are not in ContentBlocks, block {lost[0]} first")
     left = conn.execute("SELECT COUNT(*) FROM Content WHERE LENGTH(content) > 0 AND id IN "
                         "(SELECT contentId FROM ContentBlockItems)").fetchone()[0]
     if left:
@@ -380,22 +344,24 @@ def check_stored(conn, codec: DictionaryBrotli, expected: dict, workers: int) ->
 
 
 def report(summary: list, per_block: int, dry_run: bool) -> None:
-    for name, figures, chunked, continuations in summary:
+    for name, figures, chunked, continuations, empty in summary:
         types = ", ".join(f"{value} {human(count)}" for value, count in figures["types"].most_common())
         print(f"  {name}: {human(figures['items'])} page(s) in {human(figures['blocks'])} block(s); their rows held "
               f"{human(figures['stored'])} bytes, the blocks hold {human(figures['compressed'])} "
               f"({human(figures['decoded'])} decoded). Content types: {types or 'none'}.")
         kept = figures["kept"]
         print(f"  {name}: left as rows: {human(len(kept))} page(s) over {human(MAX_ITEM_BYTES)} bytes decoded, "
-              f"{human(chunked)} page(s) held in more than one row, and {human(continuations)} continuation row(s).")
+              f"{human(chunked)} page(s) held in more than one row, {human(continuations)} continuation row(s), "
+              f"and {human(empty)} empty row(s).")
         for _id, path, _type, _stored in kept[:10]:
             print(f"    kept by the cap: {path}")
         if len(kept) > 10:
             print(f"    ... and {human(len(kept) - 10)} more")
-    saved = sum(figures["stored"] - figures["compressed"] for _name, figures, _c, _n in summary)
+    every_set = [figures for _name, figures, *_left in summary]
+    saved = sum(each["stored"] - each["compressed"] for each in every_set)
     verb, declare = ("Would store", "would declare") if dry_run else ("Stored", "declared")
-    print(f"{verb} {human(sum(figures['items'] for _n, figures, _c, _k in summary))} page(s) in "
-          f"{human(sum(figures['blocks'] for _n, figures, _c, _k in summary))} block(s) of up to {per_block} pages and "
+    print(f"{verb} {human(sum(each['items'] for each in every_set))} page(s) in "
+          f"{human(sum(each['blocks'] for each in every_set))} block(s) of up to {per_block} pages and "
           f"{human(MAX_BLOCK_BYTES)} bytes decoded, {human(saved)} bytes smaller than their rows; {declare} "
           f"{TO_MAJOR}.0.0.")
 
@@ -432,7 +398,7 @@ def run(cfg: dict) -> int:
             print(f"error: {db_path} has no CompressionDictionary, which blocks are compressed against",
                   file=sys.stderr)
             return 1
-        codec = DictionaryBrotli(dictionary)
+        codec = BrotliCodec(dictionary)
         selected = select_sets(conn)
 
         if cfg["dry_run"]:
@@ -443,13 +409,13 @@ def run(cfg: dict) -> int:
         try:
             for sql in SCHEMA:
                 conn.execute(sql)
-            expected = {}
+            written = ({}, {})
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                for name, rows, chunked, continuations in selected:
-                    figures = store_set(conn, pool, codec, rows, per_block, workers, expected)
-                    summary.append((name, figures, chunked, continuations))
-            check_stored(conn, codec, expected, workers)
-            declare_version(conn)
+                for name, rows, chunked, continuations, empty in selected:
+                    figures = store_set(conn, pool, codec, rows, per_block, workers, written)
+                    summary.append((name, figures, chunked, continuations, empty))
+            check_stored(conn, written)
+            declare_version(conn, TO_MAJOR, WHO, COMMENT)
             if cfg["dry_run"]:
                 conn.execute("ROLLBACK")
             else:

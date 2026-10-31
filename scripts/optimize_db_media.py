@@ -1279,7 +1279,9 @@ class BrotliCodec:
             return data
         if self._dictionary is None:
             return brotli.compress(data)
-        return self._run(data=data)
+        # The CLI's own defaults for stdin, written out: the same bytes, and the q11 w24 that rows and
+        # store_pages_in_blocks.py's blocks are documented as.
+        return self._run("-q", "11", "-w", "24", data=data)
 
     def close(self) -> None:
         if self._work_dir is not None:
@@ -1298,6 +1300,21 @@ def load_dictionary(conn) -> bytes | None:
         return None
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     return row[0] if row else None
+
+
+def table_exists(conn, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+def declared_major(conn) -> int | None:
+    """The documentation major the database declares - its newest DocumentationDatabaseVersion row, ordered as
+    Code On The Go's DatabaseVersionResolver orders them (newest changeTime, then newest rowid) - or None if it
+    declares none."""
+    if not table_exists(conn, "DocumentationDatabaseVersion"):
+        return None
+    row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
+                       ).fetchone()
+    return None if row is None else int(row[0])
 
 
 def human(n: int) -> str:

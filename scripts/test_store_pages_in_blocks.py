@@ -17,11 +17,13 @@ or not; rows held in more than one row left alone; every item sliced from its
 block equal to its row's decoded bytes; blocked rows emptied, 4.0.0 declared
 and nothing else changed; a second run, no version, 1.x, 2.x and 4.x refused;
 a set decoded in several windows, and one page to a block so that blocks are
-written while more are pending, each blocked whole and in order; --workers
-below 1 refused; a dry run, a block that does not read back byte for byte or
-decodes longer than its items, a lost block and a blocked row left full, each
-writing nothing. On the second, with the default 64: an item over 1 MiB
-decoded kept as a row, and a block closed before it would decode past 4 MiB.
+written while more are pending, each blocked whole and in order; an empty row
+left a row; each block decoded once; --workers below 1 refused; a dry run, a
+block that does not read back byte for byte or decodes longer than its items,
+and, before the commit, a lost block with or without its items, a changed
+block, a moved item and a blocked row left full, each writing nothing. On the
+second, with the default 64: an item over 1 MiB decoded kept as a row, and a
+block closed before it would decode past 4 MiB.
 
     uv run --with pytest --with-requirements requirements.txt python -m pytest -q scripts/test_store_pages_in_blocks.py
 """
@@ -339,9 +341,25 @@ def test_the_summary_names_every_set_its_content_types_and_what_it_left(database
         assert f"  {name}: {pages} page(s) in {blocks} block(s);" in out
     devsite = next(line for line in out.splitlines() if line.startswith("  a/devsite/: 4 page(s)"))
     assert all(kind in devsite for kind in ("text/html 2", "text/css 1", "text/javascript 1"))
-    assert ("  i/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, and "
-            "1 continuation row(s).") in out
+    assert ("  i/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, "
+            "1 continuation row(s), and 0 empty row(s).") in out
     assert "Stored 21 page(s) in 9 block(s) of up to 3 pages and 4,194,304 bytes decoded" in out
+
+
+def test_an_empty_row_stays_a_row(database, capsys):
+    """An empty Brotli row has nothing to decode (`brotli -d` calls it corrupt input), so it is left as it is, and
+    every other page of its set is blocked as usual."""
+    db_path, plain = database
+    _execute(db_path, "INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                      "SELECT 'a/empty.html', 1, x'', id, 7 FROM ContentTypes WHERE value = 'text/html'")
+    assert _run(db_path) == 0
+    assert [path for paths in _block_paths(db_path) for path in paths] == _blocked_in_order()
+    _assert_every_slice_is_its_page(db_path, plain)
+    assert _query(db_path, "SELECT c.content FROM Content AS c LEFT JOIN ContentBlockItems AS i "
+                           "ON i.contentId = c.id WHERE c.path = 'a/empty.html' AND i.contentId IS NULL") == [(b"",)]
+    out = capsys.readouterr().out
+    assert ("  a/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, "
+            "1 continuation row(s), and 1 empty row(s).") in out
 
 
 def test_continuation_rows_are_left_alone(database):
@@ -393,7 +411,7 @@ class _Reversing:
     """A codec whose decode reverses the bytes, so a row and its decoded bytes differ."""
 
     @staticmethod
-    def decode(data: bytes) -> bytes:
+    def decompress(data: bytes, _compression: str) -> bytes:
         return data[::-1]
 
 
@@ -599,30 +617,32 @@ def test_workers_below_1_is_refused_on_an_error_line(database, capsys, monkeypat
     _assert_nothing_written(db_path, sha)
 
 
-class _Garbling(spb.DictionaryBrotli):
+class _Garbling(opt.BrotliCodec):
     """The real codec, except that the `garble`-th decode of each block it encoded comes back with one byte
-    changed, the length kept, or with `extend` with one byte more at the end, every item's slice intact."""
+    changed, the length kept, or with `extend` with one byte more at the end, every item's slice intact. `decodes`
+    counts the decodes of each block, across instances."""
     garble = 1
     extend = False
+    decodes = None
 
     def __init__(self, dictionary: bytes):
         super().__init__(dictionary)
         self._lock = threading.Lock()
-        self._decodes = {}
+        type(self).decodes = {}
 
-    def encode(self, data: bytes) -> bytes:
-        encoded = super().encode(data)
+    def compress(self, data: bytes, compression: str) -> bytes:
+        encoded = super().compress(data, compression)
         with self._lock:
-            self._decodes[encoded] = 0
+            self.decodes[encoded] = 0
         return encoded
 
-    def decode(self, data: bytes) -> bytes:
-        plain = super().decode(data)
+    def decompress(self, data: bytes, compression: str) -> bytes:
+        plain = super().decompress(data, compression)
         with self._lock:
-            if data not in self._decodes:
+            if data not in self.decodes:
                 return plain
-            self._decodes[data] += 1
-            if self._decodes[data] != self.garble:
+            self.decodes[data] += 1
+            if self.decodes[data] != self.garble:
                 return plain
         if self.extend:
             return plain + b"!"
@@ -635,36 +655,33 @@ def test_a_block_that_does_not_decode_back_byte_for_byte_writes_nothing(database
     a row is emptied can stop the run."""
     db_path, _plain = database
     sha = _sha(db_path)
-    monkeypatch.setattr(spb, "DictionaryBrotli", type("FirstDecode", (_Garbling,), {"garble": 1}))
+    monkeypatch.setattr(spb, "BrotliCodec", type("FirstDecode", (_Garbling,), {"garble": 1}))
     assert _run(db_path) == 1
     err = capsys.readouterr().err
     assert "does not read back byte for byte from the block starting at" in err and "nothing was written" in err, err
     _assert_nothing_written(db_path, sha)
 
 
-def test_a_stored_block_that_does_not_read_back_writes_nothing(database, capsys, monkeypatch):
-    """Garbled only on the second decode, the one over the stored blocks before the commit."""
-    db_path, _plain = database
-    sha = _sha(db_path)
-    monkeypatch.setattr(spb, "DictionaryBrotli", type("SecondDecode", (_Garbling,), {"garble": 2}))
-    assert _run(db_path) == 1
-    err = capsys.readouterr().err
-    assert "does not read back from block" in err and "nothing was written" in err, err
-    _assert_nothing_written(db_path, sha)
+def test_each_block_is_decoded_once(database, monkeypatch):
+    """The decode-back is the only one: the check before the commit compares each stored block with the block
+    built, by sha256, so a second decode, garbled here, never happens."""
+    db_path, plain = database
+    codec = type("SecondDecode", (_Garbling,), {"garble": 2})
+    monkeypatch.setattr(spb, "BrotliCodec", codec)
+    assert _run(db_path) == 0
+    assert sorted(codec.decodes.values()) == [1] * 9
+    _assert_every_slice_is_its_page(db_path, plain)
 
 
-@pytest.mark.parametrize("garble, says", [
-    (1, "decoded back to"),  # the decode-back, before a row is emptied
-    (2, "but its items add up to"),  # the decode of the stored blocks, before the commit
-], ids=["decode-back", "stored"])
-def test_a_block_that_decodes_longer_than_its_items_writes_nothing(database, capsys, monkeypatch, garble, says):
-    """One byte more at the end leaves every item's slice intact, so only a length check can stop the run."""
+def test_a_block_that_decodes_longer_than_its_items_writes_nothing(database, capsys, monkeypatch):
+    """One byte more at the end of the decode-back leaves every item's slice intact, so only a length check can
+    stop the run."""
     db_path, _plain = database
     sha = _sha(db_path)
-    monkeypatch.setattr(spb, "DictionaryBrotli", type("Longer", (_Garbling,), {"garble": garble, "extend": True}))
+    monkeypatch.setattr(spb, "BrotliCodec", type("Longer", (_Garbling,), {"garble": 1, "extend": True}))
     assert _run(db_path) == 1
     err = capsys.readouterr().err
-    assert says in err and "nothing was written" in err, err
+    assert "decoded back to" in err and "nothing was written" in err, err
     _assert_nothing_written(db_path, sha)
 
 
@@ -675,15 +692,35 @@ def _lose_the_last_block(conn) -> None:
     conn.execute("DELETE FROM ContentBlocks WHERE id = ?", (block_id,))
 
 
+def _lose_a_block_keeping_its_items(conn) -> None:
+    """A block gone and its items left naming it: one item per blocked row still, and their rows empty."""
+    conn.execute("DELETE FROM ContentBlocks WHERE id = (SELECT MAX(id) FROM ContentBlocks)")
+
+
+def _change_a_stored_block(conn) -> None:
+    """A block stored with one byte other than the one built, its length kept."""
+    block_id, data = conn.execute("SELECT id, data FROM ContentBlocks ORDER BY id LIMIT 1").fetchone()
+    conn.execute("UPDATE ContentBlocks SET data = ? WHERE id = ?", (bytes([data[0] ^ 1]) + data[1:], block_id))
+
+
+def _move_an_item(conn) -> None:
+    """An item located one byte later than where it was written."""
+    conn.execute("UPDATE ContentBlockItems SET offset = offset + 1 WHERE contentId = "
+                 "(SELECT MIN(contentId) FROM ContentBlockItems)")
+
+
 def _refill_a_blocked_row(conn) -> None:
     """A blocked row whose content was never emptied."""
     conn.execute("UPDATE Content SET content = x'00' WHERE id = (SELECT MIN(contentId) FROM ContentBlockItems)")
 
 
 @pytest.mark.parametrize("damage, says", [
-    (_lose_the_last_block, "ContentBlockItems does not hold one row per blocked item"),
+    (_lose_the_last_block, "item(s) as written, Content id"),
+    (_lose_a_block_keeping_its_items, "block(s) written are not in ContentBlocks, block 9 first"),
+    (_change_a_stored_block, "block 1 as stored is not the block written"),
+    (_move_an_item, "ContentBlockItems does not hold 1 item(s) as written"),
     (_refill_a_blocked_row, "1 blocked row(s) still hold their content"),
-], ids=["a block lost", "a row not emptied"])
+], ids=["a block lost", "a block lost, its items kept", "a block changed", "an item moved", "a row not emptied"])
 def test_the_check_before_the_commit_refuses_what_the_writes_got_wrong(database, capsys, monkeypatch, damage, says):
     """Each damage leaves every stored block decoding to its items, so only the check that names it can stop the
     run."""
