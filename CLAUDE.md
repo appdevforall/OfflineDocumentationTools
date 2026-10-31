@@ -133,14 +133,14 @@ edit that database** — it contains no part of the production Android app itsel
 > page over 1 MiB decoded, a row with continuation rows, and each continuation row stay rows, and a
 > block never decodes to more than 4 MiB, so two fit the app's 8 MiB block cache. 4.0.0 promises
 > everything 3.0.0 does too (keyed tooltips, compressed templates). The app's block reader is
-> ADFA-6683's CodeOnTheGo PR to `stage` (B04 in the ticket's plan), not yet numbered or merged. It
-> reads blocks only from a database declaring major 4 or later, never because the tables exist, so a
-> file declaring major 5 would be read as 4 (the gate is `>=`, as the 3.x gates are). An app without
+> CodeOnTheGo #2191 to `stage` (B04 in the ticket's plan). It reads blocks only from a database
+> declaring major 4 or later, never because the tables exist, so a file declaring major 5 would be
+> read as 4 (the gate is `>=`, as the 3.x gates are). An app without
 > the reader would show every blocked page empty. On the 2026-10-20 ship-time build the step blocked
 > 22,478 pages in 356 blocks and took the packed file's `.br` 10,368,636 bytes smaller (66,283,003 to
 > 55,914,367).
 >
-> Only the copy that ships gets the step, after the last dictionary re-mint and its verify, before the
+> On the copy that ships, the step runs after the last dictionary re-mint and its verify, before the
 > pack. With it, the order on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
 > `migrate_tooltip_schema.py`, `remint_dictionary.py --seeds 4` and `verify_remint_dictionary.py`,
 > `store_pages_in_blocks.py`, then `rebuild_database.py --pack
@@ -152,10 +152,15 @@ edit that database** — it contains no part of the production Android app itsel
 > has the figures.
 >
 > **The Google Drive master database the documentation team edits will become 4.0.0 and will never go
-> back to 3.x.** The blocks step itself still runs on the copy that ships, at build time, but from the
-> upgrade on every tool below that does not refuse 4.x runs on a blocked database. None of them may be
-> left as it is when the Drive copy is upgraded: each must be fixed or guarded first, as ADFA-6806 (the
-> docs pipeline scripts), ADFA-6807 (DocDB Studio) and ADFA-6808 (check-tools) track.
+> back to 3.x**, but not yet. The order above needs a 3.x copy, and the copy is made from the master:
+> the re-mint, its verify and the blocks step each refuse a 4.x file. So the master stays 3.x until
+> ADFA-6871 adds a build step that first turns the copy's blocks back into 3.x rows. The order then
+> runs as written: the dictionary is re-minted, and the blocks step blocks every page again, including
+> pages added or edited on the master since. ADFA-6872 teaches those three tools 4.x, after which that
+> build step can go. From the upgrade on, every tool below that does not refuse 4.x runs on a blocked
+> database. None of them may be left as it is when the Drive copy is upgraded: each must be fixed or
+> guarded first, as ADFA-6806 (the docs pipeline scripts), ADFA-6807 (DocDB Studio) and ADFA-6808
+> (check-tools) track.
 >
 > Which tools refuse 4.x, writing nothing: `store_pages_in_blocks.py` itself (it runs on a file
 > declaring 3, and refuses one that already has the tables); `remint_dictionary.py` and
