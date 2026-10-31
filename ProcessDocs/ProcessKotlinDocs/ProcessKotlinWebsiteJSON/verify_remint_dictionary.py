@@ -30,19 +30,25 @@ referenced). Nothing at runtime detects that, so it has to be caught here,
 against the original, before the file is put in place.
 
 Reads only: neither database is modified. A database it cannot check (no
-CompressionDictionary row) is reported on an "error:" line, exit 1.
+CompressionDictionary row) is reported on an "error:" line, exit 1. So is a
+pair where either database declares documentation major 4 or later
+(ADFA-6683), or has ContentBlocks or ContentBlockItems whatever it declares:
+most of its pages are, or may be, in ContentBlocks, which this check does not
+compare, and which remint_dictionary.py refuses to re-mint. Re-mint and verify
+before scripts/store_pages_in_blocks.py.
 """
 import argparse
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 
 import brotli
 
 from populate_db import DictionaryCompressor
 from migrate_content_to_dictionary_brotli import load_base_rows, read_item
-from remint_dictionary import templates_compressed
+from remint_dictionary import content_blocks_refusal, templates_compressed
 
 _thread_local = threading.local()
 
@@ -140,28 +146,33 @@ def verify(old_db: Path, new_db: Path, max_workers: int | None = None) -> list:
     """Every item and template that differs, as (label, problem). Raises RuntimeError for a database it cannot
     check."""
     import sqlite3
-    old_conn = sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)
-    new_conn = sqlite3.connect(f"file:{new_db}?mode=ro", uri=True)
-    old_dictionary = dictionary_of(old_conn, old_db)
-    new_dictionary = dictionary_of(new_conn, new_db)
-    if old_dictionary == new_dictionary:
-        print("warning: both databases carry the same dictionary; nothing was re-minted", file=sys.stderr)
+    # Closed however this returns: a refusal raises, and each refused pair would otherwise keep two handles open.
+    with closing(sqlite3.connect(f"file:{old_db}?mode=ro", uri=True)) as old_conn, \
+            closing(sqlite3.connect(f"file:{new_db}?mode=ro", uri=True)) as new_conn:
+        for path, conn in ((old_db, old_conn), (new_db, new_conn)):
+            refusal = content_blocks_refusal(conn, "This check compares")
+            if refusal:
+                raise RuntimeError(f"{path}: {refusal}")
+        old_dictionary = dictionary_of(old_conn, old_db)
+        new_dictionary = dictionary_of(new_conn, new_db)
+        if old_dictionary == new_dictionary:
+            print("warning: both databases carry the same dictionary; nothing was re-minted", file=sys.stderr)
 
-    items = [row[0] for row in load_base_rows(new_conn)]
-    print(f"Verifying {len(items):,} item(s)...", file=sys.stderr)
+        items = [row[0] for row in load_base_rows(new_conn)]
+        print(f"Verifying {len(items):,} item(s)...", file=sys.stderr)
 
-    bad = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for i, (path, problem) in enumerate(
-            zip(items, executor.map(
-                lambda p: check(old_dictionary, new_dictionary, old_db, new_db, p), items)), start=1
-        ):
-            if problem:
-                bad.append((path, problem))
-            if i % 6000 == 0:
-                print(f"  {i:,}/{len(items):,} checked, {len(bad)} mismatched", file=sys.stderr)
-    print(f"Byte-identical: {len(items) - len(bad):,}/{len(items):,}")
-    return bad + verify_templates(old_conn, new_conn, old_dictionary, new_dictionary)
+        bad = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for i, (path, problem) in enumerate(
+                zip(items, executor.map(
+                    lambda p: check(old_dictionary, new_dictionary, old_db, new_db, p), items)), start=1
+            ):
+                if problem:
+                    bad.append((path, problem))
+                if i % 6000 == 0:
+                    print(f"  {i:,}/{len(items):,} checked, {len(bad)} mismatched", file=sys.stderr)
+        print(f"Byte-identical: {len(items) - len(bad):,}/{len(items):,}")
+        return bad + verify_templates(old_conn, new_conn, old_dictionary, new_dictionary)
 
 
 def main() -> None:

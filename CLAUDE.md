@@ -80,7 +80,10 @@ edit that database** — it contains no part of the production Android app itsel
 > (the minify and the `a/` step do), so there every one of them runs before the migration. The order
 > on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
 > `migrate_tooltip_schema.py`, PR #48's `remint_dictionary.py --seeds 4` (which recompresses
-> templates too in 3.0.0), then `rebuild_database.py --pack Content,TooltipTexts`;
+> templates too in 3.0.0) and its verify, then `rebuild_database.py --pack
+> Templates,Content,TooltipTexts --page-size 4096`, as CodeOnTheGo's `compress_docdb.yml` packs it
+> (for 4.0.0, `store_pages_in_blocks.py` goes between the verify and the pack, which then ends with
+> `--pack Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`: "Schema 4.0.0" below);
 > `hm_pages_to_templates.py` goes after the `i/` page steps it lists, before the migration like
 > every other Templates writer. PR #48 has to merge no later than this step's PRs (#45, #50): the
 > re-mint and verifier before it handle Content only, so they refuse a database declaring 3.0.0.
@@ -96,12 +99,146 @@ edit that database** — it contains no part of the production Android app itsel
 > `docdb-regression-test.yaml` run selects `TooltipButtons.uri` and `Tooltips.detail`),
 > `sync_kdoc_json_to_db.py` (step 5 of `build-kotlin-docs.yaml`) and `TooltipManager.py`. Until they
 > catch up the step runs on the copy that ships, after all of them, and never on the master
-> database they edit; nothing converts 3.0 back. It needs the `brotli` CLI on PATH.
+> database they edit; nothing converts 3.0 back. (The Drive master will itself become 4.0.0, which
+> includes 3.0.0: "Schema 4.0.0" below.) It needs the `brotli` CLI on PATH.
 >
 > In the 3.0 shape `Tooltips.id` must be unique and name a `TooltipTexts` row: a writer takes the
 > id its `TooltipTexts` insert hands out, never one of its own. Nothing enforces it (a `UNIQUE (id)`
 > index would cost about the 613 pages the conversion saves), and two rows sharing an id share one
 > text, so deleting either key's text deletes the other's.
+
+> ### Schema 4.0.0: content blocks
+>
+> `scripts/store_pages_in_blocks.py` (ADFA-6683) stores most pages up to 64 to a compressed block and
+> declares **4.0.0**:
+>
+> ```sql
+> CREATE TABLE ContentBlocks (
+>     id   INTEGER PRIMARY KEY AUTOINCREMENT,
+>     data BLOB NOT NULL      -- Brotli (q11, w24) of the block's items, concatenated, against CompressionDictionary
+> );
+> CREATE TABLE ContentBlockItems (
+>     contentId INTEGER NOT NULL PRIMARY KEY REFERENCES Content(id),
+>     blockId   INTEGER NOT NULL REFERENCES ContentBlocks(id),
+>     offset    INTEGER NOT NULL, -- into the decoded block, in bytes
+>     length    INTEGER NOT NULL  -- in bytes
+> ) WITHOUT ROWID;
+> ```
+>
+> An item is exactly its row's decoded bytes, before any template is applied. **A blocked `Content`
+> row is empty**: it keeps `path`, `languageID`, `contentTypeID` and `templateId`, and its `content`
+> is `x''`, so anything that reads `Content.content` from a 4.x file reads nothing for that page. The
+> blocked rows are five sets, each in path order, never mixed in a block: `a/` templated JSON (not
+> `a/devsite/`), `j/` HTML, `k/` templated JSON, and every Brotli row under `a/devsite/` and `i/`. A
+> page over 1 MiB decoded, a row with continuation rows, and each continuation row stay rows, and a
+> block never decodes to more than 4 MiB, so two fit the app's 8 MiB block cache. 4.0.0 promises
+> everything 3.0.0 does too (keyed tooltips, compressed templates). The app's block reader is
+> CodeOnTheGo #2191 to `stage` (B04 in the ticket's plan). It reads blocks only from a database
+> declaring major 4 or later, never because the tables exist, so a file declaring major 5 would be
+> read as 4 (the gate is `>=`, as the 3.x gates are). An app without
+> the reader would show every blocked page empty. On the 2026-10-20 ship-time build the step blocked
+> 22,478 pages in 356 blocks and took the packed file's `.br` 10,368,636 bytes smaller (66,283,003 to
+> 55,914,367).
+>
+> On the copy that ships, the step runs after the last dictionary re-mint and its verify, before the
+> pack. With it, the order on that copy is: minify, row drops, Kotlin trim, `a/` pages-to-templates,
+> `migrate_tooltip_schema.py`, `remint_dictionary.py --seeds 4` and `verify_remint_dictionary.py`,
+> `store_pages_in_blocks.py`, then `rebuild_database.py --pack
+> Templates,Content,TooltipTexts,ContentBlocks --page-size 4096` (`ContentBlocks` in the list, so the
+> blocks are packed and `ContentBlockItems.blockId` follows them). The re-mint stays before the step:
+> re-minting after it, on the blocks, was measured (ADFA-6683's B02, 2026-10-26, on the 2026-10-23
+> 3.0.0 ship-time database) and saved at most 30,880 bytes of `.br` (the mean of 4 seeds was 25,285
+> bytes larger), against a 0.33 MB spread between re-mint seeds; `remint_dictionary.py`'s docstring
+> has the figures.
+>
+> **The Google Drive master database the documentation team edits will become 4.0.0 and will never go
+> back to 3.x**, but not yet. The master is 2.x: `migrate_tooltip_schema.py` runs only on the copy
+> that ships (above). The order above starts from a 2.x copy: the Kotlin trim and the `a/`
+> pages-to-templates step refuse a file declaring 3 or later, `migrate_tooltip_schema.py` converts
+> only 2.x, and the re-mint, its verify and the blocks step refuse 4.x. Nothing converts 3.0 back to
+> 2.x, so the order cannot start from a 4.x master, even with its blocks turned back into rows.
+> ADFA-6871 settles how a 4.x master is built into a copy that ships (which steps run, on what, and
+> in what order), and the master is not upgraded before it does. ADFA-6872 teaches the re-mint, its
+> verify and the blocks step 4.x. From the upgrade on, every tool below that does not refuse 4.x runs
+> on a blocked database. None of them may be left as it is when the Drive copy is upgraded: each must be fixed or
+> guarded first, as ADFA-6806 (the docs pipeline scripts), ADFA-6807 (DocDB Studio) and ADFA-6808
+> (check-tools) track.
+>
+> Which tools refuse 4.x, writing nothing: `store_pages_in_blocks.py` itself (it runs on a file
+> declaring 3, and refuses one that already has the tables); `remint_dictionary.py` and
+> `verify_remint_dictionary.py`, which recompress and compare `Content` rows and templates, not
+> blocks (they also refuse a file holding `ContentBlocks` or `ContentBlockItems`, whatever it
+> declares); `populate_db.py`, `sync_javadoc_json_to_db.py`, `load_android_json_db.py` and
+> `docdb-studio`, which refuse a major above 3; and `android_pages_to_templates.py` and
+> `trim_kotlin_json.py`, which refuse 3 or later.
+>
+> No other step that reads or writes `Content` knows blocks or refuses 4.x. Two read the version:
+> `drop_unread_rows.py`, only to know that templates are compressed from 3 on, and
+> `migrate_tooltip_schema.py`. None of them sees a blocked page as an empty one: its `x''` is not a
+> Brotli stream (`brotli -d` reports "corrupt input"), so decoding it fails. What each does then
+> (marked "run" where it was run on a small 4.0.0 test copy made with `store_pages_in_blocks.py
+> --pages-per-block 4`, "code" where it is read from the code):
+>
+> - refuses, writing nothing: `minify_text.py` (on the blocked stylesheets; run),
+>   `svg_images_to_webp.py` (on a blocked SVG; run), `optimize_pdfs.py` if a PDF were blocked (code),
+>   and `drop_unread_rows.py` only when it has to read a blocked row (run): given nothing to drop it
+>   exits 0 with "Nothing to do" without reading one, and given something to drop it reports every
+>   blocked row it must read (the rows to drop, then the kept rows' references) as unreadable and exits
+>   1, changing nothing;
+> - writes what it can read, then exits 1 on `error:` lines: `bundle_remote_images.py`,
+>   `remove_remote_loads.py`, `remove_skin_font_comment.py`, `share_skin_sprite.py`,
+>   `update_media_references.py` (code), `optimize_db_media.py` (run: it commits, then prints "failed to
+>   optimize" for each blocked SVG and exits 1) and `migrate_content_to_dictionary_brotli.py` (run: an
+>   `error:` line per blocked row and exit 1; it commits in batches, code);
+> - stops with a traceback before reaching a block, as on any 3.x file: `hm_pages_to_templates.py`
+>   (on its compressed template) and `check_remote_loads.py` (on the 3.x tooltip tables);
+> - stops with a traceback on the first blocked row: `insert_optimized_media.py` (run: it writes its
+>   backup, then `rewrite_pages` fails decoding the first blocked page, `insert_optimized_media.py:289`),
+>   `verify_android_json_db.py` (run: the first blocked `a/` page it samples, decoded with
+>   `populate_db.py:399` after the read at `verify_android_json_db.py:107`) and
+>   `set_content_type_compression.py` (run: after its backup, the first blocked row of the type, decoded
+>   at `:118-121`); `compare_svg_renders.py` fails the same way in `svg_rows` (`:74-76`; code, not run);
+> - exits 0 with a wrong answer: `list_database_documents.py` lists a blocked page as
+>   "Bytes: 0" (run; `:17-20`), and `migrate_tooltip_schema.py` leaves the file alone ("nothing to do");
+> - refuses a table it does not know, writing nothing: `DocumentationDatabase.py` and `ingest.py`
+>   (run: `ValueError: Database schema contains unexpected tables`, `DocumentationDatabase.py:92-95`; its
+>   allowed list is only `Content`, `Languages`, `ContentTypes` and `ide_tooltip_table`, so it refuses any
+>   2.x or 3.x `documentation.db` too, not only a 4.x one);
+> - fails on the 3.x tooltip tables whatever the blocks, so these cannot work on the master after 3.0.0
+>   either (ADFA-6808 for `check-tools`): `layout_xml_tooltips.py` (inserts `Tooltips(summary, detail)`,
+>   `:92-97`) and `TooltipManager.py` (`:52`) read or write columns the 3.0 `Tooltips` table no longer
+>   has (code; the same SQL on a 3.0.0 test copy gives "no such column: summary"), and so does
+>   `check-tools/` (`db_health_checker.py` selects `t.summary` at `:130`). `check-tools` also has a
+>   check of its own that a blocked database fails: the empty-content query at
+>   `db_health_checker.py:266-269` counts every blocked row (22 of 22 on the test copy) as empty;
+> - `sync_kdoc_json_to_db.py` has no version check and never decodes `Content`, so it writes into a
+>   blocked database as if it were 3.x, and silently (code, not run): `write_content` updates a `k/`
+>   page that still fits in one row in place (`UPDATE Content SET content = ?`, `:147`), leaving a blocked
+>   row holding its own content beside its `ContentBlockItems` row, a state the blocks step never writes
+>   (it checks that every blocked row is empty), and a page that has grown past one row is deleted and
+>   re-inserted under a new id (`:152-160`), which orphans its `ContentBlockItems` row;
+> - works on 4.x: `rebuild_database.py --pack Templates,Content,ContentBlocks` (run: it renumbers the
+>   blocks, follows `ContentBlockItems.blockId` and `contentId`, and keeps the declared 4.0.0).
+>
+> `docdb-studio` (ADFA-6807) refuses a major above 3 (`SUPPORTED_DATABASE_MAJOR_VERSION = 3`,
+> `docdb_studio.py:191`, checked at `:5220-5221`), and nothing in it mentions `ContentBlocks` or
+> `ContentBlockItems`: reading a page (`fetch_content_for_path`, `get_html_anchors_for_path`), listing
+> sizes (`get_paths_with_sizes`, `LENGTH(content)`), deleting rows (`_delete_content_by_ids`) and the
+> import's orphan pass all treat `Content.content` as the page, so a blocked page would read as empty
+> and a delete or overwrite would orphan its `ContentBlockItems` row. DocDB Studio has to gain block
+> support before the Drive copy is upgraded, or the team cannot edit the master.
+>
+> The ship-time steps all run before the blocks step on the copy that ships, and must never run after it
+> there. They also run on the Drive master, which is 4.0.0 from the upgrade, and these three do so
+> without refusing: `migrate_content_to_dictionary_brotli.py`, `insert_optimized_media.py` and
+> `sync_kdoc_json_to_db.py`, with the results above. They must be fixed or guarded (ADFA-6806) before the
+> Drive copy is upgraded.
+>
+> Release order: a 4.0.0 database goes to dev-assets or Drive only once the app's block reader is on
+> CodeOnTheGo's `stage`, and the Drive master is upgraded only after ADFA-6871, ADFA-6806, ADFA-6807
+> and ADFA-6808 are done. Builds take whatever dev-assets holds, so an early copy would give every build
+> empty pages. It ships with the 3.0.0 switch or later. An app update never replaces the installed
+> database, so a phone with a 3.x or 2.x file keeps the old read path.
 
 The schema below is what `~/documentation.db` (Alex's current production copy) actually contains,
 as of 2026-08-05 — predating the 2.0.0 bump described above, which additionally adds the
@@ -149,10 +286,14 @@ a placeholder.
 
 In a database whose newest `DocumentationDatabaseVersion` row declares major 3 or later, every
 `Templates` row is stored Brotli-compressed against the shared dictionary, with no per-row marker
-(ADFA-3305). Only the ship-time copy is converted; the master database the tools here edit keeps
+(ADFA-3305). Until the Drive master is upgraded to 4.0.0 ("Schema 4.0.0" above), only the ship-time copy is converted; the master database the tools here edit keeps
 plain templates. `remint_dictionary.py` and `verify_remint_dictionary.py` read the version the way
 the app does: from major 3 on they sample, recompress and verify the templates together with the
-`Content` rows, and below it they leave the templates exactly as stored.
+`Content` rows, and below it they leave the templates exactly as stored. From major 4 on (content
+blocks, "Schema 4.0.0" above) they refuse the file, writing nothing, and so they do a file holding
+`ContentBlocks` or `ContentBlockItems` whatever it declares. Re-minting on the blocks instead was
+measured (ADFA-6683's B02) and does not pay: at most 30,880 bytes of `.br`, against 0.33 MB of seed
+noise.
 
 `remint_dictionary.py` trains a 768 KiB dictionary on up to 3,600 rows within 128 MiB by default
 (ADFA-3305), where the first mint keeps 256 KiB on up to 900 rows within 32 MiB. On the 2026-10-19
@@ -244,9 +385,11 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   converts to documentation schema 3.0.0, which Code On The Go reads from 3.0.0 on: the WITHOUT ROWID,
   lookup-table tooltip shape, and every template Brotli-compressed against the dictionary; run it on the
   copy that ships, after every step that writes tooltips or templates, since they all write the old
-  shape and plain templates, never on the master they edit; re-mint afterwards, then pack
-  `Content,TooltipTexts`, not `Tooltips`), `minify_text.py` (ADFA-6627: minifies the
-  HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
+  shape and plain templates, never on the master they edit; re-mint afterwards, then
+  `rebuild_database.py --pack Templates,Content,TooltipTexts --page-size 4096` (not `Tooltips`);
+  for 4.0.0, `store_pages_in_blocks.py` goes before the pack, which then ends with `--pack
+  Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`), `minify_text.py` (ADFA-6627:
+  minifies the HTML, CSS, JS and SVG rows and the HTML templates without changing what a page shows; run
   `ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON/remint_dictionary.py` and
   `verify_remint_dictionary.py` straight after it, or the minified rows compress worse than before),
   `svg_images_to_webp.py` (ADFA-3305:
@@ -314,6 +457,10 @@ shape: every tool here reads and writes that, and only the shipped copy holds th
   `a/android/` and `a/androidx/` pages its own way. This step is the one that ships: the workflows
   that ran that pipeline on the master (`build-android-docs.yaml`, `build-android-docs-local.yaml`)
   were retired in ADFA-3305, never having run, since after it this step would convert almost nothing.
+- **`scripts/store_pages_in_blocks.py`** - stores the `a/`, `j/`, `k/`, `a/devsite/` and `i/` pages up
+  to 64 to a compressed block and declares documentation version 4.0.0 (ADFA-6683; "Schema 4.0.0"
+  above). Ship-time copy only, after the last re-mint and its verify, then `rebuild_database.py --pack
+  Templates,Content,TooltipTexts,ContentBlocks --page-size 4096`.
 - **`scripts/myServer.py`** — a minimal Python `http.server` reference implementation that predates
   `WebServer.kt`. It queries a differently-cased `Documentation.db`, doesn't implement Brotli
   decompression (there's a literal `TODO: Replace this function with Brotli decompression`), and

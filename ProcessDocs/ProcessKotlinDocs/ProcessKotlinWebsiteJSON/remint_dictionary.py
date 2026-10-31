@@ -107,6 +107,28 @@ to 908,471 bytes, beside 46.96 to 47.10 MB of Content, and the templates
 decided the outcome: seed 20821, the only one to beat the dictionary in place,
 stored 73 bytes more Content than it and 51,657 bytes less in templates.
 
+From documentation version 4.0.0 on (ADFA-6683), scripts/store_pages_in_blocks.py
+stores most pages in ContentBlocks, compressed against the same dictionary,
+and leaves their Content rows empty. This re-mint recompresses Content rows
+and templates, not blocks, so it refuses a database whose newest
+DocumentationDatabaseVersion row declares major 4 or later, or that has
+ContentBlocks or ContentBlockItems whatever it declares, before training and
+with nothing written, backup included; the verifier refuses one too. On the
+copy that ships, the re-mint and its verify go before the blocks step:
+remint_dictionary.py --seeds 4, verify_remint_dictionary.py,
+store_pages_in_blocks.py, then rebuild_database.py --pack
+Templates,Content,TooltipTexts,ContentBlocks --page-size 4096.
+
+Re-minting after the blocks step instead, on the blocks, was measured and does
+not pay (ADFA-6683's B02, 2026-10-26, on the 2026-10-23 3.0.0 ship-time
+database, 4 seeds each, packed as above, .br with brotli -q 11 -w 24). A dictionary
+trained on the decoded blocks, cut into 128 KiB pieces, with the rows left and
+the templates, stored a .br at most 30,880 bytes smaller than this re-mint run
+before the blocks step, and 25,285 bytes larger on the mean of the 4 seeds:
+far inside the 0.33 MB seed spread above. Whole blocks as samples did worse,
+0.52 to 0.74 MB larger, because zstd trains on the first 128 KiB of a sample
+only.
+
 Every row is proved to round-trip against the new dictionary before it is
 written. The backup (VACUUM INTO, unless --no-backup) is taken only then, just
 before the write: a run that refuses, or keeps the dictionary in place, writes
@@ -154,6 +176,16 @@ REMINT_TRAINING_BYTES = 128 * 1024 * 1024
 TEMPLATES_COMPRESSED_FROM_MAJOR = 3
 # Templates are sampled under this pseudo path, so they form a doc set of their own.
 TEMPLATE_SAMPLE_PREFIX = "(templates)/"
+# From this documentation major on, most pages are stored in ContentBlocks (ADFA-6683), which neither this re-mint
+# nor its verifier handles, so both refuse such a database.
+CONTENT_BLOCKS_FROM_MAJOR = 4
+# The tables scripts/store_pages_in_blocks.py adds. Both tools refuse a database holding either one, whatever
+# version it declares: a version row rewritten after the blocks step would not move the pages back into Content.
+CONTENT_BLOCK_TABLES = ("ContentBlocks", "ContentBlockItems")
+# Where the re-mint and its verify go on the copy that ships, relative to the blocks step and the pack.
+SHIP_TIME_ORDER = ("remint_dictionary.py --seeds 4, verify_remint_dictionary.py, scripts/store_pages_in_blocks.py, "
+                   "then scripts/rebuild_database.py --pack Templates,Content,TooltipTexts,ContentBlocks "
+                   "--page-size 4096")
 
 
 def declared_major(conn) -> int | None:
@@ -170,6 +202,28 @@ def declared_major(conn) -> int | None:
 def templates_compressed(conn) -> bool:
     major = declared_major(conn)
     return major is not None and major >= TEMPLATES_COMPRESSED_FROM_MAJOR
+
+
+def content_blocks_refusal(conn, handles: str) -> str | None:
+    """Why the re-mint or its verifier (`handles`: what it does, as "This re-mint recompresses") must leave this
+    database alone, or None: from CONTENT_BLOCKS_FROM_MAJOR on, most pages are in ContentBlocks, which neither
+    handles, and a database holding any of CONTENT_BLOCK_TABLES may have pages there whatever it declares."""
+    major = declared_major(conn)
+    if major is not None and major >= CONTENT_BLOCKS_FROM_MAJOR:
+        why = (f"the database declares documentation major {major}, and from {CONTENT_BLOCKS_FROM_MAJOR}.0.0 "
+               "(ADFA-6683) most pages are stored in ContentBlocks")
+    else:
+        tables = [name for name in CONTENT_BLOCK_TABLES if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone()]
+        if not tables:
+            return None
+        declared = "no documentation version" if major is None else f"documentation major {major}"
+        why = (f"the database has {' and '.join(tables)}, the tables scripts/store_pages_in_blocks.py (ADFA-6683) "
+               f"adds, though it declares {declared}, so its pages may be stored in ContentBlocks whatever its "
+               "version row now says")
+    return (f"{why}, compressed against the dictionary, with their Content rows empty. {handles} Content rows and "
+            "templates, not blocks. Re-mint before scripts/store_pages_in_blocks.py, never after it: on the copy "
+            f"that ships the order is {SHIP_TIME_ORDER}")
 
 
 def load_templates(conn, old_dictionary: bytes) -> list:
@@ -305,7 +359,11 @@ def remint(conn, sample_size: int = REMINT_SAMPLE_SIZE, dict_size: int = REMINT_
     with the Content rows, in each candidate's total and the current dictionary's
     alike. `before_write` is called once every check has passed, just before the
     write, and not at all when nothing is to be written: main() takes its backup
-    there."""
+    there. A database with blocks (see CONTENT_BLOCKS_FROM_MAJOR) is refused
+    before anything else."""
+    refusal = content_blocks_refusal(conn, "This re-mint recompresses")
+    if refusal:
+        raise RuntimeError(f"{refusal}; nothing written")
     row = conn.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
     if row is None or not row[0]:
         raise RuntimeError("this database has no CompressionDictionary to re-mint; "
