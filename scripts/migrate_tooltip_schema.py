@@ -606,10 +606,12 @@ def convert(conn) -> list:
     return dropped
 
 
-def declare_version(conn) -> None:
+def declare_version(conn, major: int = TO_MAJOR, who: str = WHO, comment: str = COMMENT) -> None:
+    """Replaces every DocumentationDatabaseVersion row with one declaring major.0.0. scripts/store_pages_in_blocks.py
+    declares 4.0.0 with it."""
     conn.execute("DELETE FROM DocumentationDatabaseVersion")
     conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
-                 (TO_MAJOR, WHO, COMMENT))
+                 (major, who, comment))
 
 
 def run(cfg: dict) -> int:
