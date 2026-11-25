@@ -342,7 +342,7 @@ def test_the_summary_names_every_set_its_content_types_and_what_it_left(database
     devsite = next(line for line in out.splitlines() if line.startswith("  a/devsite/: 4 page(s)"))
     assert all(kind in devsite for kind in ("text/html 2", "text/css 1", "text/javascript 1"))
     assert ("  i/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, "
-            "1 continuation row(s), and 0 empty row(s).") in out
+            "1 continuation row(s), 0 empty row(s), and 0 row(s) that decode to nothing.") in out
     assert "Stored 21 page(s) in 9 block(s) of up to 3 pages and 4,194,304 bytes decoded" in out
 
 
@@ -359,7 +359,109 @@ def test_an_empty_row_stays_a_row(database, capsys):
                            "ON i.contentId = c.id WHERE c.path = 'a/empty.html' AND i.contentId IS NULL") == [(b"",)]
     out = capsys.readouterr().out
     assert ("  a/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, "
-            "1 continuation row(s), and 1 empty row(s).") in out
+            "1 continuation row(s), 1 empty row(s), and 0 row(s) that decode to nothing.") in out
+
+
+def _insert_hollow_row(db_path: Path, path: str = "a/hollow.html") -> None:
+    """A Brotli row that is not empty but decodes to nothing: the stream of no bytes, against the dictionary."""
+    dictionary = db_path.with_name("hollow.dict.bin")
+    dictionary.write_bytes(DICTIONARY)
+    stored = _brotli(["-c"], b"", dictionary)
+    assert stored
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("INSERT INTO Content (path, languageID, content, contentTypeID, templateId) "
+                     "SELECT ?, 1, ?, id, 7 FROM ContentTypes WHERE value = 'text/html'", (path, stored))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_a_row_that_decodes_to_nothing_stays_a_row(database, capsys):
+    """The app's block reader refuses an item of no bytes (CodeOnTheGo #2191), so such a row is left as it is,
+    counted and named, and every other page of its set is blocked as usual (ADFA-7289)."""
+    db_path, plain = database
+    _insert_hollow_row(db_path)
+    before = _query(db_path, "SELECT content FROM Content WHERE path = 'a/hollow.html'")
+    assert _run(db_path) == 0
+    assert [path for paths in _block_paths(db_path) for path in paths] == _blocked_in_order()
+    _assert_every_slice_is_its_page(db_path, plain)
+    assert _query(db_path, "SELECT c.content FROM Content AS c LEFT JOIN ContentBlockItems AS i "
+                           "ON i.contentId = c.id WHERE c.path = 'a/hollow.html' AND i.contentId IS NULL") == before
+    assert _query(db_path, "SELECT COUNT(*) FROM ContentBlockItems WHERE length < 1") == [(0,)]
+    out = capsys.readouterr().out
+    assert ("  a/: left as rows: 0 page(s) over 1,048,576 bytes decoded, 1 page(s) held in more than one row, "
+            "1 continuation row(s), 0 empty row(s), and 1 row(s) that decode to nothing.") in out
+    assert "    decodes to nothing: a/hollow.html" in out
+
+
+def test_the_check_before_the_commit_refuses_an_item_of_no_bytes(database, capsys, monkeypatch):
+    """Should a row that decodes to nothing reach a block, the check before the commit refuses its item, which the
+    app would refuse, and writes nothing. Each row gets its own block here, so the grouping lets it through."""
+    db_path, _plain = database
+    _insert_hollow_row(db_path)
+    sha = _sha(db_path)
+
+    def one_to_a_block(decoded, *_limits_and_lists):
+        for row, raw in decoded:
+            yield [(row, raw)]
+
+    monkeypatch.setattr(spb, "group_items", one_to_a_block)
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert "1 item(s) in ContentBlockItems have no bytes" in err and "nothing was written" in err, err
+    _assert_nothing_written(db_path, sha)
+
+
+def test_the_version_comment_gives_the_pages_per_block_used(database):
+    db_path, _plain = database
+    assert _run(db_path, per_block=4) == 0
+    [(comment,)] = _query(db_path, "SELECT comment FROM DocumentationDatabaseVersion WHERE major = 4")
+    assert comment == spb.version_comment(4)
+    assert "stored up to 4 to a Brotli block" in comment and "64" not in comment
+
+
+def test_a_brotli_process_that_cannot_start_is_reported_with_nothing_written(database, capsys, monkeypatch):
+    """An OSError, such as too many open files with many --workers or no brotli binary, gets the error line, not a
+    traceback."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+
+    def cannot_start(_codec, _row):
+        raise OSError(24, "Too many open files")
+
+    monkeypatch.setattr(spb, "decode_row", cannot_start)
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: [Errno 24] Too many open files; nothing was written"), err
+    _assert_nothing_written(db_path, sha)
+
+
+class _RollbackFails(sqlite3.Connection):
+    def execute(self, sql, *args):
+        if sql == "ROLLBACK":
+            raise sqlite3.OperationalError("the rollback failed")
+        return super().execute(sql, *args)
+
+
+def test_a_failed_rollback_keeps_the_error_that_ended_the_run(database, capsys, monkeypatch):
+    """The error reported is the one that ended the run; the rollback's own failure is a warning after it. Closing
+    the connection still rolls the transaction back, so nothing is written."""
+    db_path, _plain = database
+    sha = _sha(db_path)
+
+    def fails(_conn, _written):
+        raise RuntimeError("the check failed")
+
+    connect = sqlite3.connect
+    monkeypatch.setattr(spb, "check_stored", fails)
+    monkeypatch.setattr(spb.sqlite3, "connect", lambda *args, **kwargs: connect(*args, factory=_RollbackFails, **kwargs))
+    assert _run(db_path) == 1
+    err = capsys.readouterr().err
+    assert "warning: the rollback failed too: the rollback failed" in err, err
+    assert "error: the check failed; nothing was written" in err, err
+    monkeypatch.undo()
+    _assert_nothing_written(db_path, sha)
 
 
 def test_continuation_rows_are_left_alone(database):
@@ -485,8 +587,8 @@ def test_blocked_rows_are_emptied_and_nothing_else_changes(database):
 def test_declares_4_0_0_in_one_row(database):
     db_path, _plain = database
     assert _run(db_path) == 0
-    assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.COMMENT)]
-    assert "ADFA-6683" in spb.COMMENT
+    assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.version_comment(PER_BLOCK))]
+    assert f"stored up to {PER_BLOCK} to a Brotli block" in spb.version_comment(PER_BLOCK)
     conn = sqlite3.connect(db_path)
     try:
         assert spb.declared_major(conn) == 4
@@ -559,7 +661,7 @@ def test_the_newest_version_row_decides(database, rows, major):
     sha = _sha(db_path)
     if major == 3:
         assert _run(db_path) == 0
-        assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.COMMENT)]
+        assert _query(db_path, VERSION_ROWS) == [(4, 0, 0, "ADFA-6683", spb.version_comment(PER_BLOCK))]
     else:
         assert _run(db_path) == 1
         _assert_nothing_written(db_path, sha)

@@ -130,7 +130,8 @@ edit that database** — it contains no part of the production Android app itsel
 > is `x''`, so anything that reads `Content.content` from a 4.x file reads nothing for that page. The
 > blocked rows are five sets, each in path order, never mixed in a block: `a/` templated JSON (not
 > `a/devsite/`), `j/` HTML, `k/` templated JSON, and every Brotli row under `a/devsite/` and `i/`. A
-> page over 1 MiB decoded, a row with continuation rows, and each continuation row stay rows, and a
+> page over 1 MiB decoded, a row with continuation rows, each continuation row, an empty row and a
+> row that decodes to nothing (the app refuses an item of no bytes; ADFA-7289) stay rows, and a
 > block never decodes to more than 4 MiB, so two fit the app's 8 MiB block cache. 4.0.0 promises
 > everything 3.0.0 does too (keyed tooltips, compressed templates). The app's block reader is
 > CodeOnTheGo #2191 to `stage` (B04 in the ticket's plan). It reads blocks only from a database

@@ -196,7 +196,9 @@ def declared_major(conn) -> int | None:
         return None
     row = conn.execute("SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
                        ).fetchone()
-    return row[0] if row else None
+    # As stored, a major in a column without integer affinity comes back as text, which the comparisons with the
+    # FROM_MAJOR constants would end in a TypeError rather than a refusal.
+    return int(row[0]) if row else None
 
 
 def templates_compressed(conn) -> bool:

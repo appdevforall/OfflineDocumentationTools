@@ -768,6 +768,25 @@ class ContentBlocksRefusalTest(_RemintFixture):
                 self.assertEqual(dict(self.conn.execute("SELECT path, content FROM Content")), content)
                 self.assertEqual(self.stored_templates(), templates)
 
+    def test_a_major_stored_as_text_is_refused_like_a_number(self):
+        """A version table whose major column has no integer affinity hands back '4', not 4. Compared as stored, it
+        ended the re-mint and its verifier in a TypeError instead of the refusal."""
+        self.add_versions_and_templates(majors=(), version_table=False)
+        self.conn.execute(VERSION_SQL.replace("major INT", "major TEXT"))
+        self.conn.execute("INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment, changeTime) "
+                          "VALUES ('4', 0, 0, 'test', 'test', '2026-10-26 00:00:00')")
+        self.conn.commit()
+        self.assertEqual(self.conn.execute("SELECT typeof(major) FROM DocumentationDatabaseVersion").fetchone(),
+                         ("text",))
+        self.assertEqual(remint_dictionary.declared_major(self.conn), 4)
+        original = self.snapshot()
+        with self.assertRaises(RuntimeError) as raised:
+            self.remint()
+        self.assertIn("declares documentation major 4", str(raised.exception))
+        with self.assertRaises(RuntimeError) as raised:
+            verify(original, self.db_path)
+        self.assertIn("declares documentation major 4", str(raised.exception))
+
     def test_the_newest_version_row_decides(self):
         """An older row declaring 4 under a newer one declaring 3 is a 3.x database, as the app reads it: re-minted,
         templates and all, and verified."""

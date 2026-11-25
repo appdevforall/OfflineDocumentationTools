@@ -76,7 +76,9 @@ INSERT at line 398), so there is no templateId condition here.
 Only rows whose content type is compressed with brotli, and only items held in
 one row: a row that owns continuation rows ("path-1", ... after a 1 MiB row),
 and each continuation row, stay as they are. So does an empty row, which has
-nothing to decode.
+nothing to decode, and a row that decodes to nothing: the app's block reader
+refuses an item of no bytes, while left a row the page reads as it did before
+4.0.0 (ADFA-7289).
 
 The cap: an item over MAX_ITEM_BYTES (1 MiB) decoded stays a row. A block
 closes at --pages-per-block items (default 64), or before the next item would
@@ -85,15 +87,17 @@ block, and the app caches decoded blocks up to 8 MiB, so two blocks always fit.
 Without the cap, j/'s Javadoc index pages (up to 5,065,005 bytes each) made a
 64-page block decode to 28,055,018 bytes. The summary counts, for each set,
 the pages in blocks and their content types, the pages the cap kept as rows,
-the rows left for their continuation rows, and the empty rows.
+the rows left for their continuation rows, the empty rows, and the rows that
+decode to nothing, and names up to ten each of the pages the cap kept and the
+rows that decode to nothing.
 
 Checks: every block is decoded again before its rows are emptied; it must
 decode to its items' total length, and each item's slice of it is compared byte
 for byte with its row's decoded bytes. Before the commit ContentBlocks must
 hold exactly the blocks written, each the same bytes (by sha256) as the block
 that was decoded back, ContentBlockItems exactly the items written, each with
-its block, offset and length, and every blocked row must be empty. A block
-stored as it was built decodes as it did, so it is not decoded twice. Any
+its block, offset and length, no item may be of no bytes, and every blocked
+row must be empty. A block stored as it was built decodes as it did, so it is not decoded twice. Any
 failure rolls everything back.
 
 A database that already has ContentBlocks or ContentBlockItems is refused
@@ -164,9 +168,13 @@ FROM_MAJOR, TO_MAJOR = 3, 4
 # migrate_tooltip_schema.py turns this major, and no other, into 3.0.0.
 TOOLTIP_MIGRATION_FROM_MAJOR = 2
 WHO = "ADFA-6683"
-COMMENT = ("ADFA-6683: a/, j/, k/, a/devsite/ and i/ pages stored up to 64 to a Brotli block in ContentBlocks, each "
-           "located by ContentBlockItems; a blocked Content row's content is empty. Keyed tooltips and compressed "
-           "templates as in 3.0.0")
+
+
+def version_comment(per_block: int) -> str:
+    """The version row's comment, with the pages per block this run used."""
+    return (f"ADFA-6683: a/, j/, k/, a/devsite/ and i/ pages stored up to {per_block} to a Brotli block in "
+            "ContentBlocks, each located by ContentBlockItems; a blocked Content row's content is empty. Keyed "
+            "tooltips and compressed templates as in 3.0.0")
 
 SCHEMA = (
     """CREATE TABLE ContentBlocks (
@@ -242,12 +250,17 @@ def decoded_in_order(pool, codec: BrotliCodec, rows: list):
         yield from zip(batch, pool.map(lambda row: decode_row(codec, row), batch))
 
 
-def group_items(decoded, per_block: int, kept: list):
+def group_items(decoded, per_block: int, kept: list, hollow: list):
     """Walks (row, decoded bytes) in path order and yields the blocks, each a list of them. A block closes at
     `per_block` items, or before the next item would take it past MAX_BLOCK_BYTES decoded. An item over
-    MAX_ITEM_BYTES decoded goes to `kept` instead, and stays a row."""
+    MAX_ITEM_BYTES decoded goes to `kept` instead, and a row that decodes to nothing to `hollow`; both stay rows."""
     group, size = [], 0
     for row, plain in decoded:
+        if not plain:
+            # The app's block reader refuses an item of no bytes (CodeOnTheGo #2191), and left a row the page
+            # reads as it did before 4.0.0 (ADFA-7289).
+            hollow.append(row)
+            continue
         if len(plain) > MAX_ITEM_BYTES:
             kept.append(row)
             continue
@@ -286,7 +299,8 @@ def store_set(conn, pool, codec: BrotliCodec, rows: list, per_block: int, worker
     the set's figures."""
     stored_length = {row[0]: len(row[3]) for row in rows}
     content_type = {row[0]: row[2] for row in rows}
-    figures = {"blocks": 0, "items": 0, "stored": 0, "compressed": 0, "decoded": 0, "types": Counter(), "kept": []}
+    figures = {"blocks": 0, "items": 0, "stored": 0, "compressed": 0, "decoded": 0, "types": Counter(), "kept": [],
+               "hollow": []}
     written_blocks, written_items = written
     pending = deque()
 
@@ -306,7 +320,7 @@ def store_set(conn, pool, codec: BrotliCodec, rows: list, per_block: int, worker
         figures["compressed"] += len(data)
         figures["decoded"] += plain_length
 
-    for group in group_items(decoded_in_order(pool, codec, rows), per_block, figures["kept"]):
+    for group in group_items(decoded_in_order(pool, codec, rows), per_block, figures["kept"], figures["hollow"]):
         pending.append(pool.submit(build_block, codec, group))
         while len(pending) > 2 * workers:
             write(pending.popleft())
@@ -341,6 +355,10 @@ def check_stored(conn, written: tuple) -> None:
                         "(SELECT contentId FROM ContentBlockItems)").fetchone()[0]
     if left:
         raise RuntimeError(f"{left} blocked row(s) still hold their content")
+    # The app's block reader refuses an item of no bytes, so such an item would be a page that never loads.
+    hollow = conn.execute("SELECT COUNT(*) FROM ContentBlockItems WHERE length < 1").fetchone()[0]
+    if hollow:
+        raise RuntimeError(f"{hollow} item(s) in ContentBlockItems have no bytes")
 
 
 def report(summary: list, per_block: int, dry_run: bool) -> None:
@@ -349,14 +367,15 @@ def report(summary: list, per_block: int, dry_run: bool) -> None:
         print(f"  {name}: {human(figures['items'])} page(s) in {human(figures['blocks'])} block(s); their rows held "
               f"{human(figures['stored'])} bytes, the blocks hold {human(figures['compressed'])} "
               f"({human(figures['decoded'])} decoded). Content types: {types or 'none'}.")
-        kept = figures["kept"]
+        kept, hollow = figures["kept"], figures["hollow"]
         print(f"  {name}: left as rows: {human(len(kept))} page(s) over {human(MAX_ITEM_BYTES)} bytes decoded, "
               f"{human(chunked)} page(s) held in more than one row, {human(continuations)} continuation row(s), "
-              f"and {human(empty)} empty row(s).")
-        for _id, path, _type, _stored in kept[:10]:
-            print(f"    kept by the cap: {path}")
-        if len(kept) > 10:
-            print(f"    ... and {human(len(kept) - 10)} more")
+              f"{human(empty)} empty row(s), and {human(len(hollow))} row(s) that decode to nothing.")
+        for why, rows in (("kept by the cap", kept), ("decodes to nothing", hollow)):
+            for _id, path, _type, _stored in rows[:10]:
+                print(f"    {why}: {path}")
+            if len(rows) > 10:
+                print(f"    ... and {human(len(rows) - 10)} more")
     every_set = [figures for _name, figures, *_left in summary]
     saved = sum(each["stored"] - each["compressed"] for each in every_set)
     verb, declare = ("Would store", "would declare") if dry_run else ("Stored", "declared")
@@ -415,16 +434,22 @@ def run(cfg: dict) -> int:
                     figures = store_set(conn, pool, codec, rows, per_block, workers, written)
                     summary.append((name, figures, chunked, continuations, empty))
             check_stored(conn, written)
-            declare_version(conn, TO_MAJOR, WHO, COMMENT)
+            declare_version(conn, TO_MAJOR, WHO, version_comment(per_block))
             if cfg["dry_run"]:
                 conn.execute("ROLLBACK")
             else:
                 conn.execute("COMMIT")
         except BaseException:
             if conn.in_transaction:
-                conn.execute("ROLLBACK")
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error as rollback:
+                    # The error that ended the run is the one to report. Nothing was committed either way: the
+                    # transaction the failed ROLLBACK leaves open is rolled back when the connection closes.
+                    print(f"warning: the rollback failed too: {rollback}", file=sys.stderr)
             raise
-    except (sqlite3.Error, RuntimeError) as exc:
+    except (sqlite3.Error, RuntimeError, OSError) as exc:
+        # OSError: a brotli process that could not start, such as no binary or too many open files.
         print(f"error: {exc}; nothing was written", file=sys.stderr)
         return 1
     finally:
